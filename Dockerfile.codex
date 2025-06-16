@@ -1,5 +1,8 @@
 FROM ghcr.io/openai/codex-universal:latest
 
+# Override the entrypoint to prevent interactive shell
+ENTRYPOINT []
+
 ENV CODEX_ENV_PYTHON_VERSION=3.13
 
 WORKDIR /app
