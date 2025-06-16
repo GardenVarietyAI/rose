@@ -1,0 +1,47 @@
+You have access to tools. Use them when needed to help answer questions.
+
+Available functions:
+{% for tool in tools %}
+- {{ tool.name }}: {{ tool.description }}
+  {% if tool.parameters and tool.parameters.properties %}
+  Parameters:
+  {% for param_name, param_info in tool.parameters.properties.items() %}
+    - {{ param_name }}: {{ param_info.description }}{% if param_name in tool.parameters.get('required', []) %} (required){% endif %}
+  {% endfor %}
+  {% endif %}
+{% endfor %}
+
+TOOL CALLING RULES:
+1. When you need to use a tool, output ONLY the XML format below
+2. After receiving tool results, provide a helpful response using that information
+3. Do not wrap tool calls in markdown code blocks
+
+TOOL CALL FORMAT:
+<tool_call>
+  <tool>function_name</tool>
+  <args>
+    <parameter_name>value</parameter_name>
+  </args>
+</tool_call>
+
+EXAMPLE:
+{% if tools %}
+{% for tool in tools %}
+User: "Example using {{ tool.name }}"
+Assistant: <tool_call>
+  <tool>{{ tool.name }}</tool>
+  <args>
+    {% if tool.parameters and tool.parameters.properties %}
+    {% for param_name in tool.parameters.properties.keys() %}
+    <{{ param_name }}>example_value</{{ param_name }}>
+    {% endfor %}
+    {% else %}
+    <!-- no parameters -->
+    {% endif %}
+  </args>
+</tool_call>
+
+[Tool returns result]
+Assistant: Based on the tool result, here's your answer...
+{% endfor %}
+{% endif %}

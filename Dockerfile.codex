@@ -1,0 +1,54 @@
+# Use OpenAI's codex-universal as base - how meta!
+FROM ghcr.io/openai/codex-universal:latest
+
+# Set Python version to use
+ENV CODEX_ENV_PYTHON_VERSION=3.11
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    # For ChromaDB/SQLite
+    libsqlite3-dev \
+    # For potential audio processing
+    ffmpeg \
+    # Cleanup
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy dependency files first (better caching)
+COPY pyproject.toml poetry.lock ./
+
+# Install Python dependencies using poetry (already in base image!)
+RUN poetry config virtualenvs.create false && \
+    poetry install --no-interaction --no-ansi
+
+# Copy application code
+COPY src/ ./src/
+COPY scripts/ ./scripts/
+
+# Create data directories
+RUN mkdir -p /app/data/uploads \
+    /app/data/chroma \
+    /app/data/models \
+    /app/data/fine_tuning_checkpoints
+
+# Expose ports
+EXPOSE 8004
+
+# Set environment variables
+ENV PYTHONPATH=/app/src:$PYTHONPATH
+ENV HOST=0.0.0.0
+ENV PORT=8004
+ENV DATA_DIR=/app/data
+ENV CHROMA_PERSIST_DIR=/app/data/chroma
+ENV MODEL_CACHE_DIR=/app/data/models
+ENV FINE_TUNING_CHECKPOINT_DIR=/app/data/fine_tuning_checkpoints
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8004/health || exit 1
+
+# Default to running with uvicorn for better dev experience
+# Override with command in docker-compose if needed
+CMD ["uvicorn", "llm_service.app:app", "--host", "0.0.0.0", "--port", "8004"]

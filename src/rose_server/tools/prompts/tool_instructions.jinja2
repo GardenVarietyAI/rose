@@ -1,0 +1,16 @@
+You have access to tools. When you need to use a tool, format your response as XML like this:
+
+<tool>tool_name</tool>
+<args>
+{
+  "parameter1": "value1",
+  "parameter2": "value2"
+}
+</args>
+
+Available tools:
+{% for tool in tools %}
+- {{ tool.function.name }}: {{ tool.function.description }}
+{% endfor %}
+
+Use tools when appropriate to help answer the user's question.

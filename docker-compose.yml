@@ -1,0 +1,128 @@
+version: '3.8'
+
+services:
+  llm-service:
+    # Build from codex-universal base
+    build:
+      context: .
+      dockerfile: Dockerfile.codex
+    image: rose-server:latest
+    container_name: llm-service
+    ports:
+      - "8004:8004"
+    environment:
+      # Service configuration
+      - HOST=0.0.0.0
+      - PORT=8004
+      - LOG_LEVEL=INFO
+      - RELOAD=false
+      # Dev mode: enable auto-reload (requires source mount)
+      # - RELOAD=true
+      
+      # Model configuration
+      - DEFAULT_MODEL=qwen2.5-0.5b
+      - MAX_CONCURRENT_INFERENCE=2
+      - MODEL_CACHE_DIR=/app/data/models
+      
+      # ChromaDB configuration
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - CHROMA_PERSIST_DIR=/app/data/chroma
+      
+      # Data paths
+      - DATA_DIR=/app/data
+      - FINE_TUNING_CHECKPOINT_DIR=/app/data/fine_tuning_checkpoints
+      
+      # GPU support (uncomment if using NVIDIA GPU)
+      # - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      # Persistent data
+      - ./data:/app/data
+      # Model cache (can be shared across containers)
+      - model-cache:/app/data/models
+      # For development - mount source code
+      - ./src:/app/src:ro
+      # Mount HuggingFace cache
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    depends_on:
+      - chromadb
+    restart: unless-stopped
+    # Uncomment for GPU support
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # ChromaDB vector database
+  chromadb:
+    image: ghcr.io/chroma-core/chroma:latest
+    container_name: chromadb
+    ports:
+      - "8003:8000"  # Map to 8003 on host to avoid conflicts
+    volumes:
+      - chromadb-data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma
+      - ANONYMIZED_TELEMETRY=false
+    restart: unless-stopped
+
+  # Alternative: Use codex-universal directly with mounted code
+  llm-service-dev:
+    image: ghcr.io/openai/codex-universal:latest
+    container_name: llm-service-dev
+    profiles: ["dev"]  # Only run with --profile dev
+    ports:
+      - "8005:8004"
+    working_dir: /app
+    environment:
+      - CODEX_ENV_PYTHON_VERSION=3.11
+      - PYTHONPATH=/app/src:$PYTHONPATH
+      - HOST=0.0.0.0
+      - PORT=8004
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+    volumes:
+      # Mount entire project for development
+      - .:/app
+      - model-cache:/app/data/models
+    command: |
+      bash -c "
+        cd /app && 
+        poetry install --no-interaction &&
+        poetry run python -m rose_server.main
+      "
+    depends_on:
+      - chromadb
+    stdin_open: true
+    tty: true
+
+  # Optional: Queue worker for background jobs (fine-tuning, evals)
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.codex
+    image: numa-llm-service:codex
+    container_name: llm-worker
+    profiles: ["worker"]  # Only run with --profile worker
+    environment:
+      - PYTHONPATH=/app:$PYTHONPATH
+      - DATA_DIR=/app/data
+      - MODEL_CACHE_DIR=/app/data/models
+    volumes:
+      - ./data:/app/data
+      - model-cache:/app/data/models
+      - ./src:/app/src:ro
+    command: ["python", "-m", "rose_server.queues.worker"]
+    depends_on:
+      - llm-service
+    restart: unless-stopped
+
+volumes:
+  model-cache:
+    driver: local
+  chromadb-data:
+    driver: local
