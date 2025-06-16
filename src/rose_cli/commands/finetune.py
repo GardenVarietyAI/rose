@@ -125,7 +125,8 @@ def events(
                             timestamp = time.strftime("%H:%M:%S", time.localtime(event.created_at))
                             level_style = "green" if event.level == "info" else "red"
                             console.print(
-                                f"[dim]{timestamp}[/dim] [{level_style}]{event.level.upper()}[/{level_style}]: {event.message}"
+                                f"[dim]{timestamp}[/dim] "
+                                f"[{level_style}]{event.level.upper()}[/{level_style}]: {event.message}"
                             )
                         last_event_id = new_events[0].id
                     time.sleep(2)
@@ -213,7 +214,8 @@ def test(
                 {"role": "user", "content": "What's the weather like?"},
                 {
                     "role": "assistant",
-                    "content": "I don't have access to current weather data, but you can check your local weather service!",
+                    "content": "I don't have access to current weather data, "
+                    "but you can check your local weather service!",
                 },
             ]
         },
