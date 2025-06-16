@@ -8,7 +8,8 @@ services:
     ports:
       - "8004:8004"
     environment:
-      - ROSE_SERVER_CHROMADB_HOST=chromadb
+      - ROSE_SERVER_CHROMA_HOST=chromadb
+      - ROSE_SERVER_CHROMA_PORT=8000
     volumes:
       - ./data:/app/data
       - ~/.cache/huggingface:/root/.cache/huggingface
