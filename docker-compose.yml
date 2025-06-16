@@ -1,67 +1,45 @@
 version: '3.8'
 
 services:
-  llm-service:
-    # Build from codex-universal base
+  rose-server:
     build:
       context: .
       dockerfile: Dockerfile.codex
     image: rose-server:latest
-    container_name: llm-service
+    container_name: rose-server
     ports:
       - "8004:8004"
     environment:
-      # Service configuration
-      - HOST=0.0.0.0
-      - PORT=8004
-      - LOG_LEVEL=INFO
-      - RELOAD=false
-      # Dev mode: enable auto-reload (requires source mount)
-      # - RELOAD=true
-      
-      # Model configuration
-      - DEFAULT_MODEL=qwen2.5-0.5b
-      - MAX_CONCURRENT_INFERENCE=2
-      - MODEL_CACHE_DIR=/app/data/models
-      
-      # ChromaDB configuration
-      - CHROMA_HOST=chromadb
-      - CHROMA_PORT=8000
-      - CHROMA_PERSIST_DIR=/app/data/chroma
-      
-      # Data paths
-      - DATA_DIR=/app/data
-      - FINE_TUNING_CHECKPOINT_DIR=/app/data/fine_tuning_checkpoints
-      
-      # GPU support (uncomment if using NVIDIA GPU)
-      # - CUDA_VISIBLE_DEVICES=0
+      - ROSE_SERVER_HOST=0.0.0.0
+      - ROSE_SERVER_PORT=8004
+      - ROSE_SERVER_LOG_LEVEL=INFO
+      - ROSE_SERVER_RELOAD=false
+
+      - ROSE_SERVER_DEFAULT_MODEL=qwen2.5-0.5b
+      - ROSE_SERVER_MAX_CONCURRENT_INFERENCE=2
+      - ROSE_SERVER_MODEL_CACHE_DIR=/app/data/models
+
+      - ROSE_SERVER_CHROMADB_HOST=chromadb
+      - ROSE_SERVER_CHROMADB_PORT=8000
+      - ROSE_SERVER_CHROMADB_PATH=/app/data/chroma
+
+      - ROSE_SERVER_DATA_DIR=/app/data
+      - ROSE_SERVER_FINE_TUNING_CHECKPOINT_DIR=/app/data/fine_tuning_checkpoints
+
     volumes:
-      # Persistent data
       - ./data:/app/data
-      # Model cache (can be shared across containers)
       - model-cache:/app/data/models
-      # For development - mount source code
       - ./src:/app/src:ro
-      # Mount HuggingFace cache
       - ~/.cache/huggingface:/root/.cache/huggingface
     depends_on:
       - chromadb
     restart: unless-stopped
-    # Uncomment for GPU support
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
 
-  # ChromaDB vector database
   chromadb:
-    image: ghcr.io/chroma-core/chroma:latest
+    image: chromadb/chroma:latest
     container_name: chromadb
     ports:
-      - "8003:8000"  # Map to 8003 on host to avoid conflicts
+      - "8003:8000"
     volumes:
       - chromadb-data:/chroma/chroma
     environment:
@@ -70,28 +48,26 @@ services:
       - ANONYMIZED_TELEMETRY=false
     restart: unless-stopped
 
-  # Alternative: Use codex-universal directly with mounted code
-  llm-service-dev:
+  rose-server-dev:
     image: ghcr.io/openai/codex-universal:latest
-    container_name: llm-service-dev
-    profiles: ["dev"]  # Only run with --profile dev
+    container_name: rose-server-dev
+    profiles: ["dev"]
     ports:
       - "8005:8004"
     working_dir: /app
     environment:
-      - CODEX_ENV_PYTHON_VERSION=3.11
-      - PYTHONPATH=/app/src:$PYTHONPATH
-      - HOST=0.0.0.0
-      - PORT=8004
-      - CHROMA_HOST=chromadb
-      - CHROMA_PORT=8000
+      - CODEX_ENV_PYTHON_VERSION=3.13
+      - PYTHONPATH=/app/src
+      - ROSE_SERVER_HOST=0.0.0.0
+      - ROSE_SERVER_PORT=8004
+      - ROSE_SERVER_CHROMADB_HOST=chromadb
+      - ROSE_SERVER_CHROMADB_PORT=8000
     volumes:
-      # Mount entire project for development
       - .:/app
       - model-cache:/app/data/models
     command: |
       bash -c "
-        cd /app && 
+        cd /app &&
         poetry install --no-interaction &&
         poetry run python -m rose_server.main
       "
@@ -100,25 +76,24 @@ services:
     stdin_open: true
     tty: true
 
-  # Optional: Queue worker for background jobs (fine-tuning, evals)
   worker:
     build:
       context: .
       dockerfile: Dockerfile.codex
-    image: numa-llm-service:codex
+    image: rose-server:latest
     container_name: llm-worker
-    profiles: ["worker"]  # Only run with --profile worker
+    profiles: ["worker"]
     environment:
-      - PYTHONPATH=/app:$PYTHONPATH
-      - DATA_DIR=/app/data
-      - MODEL_CACHE_DIR=/app/data/models
+      - PYTHONPATH=/app/src
+      - ROSE_SERVER_DATA_DIR=/app/data
+      - ROSE_SERVER_MODEL_CACHE_DIR=/app/data/models
     volumes:
       - ./data:/app/data
       - model-cache:/app/data/models
       - ./src:/app/src:ro
-    command: ["python", "-m", "rose_server.queues.worker"]
+    command: ["python", "-m", "rose_server.worker"]
     depends_on:
-      - llm-service
+      - rose-server
     restart: unless-stopped
 
 volumes:
