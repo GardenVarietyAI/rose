@@ -1,15 +1,18 @@
 FROM ghcr.io/openai/codex-universal:latest
 
-# Override the entrypoint to prevent interactive shell
-ENTRYPOINT []
-
 ENV CODEX_ENV_PYTHON_VERSION=3.13
 
 WORKDIR /app
 
 COPY . .
 
-RUN poetry install --no-interaction --no-ansi
+# Override the entrypoint
+COPY entrypoint.sh /entrypoint.sh
+
+# Run setup and install in a single RUN to preserve the environment
+RUN bash -lc "python --version && \
+    pip install poetry && \
+    poetry install --no-interaction --no-ansi"
 
 EXPOSE 8004
 
@@ -21,4 +24,5 @@ ENV ROSE_SERVER_CHROMADB_PATH=/app/data/chroma
 ENV ROSE_SERVER_MODEL_CACHE_DIR=/app/data/models
 ENV ROSE_SERVER_FINE_TUNING_CHECKPOINT_DIR=/app/data/fine_tuning_checkpoints
 
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["poetry", "run", "uvicorn", "rose_server.app:app", "--host", "0.0.0.0", "--port", "8004"]
