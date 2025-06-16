@@ -232,7 +232,7 @@ async def create_eval_run(
         if eval_metadata.get("source") == "inline":
             content_str = eval_metadata.get("content", "[]")
             metadata["inline_content"] = json.loads(content_str) if isinstance(content_str, str) else content_str
-    job_id = await EvalJob.dispatch(
+    await EvalJob.dispatch(
         eval_id=run_id,
         model=model,
         eval=eval_def.name,

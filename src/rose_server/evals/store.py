@@ -217,7 +217,7 @@ class EvalStore:
         async def _get_samples(session: AsyncSession) -> List[EvalSample]:
             query = select(EvalSample).where(EvalSample.eval_run_id == eval_run_id)
             if only_failed:
-                query = query.where(EvalSample.passed == False)
+                query = query.where(not EvalSample.passed)
             query = query.order_by(EvalSample.sample_index).offset(offset).limit(limit)
             result = await session.execute(query)
             return list(result.scalars().all())
@@ -242,9 +242,7 @@ class EvalStore:
             )
             total = total_result.scalar() or 0
             passed_result = await session.execute(
-                select(func.count(EvalSample.id))
-                .where(EvalSample.eval_run_id == eval_run_id)
-                .where(EvalSample.passed == True)
+                select(func.count(EvalSample.id)).where(EvalSample.eval_run_id == eval_run_id).where(EvalSample.passed)
             )
             passed = passed_result.scalar() or 0
             return {"total": total, "passed": passed, "failed": total - passed}

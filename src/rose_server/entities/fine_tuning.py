@@ -5,8 +5,6 @@ from typing import Dict, List, Optional
 
 from openai.types.fine_tuning import (
     FineTuningJob as OpenAIFineTuningJob,
-)
-from openai.types.fine_tuning import (
     FineTuningJobEvent as OpenAIFineTuningJobEvent,
 )
 from sqlalchemy import JSON, Index

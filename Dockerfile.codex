@@ -2,28 +2,21 @@ FROM ghcr.io/openai/codex-universal:latest
 
 ENV CODEX_ENV_PYTHON_VERSION=3.13
 
-RUN apt-get update && apt-get install -y \
-    libsqlite3-dev \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 
-COPY pyproject.toml poetry.lock ./
+COPY . .
 
-RUN poetry config virtualenvs.create false && \
-    poetry install --no-interaction --no-ansi
+# Override the entrypoint
+COPY entrypoint.sh /entrypoint.sh
 
-COPY src/ ./src/
-
-RUN mkdir -p /app/data/uploads \
-    /app/data/chroma \
-    /app/data/models \
-    /app/data/fine_tuning_checkpoints
+# Run setup and install in a single RUN to preserve the environment
+RUN bash -lc "python --version && \
+    pip install poetry && \
+    poetry install --no-interaction --no-ansi"
 
 EXPOSE 8004
 
-ENV PYTHONPATH=/app/src:$PYTHONPATH
+ENV PYTHONPATH=/app/src
 ENV ROSE_SERVER_HOST=0.0.0.0
 ENV ROSE_SERVER_PORT=8004
 ENV ROSE_SERVER_DATA_DIR=/app/data
@@ -31,7 +24,5 @@ ENV ROSE_SERVER_CHROMADB_PATH=/app/data/chroma
 ENV ROSE_SERVER_MODEL_CACHE_DIR=/app/data/models
 ENV ROSE_SERVER_FINE_TUNING_CHECKPOINT_DIR=/app/data/fine_tuning_checkpoints
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8004/health || exit 1
-
-CMD ["uvicorn", "rose_server.app:app", "--host", "0.0.0.0", "--port", "8004"]
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["poetry", "run", "uvicorn", "rose_server.app:app", "--host", "0.0.0.0", "--port", "8004"]

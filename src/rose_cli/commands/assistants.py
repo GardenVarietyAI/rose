@@ -142,7 +142,7 @@ def delete_assistant(
             return
     client = get_client(base_url)
     try:
-        response = client.beta.assistants.delete(assistant_id)
+        client.beta.assistants.delete(assistant_id)
         console.print(f"Deleted assistant: [red]{assistant_id}[/red]")
     except Exception as e:
         console.print(f"Error: {e}", style="red")

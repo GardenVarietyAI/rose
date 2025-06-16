@@ -49,7 +49,7 @@ def list_threads(
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """List threads."""
-    client = get_client(base_url)
+    get_client(base_url)
     try:
         import httpx
 
@@ -167,7 +167,7 @@ def delete_thread(
             return
     client = get_client(base_url)
     try:
-        response = client.beta.threads.delete(thread_id)
+        client.beta.threads.delete(thread_id)
         console.print(f"Deleted thread: [red]{thread_id}[/red]")
     except Exception as e:
         console.print(f"Error: {e}", style="red")

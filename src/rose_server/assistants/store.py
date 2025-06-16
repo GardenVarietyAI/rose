@@ -10,8 +10,10 @@ from sqlalchemy import delete
 from sqlmodel import select
 
 from ..database import current_timestamp, run_in_session
-from ..entities.assistants import Assistant as AssistantDB
-from ..entities.assistants import AssistantTool
+from ..entities.assistants import (
+    Assistant as AssistantDB,
+    AssistantTool,
+)
 from ..schemas.assistants import Assistant, CreateAssistantRequest, UpdateAssistantRequest
 
 logger = logging.getLogger(__name__)

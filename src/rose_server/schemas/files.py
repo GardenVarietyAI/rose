@@ -48,7 +48,8 @@ class TrainingData(BaseModel):
             raise ValueError(
                 "Training data must be in one of these OpenAI formats:\n"
                 "1. Supervised fine-tuning: {'messages': [{'role': 'user', 'content': '...'}, ...]}\n"
-                "2. DPO preference format: {'input': {'messages': [...]}, 'preferred_output': [...], 'non_preferred_output': [...]}\n"
+                "2. DPO preference format: {'input': {'messages': [...]}, "
+                "'preferred_output': [...], 'non_preferred_output': [...]}\n"
                 "3. Legacy completion format: {'prompt': '...', 'completion': '...'}"
             )
 

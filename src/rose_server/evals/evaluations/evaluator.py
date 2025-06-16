@@ -45,11 +45,12 @@ class Evaluator:
         try:
             metadata = kwargs
             data_source = metadata.get("data_source", {})
-            eval_def_id = metadata.get("eval_def_id")
+            metadata.get("eval_def_id")
             inline_content = metadata.get("inline_content")
             max_samples = metadata.get("max_samples")
             logger.info(
-                f"inline_content present: {inline_content is not None}, length: {len(inline_content) if inline_content else 0}"
+                f"inline_content present: {inline_content is not None}, "
+                f"length: {len(inline_content) if inline_content else 0}"
             )
             if inline_content:
                 dataset_content = inline_content
