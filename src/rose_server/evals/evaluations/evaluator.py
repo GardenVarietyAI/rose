@@ -45,7 +45,7 @@ class Evaluator:
         try:
             metadata = kwargs
             data_source = metadata.get("data_source", {})
-            eval_def_id = metadata.get("eval_def_id")
+            metadata.get("eval_def_id")
             inline_content = metadata.get("inline_content")
             max_samples = metadata.get("max_samples")
             logger.info(

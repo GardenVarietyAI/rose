@@ -78,8 +78,21 @@ line-length = 120
 target-version = "py312"
 fix = true
 
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
 [tool.ruff.lint]
 select = ["E", "F", "I"]
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.isort]
+force-single-line = false
+force-wrap-aliases = true
+combine-as-imports = true
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

@@ -43,7 +43,7 @@ async def process_tool_outputs(run: Run, tool_outputs: List[Dict[str, Any]], run
     )
     thread_store = ThreadStore()
     assistant_store = get_assistant_store()
-    assistant = await assistant_store.get_assistant(run.assistant_id)
+    await assistant_store.get_assistant(run.assistant_id)
     tool_results = []
     for output in tool_outputs:
         tool_results.append(f"Tool {output.get('tool_call_id', 'unknown')} result: {output.get('output', '')}")
