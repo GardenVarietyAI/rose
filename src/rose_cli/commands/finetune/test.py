@@ -1,0 +1,74 @@
+from typing import Optional
+
+import typer
+
+from ...utils import console, get_client, get_endpoint_url
+
+
+def test_fine_tuned_model(
+    job_id: str = typer.Argument(..., help="Fine-tuning job ID"),
+    url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
+    local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
+):
+    """Test a fine-tuned model with sample prompts."""
+    endpoint_url = get_endpoint_url(url, local)
+    client = get_client(endpoint_url)
+
+    try:
+        # Get the fine-tuning job
+        job = client.fine_tuning.jobs.retrieve(job_id)
+
+        if job.status != "succeeded":
+            console.print(f"[red]Job {job_id} is not complete. Status: {job.status}[/red]")
+            return
+
+        if not job.fine_tuned_model:
+            console.print(f"[red]No fine-tuned model found for job {job_id}[/red]")
+            return
+
+        console.print(f"[green]Testing model: {job.fine_tuned_model}[/green]\n")
+
+        # Test prompts
+        test_prompts = [
+            {
+                "messages": [
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": "Hello! What can you do?"},
+                ]
+            },
+            {
+                "messages": [
+                    {"role": "user", "content": "Write a Python function to calculate factorial."},
+                ]
+            },
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "What is the weather like today?",
+                    },
+                    {
+                        "role": "assistant",
+                        "content": "I don't have access to current weather data, "
+                        "but you can check your local weather service!",
+                    },
+                    {"role": "user", "content": "Thanks! Can you help me with Python instead?"},
+                ]
+            },
+        ]
+
+        for i, prompt in enumerate(test_prompts, 1):
+            console.print(f"[cyan]Test {i}:[/cyan]")
+            for msg in prompt["messages"]:
+                console.print(f"  [{msg['role']}]: {msg['content']}")
+
+            response = client.chat.completions.create(
+                model=job.fine_tuned_model,
+                messages=prompt["messages"],
+                max_tokens=150,
+            )
+
+            console.print(f"  [assistant]: {response.choices[0].message.content}\n")
+
+    except Exception as e:
+        console.print(f"[red]error: {e}[/red]")

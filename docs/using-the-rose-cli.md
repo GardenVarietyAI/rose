@@ -57,13 +57,26 @@ poetry run rose models get qwen-coder
 poetry run rose models pull phi-4
 ```
 
+### Completions
+
+```bash
+# Generate a completion
+poetry run rose completions "Once upon a time"
+
+# With custom parameters
+poetry run rose completions "def fibonacci(" --model qwen-coder --max-tokens 200
+
+# Stream the completion
+poetry run rose completions "Write a poem" --stream
+
+# Echo the prompt in response
+poetry run rose completions "The sky is" --echo
+```
+
 ### File Operations
 
 ```bash
 # Upload a file
-poetry run rose upload training_data.jsonl --purpose fine-tune
-
-# Or using the files command
 poetry run rose files upload training_data.jsonl --purpose fine-tune
 
 # List files

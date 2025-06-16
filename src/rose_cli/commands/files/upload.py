@@ -1,17 +1,15 @@
-"""Upload command."""
-
 import os
 from typing import Optional
 
 import typer
 
-from ..utils import get_client, get_endpoint_url
+from ...utils import get_client, get_endpoint_url
 
 app = typer.Typer()
 
 
 @app.command()
-def file(
+def upload_file(
     file_path: str = typer.Argument(..., help="Path to file"),
     purpose: str = typer.Option("fine-tune", "--purpose", "-p", help="File purpose"),
     url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
