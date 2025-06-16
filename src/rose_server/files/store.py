@@ -1,5 +1,3 @@
-"""Unified file storage for all OpenAI file endpoints."""
-
 import asyncio
 import json
 import logging
@@ -19,14 +17,11 @@ logger = logging.getLogger(__name__)
 
 
 class FileStore:
-    """Manages file storage for all purposes (fine-tuning, vector stores, assistants, etc.)."""
-
     def __init__(self, base_path: str = "data/uploads"):
         self.base_path = Path(base_path)
         self._files: Dict[str, FileObject] = {}
 
     async def _load_existing_files(self):
-        """Load metadata for existing files from disk."""
         await aiofiles.os.makedirs(self.base_path, exist_ok=True)
         metadata_path = self.base_path / "metadata.json"
         if await aiofiles.os.path.exists(metadata_path):
@@ -41,7 +36,6 @@ class FileStore:
                 logger.error(f"Failed to load file metadata: {e}")
 
     async def _save_metadata(self):
-        """Save file metadata to disk."""
         metadata_path = self.base_path / "metadata.json"
         try:
             data = {file_id: file_obj.model_dump() for file_id, file_obj in self._files.items()}
@@ -52,7 +46,6 @@ class FileStore:
             logger.error(f"Failed to save file metadata: {e}")
 
     def _generate_file_id(self, purpose: str) -> str:
-        """Generate a file ID with purpose prefix."""
         prefix_map = {
             "fine-tune": "fine",
             "fine-tune-results": "fine",
@@ -66,7 +59,6 @@ class FileStore:
         return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
     async def create_file(self, file: BinaryIO, purpose: FilePurpose, filename: Optional[str] = None) -> FileObject:
-        """Create a new file."""
         file_id = self._generate_file_id(purpose)
         content = await asyncio.to_thread(file.read)
         file_size = len(content)
@@ -92,11 +84,9 @@ class FileStore:
         return file_obj
 
     def get_file(self, file_id: str) -> Optional[FileObject]:
-        """Get file metadata."""
         return self._files.get(file_id)
 
     async def get_file_content(self, file_id: str) -> Optional[bytes]:
-        """Get file content."""
         file_path = self.base_path / file_id
         if file_path.exists():
             async with aiofiles.open(file_path, "rb") as f:
@@ -123,7 +113,6 @@ class FileStore:
         return files[:limit]
 
     async def delete_file(self, file_id: str) -> Optional[FileDeleted]:
-        """Delete a file."""
         if file_id not in self._files:
             return None
         file_path = self.base_path / file_id
@@ -135,7 +124,6 @@ class FileStore:
         return FileDeleted(id=file_id, object="file", deleted=True)
 
     async def update_file_status(self, file_id: str, status: str, status_details: Optional[str] = None):
-        """Update the status of a file."""
         if file_id not in self._files:
             return False
         old_file = self._files[file_id]

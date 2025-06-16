@@ -33,7 +33,6 @@ def _session() -> httpx.Client:
 
 
 def _post_webhook(event: str, obj: str, job_id: int, object_id: str, data: Dict | None = None) -> None:
-    """Fire a webhook, swallow network errors but log them."""
     payload = {
         "event": event,
         "object": obj,
@@ -61,7 +60,6 @@ def _device_memory_log(label: str) -> None:
 
 
 def _hard_memory_cleanup() -> None:
-    """Free GPU / MPS caches and run GC."""
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
         torch.cuda.synchronize()
@@ -161,7 +159,6 @@ def process_training_job_sync(job_id: int, payload: Dict[str, Any]) -> Optional[
 
 
 def process_eval_job_sync(job_id: int, payload: Dict[str, Any]) -> Optional[Dict]:
-    """Run a benchmark synchronously."""
     logger.info("Processing eval job %s: %s", job_id, payload)
     eval_id = payload.get("eval_id")
     model = payload.get("model")
@@ -225,7 +222,6 @@ def _schedule_poller(scheduler: BackgroundScheduler) -> None:
 
 
 def main() -> None:
-    """Entry point when run as a standalone worker."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",

@@ -1,5 +1,3 @@
-"""Chat command."""
-
 from typing import Optional
 
 import typer
@@ -18,7 +16,6 @@ def chat_handler(
     stream: bool,
     completion: bool = False,
 ):
-    """Handle the actual chat logic."""
     endpoint_url = get_endpoint_url(url, local)
     client = get_client(endpoint_url)
     try:
@@ -75,7 +72,6 @@ def chat(
     stream: bool = typer.Option(False, "--stream", help="Stream response"),
     completion: bool = typer.Option(False, "--completion", "-c", help="Use completion mode instead of chat"),
 ):
-    """Chat with models."""
     if ctx.invoked_subcommand is None and message:
         chat_handler(
             message=message, model=model, url=url, local=local, system=system, stream=stream, completion=completion

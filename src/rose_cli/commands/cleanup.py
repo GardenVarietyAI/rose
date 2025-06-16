@@ -1,5 +1,3 @@
-"""Cleanup commands for managing models, files, and jobs."""
-
 from typing import List, Optional
 
 import typer
@@ -17,7 +15,6 @@ def models(
     base_url: Optional[str] = typer.Option("http://localhost:8004/v1", "--base-url", help="Base URL"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be deleted without actually deleting"),
 ):
-    """Clean up fine-tuned models."""
     client = OpenAI(base_url=base_url, api_key="dummy")
     console.print("Scanning for fine-tuned models...")
     try:
@@ -62,7 +59,6 @@ def files(
     base_url: Optional[str] = typer.Option("http://localhost:8004/v1", "--base-url", help="Base URL"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be deleted without actually deleting"),
 ):
-    """Clean up uploaded files."""
     client = OpenAI(base_url=base_url, api_key="dummy")
     console.print("Scanning for uploaded files...")
     try:
@@ -105,7 +101,6 @@ def jobs(
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be deleted without actually deleting"),
     status: List[str] = typer.Option(["failed", "cancelled"], "--status", help="Job statuses to clean up"),
 ):
-    """Clean up fine-tuning jobs by status."""
     client = OpenAI(base_url=base_url, api_key="dummy")
     console.print(f"Scanning for fine-tuning jobs with status: {', '.join(status)}...")
     try:
@@ -151,7 +146,6 @@ def all(
     base_url: Optional[str] = typer.Option("http://localhost:8004/v1", "--base-url", help="Base URL"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be deleted without actually deleting"),
 ):
-    """Clean up everything: failed jobs, orphaned files, and old models."""
     console.print("[bold]Full cleanup operation[/bold]")
     console.print("\nCleaning up failed/cancelled jobs...")
     jobs(base_url=base_url, dry_run=dry_run, status=["failed", "cancelled"])

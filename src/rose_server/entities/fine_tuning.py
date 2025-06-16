@@ -1,5 +1,3 @@
-"""Fine-tuning database entities."""
-
 import time
 from typing import Dict, List, Optional
 
@@ -12,8 +10,6 @@ from sqlmodel import Field, SQLModel
 
 
 class FineTuningJob(SQLModel, table=True):
-    """Fine-tuning job model - OpenAI compatible."""
-
     __tablename__ = "fine_tuning_jobs"
     id: str = Field(primary_key=True)
     created_at: int
@@ -39,7 +35,6 @@ class FineTuningJob(SQLModel, table=True):
     )
 
     def to_openai(self) -> OpenAIFineTuningJob:
-        """Convert to OpenAI format using JSON columns."""
         data = self.model_dump()
         data["object"] = "fine_tuning.job"
         if "hyperparameters" not in data or data["hyperparameters"] is None:
@@ -52,8 +47,6 @@ class FineTuningJob(SQLModel, table=True):
 
 
 class FineTuningEvent(SQLModel, table=True):
-    """Fine-tuning event model - OpenAI compatible."""
-
     __tablename__ = "fine_tuning_events"
     id: str = Field(primary_key=True)
     object: str = Field(default="fine_tuning.job.event")
@@ -68,5 +61,4 @@ class FineTuningEvent(SQLModel, table=True):
     )
 
     def to_openai(self) -> OpenAIFineTuningJobEvent:
-        """Convert to OpenAI FineTuningJobEvent."""
         return OpenAIFineTuningJobEvent(**self.model_dump())

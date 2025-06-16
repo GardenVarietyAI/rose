@@ -37,17 +37,14 @@ router.include_router(webhooks_router)
 
 @router.post("/v1/traces")
 async def create_trace():
-    """Dummy trace endpoint to prevent SDK errors."""
     return {"id": "trace_dummy", "object": "trace"}
 
 
 @router.get("/v1/traces/{trace_id}")
 async def get_trace(trace_id: str):
-    """Dummy get trace endpoint."""
     return {"id": trace_id, "object": "trace"}
 
 
 @router.post("/v1/projects/{project_id}/traces")
 async def create_project_trace(project_id: str):
-    """Dummy project trace endpoint."""
     return {"id": "trace_dummy", "object": "trace"}

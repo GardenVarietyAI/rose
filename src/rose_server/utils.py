@@ -5,7 +5,6 @@ logger = logging.getLogger(__name__)
 
 
 def extract_user_content(content: Union[str, List[Dict[str, Any]]]) -> Optional[str]:
-    """Extract text content from various content formats."""
     if isinstance(content, str):
         return content
     elif isinstance(content, list):

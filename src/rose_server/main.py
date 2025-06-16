@@ -7,13 +7,11 @@ from rose_server.config import ServiceConfig
 
 
 def handle_exit(signum, frame):
-    """Handle termination signals gracefully."""
     print("\nReceived signal to terminate. Shutting down...")
     sys.exit(0)
 
 
 def main():
-    """Main entry point for the service."""
     signal.signal(signal.SIGINT, handle_exit)
     signal.signal(signal.SIGTERM, handle_exit)
     uvicorn.run(
