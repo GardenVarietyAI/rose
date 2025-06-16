@@ -7,8 +7,9 @@ from typing import Any, Dict, List, Optional
 from ..services import get_file_store, get_fine_tuning_store
 
 logger = logging.getLogger(__name__)
-@dataclass(slots=True)
 
+
+@dataclass(slots=True)
 class StepMetrics:
     step: int
     train_loss: float
@@ -17,8 +18,8 @@ class StepMetrics:
     train_accuracy: Optional[float] = None
     valid_loss: Optional[float] = None
     valid_accuracy: Optional[float] = None
-    @classmethod
 
+    @classmethod
     def from_event(cls, data: Dict[str, Any]) -> "StepMetrics":
         return cls(
             step=int(data["step"]),
@@ -30,11 +31,13 @@ class StepMetrics:
             valid_accuracy=_safe_float(data.get("valid_accuracy")),
         )
 
+
 def _safe_float(value: Any) -> Optional[float]:
     try:
         return None if value is None else float(value)
     except (TypeError, ValueError):
         return None
+
 
 async def create_result_file(job_id: str, final_loss: float, steps: int) -> Optional[str]:
     """

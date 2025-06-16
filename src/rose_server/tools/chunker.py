@@ -1,4 +1,5 @@
 """Tool output chunking utilities for handling large outputs."""
+
 import logging
 from typing import Tuple
 
@@ -10,6 +11,7 @@ MAX_TOOL_OUTPUT_TOKENS = ResponseConfig.MAX_TOOL_OUTPUT_TOKENS
 TRUNCATION_NOTICE_TOKENS = 100
 MAX_OUTPUT_CHARS = ResponseConfig.MAX_OUTPUT_CHARS
 LARGE_OUTPUT_CHARS = ResponseConfig.LARGE_OUTPUT_CHARS
+
 
 def chunk_tool_output(output: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS, model: str = "gpt-4") -> Tuple[str, bool]:
     """Chunk tool output to fit within token limits.

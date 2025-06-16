@@ -1,4 +1,5 @@
 """Responses event generator for the /v1/responses API."""
+
 from typing import List, Optional
 
 from ...schemas.chat import ChatMessage
@@ -15,10 +16,7 @@ class ResponsesGenerator(BaseEventGenerator):
     """
 
     async def prepare_prompt(
-        self, 
-        messages: List[ChatMessage], 
-        enable_tools: bool = False,
-        tools: Optional[List] = None
+        self, messages: List[ChatMessage], enable_tools: bool = False, tools: Optional[List] = None
     ) -> str:
         """Prepare prompt for responses.
         The responses endpoint handles system prompts and tools similarly

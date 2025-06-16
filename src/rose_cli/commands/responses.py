@@ -1,4 +1,5 @@
 """Responses API command."""
+
 from typing import Optional
 
 import typer
@@ -6,8 +7,9 @@ import typer
 from ..utils import get_client, get_endpoint_url
 
 app = typer.Typer()
-@app.command()
 
+
+@app.command()
 def create(
     message: str = typer.Argument(..., help="Message to send"),
     model: str = typer.Option("qwen-coder", "--model", "-m", help="Model to use"),
@@ -51,8 +53,9 @@ def create(
                 print("Use 'rose responses retrieve {id}' to get it later")
     except Exception as e:
         print(f"Error: {e}", file=typer.get_text_stream("stderr"))
-@app.command()
 
+
+@app.command()
 def retrieve(
     response_id: str = typer.Argument(..., help="Response ID to retrieve"),
     url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
@@ -80,8 +83,9 @@ def retrieve(
                 print(item.text)
     except Exception as e:
         print(f"Error: {e}", file=typer.get_text_stream("stderr"))
-@app.command()
 
+
+@app.command()
 def test_storage():
     """Test responses storage functionality."""
     endpoint_url = get_endpoint_url(None, True)

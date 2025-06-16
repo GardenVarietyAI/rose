@@ -2,6 +2,7 @@
 This replaces the existing router with our event-native system while
 maintaining 100% API compatibility.
 """
+
 import json
 import logging
 import time
@@ -20,14 +21,16 @@ from rose_server.services import get_model_registry
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+
 def _prepare_tool_params(request: OpenAIRequest, context: str = "") -> dict:
     """Extract tool parameters from request and log them."""
     enable_tools = bool(request.tools)
     tool_count = len(request.tools) if request.tools else 0
     logger.info(f"Chat completions{context}: enable_tools={enable_tools}, tools={tool_count}")
     return {"enable_tools": enable_tools, "tools": request.tools, "tool_choice": request.tool_choice}
-@router.post("/v1/chat/completions", response_model=None)
 
+
+@router.post("/v1/chat/completions", response_model=None)
 async def event_based_chat_completions(
     request: OpenAIRequest = Body(...),
     http_request: Request = None,
@@ -45,9 +48,9 @@ async def event_based_chat_completions(
                     "message": f"Model '{request.model}' not found",
                     "type": "invalid_request_error",
                     "param": "model",
-                    "code": "model_not_found"
+                    "code": "model_not_found",
                 }
-            }
+            },
         )
     logger.info(f"[EVENT] Using model: {request.model}")
     messages = [ChatMessage(role=msg.role, content=msg.content) for msg in request.messages]
@@ -72,6 +75,7 @@ async def event_based_chat_completions(
     except Exception as e:
         logger.error(f"[EVENT] Error in chat completions: {str(e)}", exc_info=True)
         return JSONResponse(status_code=500, content={"error": f"Internal server error: {str(e)}"})
+
 
 async def create_event_streaming_response(
     generator: ChatCompletionsGenerator,
@@ -102,7 +106,9 @@ async def create_event_streaming_response(
                 "choices": [{"index": 0, "delta": {"content": f"Error: {str(e)}"}, "finish_reason": "stop"}],
             }
             yield {"data": json.dumps(error_chunk)}
+
     return EventSourceResponse(generate(), media_type="text/plain")
+
 
 async def create_event_complete_response(
     generator: ChatCompletionsGenerator,

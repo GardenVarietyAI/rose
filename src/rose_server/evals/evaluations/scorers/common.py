@@ -4,6 +4,7 @@ https://github.com/allenai/bi-att-flow/blob/master/squad/evaluate-v1.1.py
 MIT License
 Copyright (c) 2016 Pranav Rajpurkar, Stanford NLP
 """
+
 import re
 import string
 
@@ -26,4 +27,5 @@ def normalize_answer(s):
 
     def lower(text):
         return text.lower()
+
     return white_space_fix(remove_articles(remove_punc(lower(s))))

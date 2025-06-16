@@ -1,4 +1,5 @@
 """OpenAI-compatible completions API schemas."""
+
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
@@ -18,11 +19,18 @@ class CompletionRequest(BaseModel):
     logprobs: Optional[int] = Field(None, description="Include log probabilities on the most likely tokens")
     echo: Optional[bool] = Field(False, description="Echo back the prompt in addition to the completion")
     stop: Optional[Union[str, List[str]]] = Field(None, description="Sequences where the API will stop generating")
-    presence_penalty: Optional[float] = Field(0.0, description="Penalize new tokens based on their presence in the text so far")
-    frequency_penalty: Optional[float] = Field(0.0, description="Penalize new tokens based on their frequency in the text so far")
+    presence_penalty: Optional[float] = Field(
+        0.0, description="Penalize new tokens based on their presence in the text so far"
+    )
+    frequency_penalty: Optional[float] = Field(
+        0.0, description="Penalize new tokens based on their frequency in the text so far"
+    )
     best_of: Optional[int] = Field(1, description="Generate best_of completions and return the best")
-    logit_bias: Optional[Dict[str, float]] = Field(None, description="Modify the likelihood of specified tokens appearing")
+    logit_bias: Optional[Dict[str, float]] = Field(
+        None, description="Modify the likelihood of specified tokens appearing"
+    )
     user: Optional[str] = Field(None, description="Unique identifier representing the end-user")
+
 
 class CompletionChoice(BaseModel):
     """A completion choice."""
@@ -32,12 +40,14 @@ class CompletionChoice(BaseModel):
     logprobs: Optional[Dict[str, Any]] = Field(None, description="Log probabilities of the output tokens")
     finish_reason: Optional[str] = Field(None, description="The reason the model stopped generating")
 
+
 class CompletionUsage(BaseModel):
     """Token usage information."""
 
     prompt_tokens: int = Field(..., description="Number of tokens in the prompt")
     completion_tokens: int = Field(..., description="Number of tokens in the completion")
     total_tokens: int = Field(..., description="Total number of tokens used")
+
 
 class CompletionResponse(BaseModel):
     """OpenAI-compatible completion response."""
@@ -49,6 +59,7 @@ class CompletionResponse(BaseModel):
     choices: List[CompletionChoice] = Field(..., description="List of completion choices")
     usage: Optional[CompletionUsage] = Field(None, description="Usage statistics for the request")
     system_fingerprint: Optional[str] = Field(None, description="System fingerprint")
+
 
 class CompletionChunk(BaseModel):
     """A streaming completion chunk."""

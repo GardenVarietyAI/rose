@@ -1,4 +1,5 @@
 """OpenAI-compatible completions API router."""
+
 import logging
 import time
 import uuid
@@ -23,13 +24,15 @@ from rose_server.services import get_model_registry
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+
 def ensure_list(prompt: Union[str, List[str]]) -> List[str]:
     """Ensure prompt is a list."""
     if isinstance(prompt, str):
         return [prompt]
     return prompt
-@router.post("/v1/completions", response_model=CompletionResponse)
 
+
+@router.post("/v1/completions", response_model=CompletionResponse)
 async def create_completion(
     request: CompletionRequest = Body(...),
     http_request: Request = None,
@@ -66,6 +69,7 @@ async def create_completion(
     else:
         return await create_standard_completion_from_stream(llm, prompts, request)
 
+
 async def create_standard_completion_from_stream(llm, prompts: List[str], request: CompletionRequest) -> JSONResponse:
     """Create a standard (non-streaming) completion by collecting stream events."""
 
@@ -79,18 +83,11 @@ async def create_standard_completion_from_stream(llm, prompts: List[str], reques
             if request.echo:
                 text = prompt
             async for event in generator.generate_prompt_events(
-                prompt,
-                temperature=request.temperature,
-                max_tokens=request.max_tokens,
-                echo=False
+                prompt, temperature=request.temperature, max_tokens=request.max_tokens, echo=False
             ):
                 if isinstance(event, TokenGenerated):
                     text += event.token
-            choice = CompletionChoice(
-                text=text,
-                index=idx,
-                finish_reason="stop"
-            )
+            choice = CompletionChoice(text=text, index=idx, finish_reason="stop")
             choices.append(choice)
             total_prompt_tokens += 10
             total_completion_tokens += len(text.split())
@@ -111,6 +108,7 @@ async def create_standard_completion_from_stream(llm, prompts: List[str], reques
     )
     return JSONResponse(content=response.dict())
 
+
 async def create_streaming_completion(llm, prompts: List[str], request: CompletionRequest) -> EventSourceResponse:
     """Create a streaming completion."""
 
@@ -130,10 +128,7 @@ async def create_streaming_completion(llm, prompts: List[str], request: Completi
                 yield {"data": chunk.json()}
             generator = CompletionsGenerator(llm)
             async for event in generator.generate_prompt_events(
-                prompt,
-                temperature=request.temperature,
-                max_tokens=request.max_tokens,
-                echo=False
+                prompt, temperature=request.temperature, max_tokens=request.max_tokens, echo=False
             ):
                 if isinstance(event, TokenGenerated):
                     chunk = CompletionChunk(
@@ -160,4 +155,5 @@ async def create_streaming_completion(llm, prompts: List[str], request: Completi
                 choices=[CompletionChoice(text=f"\nError: {str(e)}", index=0, finish_reason="error")],
             )
             yield {"data": error_chunk.json()}
+
     return EventSourceResponse(generate(), media_type="text/event-stream")

@@ -23,11 +23,14 @@ POLL_INTERVAL = 5
 EVAL_JOB_TIMEOUT = 1_800
 TRAINING_JOB_TIMEOUT = 7_200
 
+
 def _now() -> int:
     return int(time.time())
 
+
 def _session() -> httpx.Client:
     return httpx.Client(timeout=HTTP_TIMEOUT)
+
 
 def _post_webhook(event: str, obj: str, job_id: int, object_id: str, data: Dict | None = None) -> None:
     """Fire a webhook, swallow network errors but log them."""
@@ -45,6 +48,7 @@ def _post_webhook(event: str, obj: str, job_id: int, object_id: str, data: Dict 
     except Exception as exc:
         logger.warning("Webhook '%s' failed: %s", event, exc)
 
+
 def _device_memory_log(label: str) -> None:
     if torch.backends.mps.is_available():
         alloc = torch.mps.current_allocated_memory() / 1024**3
@@ -55,6 +59,7 @@ def _device_memory_log(label: str) -> None:
         resv = torch.cuda.memory_reserved() / 1024**3
         logger.info("CUDA %s - allocated %.2f GB | reserved %.2f GB", label, alloc, resv)
 
+
 def _hard_memory_cleanup() -> None:
     """Free GPU / MPS caches and run GC."""
     if torch.cuda.is_available():
@@ -64,6 +69,7 @@ def _hard_memory_cleanup() -> None:
         torch.mps.synchronize()
         torch.mps.empty_cache()
     gc.collect()
+
 
 def process_training_job_sync(job_id: int, payload: Dict[str, Any]) -> Optional[Dict]:
     """
@@ -96,10 +102,9 @@ def process_training_job_sync(job_id: int, payload: Dict[str, Any]) -> Optional[
         return None
 
     def progress(level: str, msg: str, data: Dict | None = None) -> None:
-        getattr(logger, level if level in ("warning", "error") else "info")(
-            "Training %s - %s", ft_job_id, msg
-        )
+        getattr(logger, level if level in ("warning", "error") else "info")("Training %s - %s", ft_job_id, msg)
         _post_webhook("job.progress", "training", job_id, ft_job_id, {"level": level, "message": msg, **(data or {})})
+
     _post_webhook("job.running", "training", job_id, ft_job_id)
     hyper = payload.get("hyperparameters", {})
     if "suffix" in payload:
@@ -115,7 +120,9 @@ def process_training_job_sync(job_id: int, payload: Dict[str, Any]) -> Optional[
         )
     except Exception as exc:
         logger.exception("Training crashed")
-        _post_webhook("job.failed", "training", job_id, ft_job_id, {"error": {"message": str(exc), "code": "job_error"}})
+        _post_webhook(
+            "job.failed", "training", job_id, ft_job_id, {"error": {"message": str(exc), "code": "job_error"}}
+        )
         raise
     finally:
         if hasattr(trainer, "cleanup") and callable(getattr(trainer, "cleanup", None)):
@@ -143,8 +150,15 @@ def process_training_job_sync(job_id: int, payload: Dict[str, Any]) -> Optional[
     elif result.get("paused"):
         pass
     else:
-        _post_webhook("job.failed", "training", job_id, ft_job_id, {"error": {"message": result.get("error", "Training failed"), "code": "training_failed"}})
+        _post_webhook(
+            "job.failed",
+            "training",
+            job_id,
+            ft_job_id,
+            {"error": {"message": result.get("error", "Training failed"), "code": "training_failed"}},
+        )
     return None
+
 
 def process_eval_job_sync(job_id: int, payload: Dict[str, Any]) -> Optional[Dict]:
     """Run a benchmark synchronously."""
@@ -158,9 +172,7 @@ def process_eval_job_sync(job_id: int, payload: Dict[str, Any]) -> Optional[Dict
     _post_webhook("job.running", "eval", job_id, eval_id)
     evaluator = Evaluator()
     try:
-        result = evaluator.run_evaluation(
-            eval_id, model, eval_name, job_id, **payload.get("metadata", {})
-        )
+        result = evaluator.run_evaluation(eval_id, model, eval_name, job_id, **payload.get("metadata", {}))
     except Exception as exc:
         logger.exception("Eval crashed")
         _post_webhook("job.failed", "eval", job_id, eval_id, {"error": str(exc)})
@@ -176,6 +188,7 @@ def process_eval_job_sync(job_id: int, payload: Dict[str, Any]) -> Optional[Dict
         {"results": result.get("aggregate", {}), "samples": result.get("samples", [])},
     )
     return {"eval_id": eval_id, "status": "completed", "results": result}
+
 
 def _schedule_poller(scheduler: BackgroundScheduler) -> None:
     """Register a polling job that fetches new work every POLL_INTERVAL seconds."""
@@ -206,8 +219,10 @@ def _schedule_poller(scheduler: BackgroundScheduler) -> None:
                         logger.info("Scheduled %s job %s", jtype, jid)
             except Exception as exc:
                 logger.error("Polling error: %s", exc)
+
     scheduler.add_job(poll, "interval", seconds=POLL_INTERVAL, id="poller")
     poll()
+
 
 def main() -> None:
     """Entry point when run as a standalone worker."""
@@ -232,6 +247,7 @@ def main() -> None:
 
     def _graceful(*_):
         stop_flag["quit"] = True
+
     signal.signal(signal.SIGINT, _graceful)
     signal.signal(signal.SIGTERM, _graceful)
     logger.info("Worker ready - polling every %ds", POLL_INTERVAL)
@@ -242,5 +258,7 @@ def main() -> None:
         logger.info("Shutting down...")
         scheduler.shutdown(wait=True)
         logger.info("Bye")
+
+
 if __name__ == "__main__":
     main()

@@ -1,4 +1,5 @@
 """API router for vector stores endpoints."""
+
 import logging
 from typing import List
 
@@ -14,8 +15,9 @@ from rose_server.vector_stores.models import (
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
-@router.get("/vector_stores")
 
+
+@router.get("/vector_stores")
 async def list_vector_stores():
     """List all vector stores."""
     try:
@@ -25,8 +27,9 @@ async def list_vector_stores():
     except Exception as e:
         logger.error(f"Error listing vector stores: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error listing vector stores: {str(e)}")
-@router.post("/vector_stores")
 
+
+@router.post("/vector_stores")
 async def create_vector_store(request: VectorStoreCreate = Body(...)):
     """Create a new vector store."""
     try:
@@ -36,8 +39,9 @@ async def create_vector_store(request: VectorStoreCreate = Body(...)):
     except Exception as e:
         logger.error(f"Error creating vector store: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error creating vector store: {str(e)}")
-@router.get("/vector_stores/{vector_store_id}")
 
+
+@router.get("/vector_stores/{vector_store_id}")
 async def get_vector_store(vector_store_id: str = Path(..., description="The ID of the vector store")):
     """Get a vector store by ID."""
     try:
@@ -50,8 +54,9 @@ async def get_vector_store(vector_store_id: str = Path(..., description="The ID 
     except Exception as e:
         logger.error(f"Error getting vector store: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error getting vector store: {str(e)}")
-@router.post("/vector_stores/{vector_store_id}")
 
+
+@router.post("/vector_stores/{vector_store_id}")
 async def update_vector_store(
     vector_store_id: str = Path(..., description="The ID of the vector store"),
     request: VectorStoreUpdate = Body(...),
@@ -67,8 +72,9 @@ async def update_vector_store(
     except Exception as e:
         logger.error(f"Error updating vector store: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error updating vector store: {str(e)}")
-@router.delete("/vector_stores/{vector_store_id}")
 
+
+@router.delete("/vector_stores/{vector_store_id}")
 async def delete_vector_store(vector_store_id: str = Path(..., description="The ID of the vector store")):
     """Delete a vector store."""
     try:
@@ -81,8 +87,9 @@ async def delete_vector_store(vector_store_id: str = Path(..., description="The 
     except Exception as e:
         logger.error(f"Error deleting vector store: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error deleting vector store: {str(e)}")
-@router.post("/vector_stores/{vector_store_id}/vectors")
 
+
+@router.post("/vector_stores/{vector_store_id}/vectors")
 async def add_vectors(
     vector_store_id: str = Path(..., description="The ID of the vector store"),
     request: VectorBatch = Body(...),
@@ -98,8 +105,9 @@ async def add_vectors(
     except Exception as e:
         logger.error(f"Error adding vectors: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error adding vectors: {str(e)}")
-@router.post("/vector_stores/{vector_store_id}/vectors/delete")
 
+
+@router.post("/vector_stores/{vector_store_id}/vectors/delete")
 async def delete_vectors(
     vector_store_id: str = Path(..., description="The ID of the vector store"),
     ids: List[str] = Body(..., embed=True),
@@ -115,8 +123,9 @@ async def delete_vectors(
     except Exception as e:
         logger.error(f"Error deleting vectors: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error deleting vectors: {str(e)}")
-@router.post("/vector_stores/{vector_store_id}/search")
 
+
+@router.post("/vector_stores/{vector_store_id}/search")
 async def search_vector_store(
     vector_store_id: str = Path(..., description="The ID of the vector store"),
     request: VectorSearch = Body(...),

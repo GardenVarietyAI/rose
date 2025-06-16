@@ -1,4 +1,5 @@
 """Fine-tuning commands."""
+
 import json
 import os
 import tempfile
@@ -11,8 +12,9 @@ from rich.table import Table
 from ..utils import console, get_client, get_endpoint_url
 
 app = typer.Typer()
-@app.command()
 
+
+@app.command()
 def list(
     url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
     local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
@@ -43,8 +45,9 @@ def list(
                 console.print(f"{job.id}\t{job.status}\t{job.model}\t{job.fine_tuned_model or '-'}")
     except Exception as e:
         console.print(f"[red]error: {e}[/red]")
-@app.command()
 
+
+@app.command()
 def create(
     file_id: str = typer.Option(..., "--file", "-f", help="Training file ID"),
     model: str = typer.Option("qwen-coder", "--model", "-m", help="Base model"),
@@ -73,8 +76,9 @@ def create(
         print(job.id)
     except Exception as e:
         print(f"error: {e}", file=typer.get_text_stream("stderr"))
-@app.command()
 
+
+@app.command()
 def status(
     job_id: str = typer.Argument(..., help="Job ID"),
     url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
@@ -90,8 +94,9 @@ def status(
             print(f"{job.fine_tuned_model}")
     except Exception as e:
         print(f"error: {e}", file=typer.get_text_stream("stderr"))
-@app.command()
 
+
+@app.command()
 def events(
     job_id: str = typer.Argument(..., help="Job ID"),
     url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
@@ -136,8 +141,9 @@ def events(
                 )
     except Exception as e:
         console.print(f"[red]error: {e}[/red]")
-@app.command()
 
+
+@app.command()
 def pause(
     job_id: str = typer.Argument(..., help="Job ID"),
     url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
@@ -152,8 +158,9 @@ def pause(
         console.print(f"Status: {job.status}")
     except Exception as e:
         console.print(f"[red]error: {e}[/red]")
-@app.command()
 
+
+@app.command()
 def resume(
     job_id: str = typer.Argument(..., help="Job ID"),
     url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
@@ -168,8 +175,9 @@ def resume(
         console.print(f"Status: {job.status}")
     except Exception as e:
         console.print(f"[red]error: {e}[/red]")
-@app.command()
 
+
+@app.command()
 def test(
     model: str = typer.Option("qwen-coder", "--model", "-m", help="Base model"),
     suffix: str = typer.Option("test", "--suffix", help="Model suffix"),

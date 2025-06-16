@@ -1,4 +1,5 @@
 """Job queue schemas."""
+
 from enum import Enum
 
 
@@ -13,6 +14,7 @@ class JobStatus(str, Enum):
     CANCELLED = "cancelled"
     COMPLETED = "completed"
     FAILED = "failed"
+
 
 class JobType(str, Enum):
     """Job types."""

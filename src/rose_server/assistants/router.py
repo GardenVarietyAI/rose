@@ -1,4 +1,5 @@
 """API router for assistants endpoints."""
+
 import logging
 from typing import Optional
 
@@ -11,8 +12,9 @@ from rose_server.tools import Tool, validate_tools
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
-@router.post("/assistants")
 
+
+@router.post("/assistants")
 async def create_assistant(request: CreateAssistantRequest = Body(...)) -> JSONResponse:
     """Create a new assistant."""
     try:
@@ -23,7 +25,7 @@ async def create_assistant(request: CreateAssistantRequest = Body(...)) -> JSONR
                     if isinstance(tool, dict):
                         tool_dicts.append(tool)
                     else:
-                        tool_dicts.append(tool.model_dump() if hasattr(tool, 'model_dump') else tool.dict())
+                        tool_dicts.append(tool.model_dump() if hasattr(tool, "model_dump") else tool.dict())
                 validate_tools(tool_dicts)
                 request.tools = [Tool(**tool) if isinstance(tool, dict) else tool for tool in request.tools]
             except ValueError as e:
@@ -34,8 +36,9 @@ async def create_assistant(request: CreateAssistantRequest = Body(...)) -> JSONR
     except Exception as e:
         logger.error(f"Error creating assistant: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Error creating assistant: {str(e)}"})
-@router.get("/assistants")
 
+
+@router.get("/assistants")
 async def list_assistants(
     limit: int = Query(default=20, description="Number of assistants to retrieve"),
     order: str = Query(default="desc", description="Sort order (asc or desc)"),
@@ -59,8 +62,9 @@ async def list_assistants(
     except Exception as e:
         logger.error(f"Error listing assistants: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Error listing assistants: {str(e)}"})
-@router.get("/assistants/{assistant_id}")
 
+
+@router.get("/assistants/{assistant_id}")
 async def get_assistant(assistant_id: str) -> JSONResponse:
     """Retrieve an assistant by ID."""
     try:
@@ -72,8 +76,9 @@ async def get_assistant(assistant_id: str) -> JSONResponse:
     except Exception as e:
         logger.error(f"Error retrieving assistant: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Error retrieving assistant: {str(e)}"})
-@router.post("/assistants/{assistant_id}")
 
+
+@router.post("/assistants/{assistant_id}")
 async def update_assistant(assistant_id: str, request: UpdateAssistantRequest = Body(...)) -> JSONResponse:
     """Update an assistant."""
     try:
@@ -84,7 +89,7 @@ async def update_assistant(assistant_id: str, request: UpdateAssistantRequest = 
                     if isinstance(tool, dict):
                         tool_dicts.append(tool)
                     else:
-                        tool_dicts.append(tool.model_dump() if hasattr(tool, 'model_dump') else tool.dict())
+                        tool_dicts.append(tool.model_dump() if hasattr(tool, "model_dump") else tool.dict())
                 validate_tools(tool_dicts)
                 request.tools = [Tool(**tool) if isinstance(tool, dict) else tool for tool in request.tools]
             except ValueError as e:
@@ -97,8 +102,9 @@ async def update_assistant(assistant_id: str, request: UpdateAssistantRequest = 
     except Exception as e:
         logger.error(f"Error updating assistant: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Error updating assistant: {str(e)}"})
-@router.delete("/assistants/{assistant_id}")
 
+
+@router.delete("/assistants/{assistant_id}")
 async def delete_assistant(assistant_id: str) -> JSONResponse:
     """Delete an assistant."""
     try:

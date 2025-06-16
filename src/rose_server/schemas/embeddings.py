@@ -1,4 +1,5 @@
 """Embeddings API schemas."""
+
 from typing import Any, Dict, List, Union
 
 from pydantic import BaseModel, Field
@@ -10,6 +11,7 @@ class EmbeddingsRequest(BaseModel):
     encoding_format: str = Field(
         default="float", description="The format of the returned embeddings: 'float' or 'base64'"
     )
+
 
 class EmbeddingsResponse(BaseModel):
     object: str = "list"

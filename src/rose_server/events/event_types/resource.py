@@ -1,4 +1,5 @@
 """Resource management events for model loading and GPU coordination."""
+
 from typing import Literal, Optional
 
 from pydantic import Field
@@ -14,6 +15,7 @@ class ModelLoaded(LLMEvent):
     memory_usage: Optional[float] = Field(None, ge=0, description="Memory usage in GB")
     load_time: Optional[float] = Field(None, ge=0, description="Time taken to load in seconds")
 
+
 class ModelUnloaded(LLMEvent):
     """Fired when a model is unloaded from memory."""
 
@@ -22,12 +24,14 @@ class ModelUnloaded(LLMEvent):
     )
     memory_freed: Optional[float] = Field(None, ge=0, description="Memory freed in GB")
 
+
 class ResourceAcquired(LLMEvent):
     """Fired when a computational resource is acquired."""
 
     resource_type: Literal["inference", "training", "gpu", "cpu"] = Field(..., description="Type of resource acquired")
     available_slots: int = Field(..., ge=0, description="Remaining available resource slots")
     queue_time: Optional[float] = Field(None, ge=0, description="Time spent waiting in queue")
+
 
 class ResourceReleased(LLMEvent):
     """Fired when a computational resource is released."""

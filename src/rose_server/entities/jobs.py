@@ -1,4 +1,5 @@
 """Job queue entities."""
+
 from typing import Dict, Optional
 
 from sqlalchemy import JSON, Index

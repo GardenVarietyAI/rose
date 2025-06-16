@@ -1,4 +1,5 @@
 """HuggingFace LLM implementation for fine-tuned models."""
+
 import logging
 import os
 import traceback
@@ -9,6 +10,7 @@ from rose_server.hf.loading import load_model_and_tokenizer
 from rose_server.schemas.chat import ChatMessage
 
 logger = logging.getLogger(__name__)
+
 
 class HuggingFaceLLM:
     """HuggingFace-based LLM implementation for fine-tuned models."""
@@ -24,13 +26,13 @@ class HuggingFaceLLM:
         self._model = None
         self._tokenizer = None
         self._load_model()
-    @property
 
+    @property
     def model(self):
         """Get the model."""
         return self._model
-    @property
 
+    @property
     def tokenizer(self):
         """Get the tokenizer."""
         return self._tokenizer

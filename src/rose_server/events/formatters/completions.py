@@ -1,4 +1,5 @@
 """Completions API formatter for LLM events."""
+
 import time
 import uuid
 from typing import Any, Dict, List, Optional
@@ -34,26 +35,16 @@ class CompletionsFormatter:
                 "id": self.completion_id or f"cmpl-{uuid.uuid4().hex[:24]}",
                 "object": "text_completion",
                 "created": self.created_at or int(time.time()),
-                "choices": [{
-                    "text": event.token,
-                    "index": 0,
-                    "logprobs": None,
-                    "finish_reason": None
-                }],
-                "model": self.model_name or event.model_name
+                "choices": [{"text": event.token, "index": 0, "logprobs": None, "finish_reason": None}],
+                "model": self.model_name or event.model_name,
             }
         elif isinstance(event, ResponseCompleted):
             return {
                 "id": self.completion_id or f"cmpl-{uuid.uuid4().hex[:24]}",
                 "object": "text_completion",
                 "created": self.created_at or int(time.time()),
-                "choices": [{
-                    "text": "",
-                    "index": 0,
-                    "logprobs": None,
-                    "finish_reason": "stop"
-                }],
-                "model": self.model_name or event.model_name
+                "choices": [{"text": "", "index": 0, "logprobs": None, "finish_reason": "stop"}],
+                "model": self.model_name or event.model_name,
             }
         return None
 
@@ -70,15 +61,10 @@ class CompletionsFormatter:
             "object": "text_completion",
             "created": int(start_event.timestamp if start_event else time.time()),
             "model": start_event.model_name if start_event else "unknown",
-            "choices": [{
-                "text": text,
-                "index": 0,
-                "logprobs": None,
-                "finish_reason": "stop"
-            }],
+            "choices": [{"text": text, "index": 0, "logprobs": None, "finish_reason": "stop"}],
             "usage": {
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
-                "total_tokens": prompt_tokens + completion_tokens
-            }
+                "total_tokens": prompt_tokens + completion_tokens,
+            },
         }

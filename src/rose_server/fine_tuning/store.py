@@ -1,4 +1,5 @@
 """SQLModel-based storage for fine-tuning jobs with clean OpenAI compatibility."""
+
 import logging
 import uuid
 from typing import Dict, List, Optional
@@ -19,6 +20,7 @@ from ..entities.fine_tuning import (
 )
 
 logger = logging.getLogger(__name__)
+
 
 class FineTuningStore:
     """SQLModel-based store for fine-tuning jobs."""
@@ -58,6 +60,7 @@ class FineTuningStore:
             await session.commit()
             await session.refresh(job)
             return job
+
         job = await run_in_session(create_operation)
         logger.info(f"Created fine-tuning job: {job_id} with method config stored as JSON")
         return job.to_openai()
@@ -68,6 +71,7 @@ class FineTuningStore:
         async def get_operation(session):
             job = await session.get(FineTuningJob, job_id)
             return job.to_openai() if job else None
+
         return await run_in_session(get_operation, read_only=True)
 
     async def list_jobs(
@@ -83,6 +87,7 @@ class FineTuningStore:
             statement = statement.limit(limit)
             jobs = (await session.execute(statement)).scalars().all()
             return [job.to_openai() for job in jobs]
+
         return await run_in_session(list_operation, read_only=True)
 
     async def update_job_status(
@@ -115,6 +120,7 @@ class FineTuningStore:
             await session.refresh(job)
             logger.info(f"Updated job {job_id} status to {status}")
             return job.to_openai()
+
         return await run_in_session(update_operation)
 
     async def add_event(
@@ -139,6 +145,7 @@ class FineTuningStore:
             session.add(event)
             await session.commit()
             return event_id
+
         result = await run_in_session(add_operation)
         logger.debug(f"Added event to job {job_id}: {message}")
         return result
@@ -159,13 +166,13 @@ class FineTuningStore:
             )
             events = (await session.execute(statement)).scalars().all()
             return [event.to_openai() for event in events]
+
         return await run_in_session(get_events_operation, read_only=True)
 
     async def delete_job(self, job_id: str) -> bool:
         """Delete a fine-tuning job and all associated events."""
 
         async def delete_operation(session):
-
             event_count_result = await session.execute(
                 select(func.count(FineTuningEvent.id)).where(FineTuningEvent.job_id == job_id)
             )
@@ -178,6 +185,7 @@ class FineTuningStore:
                 logger.info(f"Deleted job {job_id} and {event_count} associated events")
                 return True
             return False
+
         return await run_in_session(delete_operation)
 
     async def update_job_result_files(self, job_id: str, result_files: List[str]) -> Optional[OpenAIFineTuningJob]:
@@ -193,6 +201,7 @@ class FineTuningStore:
             await session.refresh(job)
             logger.info(f"Updated job {job_id} with result files: {result_files}")
             return job.to_openai()
+
         return await run_in_session(update_operation)
 
     async def mark_job_failed(self, job_id: str, error: str) -> Optional[OpenAIFineTuningJob]:
@@ -220,6 +229,7 @@ class FineTuningStore:
             await session.commit()
             logger.info(f"Marked job {job_id} as failed: {error}")
             return job.to_openai()
+
         return await run_in_session(update_operation)
 
     async def get_stats(self) -> Dict:
@@ -231,4 +241,5 @@ class FineTuningStore:
             event_count_result = await session.execute(select(func.count(FineTuningEvent.id)))
             event_count = event_count_result.scalar()
             return {"total_jobs": job_count, "total_events": event_count, "storage_type": "sqlite"}
+
         return await run_in_session(stats_operation, read_only=True)

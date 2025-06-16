@@ -1,4 +1,5 @@
 """Job queue store for managing jobs in the database."""
+
 import logging
 from typing import Optional
 
@@ -6,6 +7,7 @@ from ..database import current_timestamp, run_in_session
 from ..entities.jobs import Job
 
 logger = logging.getLogger(__name__)
+
 
 class JobStore:
     """Job queue store for managing jobs in the database."""
@@ -37,6 +39,7 @@ class JobStore:
             await session.commit()
             await session.refresh(job)
             return job
+
         job = await run_in_session(create_job_record)
         logger.info(f"Job {job.id} of type {job_type} queued for processing by worker")
         return job
@@ -51,6 +54,7 @@ class JobStore:
                 job.completed_at = current_timestamp()
                 job.result = result
                 await session.commit()
+
         await run_in_session(update_op)
 
     async def fail_job(self, job_id: int, error: str) -> None:
@@ -68,6 +72,7 @@ class JobStore:
                     job.completed_at = current_timestamp()
                     job.error = error
                 await session.commit()
+
         await run_in_session(update_op)
 
     async def request_cancel(self, job_id: int) -> bool:
@@ -84,6 +89,7 @@ class JobStore:
                 await session.commit()
                 return True
             return False
+
         return await run_in_session(update_op)
 
     async def check_cancellation(self, job_id: int) -> str:
@@ -92,6 +98,7 @@ class JobStore:
         async def check_op(session):
             job = await session.get(Job, job_id)
             return job.status if job else None
+
         return await run_in_session(check_op)
 
     async def mark_cancelled(self, job_id: int) -> None:
@@ -103,6 +110,7 @@ class JobStore:
                 job.status = "cancelled"
                 job.completed_at = current_timestamp()
                 await session.commit()
+
         await run_in_session(update_op)
 
     async def request_pause(self, job_id: int) -> bool:
@@ -115,6 +123,7 @@ class JobStore:
                 await session.commit()
                 return True
             return False
+
         return await run_in_session(update_op)
 
     async def mark_paused(self, job_id: int) -> None:
@@ -125,4 +134,5 @@ class JobStore:
             if job:
                 job.status = "paused"
                 await session.commit()
+
         await run_in_session(update_op)

@@ -4,21 +4,26 @@ ENV_PREFIX = "ROSE_SERVER_"
 os.environ["LOKY_MAX_CPU_COUNT"] = "1"
 os.environ["LOKY_CONTEXT_STRATEGY"] = "spawn"
 
+
 def get_env_int(key: str, default: int) -> int:
     """Get integer from environment variable."""
     return int(os.getenv(f"{ENV_PREFIX}{key}", str(default)))
+
 
 def get_env_float(key: str, default: float) -> float:
     """Get float from environment variable."""
     return float(os.getenv(f"{ENV_PREFIX}{key}", str(default)))
 
+
 def get_env_bool(key: str, default: bool) -> bool:
     """Get boolean from environment variable."""
     return os.getenv(f"{ENV_PREFIX}{key}", str(default)).lower() in ("true", "1", "yes")
 
+
 def get_env_str(key: str, default: str) -> str:
     """Get string from environment variable."""
     return os.getenv(f"{ENV_PREFIX}{key}", default)
+
 
 class ServiceConfig:
     """General service configuration."""
@@ -49,8 +54,8 @@ class ServiceConfig:
     FINE_TUNING_MIN_DISK_SPACE_MB = get_env_int("FINE_TUNING_MIN_DISK_SPACE_MB", 500)
     MAX_CONCURRENT_TRAINING = get_env_int("MAX_CONCURRENT_TRAINING", 1)
     MAX_CONCURRENT_EVAL = get_env_int("MAX_CONCURRENT_EVAL", 2)
-    @classmethod
 
+    @classmethod
     def get_service_info(cls) -> dict:
         """Get service information."""
         return {
@@ -59,6 +64,7 @@ class ServiceConfig:
             "host": cls.HOST,
             "port": cls.PORT,
         }
+
 
 class LLMConfig:
     """Configuration for LLM handling."""
@@ -72,8 +78,8 @@ class LLMConfig:
     MAX_CONCURRENT_TRAINING = get_env_int("MAX_CONCURRENT_TRAINING", 1)
     MAX_RETRIES = get_env_int("MAX_RETRIES", 3)
     RETRY_DELAY = get_env_float("RETRY_DELAY", 1.0)
-    @classmethod
 
+    @classmethod
     def get_config_summary(cls) -> dict:
         """Get configuration summary."""
         return {
@@ -94,6 +100,7 @@ class LLMConfig:
             },
         }
 
+
 class EmbeddingConfig:
     """Configuration for embeddings."""
 
@@ -102,8 +109,8 @@ class EmbeddingConfig:
     MAX_CONCURRENT_REQUESTS = get_env_int("EMBEDDING_MAX_CONCURRENT", 5)
     ENABLE_EMBEDDING_CACHE = get_env_bool("ENABLE_EMBEDDING_CACHE", True)
     EMBEDDING_CACHE_SIZE = get_env_int("EMBEDDING_CACHE_SIZE", 10000)
-    @classmethod
 
+    @classmethod
     def get_config_summary(cls) -> dict:
         """Get configuration summary."""
         return {
@@ -117,6 +124,7 @@ class EmbeddingConfig:
                 "size": cls.EMBEDDING_CACHE_SIZE,
             },
         }
+
 
 class ResponseConfig:
     """Configuration for response handling."""
@@ -138,8 +146,8 @@ class ResponseConfig:
         "qwen2.5-0.5b": 60,
         "llama": 90,
     }
-    @classmethod
 
+    @classmethod
     def get_timeout_for_model(cls, model: str) -> int:
         """Get timeout for specific model."""
         if model in cls.MODEL_TIMEOUT_OVERRIDES:
@@ -148,8 +156,8 @@ class ResponseConfig:
             if model.startswith(model_prefix):
                 return timeout
         return cls.DEFAULT_TIMEOUT_SECONDS
-    @classmethod
 
+    @classmethod
     def get_config_summary(cls) -> dict:
         """Get configuration summary for logging."""
         return {
@@ -169,6 +177,7 @@ class ResponseConfig:
                 "output_chunking": cls.ENABLE_OUTPUT_CHUNKING,
             },
         }
+
 
 def get_full_config() -> dict:
     """Get full configuration summary."""

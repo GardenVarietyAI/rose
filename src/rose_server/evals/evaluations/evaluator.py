@@ -1,4 +1,5 @@
 """Sync evaluation logic for worker processing."""
+
 import asyncio
 import logging
 import re
@@ -16,6 +17,7 @@ from .scorers import exact_match, f1_score
 from .scorers.common import normalize_answer
 
 logger = logging.getLogger(__name__)
+
 
 class Evaluator:
     """Main evaluator class for running evaluations."""
@@ -46,7 +48,9 @@ class Evaluator:
             eval_def_id = metadata.get("eval_def_id")
             inline_content = metadata.get("inline_content")
             max_samples = metadata.get("max_samples")
-            logger.info(f"inline_content present: {inline_content is not None}, length: {len(inline_content) if inline_content else 0}")
+            logger.info(
+                f"inline_content present: {inline_content is not None}, length: {len(inline_content) if inline_content else 0}"
+            )
             if inline_content:
                 dataset_content = inline_content
                 is_inline = True
@@ -100,7 +104,7 @@ class Evaluator:
                     "passed": passed,
                     "response_time": response_time,
                     "tokens_used": tokens_used,
-                    "metadata": {"scores": scores, "eval_name": eval_name}
+                    "metadata": {"scores": scores, "eval_name": eval_name},
                 }
                 sample_results.append(sample_result)
                 completed_samples = idx + 1
@@ -108,10 +112,7 @@ class Evaluator:
                     logger.info(f"Progress: {completed_samples}/{total_samples if total_samples else '?'} samples")
             final_results = self._aggregate_results(results)
             logger.info(f"Evaluation {eval_id} completed with results: {final_results}")
-            return {
-                "aggregate": final_results,
-                "samples": sample_results
-            }
+            return {"aggregate": final_results, "samples": sample_results}
         except Exception as e:
             logger.error(f"Evaluation {eval_id} failed: {str(e)}")
             raise
@@ -234,14 +235,12 @@ class Evaluator:
         async def collect_response():
             response_text = ""
             async for event in generator.generate_events(
-                messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                enable_tools=False
+                messages, temperature=temperature, max_tokens=max_tokens, enable_tools=False
             ):
                 if isinstance(event, TokenGenerated):
                     response_text += event.token
             return response_text
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:

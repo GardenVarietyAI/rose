@@ -1,4 +1,5 @@
 """Common HuggingFace model loading utilities."""
+
 import logging
 import os
 from typing import Optional, Tuple
@@ -9,6 +10,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from ..config import ServiceConfig
 
 logger = logging.getLogger(__name__)
+
 
 def load_model_and_tokenizer(
     model_id: str,
@@ -67,9 +69,11 @@ def load_model_and_tokenizer(
     logger.info(f"Successfully loaded model: {model_id}")
     return model, tokenizer
 
+
 def cleanup_model_memory():
     """Clean up model memory and cache."""
     import gc
+
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()

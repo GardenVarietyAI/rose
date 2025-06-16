@@ -1,4 +1,5 @@
 """Fine-tuning database entities."""
+
 import time
 from typing import Dict, List, Optional
 
@@ -33,9 +34,7 @@ class FineTuningJob(SQLModel, table=True):
     started_at: Optional[int] = None
     suffix: Optional[str] = None
     hyperparameters: Dict = Field(default_factory=dict, sa_type=JSON)
-    method: Optional[Dict] = Field(
-        default=None, sa_type=JSON
-    )
+    method: Optional[Dict] = Field(default=None, sa_type=JSON)
     __table_args__ = (
         Index("idx_ft_jobs_status", "status"),
         Index("idx_ft_jobs_created", "created_at"),
@@ -52,6 +51,7 @@ class FineTuningJob(SQLModel, table=True):
         for field in internal_fields:
             data.pop(field, None)
         return OpenAIFineTuningJob(**data)
+
 
 class FineTuningEvent(SQLModel, table=True):
     """Fine-tuning event model - OpenAI compatible."""

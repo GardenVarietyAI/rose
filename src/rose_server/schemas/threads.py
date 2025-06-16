@@ -1,4 +1,5 @@
 """Thread API schemas."""
+
 from typing import Any, Dict, List, Literal, Optional, Union
 
 from openai.types.beta import Thread as OpenAIThread
@@ -11,16 +12,19 @@ class ThreadMessage(OpenAIMessage):
 
     pass
 
+
 class Thread(OpenAIThread):
     """Extends OpenAI's Thread type for our threads."""
 
     pass
+
 
 class CreateThreadRequest(BaseModel):
     """Request to create a new thread."""
 
     messages: Optional[List[Dict[str, Any]]] = Field(default=None, description="Initial messages for the thread")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Set of key-value pairs for metadata")
+
 
 class CreateMessageRequest(BaseModel):
     """Request to create a new message in a thread."""

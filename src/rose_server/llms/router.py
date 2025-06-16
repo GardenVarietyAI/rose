@@ -1,4 +1,5 @@
 """Router for model-related endpoints."""
+
 import logging
 import time
 
@@ -12,6 +13,7 @@ from rose_server.services import get_model_registry
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
+
 
 def _generate_openai_model_mapping():
     """Generate OpenAI model mapping from app_settings to prevent mismatches."""
@@ -30,9 +32,12 @@ def _generate_openai_model_mapping():
         else:
             mapping[model_name] = model_name
     return mapping
-OPENAI_MODEL_MAPPING = _generate_openai_model_mapping()
-@router.get("/models")
 
+
+OPENAI_MODEL_MAPPING = _generate_openai_model_mapping()
+
+
+@router.get("/models")
 async def openai_api_models() -> JSONResponse:
     """OpenAI API-compatible endpoint that lists available models.
 
@@ -92,8 +97,9 @@ async def openai_api_models() -> JSONResponse:
             )
     openai_response = {"object": "list", "data": model_data}
     return JSONResponse(content=openai_response)
-@router.get("/models/{model_id}")
 
+
+@router.get("/models/{model_id}")
 async def get_model_details(model_id: str) -> JSONResponse:
     """OpenAI API-compatible endpoint to get details about a specific model.
 
@@ -142,8 +148,9 @@ async def get_model_details(model_id: str) -> JSONResponse:
             }
         },
     )
-@router.post("/models/{model_name}/download")
 
+
+@router.post("/models/{model_name}/download")
 async def download_model(model_name: str):
     """Pre-download a model to avoid blocking during inference.
 
@@ -153,25 +160,22 @@ async def download_model(model_name: str):
         registry = get_model_registry()
         config = registry.get_model_config(model_name)
         if not config:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Model '{model_name}' not found"
-            )
-        return JSONResponse(content={
-            "status": "downloading",
-            "message": f"Model '{model_name}' download started in background",
-            "model": model_name
-        })
+            raise HTTPException(status_code=404, detail=f"Model '{model_name}' not found")
+        return JSONResponse(
+            content={
+                "status": "downloading",
+                "message": f"Model '{model_name}' download started in background",
+                "model": model_name,
+            }
+        )
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error downloading model: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to download model: {str(e)}"
-        )
-@router.delete("/models/{model}")
+        raise HTTPException(status_code=500, detail=f"Failed to download model: {str(e)}")
 
+
+@router.delete("/models/{model}")
 async def delete_model(model: str) -> JSONResponse:
     """Delete a fine-tuned model.
 
@@ -183,6 +187,7 @@ async def delete_model(model: str) -> JSONResponse:
         JSON response with deletion confirmation or error
     """
     import shutil
+
     registry = get_model_registry()
     config = registry.get_model_config(model)
     if not config:
@@ -217,6 +222,7 @@ async def delete_model(model: str) -> JSONResponse:
         if model_path and await aiofiles.os.path.exists(model_path):
             try:
                 import asyncio
+
                 await asyncio.to_thread(shutil.rmtree, model_path)
                 logger.info(f"Deleted model files at: {model_path}")
             except Exception as e:

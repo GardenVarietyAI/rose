@@ -2,6 +2,7 @@
 This module contains all SQLModel models used for database tables.
 API schemas are in the schemas/ module.
 """
+
 from .assistants import (
     Assistant,
     AssistantTool,

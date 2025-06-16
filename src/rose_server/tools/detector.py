@@ -1,10 +1,12 @@
 """Streaming XML tool call detector."""
+
 import logging
 from typing import Dict, Optional, Tuple
 
 from .parser import parse_xml_tool_call
 
 logger = logging.getLogger(__name__)
+
 
 class StreamingXMLDetector:
     """State machine to detect XML tool calls in streaming text.

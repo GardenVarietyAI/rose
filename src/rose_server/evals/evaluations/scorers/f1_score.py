@@ -19,6 +19,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
+
 from collections import Counter
 
 from .common import normalize_answer
@@ -49,6 +50,7 @@ def score(prediction: str, ground_truth: str) -> float:
     recall = num_same / len(ground_truth_tokens)
     f1 = (2 * precision * recall) / (precision + recall)
     return f1
+
 
 def score_batch(predictions: list[str], ground_truths: list[str]) -> float:
     """Calculate average F1 score for a batch.

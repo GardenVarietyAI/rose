@@ -1,4 +1,5 @@
 """Chat Completions API formatter for LLM events."""
+
 import time
 import uuid
 from typing import Any, Dict, Optional

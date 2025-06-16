@@ -1,4 +1,5 @@
 """Model registry for managing base and fine-tuned models."""
+
 import json
 import logging
 from pathlib import Path
@@ -8,6 +9,7 @@ from rose_server.config import ServiceConfig
 from rose_server.model_registry import get_llm_models
 
 logger = logging.getLogger(__name__)
+
 
 class ModelRegistry:
     """Central registry for all LLM models."""
@@ -38,7 +40,7 @@ class ModelRegistry:
                         model_id=model_id,
                         model_path=model_info["path"],
                         base_model=model_info.get("base_model", "qwen2.5-0.5b"),
-                        persist=False
+                        persist=False,
                     )
                     loaded += 1
                 else:
@@ -48,12 +50,12 @@ class ModelRegistry:
             logger.error(f"Error loading fine-tuned models registry: {e}")
 
     def register_model(
-        self, 
-        model_id: str, 
+        self,
+        model_id: str,
         model_path: Optional[str] = None,
         base_model: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
-        persist: bool = True
+        persist: bool = True,
     ) -> bool:
         """Register a model in the registry.
         Args:
@@ -71,12 +73,9 @@ class ModelRegistry:
                     logger.error(f"Model path does not exist: {model_path}")
                     return False
                 base_config = self.models.get(base_model, {}).copy()
-                base_config.update({
-                    "model_name": model_id,
-                    "model_path": model_path,
-                    "base_model": base_model,
-                    "is_fine_tuned": True
-                })
+                base_config.update(
+                    {"model_name": model_id, "model_path": model_path, "base_model": base_model, "is_fine_tuned": True}
+                )
                 if config:
                     base_config.update(config)
                 self.models[model_id] = base_config
@@ -114,11 +113,7 @@ class ModelRegistry:
 
     def list_fine_tuned_models(self) -> list[str]:
         """List only fine-tuned model IDs."""
-        return [
-            model_id 
-            for model_id, config in self.models.items() 
-            if config.get("is_fine_tuned", False)
-        ]
+        return [model_id for model_id, config in self.models.items() if config.get("is_fine_tuned", False)]
 
     def _save_fine_tuned_registry(self):
         """Save fine-tuned models to registry file."""
@@ -129,7 +124,7 @@ class ModelRegistry:
                     registry[model_id] = {
                         "path": config["model_path"],
                         "base_model": config.get("base_model", "unknown"),
-                        "created_at": config.get("created_at", 0)
+                        "created_at": config.get("created_at", 0),
                     }
             self._registry_path.parent.mkdir(parents=True, exist_ok=True)
             with open(self._registry_path, "w") as f:

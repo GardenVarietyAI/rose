@@ -1,4 +1,5 @@
 """Streaming response schemas for chat completions and responses API."""
+
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -13,6 +14,7 @@ class StreamingChoice(BaseModel):
         default=None, description="Reason the model stopped generating"
     )
 
+
 class StreamingResponse(BaseModel):
     """OpenAI-compatible streaming response chunk."""
 
@@ -22,4 +24,6 @@ class StreamingResponse(BaseModel):
     model: str = Field(description="Model used for the completion")
     choices: List[StreamingChoice] = Field(description="List of completion choices")
     usage: Optional[Dict[str, int]] = Field(default=None, description="Usage statistics")
+
+
 __all__ = ["StreamingChoice", "StreamingResponse"]

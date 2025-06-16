@@ -1,4 +1,5 @@
 """Assistant database entities."""
+
 import time
 from typing import Any, Dict, List, Optional
 
@@ -27,6 +28,7 @@ class Assistant(SQLModel, table=True):
         Index("idx_assistants_created", "created_at"),
         Index("idx_assistants_model", "model"),
     )
+
 
 class AssistantTool(SQLModel, table=True):
     """Assistant tool configuration."""

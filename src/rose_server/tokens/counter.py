@@ -1,4 +1,5 @@
 """HuggingFace-native tokenizer service for exact token counting."""
+
 import logging
 from functools import lru_cache
 from typing import Dict, List
@@ -8,6 +9,7 @@ from transformers import AutoTokenizer
 from rose_server.schemas.chat import ChatMessage
 
 logger = logging.getLogger(__name__)
+
 
 class TokenizerService:
     """HuggingFace tokenizer service with OpenAI-compatible responses."""
@@ -35,8 +37,8 @@ class TokenizerService:
                 logger.error(f"Failed to load tokenizer for {model_id}: {e}")
                 raise
         return self._tokenizer_cache[model_id]
-    @lru_cache(maxsize=10000)
 
+    @lru_cache(maxsize=10000)
     def _count_tokens_cached(self, text: str, model_id: str) -> int:
         """Internal cached token counting function."""
         if not text:

@@ -1,4 +1,5 @@
 """Utility functions for runs processing."""
+
 from typing import Optional
 
 

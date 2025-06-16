@@ -1,4 +1,5 @@
 """API router for runs endpoints."""
+
 import logging
 from typing import Any, Dict
 
@@ -14,8 +15,9 @@ from rose_server.threads.store import ThreadStore
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
-@router.post("/threads/{thread_id}/runs")
 
+
+@router.post("/threads/{thread_id}/runs")
 async def create_run(thread_id: str, request: CreateRunRequest = Body(...)) -> JSONResponse:
     """Create a run in a thread."""
     try:
@@ -54,8 +56,9 @@ async def create_run(thread_id: str, request: CreateRunRequest = Body(...)) -> J
     except Exception as e:
         logger.error(f"Error creating run: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Error creating run: {str(e)}"})
-@router.get("/threads/{thread_id}/runs")
 
+
+@router.get("/threads/{thread_id}/runs")
 async def list_runs(
     thread_id: str,
     limit: int = Query(default=20, description="Number of runs to retrieve"),
@@ -81,8 +84,9 @@ async def list_runs(
     except Exception as e:
         logger.error(f"Error listing runs: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Error listing runs: {str(e)}"})
-@router.get("/threads/{thread_id}/runs/{run_id}")
 
+
+@router.get("/threads/{thread_id}/runs/{run_id}")
 async def get_run(thread_id: str, run_id: str) -> JSONResponse:
     """Retrieve a run."""
     try:
@@ -94,8 +98,9 @@ async def get_run(thread_id: str, run_id: str) -> JSONResponse:
     except Exception as e:
         logger.error(f"Error retrieving run: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Error retrieving run: {str(e)}"})
-@router.post("/threads/{thread_id}/runs/{run_id}/cancel")
 
+
+@router.post("/threads/{thread_id}/runs/{run_id}/cancel")
 async def cancel_run(thread_id: str, run_id: str) -> JSONResponse:
     """Cancel a run."""
     try:
@@ -107,8 +112,9 @@ async def cancel_run(thread_id: str, run_id: str) -> JSONResponse:
     except Exception as e:
         logger.error(f"Error cancelling run: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Error cancelling run: {str(e)}"})
-@router.get("/threads/{thread_id}/runs/{run_id}/steps")
 
+
+@router.get("/threads/{thread_id}/runs/{run_id}/steps")
 async def list_run_steps(
     thread_id: str,
     run_id: str,
@@ -135,8 +141,9 @@ async def list_run_steps(
     except Exception as e:
         logger.error(f"Error listing run steps: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Error listing run steps: {str(e)}"})
-@router.get("/threads/{thread_id}/runs/{run_id}/steps/{step_id}")
 
+
+@router.get("/threads/{thread_id}/runs/{run_id}/steps/{step_id}")
 async def get_run_step(thread_id: str, run_id: str, step_id: str) -> JSONResponse:
     """Retrieve a specific run step."""
     try:
@@ -151,8 +158,9 @@ async def get_run_step(thread_id: str, run_id: str, step_id: str) -> JSONRespons
     except Exception as e:
         logger.error(f"Error retrieving run step: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Error retrieving run step: {str(e)}"})
-@router.post("/threads/{thread_id}/runs/{run_id}/submit_tool_outputs")
 
+
+@router.post("/threads/{thread_id}/runs/{run_id}/submit_tool_outputs")
 async def submit_tool_outputs(thread_id: str, run_id: str, request: Dict[str, Any] = Body(...)) -> JSONResponse:
     """Submit tool outputs for a run that requires action."""
     try:

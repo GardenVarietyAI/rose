@@ -25,8 +25,9 @@ from ...hf.loading import load_model_and_tokenizer
 from ...model_registry import get_fine_tunable_models
 
 logger = logging.getLogger(__name__)
-@dataclass
 
+
+@dataclass
 class HyperParams:
     """User-supplied or auto-resolved hyper-parameters."""
 
@@ -45,8 +46,8 @@ class HyperParams:
     seed: int = 42
     suffix: str = "custom"
     learning_rate: float = field(init=False)
-    @classmethod
 
+    @classmethod
     def resolve(cls, raw: Dict, optimised=None) -> "HyperParams":
         """Coerce raw dict & 'auto' values into concrete numbers."""
         hp = cls(**raw)
@@ -62,9 +63,7 @@ class HyperParams:
         else:
             hp.batch_size = cls._auto_int(hp.batch_size, default_batch_size)
             hp.max_length = cls._auto_int(hp.max_length, default_max_length)
-            hp.gradient_accumulation_steps = cls._auto_int(
-                hp.gradient_accumulation_steps, default_grad_accum
-            )
+            hp.gradient_accumulation_steps = cls._auto_int(hp.gradient_accumulation_steps, default_grad_accum)
         hp.n_epochs = cls._auto_int(hp.n_epochs, 3)
         lr_mult = hp.learning_rate_multiplier
         if lr_mult is None or lr_mult == "auto":
@@ -74,14 +73,15 @@ class HyperParams:
         hp.learning_rate_multiplier = lr_mult
         hp.learning_rate = ServiceConfig.FINE_TUNING_DEFAULT_LEARNING_RATE * lr_mult
         return hp
-    @staticmethod
 
+    @staticmethod
     def _auto_int(val: int | str | None, fallback: int | None) -> int:
         if val is None or val == "auto":
             if fallback is None:
                 return 1
             return int(fallback)
         return int(val)
+
 
 class _BaseCallback(TrainerCallback):
     """Shared utilities for custom callbacks."""
@@ -100,6 +100,7 @@ class _BaseCallback(TrainerCallback):
         seconds = (time.time() - self._t0) / done * (total - done)
         return f"{int(seconds // 60)}m {int(seconds % 60)}s"
 
+
 class HardwareMonitorCallback(_BaseCallback):
     """Simple hardware monitoring callback."""
 
@@ -110,6 +111,7 @@ class HardwareMonitorCallback(_BaseCallback):
         if torch.cuda.is_available():
             try:
                 import pynvml
+
                 pynvml.nvmlInit()
                 handle = pynvml.nvmlDeviceGetHandleByIndex(0)
                 mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
@@ -130,6 +132,7 @@ class HardwareMonitorCallback(_BaseCallback):
                 pass
         try:
             import psutil
+
             process = psutil.Process()
             metrics["cpu_percent"] = process.cpu_percent()
             metrics["ram_gb"] = round(process.memory_info().rss / 1024**3, 2)
@@ -137,6 +140,7 @@ class HardwareMonitorCallback(_BaseCallback):
             pass
         if metrics:
             self._send("debug", "Hardware metrics", metrics)
+
 
 class EventCallback(_BaseCallback):
     """Streams high-level training progress to ``event_callback``."""
@@ -156,7 +160,7 @@ class EventCallback(_BaseCallback):
             return
         total = args.max_steps
         if total <= 0:
-            if hasattr(state, 'num_train_epochs') and hasattr(args, 'num_train_epochs'):
+            if hasattr(state, "num_train_epochs") and hasattr(args, "num_train_epochs"):
                 if state.global_step > 0 and state.epoch > 0:
                     steps_per_epoch = int(state.global_step / state.epoch)
                     total = steps_per_epoch * args.num_train_epochs
@@ -175,6 +179,7 @@ class EventCallback(_BaseCallback):
                 "progress_pct": round(pct, 2),
             },
         )
+
 
 class CancellationCallback(TrainerCallback):
     """Stops training early when an external controller requests it."""
@@ -208,6 +213,7 @@ class CancellationCallback(TrainerCallback):
                 json.dumps(meta)
             )
         return control
+
 
 class HFTrainer:
     """Wraps HF Trainer with checkpoint management and resource monitoring."""
@@ -337,6 +343,7 @@ class HFTrainer:
     def _update_registry(self, model_id: str, model_path: str, base_model: str):
         """Update the fine-tuned models registry."""
         import json
+
         registry_path = Path(ServiceConfig.DATA_DIR) / "fine_tuned_models.json"
         registry = {}
         if registry_path.exists():
@@ -345,11 +352,7 @@ class HFTrainer:
                     registry = json.load(f)
             except Exception as e:
                 logger.warning(f"Failed to load registry: {e}")
-        registry[model_id] = {
-            "path": model_path,
-            "base_model": base_model,
-            "created_at": time.time()
-        }
+        registry[model_id] = {"path": model_path, "base_model": base_model, "created_at": time.time()}
         try:
             with open(registry_path, "w") as f:
                 json.dump(registry, f, indent=2)
@@ -361,27 +364,32 @@ class HFTrainer:
         """Clean up all resources held by HFTrainer."""
 
         import gc
+
         gc.collect()
+
 
 def _load_jsonl(fp: Path) -> List[Dict]:
     """Read JSONL file, ignoring blank lines."""
     lines = [ln for ln in fp.read_text("utf-8").splitlines() if ln.strip()]
     return [json.loads(ln) for ln in lines]
 
-def _prepare_dataset(raw: Sequence[Dict], tok, max_len: int) -> Dataset:
 
+def _prepare_dataset(raw: Sequence[Dict], tok, max_len: int) -> Dataset:
     def to_text(item: Dict) -> str:
         if "messages" in item and hasattr(tok, "apply_chat_template"):
             return tok.apply_chat_template(item["messages"], tokenize=False, add_generation_prompt=False)
         if "prompt" in item and "completion" in item:
             return item["prompt"] + item["completion"]
         return item.get("text", "")
+
     texts = [to_text(ex) for ex in raw]
     ds = Dataset.from_dict({"text": texts})
 
     def tokenize(batch):
         return tok(batch["text"], truncation=True, padding="max_length", max_length=max_len)
+
     return ds.map(tokenize, batched=True, remove_columns=["text"])
+
 
 def _make_training_args(job_id: str, hp: HyperParams, n_samples: int) -> TrainingArguments:
     out_dir = Path(ServiceConfig.DATA_DIR) / "checkpoints" / job_id
@@ -391,13 +399,7 @@ def _make_training_args(job_id: str, hp: HyperParams, n_samples: int) -> Trainin
     actual_gas = int(hp.gradient_accumulation_steps or 1)
     total_steps = steps_per_epoch // actual_gas * hp.n_epochs
     warmup = int(total_steps * hp.warmup_ratio)
-    device = (
-        "cuda"
-        if torch.cuda.is_available()
-        else "mps"
-        if torch.backends.mps.is_available()
-        else "cpu"
-    )
+    device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     return TrainingArguments(
         output_dir=str(out_dir),
         overwrite_output_dir=True,
@@ -425,8 +427,10 @@ def _make_training_args(job_id: str, hp: HyperParams, n_samples: int) -> Trainin
         dataloader_pin_memory=(device == "cuda"),
     )
 
+
 def _maybe_split(ds: Dataset, val_ratio: float) -> Optional[Dataset]:
     return None if val_ratio == 0 else ds.train_test_split(val_ratio, seed=42)["test"]
+
 
 def _latest_checkpoint(job_id: str) -> Optional[str]:
     base = Path(ServiceConfig.DATA_DIR) / "checkpoints" / job_id
@@ -435,7 +439,9 @@ def _latest_checkpoint(job_id: str) -> Optional[str]:
     ckpts = sorted(base.glob("checkpoint-*"), key=lambda p: int(p.name.split("-")[1]))
     return str(ckpts[-1]) if ckpts else None
 
+
 def _silence_transformers() -> None:
     os.environ["TRANSFORMERS_VERBOSITY"] = "warning"
     from tqdm import tqdm
+
     tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)

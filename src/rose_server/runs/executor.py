@@ -1,4 +1,5 @@
 """Run execution logic."""
+
 import json
 import logging
 import uuid
@@ -25,6 +26,7 @@ from rose_server.tools import format_tools_for_prompt, parse_xml_tool_call
 
 logger = logging.getLogger(__name__)
 
+
 def _build_conversation_context(messages, limit=5):
     """Build conversation context from recent messages."""
     context_messages = []
@@ -36,6 +38,7 @@ def _build_conversation_context(messages, limit=5):
         if text_content:
             context_messages.append(f"{msg.role}: {text_content}")
     return "\n".join(context_messages) if context_messages else None
+
 
 async def _build_prompt(run, assistant, messages, latest_user_message):
     """Build the full prompt including instructions, context, and tools."""
@@ -52,6 +55,7 @@ async def _build_prompt(run, assistant, messages, latest_user_message):
             prompt_parts.append(tool_prompt)
     prompt_parts.append(f"\nUser: {latest_user_message}")
     return "\n\n".join(prompt_parts)
+
 
 async def _handle_tool_calls(run, assistant, response_text, step, runs_store):
     """Check for tool calls and handle them if present."""
@@ -86,6 +90,7 @@ async def _handle_tool_calls(run, assistant, response_text, step, runs_store):
     )
     logger.info(f"Run {run.id} requires action for tool calls")
     return True
+
 
 async def execute_assistant_run_streaming(run: Run, thread_store, assistant) -> AsyncGenerator[str, None]:
     """Execute an assistant run with streaming output."""
@@ -148,14 +153,10 @@ async def execute_assistant_run_streaming(run: Run, thread_store, assistant) -> 
         prompt_tokens = 0
         completion_tokens = 0
         async for event in generator.generate_events(
-            messages,
-            temperature=temperature,
-            top_p=top_p,
-            enable_tools=enable_tools,
-            tools=tools
+            messages, temperature=temperature, top_p=top_p, enable_tools=enable_tools, tools=tools
         ):
             if isinstance(event, ResponseStarted):
-                prompt_tokens = getattr(event, 'prompt_tokens', 0)
+                prompt_tokens = getattr(event, "prompt_tokens", 0)
             elif isinstance(event, TokenGenerated):
                 yield await stream_message_chunk(run.id, message_id, event.token)
                 response_text += event.token
@@ -166,7 +167,7 @@ async def execute_assistant_run_streaming(run: Run, thread_store, assistant) -> 
                 usage = {
                     "prompt_tokens": prompt_tokens,
                     "completion_tokens": completion_tokens,
-                    "total_tokens": prompt_tokens + completion_tokens
+                    "total_tokens": prompt_tokens + completion_tokens,
                 }
         if assistant.tools:
             parsed_call, cleaned_text = parse_xml_tool_call(response_text)

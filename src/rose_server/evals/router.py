@@ -1,4 +1,5 @@
 """FastAPI router for evaluation endpoints."""
+
 import json
 import uuid
 from typing import Any, Dict, List, Optional
@@ -64,10 +65,12 @@ EVAL_CRITERIA_MAP = {
     ],
 }
 
+
 def _get_testing_criteria(eval_name: str) -> List:
     """Get default testing criteria based on eval name."""
     criteria_fn = EVAL_CRITERIA_MAP.get(eval_name.lower(), EVAL_CRITERIA_MAP["default"])
     return criteria_fn()
+
 
 def _get_data_source_schema(eval_name: str) -> DataSourceSchema:
     """Get default data source schema based on eval name."""
@@ -79,6 +82,7 @@ def _get_data_source_schema(eval_name: str) -> DataSourceSchema:
         },
         required=["item", "sample"],
     )
+
 
 def _reconstruct_eval_object(eval) -> EvalObject:
     """Reconstruct EvalObject from database entity."""
@@ -98,8 +102,9 @@ def _reconstruct_eval_object(eval) -> EvalObject:
         created_at=eval.created_at,
         metadata=eval.meta or {},
     )
-@router.post("", response_model=EvalObject)
 
+
+@router.post("", response_model=EvalObject)
 async def create_evaluation(
     data_source_config: Dict[str, Any],
     testing_criteria: List[Dict[str, Any]],
@@ -114,6 +119,7 @@ async def create_evaluation(
     elif not name:
         name = f"eval_{eval_id[:8]}"
     import logging
+
     logger = logging.getLogger(__name__)
     logger.info(f"Incoming data_source_config: {data_source_config}")
     logger.info(f"Metadata: {data_source_config.get('metadata')}")
@@ -154,8 +160,9 @@ async def create_evaluation(
         metadata=metadata,
     )
     return _reconstruct_eval_object(await store.get_eval(eval_id))
-@router.get("/{eval_id}", response_model=EvalObject)
 
+
+@router.get("/{eval_id}", response_model=EvalObject)
 async def get_evaluation(
     eval_id: str,
 ) -> EvalObject:
@@ -165,8 +172,9 @@ async def get_evaluation(
     if not eval:
         raise HTTPException(status_code=404, detail="Evaluation not found")
     return _reconstruct_eval_object(eval)
-@router.delete("/{eval_id}", response_model=EvalDeleteResponse)
 
+
+@router.delete("/{eval_id}", response_model=EvalDeleteResponse)
 async def delete_evaluation(
     eval_id: str,
 ) -> EvalDeleteResponse:
@@ -176,8 +184,9 @@ async def delete_evaluation(
     if not deleted:
         raise HTTPException(status_code=404, detail="Evaluation not found")
     return EvalDeleteResponse(id=eval_id, object="eval", deleted=True)
-@router.get("", response_model=EvalListResponse)
 
+
+@router.get("", response_model=EvalListResponse)
 async def list_evaluations(
     limit: int = Query(20, description="Number of evaluations to return"),
     after: Optional[str] = Query(None, description="Cursor for pagination"),
@@ -194,8 +203,9 @@ async def list_evaluations(
         first_id=eval_objects[0].id if eval_objects else None,
         last_id=eval_objects[-1].id if eval_objects else None,
     )
-@router.post("/{eval_id}/runs", response_model=EvalRunResponse)
 
+
+@router.post("/{eval_id}/runs", response_model=EvalRunResponse)
 async def create_eval_run(
     eval_id: str,
     request: EvalRunCreateRequest,
@@ -214,11 +224,7 @@ async def create_eval_run(
         model=model,
         data_source=request.data_source.dict(),
     )
-    metadata = {
-        "data_source": request.data_source.dict(), 
-        "eval_def_id": eval_id, 
-        "run_name": request.name
-    }
+    metadata = {"data_source": request.data_source.dict(), "eval_def_id": eval_id, "run_name": request.name}
     if request.data_source.max_samples is not None:
         metadata["max_samples"] = request.data_source.max_samples
     if eval_def.data_source_config:
@@ -242,8 +248,9 @@ async def create_eval_run(
         created_at=eval_run.created_at,
         data_source=request.data_source,
     )
-@router.get("/{eval_id}/runs", response_model=List[EvalRunResponse])
 
+
+@router.get("/{eval_id}/runs", response_model=List[EvalRunResponse])
 async def list_eval_runs(
     eval_id: str,
     limit: int = 20,
@@ -271,8 +278,9 @@ async def list_eval_runs(
         )
         for run in runs
     ]
-@router.get("/{eval_id}/runs/{run_id}", response_model=EvalRunResponse)
 
+
+@router.get("/{eval_id}/runs/{run_id}", response_model=EvalRunResponse)
 async def get_eval_run(
     eval_id: str,
     run_id: str,
@@ -296,8 +304,9 @@ async def get_eval_run(
         results=run.results,
         error=run.error_message,
     )
-@router.get("/{eval_id}/runs/{run_id}/samples")
 
+
+@router.get("/{eval_id}/runs/{run_id}/samples")
 async def list_eval_samples(
     eval_id: str,
     run_id: str,
@@ -310,12 +319,7 @@ async def list_eval_samples(
     run = await store.get_eval_run(run_id)
     if not run or run.eval_id != eval_id:
         raise HTTPException(status_code=404, detail="Evaluation run not found")
-    samples = await store.get_eval_samples(
-        eval_run_id=run_id,
-        limit=limit,
-        offset=offset,
-        only_failed=only_failed
-    )
+    samples = await store.get_eval_samples(eval_run_id=run_id, limit=limit, offset=offset, only_failed=only_failed)
     counts = await store.count_eval_samples(run_id)
     return {
         "object": "list",
@@ -341,8 +345,9 @@ async def list_eval_samples(
         "has_more": offset + limit < counts["total"],
         "counts": counts,
     }
-@router.get("/{eval_id}/runs/{run_id}/samples/{sample_id}")
 
+
+@router.get("/{eval_id}/runs/{run_id}/samples/{sample_id}")
 async def get_eval_sample(
     eval_id: str,
     run_id: str,

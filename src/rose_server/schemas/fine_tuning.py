@@ -1,4 +1,5 @@
 """Fine-tuning models - reusing OpenAI SDK types."""
+
 from typing import Any, Dict, Literal, Optional, Union
 
 from openai.types.fine_tuning import (
@@ -23,6 +24,7 @@ __all__ = [
     "Method",
 ]
 
+
 class SupervisedHyperparameters(BaseModel):
     """Hyperparameters for supervised fine-tuning (SFT)."""
 
@@ -31,6 +33,7 @@ class SupervisedHyperparameters(BaseModel):
         None, description="Scaling factor for the learning rate"
     )
     n_epochs: Optional[Union[Literal["auto"], int]] = Field(None, description="Number of epochs to train for")
+
 
 class DpoHyperparameters(BaseModel):
     """Hyperparameters for Direct Preference Optimization (DPO)."""
@@ -44,15 +47,18 @@ class DpoHyperparameters(BaseModel):
     )
     n_epochs: Optional[Union[Literal["auto"], int]] = Field(None, description="Number of epochs to train for")
 
+
 class DpoConfig(BaseModel):
     """DPO configuration wrapper."""
 
     hyperparameters: Optional[DpoHyperparameters] = None
 
+
 class SupervisedConfig(BaseModel):
     """Supervised configuration wrapper."""
 
     hyperparameters: Optional[SupervisedHyperparameters] = None
+
 
 class SupervisedMethod(BaseModel):
     """Supervised fine-tuning method configuration."""
@@ -60,12 +66,16 @@ class SupervisedMethod(BaseModel):
     type: Literal["supervised"] = "supervised"
     supervised: Optional[SupervisedConfig] = None
 
+
 class DpoMethod(BaseModel):
     """Direct Preference Optimization method configuration."""
 
     type: Literal["dpo"] = "dpo"
     dpo: Optional[DpoConfig] = None
+
+
 Method = Union[SupervisedMethod, DpoMethod]
+
 
 class FineTuningJobStore(BaseModel):
     """Internal storage for fine-tuning job with extra fields."""
@@ -78,6 +88,7 @@ class FineTuningJobStore(BaseModel):
     total_steps: Optional[int] = None
     current_epoch: int = 0
     best_loss: Optional[float] = None
+
 
 class FineTuningJobEventStore(BaseModel):
     """Store for job events."""
