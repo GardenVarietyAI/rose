@@ -32,7 +32,7 @@ jobs:
           -w /app \
           -e CODEX_ENV_PYTHON_VERSION=3.13 \
           rose-server:test \
-          bash -c "poetry run ruff src/"
+          bash -c "poetry run ruff check src/"
     
     - name: Test API startup
       run: |
