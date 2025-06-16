@@ -1,7 +1,10 @@
 """Training-related events for fine-tuning pipeline integration."""
 from typing import Any, Dict, Literal, Optional
+
 from pydantic import Field
+
 from .base import LLMEvent
+
 
 class TrainingStarted(LLMEvent):
     """Fired when a training job begins."""

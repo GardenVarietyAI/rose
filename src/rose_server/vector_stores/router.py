@@ -1,7 +1,9 @@
 """API router for vector stores endpoints."""
 import logging
 from typing import List
+
 from fastapi import APIRouter, Body, HTTPException, Path
+
 from rose_server.services import get_vector_store_store
 from rose_server.vector_stores.models import (
     VectorBatch,
@@ -9,6 +11,7 @@ from rose_server.vector_stores.models import (
     VectorStoreCreate,
     VectorStoreUpdate,
 )
+
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
 @router.get("/vector_stores")

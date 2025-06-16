@@ -1,11 +1,13 @@
 """Fine-tuning models - reusing OpenAI SDK types."""
 from typing import Any, Dict, Literal, Optional, Union
+
 from openai.types.fine_tuning import (
     FineTuningJob,
     FineTuningJobEvent,
     JobCreateParams,
 )
 from pydantic import BaseModel, Field
+
 __all__ = [
     "FineTuningJob",
     "FineTuningJobEvent",

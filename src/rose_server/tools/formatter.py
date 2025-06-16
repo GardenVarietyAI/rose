@@ -2,12 +2,15 @@
 import logging
 from pathlib import Path
 from typing import List, Optional
+
 from jinja2 import Environment, FileSystemLoader
 from openai.types.beta.code_interpreter_tool import CodeInterpreterTool
 from openai.types.beta.file_search_tool import FileSearchTool
 from openai.types.beta.function_tool import FunctionTool
+
 from .chunker import MAX_TOOL_OUTPUT_TOKENS, chunk_tool_output
 from .toolbox import BUILTIN_TOOLS, Tool
+
 logger = logging.getLogger(__name__)
 template_dir = Path(__file__).parent / "prompts"
 jinja_env = Environment(loader=FileSystemLoader(str(template_dir)), trim_blocks=True, lstrip_blocks=True)

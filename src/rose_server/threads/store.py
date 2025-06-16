@@ -3,9 +3,11 @@ import json
 import logging
 import uuid
 from typing import Any, Callable, Dict, List, Optional
+
 from openai.types.beta.threads import Text, TextContentBlock
 from sqlalchemy import delete, func
 from sqlmodel import select
+
 from ..database import (
     Message as MessageDB,
 )
@@ -17,6 +19,7 @@ from ..database import (
     run_in_session,
 )
 from ..schemas.threads import Thread, ThreadMessage
+
 logger = logging.getLogger(__name__)
 
 class ThreadStore:

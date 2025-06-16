@@ -3,7 +3,9 @@ import asyncio
 import json
 import time
 from typing import AsyncGenerator
+
 from rose_server.schemas.runs import RunStep
+
 
 async def stream_run_status(run_id: str, status: str, **kwargs) -> str:
     """Create a streaming event for run status updates."""

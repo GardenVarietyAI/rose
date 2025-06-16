@@ -2,8 +2,11 @@
 import logging
 from functools import lru_cache
 from typing import Dict, List
+
 from transformers import AutoTokenizer
+
 from rose_server.schemas.chat import ChatMessage
+
 logger = logging.getLogger(__name__)
 
 class TokenizerService:

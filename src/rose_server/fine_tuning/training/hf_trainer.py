@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from functools import partialmethod
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence
+
 import numpy as np
 import torch
 from datasets import Dataset
@@ -18,10 +19,11 @@ from transformers import (
     TrainerControl,
     TrainingArguments,
 )
+
 from ...config import ServiceConfig
 from ...hf.loading import load_model_and_tokenizer
 from ...model_registry import get_fine_tunable_models
-from ...services import get_model_registry
+
 logger = logging.getLogger(__name__)
 @dataclass
 

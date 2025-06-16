@@ -1,7 +1,9 @@
 """Job queue entities."""
 from typing import Dict, Optional
+
 from sqlalchemy import JSON, Index
 from sqlmodel import Field, SQLModel
+
 
 class Job(SQLModel, table=True):
     """Generic job for background processing."""

@@ -1,8 +1,10 @@
 """API router for threads endpoints."""
 import logging
 from typing import Any, Dict, Optional
+
 from fastapi import APIRouter, Body, Query
 from fastapi.responses import JSONResponse, StreamingResponse
+
 from rose_server.assistants.store import get_assistant_store
 from rose_server.runs.executor import execute_assistant_run_streaming
 from rose_server.runs.store import RunsStore
@@ -12,6 +14,7 @@ from rose_server.schemas.threads import (
     CreateThreadRequest,
 )
 from rose_server.threads.store import ThreadStore
+
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
 @router.get("/threads")

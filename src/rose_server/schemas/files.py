@@ -1,7 +1,9 @@
 """File API schemas."""
 from typing import List, Optional
+
 from openai.types import FileObject
 from pydantic import BaseModel, Field, validator
+
 
 class TrainingData(BaseModel):
     """Validation model for fine-tuning training data - OpenAI compatible formats only."""

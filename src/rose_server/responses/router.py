@@ -5,8 +5,10 @@ import time
 import traceback
 import uuid
 from typing import Optional
+
 from fastapi import APIRouter, Body, Header, Request
 from fastapi.responses import StreamingResponse
+
 from rose_server.database import run_in_session
 from rose_server.entities.threads import Message
 from rose_server.events.formatters import ResponsesFormatter
@@ -17,6 +19,7 @@ from rose_server.schemas.responses import ResponsesRequest
 from rose_server.services import get_model_registry
 from rose_server.tools import format_function_output
 from rose_server.utils import extract_user_content
+
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["responses"])
 @router.get("/v1/responses/{response_id}", response_model=None)

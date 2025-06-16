@@ -1,6 +1,8 @@
 """Event formatters utility functions."""
 import json
+
 from sse_starlette.sse import EventSourceResponse
+
 
 async def create_sse_response(event_generator, formatter) -> EventSourceResponse:
     """Create an SSE response using sse-starlette from an event generator."""

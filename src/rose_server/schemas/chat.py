@@ -1,6 +1,8 @@
 """Chat completions API schemas."""
 from typing import Any, Dict, List, Literal, Optional
+
 from pydantic import BaseModel, Field
+
 
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant", "system", "tool"] = Field(description="Role of the message sender")

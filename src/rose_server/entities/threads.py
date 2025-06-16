@@ -1,8 +1,10 @@
 """Thread and message database entities."""
 import time
 from typing import Any, Dict, List, Optional
+
 from sqlalchemy import JSON, Index
 from sqlmodel import Field, SQLModel
+
 
 class Thread(SQLModel, table=True):
     """Thread model for database storage."""

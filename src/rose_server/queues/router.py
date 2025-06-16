@@ -1,11 +1,14 @@
 """FastAPI router for jobs."""
 import logging
 from typing import Dict, Optional
+
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select
+
 from ..database import run_in_session
 from ..entities.jobs import Job
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["jobs"])
 

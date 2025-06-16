@@ -1,11 +1,14 @@
 """API router for assistants endpoints."""
 import logging
 from typing import Optional
+
 from fastapi import APIRouter, Body, Query
 from fastapi.responses import JSONResponse
+
 from rose_server.assistants.store import get_assistant_store
 from rose_server.schemas.assistants import CreateAssistantRequest, UpdateAssistantRequest
 from rose_server.tools import Tool, validate_tools
+
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
 @router.post("/assistants")

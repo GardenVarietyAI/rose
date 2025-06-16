@@ -2,7 +2,9 @@
 import json
 import logging
 from typing import Dict, Optional, Tuple
+
 from rose_server.tools import handle_retrieval_tool_call
+
 logger = logging.getLogger(__name__)
 
 async def intercept_retrieval_tool_call(tool_call: Dict[str, any], assistant_id: str) -> Optional[Tuple[str, str]]:

@@ -21,6 +21,7 @@ SOFTWARE.
 """
 from .common import normalize_answer
 
+
 def score(prediction: str, ground_truth: str) -> float:
     """Calculate exact match score between prediction and ground truth.
 

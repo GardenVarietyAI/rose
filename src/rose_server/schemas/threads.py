@@ -1,8 +1,10 @@
 """Thread API schemas."""
 from typing import Any, Dict, List, Literal, Optional, Union
+
 from openai.types.beta import Thread as OpenAIThread
 from openai.types.beta.threads import Message as OpenAIMessage
 from pydantic import BaseModel, Field
+
 
 class ThreadMessage(OpenAIMessage):
     """Extends OpenAI's Message type for our thread messages."""

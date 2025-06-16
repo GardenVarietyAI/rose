@@ -3,11 +3,14 @@ import hashlib
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional
+
 import aiofiles
 import aiofiles.os
+
 from rose_server import vector
 from rose_server.config import EmbeddingConfig
 from rose_server.embeddings.embedding import generate_embeddings
+
 logger = logging.getLogger(__name__)
 
 class AssistantFileHandler:

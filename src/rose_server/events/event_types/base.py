@@ -3,7 +3,9 @@ import time
 import uuid
 from abc import ABC
 from typing import Any, Dict, Optional
+
 from pydantic import BaseModel, Field
+
 
 class LLMEvent(BaseModel, ABC):
     """Base class for all LLM events using Pydantic.

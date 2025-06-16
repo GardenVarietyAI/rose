@@ -4,8 +4,10 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from typing import Dict
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+
 from rose_server.config import ServiceConfig, get_full_config
 from rose_server.database import create_all_tables
 from rose_server.embeddings.manager import EmbeddingManager
@@ -19,6 +21,7 @@ from rose_server.threads.store import ThreadStore
 from rose_server.tokens import TokenizerService
 from rose_server.vector import ChromaDBManager
 from rose_server.vector_stores.store import VectorStoreStore
+
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["ANONYMIZED_TELEMETRY"] = "false"
 logging.basicConfig(

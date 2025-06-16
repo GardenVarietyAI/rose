@@ -2,7 +2,9 @@
 import time
 import uuid
 from typing import Any, Dict, List, Optional
+
 from .. import LLMEvent, ResponseCompleted, ResponseStarted, TokenGenerated
+
 
 class CompletionsFormatter:
     """Formats events for OpenAI Completions API compatibility.

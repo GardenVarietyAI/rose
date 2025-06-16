@@ -1,11 +1,12 @@
 """Model registry for managing base and fine-tuned models."""
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Any, Dict, Optional
+
 from rose_server.config import ServiceConfig
 from rose_server.model_registry import get_llm_models
+
 logger = logging.getLogger(__name__)
 
 class ModelRegistry:

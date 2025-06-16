@@ -2,8 +2,11 @@
 import json
 import uuid
 from typing import Any, Dict, Literal, Optional
+
 from pydantic import Field, validator
+
 from .base import LLMEvent
+
 
 class ResponseStarted(LLMEvent):
     """Fired when a response generation begins.

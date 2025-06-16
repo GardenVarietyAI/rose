@@ -1,6 +1,8 @@
 """Streaming response schemas for chat completions and responses API."""
 from typing import Any, Dict, List, Literal, Optional
+
 from pydantic import BaseModel, Field
+
 
 class StreamingChoice(BaseModel):
     """Choice object for streaming responses."""

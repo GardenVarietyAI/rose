@@ -2,13 +2,16 @@
 import json
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
+
 import typer
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+
 from ..utils import get_client
+
 app = typer.Typer()
 console = Console()
 @app.command(name="create")

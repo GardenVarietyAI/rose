@@ -1,7 +1,9 @@
 """Responses event generator for the /v1/responses API."""
 from typing import List, Optional
+
 from ...schemas.chat import ChatMessage
 from .base import BaseEventGenerator
+
 
 class ResponsesGenerator(BaseEventGenerator):
     """Generate events for the Responses API.

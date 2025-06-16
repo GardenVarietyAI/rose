@@ -3,12 +3,12 @@ import json
 import logging
 import uuid
 from typing import AsyncGenerator
+
 from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.events.generators import RunsGenerator
 from rose_server.llms.huggingface_llm import HuggingFaceLLM
 from rose_server.runs.store import RunsStore
 from rose_server.runs.streaming import (
-    stream_agent_response,
     stream_message_chunk,
     stream_message_completed,
     stream_message_created,
@@ -22,6 +22,7 @@ from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.runs import RunStepType
 from rose_server.services import get_model_registry
 from rose_server.tools import format_tools_for_prompt, parse_xml_tool_call
+
 logger = logging.getLogger(__name__)
 
 def _build_conversation_context(messages, limit=5):

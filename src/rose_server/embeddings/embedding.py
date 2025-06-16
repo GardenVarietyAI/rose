@@ -1,6 +1,9 @@
 from typing import Any, Dict, List, Union
+
 import numpy as np
+
 from rose_server.services import get_embedding_manager
+
 
 def _encode_batch(model, batch: List[str]) -> List[np.ndarray]:
     return model.encode(batch)

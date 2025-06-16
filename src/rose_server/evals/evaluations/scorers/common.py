@@ -7,6 +7,7 @@ Copyright (c) 2016 Pranav Rajpurkar, Stanford NLP
 import re
 import string
 
+
 def normalize_answer(s):
     """Normalize answer string for comparison.
 

@@ -1,5 +1,6 @@
 """ROSE CLI - Main entry point."""
 import typer
+
 from .commands import (
     assistants,
     chat,
@@ -14,6 +15,7 @@ from .commands import (
     threads,
     upload,
 )
+
 app = typer.Typer(
     help="ROSE - Run your own LLM server",
     no_args_is_help=True,

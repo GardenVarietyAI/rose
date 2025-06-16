@@ -6,14 +6,17 @@ import json
 import logging
 import time
 import uuid
+
 from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
+
 from rose_server.events.formatters import ChatCompletionsFormatter
 from rose_server.events.generators import ChatCompletionsGenerator
 from rose_server.llms.huggingface_llm import HuggingFaceLLM
 from rose_server.schemas.chat import ChatMessage, OpenAIRequest
 from rose_server.services import get_model_registry
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 

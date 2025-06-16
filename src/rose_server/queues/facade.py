@@ -1,6 +1,8 @@
 """Laravel-style queue facade for elegant job dispatching."""
 from typing import Any, Dict, Type
+
 from ..services import get_job_store
+
 
 class Queueable:
     """Base class for queueable jobs."""

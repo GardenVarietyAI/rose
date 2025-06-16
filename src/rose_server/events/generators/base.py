@@ -5,7 +5,9 @@ import threading
 import uuid
 from contextlib import contextmanager
 from typing import AsyncGenerator, List, Optional
+
 from transformers import StoppingCriteria, StoppingCriteriaList, TextIteratorStreamer
+
 from ...llms.huggingface_llm import HuggingFaceLLM
 from ...schemas.chat import ChatMessage
 from ...tools import StreamingXMLDetector
@@ -16,6 +18,7 @@ from .. import (
     ToolCallCompleted,
     ToolCallStarted,
 )
+
 logger = logging.getLogger(__name__)
 
 class ForceStopAfterN(StoppingCriteria):

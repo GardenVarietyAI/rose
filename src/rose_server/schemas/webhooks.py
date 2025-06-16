@@ -1,6 +1,8 @@
 """Webhook-related schemas."""
 from typing import Any, Dict
+
 from pydantic import BaseModel
+
 
 class WebhookEvent(BaseModel):
     """Webhook event payload."""

@@ -1,8 +1,10 @@
 """Assistant database entities."""
 import time
 from typing import Any, Dict, List, Optional
+
 from sqlalchemy import JSON, Index
 from sqlmodel import Field, SQLModel
+
 
 class Assistant(SQLModel, table=True):
     """Assistant model for database storage."""

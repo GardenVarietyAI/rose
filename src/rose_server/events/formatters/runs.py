@@ -2,7 +2,8 @@
 import json
 import time
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
+
 from ..event_types.generation import (
     ResponseCompleted,
     ResponseStarted,
@@ -10,6 +11,7 @@ from ..event_types.generation import (
     ToolCallCompleted,
     ToolCallStarted,
 )
+
 
 class RunsFormatter:
     """Format events into OpenAI Assistants API SSE format.

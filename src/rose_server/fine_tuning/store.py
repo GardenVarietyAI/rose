@@ -2,6 +2,7 @@
 import logging
 import uuid
 from typing import Dict, List, Optional
+
 from openai.types.fine_tuning import (
     FineTuningJob as OpenAIFineTuningJob,
 )
@@ -10,11 +11,13 @@ from openai.types.fine_tuning import (
 )
 from sqlalchemy import delete, func
 from sqlmodel import select
+
 from ..database import current_timestamp, run_in_session
 from ..entities.fine_tuning import (
     FineTuningEvent,
     FineTuningJob,
 )
+
 logger = logging.getLogger(__name__)
 
 class FineTuningStore:

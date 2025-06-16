@@ -1,7 +1,10 @@
 """Compare command."""
 from typing import Optional
+
 import typer
+
 from ..utils import get_client
+
 app = typer.Typer()
 @app.command()
 

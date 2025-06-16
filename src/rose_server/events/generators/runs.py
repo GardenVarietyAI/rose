@@ -1,8 +1,10 @@
 """Runs event generator for assistant execution."""
 from typing import List, Optional
+
 from ...schemas.chat import ChatMessage
 from ...tools.formatter import format_tools_for_prompt
 from .base import BaseEventGenerator
+
 
 class RunsGenerator(BaseEventGenerator):
     """Generate events for assistant runs.

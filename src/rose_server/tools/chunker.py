@@ -1,8 +1,10 @@
 """Tool output chunking utilities for handling large outputs."""
 import logging
 from typing import Tuple
+
 from rose_server.config import ResponseConfig
 from rose_server.services import get_tokenizer_service
+
 logger = logging.getLogger(__name__)
 MAX_TOOL_OUTPUT_TOKENS = ResponseConfig.MAX_TOOL_OUTPUT_TOKENS
 TRUNCATION_NOTICE_TOKENS = 100

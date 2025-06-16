@@ -3,14 +3,14 @@ import logging
 import time
 import uuid
 from typing import List, Union
+
 from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
+
 from rose_server.events import TokenGenerated
-from rose_server.events.formatters import CompletionsFormatter
 from rose_server.events.generators import CompletionsGenerator
 from rose_server.llms.huggingface_llm import HuggingFaceLLM
-from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.completions import (
     CompletionChoice,
     CompletionChunk,
@@ -18,7 +18,8 @@ from rose_server.schemas.completions import (
     CompletionResponse,
     CompletionUsage,
 )
-from rose_server.services import get_model_registry, get_tokenizer_service
+from rose_server.services import get_model_registry
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 

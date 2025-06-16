@@ -1,7 +1,10 @@
 import signal
 import sys
+
 import uvicorn
+
 from rose_server.config import ServiceConfig
+
 
 def handle_exit(signum, frame):
     """Handle termination signals gracefully."""
