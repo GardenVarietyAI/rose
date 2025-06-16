@@ -2,8 +2,10 @@
 import json
 import logging
 from typing import Dict, Optional, Tuple
+
 from rose_server import vector
 from rose_server.embeddings.embedding import generate_embeddings
+
 logger = logging.getLogger(__name__)
 
 async def handle_retrieval_tool_call(assistant_id: str, query: str) -> str:

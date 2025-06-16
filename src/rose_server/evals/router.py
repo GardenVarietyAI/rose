@@ -2,7 +2,9 @@
 import json
 import uuid
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Body, HTTPException, Query
+
+from fastapi import APIRouter, HTTPException, Query
+
 from ..queues.facade import EvalJob
 from ..schemas.evals import (
     DataSourceSchema,
@@ -16,6 +18,7 @@ from ..schemas.evals import (
     TextSimilarityGrader,
 )
 from .store import EvalStore
+
 router = APIRouter(prefix="/v1/evals", tags=["evals"])
 EVAL_CRITERIA_MAP = {
     "gsm8k": lambda: [

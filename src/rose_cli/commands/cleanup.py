@@ -1,10 +1,12 @@
 """Cleanup commands for managing models, files, and jobs."""
 from typing import List, Optional
+
 import typer
 from openai import OpenAI
 from rich.console import Console
 from rich.prompt import Confirm
 from rich.table import Table
+
 console = Console()
 app = typer.Typer()
 @app.command()

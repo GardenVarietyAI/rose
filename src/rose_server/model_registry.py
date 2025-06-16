@@ -1,5 +1,7 @@
 from typing import Dict, Literal
+
 from pydantic import BaseModel, Field
+
 
 class ModelConfig(BaseModel):
     """Configuration for a single LLM model."""

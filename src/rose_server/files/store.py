@@ -2,16 +2,18 @@
 import asyncio
 import json
 import logging
-import os
 import time
 import uuid
 from pathlib import Path
 from typing import BinaryIO, Dict, List, Optional
+
 import aiofiles
 import aiofiles.os
 from openai.types import FileDeleted, FileObject, FilePurpose
 from pydantic import ValidationError
+
 from rose_server.schemas.files import TrainingData
+
 logger = logging.getLogger(__name__)
 
 class FileStore:

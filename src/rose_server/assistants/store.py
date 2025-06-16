@@ -2,14 +2,17 @@
 import logging
 import uuid
 from typing import List, Optional
+
 from openai.types.beta.assistant_tool import CodeInterpreterTool, FileSearchTool, FunctionTool
 from openai.types.shared_params import FunctionDefinition
 from sqlalchemy import delete
 from sqlmodel import select
+
 from ..database import current_timestamp, run_in_session
 from ..entities.assistants import Assistant as AssistantDB
 from ..entities.assistants import AssistantTool
 from ..schemas.assistants import Assistant, CreateAssistantRequest, UpdateAssistantRequest
+
 logger = logging.getLogger(__name__)
 
 class AssistantStore:

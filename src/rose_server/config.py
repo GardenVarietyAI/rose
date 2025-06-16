@@ -1,4 +1,5 @@
 import os
+
 ENV_PREFIX = "ROSE_SERVER_"
 os.environ["LOKY_MAX_CPU_COUNT"] = "1"
 os.environ["LOKY_CONTEXT_STRATEGY"] = "spawn"

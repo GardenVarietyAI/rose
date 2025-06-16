@@ -1,6 +1,8 @@
 """OpenAI-compatible evaluation schemas."""
 from typing import Any, Dict, List, Literal, Optional, Union
+
 from pydantic import BaseModel, ConfigDict, Field
+
 
 class DataSourceSchema(BaseModel):
     """JSON schema for data source."""

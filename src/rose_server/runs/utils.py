@@ -1,6 +1,7 @@
 """Utility functions for runs processing."""
 from typing import Optional
 
+
 def find_latest_user_message(messages) -> Optional[str]:
     """Find the latest user message from thread messages."""
     for msg in reversed(messages):

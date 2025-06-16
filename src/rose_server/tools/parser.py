@@ -3,6 +3,7 @@ import logging
 import re
 import xml.etree.ElementTree as ET
 from typing import Dict, Optional, Tuple
+
 logger = logging.getLogger(__name__)
 
 def parse_xml_tool_call(reply: str, available_tools: Optional[list] = None) -> Tuple[Optional[Dict], str]:

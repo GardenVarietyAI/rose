@@ -2,8 +2,10 @@
 import time
 import uuid
 from typing import Any, Dict, List, Optional
+
 from rose_server.schemas.assistants import CreateRunRequest, Run
 from rose_server.schemas.runs import RunStep, RunStepType
+
 
 class RunsStore:
     """Simple in-memory storage for runs using singleton pattern."""

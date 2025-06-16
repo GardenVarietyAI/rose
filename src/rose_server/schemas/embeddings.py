@@ -1,6 +1,8 @@
 """Embeddings API schemas."""
 from typing import Any, Dict, List, Union
+
 from pydantic import BaseModel, Field
+
 
 class EmbeddingsRequest(BaseModel):
     input: Union[str, List[str]]

@@ -2,6 +2,7 @@ import logging
 import time
 import uuid
 from typing import Any, Dict, List, Optional, Tuple, Union
+
 from rose_server.embeddings import generate_embeddings
 from rose_server.model_registry import get_embedding_models
 from rose_server.services import get_chromadb_manager
@@ -16,6 +17,7 @@ from rose_server.vector_stores.models import (
     VectorStoreMetadata,
     VectorStoreUpdate,
 )
+
 logger = logging.getLogger(__name__)
 DEFAULT_EMBEDDING_MODEL = "text-embedding-ada-002"
 _META_EXCLUDE = {"display_name", "dimensions", "created_at"}

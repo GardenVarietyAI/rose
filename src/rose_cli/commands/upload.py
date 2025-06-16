@@ -1,8 +1,11 @@
 """Upload command."""
 import os
 from typing import Optional
+
 import typer
+
 from ..utils import get_client, get_endpoint_url
+
 app = typer.Typer()
 @app.command()
 

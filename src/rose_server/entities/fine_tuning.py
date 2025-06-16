@@ -1,6 +1,7 @@
 """Fine-tuning database entities."""
 import time
 from typing import Dict, List, Optional
+
 from openai.types.fine_tuning import (
     FineTuningJob as OpenAIFineTuningJob,
 )
@@ -9,6 +10,7 @@ from openai.types.fine_tuning import (
 )
 from sqlalchemy import JSON, Index
 from sqlmodel import Field, SQLModel
+
 
 class FineTuningJob(SQLModel, table=True):
     """Fine-tuning job model - OpenAI compatible."""

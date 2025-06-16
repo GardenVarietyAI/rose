@@ -1,8 +1,10 @@
 """Job queue store for managing jobs in the database."""
 import logging
 from typing import Optional
+
 from ..database import current_timestamp, run_in_session
 from ..entities.jobs import Job
+
 logger = logging.getLogger(__name__)
 
 class JobStore:

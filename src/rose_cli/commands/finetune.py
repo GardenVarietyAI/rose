@@ -4,9 +4,12 @@ import os
 import tempfile
 import time
 from typing import Optional
+
 import typer
 from rich.table import Table
+
 from ..utils import console, get_client, get_endpoint_url
+
 app = typer.Typer()
 @app.command()
 

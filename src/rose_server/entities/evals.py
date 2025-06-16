@@ -1,8 +1,10 @@
 """Evaluation database entities - OpenAI compatible."""
 import time
 from typing import Dict, List, Optional
+
 from sqlalchemy import JSON, Index
 from sqlmodel import Field, SQLModel
+
 
 class Eval(SQLModel, table=True):
     """Evaluation definition - what test to run."""

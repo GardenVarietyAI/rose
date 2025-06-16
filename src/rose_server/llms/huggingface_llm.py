@@ -3,9 +3,11 @@ import logging
 import os
 import traceback
 from typing import Any, Dict, List, Tuple
+
 from rose_server.config import ServiceConfig
 from rose_server.hf.loading import load_model_and_tokenizer
 from rose_server.schemas.chat import ChatMessage
+
 logger = logging.getLogger(__name__)
 
 class HuggingFaceLLM:

@@ -1,7 +1,10 @@
 """Chat command."""
 from typing import Optional
+
 import typer
+
 from ..utils import get_client, get_endpoint_url
+
 app = typer.Typer()
 
 def chat_handler(

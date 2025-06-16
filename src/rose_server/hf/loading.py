@@ -2,9 +2,12 @@
 import logging
 import os
 from typing import Optional, Tuple
+
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
+
 from ..config import ServiceConfig
+
 logger = logging.getLogger(__name__)
 
 def load_model_and_tokenizer(

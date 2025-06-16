@@ -3,8 +3,11 @@ import json
 import time
 import uuid
 from typing import Any, Dict, Optional
+
 from rose_server.tools import parse_xml_tool_call
+
 from .. import LLMEvent, ResponseCompleted, ResponseStarted, TokenGenerated, ToolCallCompleted, ToolCallStarted
+
 
 class ResponsesFormatter:
     """Formats events for OpenAI Responses API compatibility.

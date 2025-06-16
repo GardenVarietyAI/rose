@@ -1,7 +1,10 @@
 """Resource management events for model loading and GPU coordination."""
 from typing import Literal, Optional
+
 from pydantic import Field
+
 from .base import LLMEvent
+
 
 class ModelLoaded(LLMEvent):
     """Fired when a model is loaded into memory."""

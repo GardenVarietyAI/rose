@@ -1,7 +1,9 @@
 """OpenAI Responses API schemas."""
 from typing import Any, Dict, List, Literal, Optional, Union
+
 from openai.types.responses.function_tool_param import FunctionToolParam
 from pydantic import BaseModel, Field
+
 
 class ResponsesRequest(BaseModel):
     """OpenAI-compatible responses API request format."""

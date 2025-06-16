@@ -1,12 +1,15 @@
 """Router for model-related endpoints."""
 import logging
 import time
+
 import aiofiles
 import aiofiles.os
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
+
 from rose_server.model_registry import get_embedding_models, get_llm_models
 from rose_server.services import get_model_registry
+
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
 
@@ -146,7 +149,6 @@ async def download_model(model_name: str):
 
     This endpoint triggers a model download in the background.
     """
-    import asyncio
     try:
         registry = get_model_registry()
         config = registry.get_model_config(model_name)

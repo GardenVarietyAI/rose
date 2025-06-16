@@ -1,9 +1,11 @@
 """Completions event generator for text completion API."""
 import time
 from typing import List, Optional, Union
+
 from ...schemas.chat import ChatMessage
 from .. import TokenGenerated
 from .base import BaseEventGenerator
+
 
 class CompletionsGenerator(BaseEventGenerator):
     """Generate events for text completions (non-chat format).

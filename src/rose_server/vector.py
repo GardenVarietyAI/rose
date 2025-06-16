@@ -2,8 +2,10 @@
 import logging
 import os
 from typing import Any, Dict, List, Optional
+
 import chromadb
 from chromadb.api.models.Collection import Collection
+
 logger = logging.getLogger(__name__)
 
 class ChromaDBManager:

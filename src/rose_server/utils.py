@@ -1,5 +1,6 @@
 import logging
 from typing import Any, Dict, List, Optional, Union
+
 logger = logging.getLogger(__name__)
 
 def extract_user_content(content: Union[str, List[Dict[str, Any]]]) -> Optional[str]:

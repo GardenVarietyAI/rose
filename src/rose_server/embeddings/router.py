@@ -1,8 +1,10 @@
 """Router module for embeddings API endpoints."""
 from fastapi import APIRouter, Body
 from fastapi.responses import JSONResponse
+
 from rose_server.embeddings import generate_embeddings
 from rose_server.schemas.embeddings import EmbeddingsRequest
+
 router = APIRouter()
 @router.post("/v1/embeddings")
 

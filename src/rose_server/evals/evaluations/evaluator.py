@@ -4,14 +4,17 @@ import logging
 import re
 import time
 from typing import Dict, List, Optional, Tuple
+
 from datasets import load_dataset
-from ...events import ResponseCompleted, ResponseStarted, TokenGenerated
+
+from ...events import TokenGenerated
 from ...events.generators import RunsGenerator
 from ...llms.huggingface_llm import HuggingFaceLLM
 from ...llms.registry import ModelRegistry
 from ...schemas.chat import ChatMessage
 from .scorers import exact_match, f1_score
 from .scorers.common import normalize_answer
+
 logger = logging.getLogger(__name__)
 
 class Evaluator:

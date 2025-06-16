@@ -1,7 +1,9 @@
 """Shared utilities for LLM CLI."""
 from typing import Optional
+
 from openai import OpenAI
 from rich.console import Console
+
 console = Console()
 
 def get_client(base_url: Optional[str] = None) -> OpenAI:

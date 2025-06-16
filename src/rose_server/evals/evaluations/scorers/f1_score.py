@@ -20,7 +20,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 from collections import Counter
+
 from .common import normalize_answer
+
 
 def score(prediction: str, ground_truth: str) -> float:
     """Calculate F1 score between prediction and ground truth.

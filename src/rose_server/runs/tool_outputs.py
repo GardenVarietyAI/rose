@@ -1,6 +1,7 @@
 """Tool output processing for runs."""
 import logging
 from typing import Any, Dict, List
+
 from rose_server.assistants.store import get_assistant_store
 from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.events.generators import RunsGenerator
@@ -11,6 +12,7 @@ from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.runs import RunStepType
 from rose_server.services import get_model_registry
 from rose_server.threads.store import ThreadStore
+
 logger = logging.getLogger(__name__)
 
 async def process_tool_outputs(run: Run, tool_outputs: List[Dict[str, Any]], runs_store: RunsStore) -> Dict[str, Any]:

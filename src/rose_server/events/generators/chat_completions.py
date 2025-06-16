@@ -1,8 +1,10 @@
 """Chat completions event generator."""
 from typing import List, Optional
+
 from ...schemas.chat import ChatMessage
 from ...tools.formatter import format_tools_for_prompt
 from .base import BaseEventGenerator
+
 
 class ChatCompletionsGenerator(BaseEventGenerator):
     """Generate events for chat completions with tool support."""

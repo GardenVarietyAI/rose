@@ -1,7 +1,10 @@
 """Responses API command."""
 from typing import Optional
+
 import typer
+
 from ..utils import get_client, get_endpoint_url
+
 app = typer.Typer()
 @app.command()
 
@@ -108,7 +111,7 @@ def test_storage():
     try:
         retrieved2 = client.responses.retrieve(response2.id)
         if retrieved2 is None or hasattr(retrieved2, "error"):
-            print(f"✓ Correctly failed to retrieve non-stored response")
+            print("✓ Correctly failed to retrieve non-stored response")
         else:
             print(f"✗ Unexpectedly retrieved: {retrieved2.id}")
     except Exception as e:

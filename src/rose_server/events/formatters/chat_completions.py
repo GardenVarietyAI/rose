@@ -2,9 +2,12 @@
 import time
 import uuid
 from typing import Any, Dict, Optional
+
 from openai.types.chat import ChatCompletionChunk
 from openai.types.chat.chat_completion_chunk import Choice, ChoiceDelta
+
 from .. import LLMEvent, ResponseCompleted, ResponseStarted, TokenGenerated, ToolCallCompleted, ToolCallStarted
+
 
 class ChatCompletionsFormatter:
     """Formats events for OpenAI Chat Completions API compatibility.

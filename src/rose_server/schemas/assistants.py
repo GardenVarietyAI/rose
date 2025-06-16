@@ -1,7 +1,9 @@
 """Assistant API schemas."""
 from typing import Any, Dict, List, Literal, Optional, Union
+
 from openai.types.beta.assistant_tool import AssistantTool
 from pydantic import BaseModel, Field
+
 
 class Assistant(BaseModel):
     """Represents an AI assistant."""

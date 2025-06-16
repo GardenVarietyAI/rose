@@ -1,6 +1,7 @@
 """Job queue schemas."""
 from enum import Enum
 
+
 class JobStatus(str, Enum):
     """Job status states."""
 

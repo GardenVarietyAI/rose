@@ -12,6 +12,7 @@ from rose_server.vector_stores.models import (
     VectorStoreUpdate,
 )
 from rose_server.vector_stores.store import VectorStoreStore
+
 __all__ = [
     "VectorStoreStore",
     "Vector",
