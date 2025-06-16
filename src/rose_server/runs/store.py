@@ -1,4 +1,5 @@
 """Simple in-memory storage for runs with singleton pattern."""
+
 import time
 import uuid
 from typing import Any, Dict, List, Optional

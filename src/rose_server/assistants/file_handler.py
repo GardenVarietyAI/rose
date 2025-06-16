@@ -1,4 +1,5 @@
 """Handle file attachments for assistants."""
+
 import hashlib
 import logging
 from pathlib import Path
@@ -12,6 +13,7 @@ from rose_server.config import EmbeddingConfig
 from rose_server.embeddings.embedding import generate_embeddings
 
 logger = logging.getLogger(__name__)
+
 
 class AssistantFileHandler:
     """Handle file operations for assistant document retrieval."""

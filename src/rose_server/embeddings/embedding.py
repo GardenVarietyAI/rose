@@ -8,6 +8,7 @@ from rose_server.services import get_embedding_manager
 def _encode_batch(model, batch: List[str]) -> List[np.ndarray]:
     return model.encode(batch)
 
+
 def generate_embeddings(
     texts: Union[str, List[str]], model_name: str = "bge-small-en-v1.5", batch_size: int = 32
 ) -> Dict[str, Any]:

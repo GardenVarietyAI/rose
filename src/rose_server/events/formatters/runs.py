@@ -1,4 +1,5 @@
 """Formatter for assistant runs events to OpenAI-compatible SSE format."""
+
 import json
 import time
 import uuid
@@ -55,7 +56,7 @@ class RunsFormatter:
                     "run_id": self.run_id,
                     "file_ids": [],
                     "metadata": {},
-                }
+                },
             )
         elif isinstance(event, TokenGenerated):
             self.accumulated_content += event.token
@@ -64,24 +65,13 @@ class RunsFormatter:
                 {
                     "id": self.message_id,
                     "object": "thread.message.delta",
-                    "delta": {
-                        "content": [{
-                            "index": 0,
-                            "type": "text",
-                            "text": {"value": event.token}
-                        }]
-                    },
-                }
+                    "delta": {"content": [{"index": 0, "type": "text", "text": {"value": event.token}}]},
+                },
             )
         elif isinstance(event, ToolCallStarted):
-            self.tool_calls.append({
-                "id": event.call_id,
-                "type": "function",
-                "function": {
-                    "name": event.function_name,
-                    "arguments": ""
-                }
-            })
+            self.tool_calls.append(
+                {"id": event.call_id, "type": "function", "function": {"name": event.function_name, "arguments": ""}}
+            )
             return None
         elif isinstance(event, ToolCallCompleted):
             for tc in self.tool_calls:
@@ -92,10 +82,7 @@ class RunsFormatter:
         elif isinstance(event, ResponseCompleted):
             content = [{"type": "text", "text": {"value": self.accumulated_content, "annotations": []}}]
             if self.tool_calls:
-                content.append({
-                    "type": "tool_calls",
-                    "tool_calls": self.tool_calls
-                })
+                content.append({"type": "tool_calls", "tool_calls": self.tool_calls})
             return self._format_sse(
                 "thread.message.completed",
                 {
@@ -109,7 +96,7 @@ class RunsFormatter:
                     "run_id": self.run_id,
                     "file_ids": [],
                     "metadata": {},
-                }
+                },
             )
         return None
 

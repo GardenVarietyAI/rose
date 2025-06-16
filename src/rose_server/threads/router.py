@@ -1,4 +1,5 @@
 """API router for threads endpoints."""
+
 import logging
 from typing import Any, Dict, Optional
 
@@ -17,8 +18,9 @@ from rose_server.threads.store import ThreadStore
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
-@router.get("/threads")
 
+
+@router.get("/threads")
 async def list_threads(
     limit: int = Query(default=20, description="Number of threads to retrieve"),
     order: str = Query(default="desc", description="Sort order (asc or desc)"),
@@ -40,8 +42,9 @@ async def list_threads(
     except Exception as e:
         logger.error(f"Error listing threads: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Error listing threads: {str(e)}"})
-@router.post("/threads/runs")
 
+
+@router.post("/threads/runs")
 async def create_thread_and_run(request: Dict[str, Any] = Body(...)) -> JSONResponse:
     """Create a thread and immediately run it with an assistant."""
     try:
@@ -100,8 +103,9 @@ async def create_thread_and_run(request: Dict[str, Any] = Body(...)) -> JSONResp
     except Exception as e:
         logger.error(f"Error in create_thread_and_run: {str(e)}")
         return JSONResponse(status_code=500, content={"error": str(e)})
-@router.post("/threads")
 
+
+@router.post("/threads")
 async def create_thread(request: CreateThreadRequest = Body(...)) -> JSONResponse:
     """Create a new conversation thread."""
     try:
@@ -123,8 +127,9 @@ async def create_thread(request: CreateThreadRequest = Body(...)) -> JSONRespons
     except Exception as e:
         logger.error(f"Error creating thread: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Error creating thread: {str(e)}"})
-@router.get("/threads/{thread_id}")
 
+
+@router.get("/threads/{thread_id}")
 async def get_thread(thread_id: str) -> JSONResponse:
     """Retrieve a thread by ID."""
     try:
@@ -136,8 +141,9 @@ async def get_thread(thread_id: str) -> JSONResponse:
     except Exception as e:
         logger.error(f"Error retrieving thread: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Error retrieving thread: {str(e)}"})
-@router.post("/threads/{thread_id}")
 
+
+@router.post("/threads/{thread_id}")
 async def update_thread(thread_id: str, request: Dict[str, Any] = Body(...)) -> JSONResponse:
     """Update a thread's metadata."""
     try:
@@ -150,8 +156,9 @@ async def update_thread(thread_id: str, request: Dict[str, Any] = Body(...)) -> 
     except Exception as e:
         logger.error(f"Error updating thread: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Error updating thread: {str(e)}"})
-@router.delete("/threads/{thread_id}")
 
+
+@router.delete("/threads/{thread_id}")
 async def delete_thread(thread_id: str) -> JSONResponse:
     """Delete a thread."""
     try:
@@ -163,8 +170,9 @@ async def delete_thread(thread_id: str) -> JSONResponse:
     except Exception as e:
         logger.error(f"Error deleting thread: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Error deleting thread: {str(e)}"})
-@router.post("/threads/{thread_id}/messages")
 
+
+@router.post("/threads/{thread_id}/messages")
 async def create_message(
     thread_id: str,
     request: CreateMessageRequest = Body(...),
@@ -181,6 +189,7 @@ async def create_message(
         embedding_func = None
         if enable_embedding:
             from rose_server.embeddings import generate_embeddings
+
             embedding_func = generate_embeddings
         message = await thread_store.create_message(
             thread_id=thread_id,
@@ -194,8 +203,9 @@ async def create_message(
     except Exception as e:
         logger.error(f"Error creating message: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Error creating message: {str(e)}"})
-@router.get("/threads/{thread_id}/messages")
 
+
+@router.get("/threads/{thread_id}/messages")
 async def list_messages(
     thread_id: str,
     limit: int = Query(default=20, description="Number of messages to retrieve"),
@@ -222,8 +232,9 @@ async def list_messages(
     except Exception as e:
         logger.error(f"Error listing messages: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Error listing messages: {str(e)}"})
-@router.get("/threads/{thread_id}/messages/{message_id}")
 
+
+@router.get("/threads/{thread_id}/messages/{message_id}")
 async def get_message(thread_id: str, message_id: str) -> JSONResponse:
     """Retrieve a specific message from a thread."""
     try:

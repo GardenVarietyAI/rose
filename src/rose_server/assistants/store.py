@@ -1,4 +1,5 @@
 """SQLModel-based storage for assistants with clean OpenAI compatibility."""
+
 import logging
 import uuid
 from typing import List, Optional
@@ -14,6 +15,7 @@ from ..entities.assistants import AssistantTool
 from ..schemas.assistants import Assistant, CreateAssistantRequest, UpdateAssistantRequest
 
 logger = logging.getLogger(__name__)
+
 
 class AssistantStore:
     """SQLModel-based storage for assistants."""
@@ -120,6 +122,7 @@ class AssistantStore:
                 for tool in tools:
                     await session.refresh(tool)
             return self._to_openai_assistant(db_assistant, tools)
+
         result = await run_in_session(operation)
         logger.info(f"Created assistant: {assistant_id}")
         return result
@@ -134,6 +137,7 @@ class AssistantStore:
             statement = select(AssistantTool).where(AssistantTool.assistant_id == assistant_id)
             tools = (await session.execute(statement)).scalars().all()
             return self._to_openai_assistant(db_assistant, tools)
+
         return await run_in_session(operation, read_only=True)
 
     async def list_assistants(self, limit: int = 20, order: str = "desc") -> List[Assistant]:
@@ -156,6 +160,7 @@ class AssistantStore:
                     tools_by_assistant[tool.assistant_id] = []
                 tools_by_assistant[tool.assistant_id].append(tool)
             return [self._to_openai_assistant(a, tools_by_assistant.get(a.id, [])) for a in db_assistants]
+
         return await run_in_session(operation, read_only=True)
 
     async def update_assistant(self, assistant_id: str, request: UpdateAssistantRequest) -> Optional[Assistant]:
@@ -214,6 +219,7 @@ class AssistantStore:
                 for tool in tools:
                     await session.refresh(tool)
             return self._to_openai_assistant(db_assistant, tools)
+
         result = await run_in_session(operation)
         logger.info(f"Updated assistant: {assistant_id}")
         return result
@@ -230,7 +236,9 @@ class AssistantStore:
                 logger.info(f"Deleted assistant: {assistant_id}")
                 return True
             return False
+
         return await run_in_session(operation)
+
 
 def get_assistant_store() -> AssistantStore:
     """Get the assistant store instance."""

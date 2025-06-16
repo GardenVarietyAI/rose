@@ -11,6 +11,7 @@ def handle_exit(signum, frame):
     print("\nReceived signal to terminate. Shutting down...")
     sys.exit(0)
 
+
 def main():
     """Main entry point for the service."""
     signal.signal(signal.SIGINT, handle_exit)
@@ -21,5 +22,7 @@ def main():
         port=ServiceConfig.PORT,
         reload=False,
     )
+
+
 if __name__ == "__main__":
     main()

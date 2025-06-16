@@ -1,4 +1,5 @@
 """Assistant management commands using OpenAI SDK."""
+
 from typing import Optional
 
 import typer
@@ -9,8 +10,9 @@ from ..utils import get_client
 
 app = typer.Typer()
 console = Console()
-@app.command("create")
 
+
+@app.command("create")
 def create_assistant(
     name: str = typer.Argument(..., help="Assistant name"),
     model: str = typer.Option("gpt-4", help="Model to use"),
@@ -45,8 +47,9 @@ def create_assistant(
             console.print(f"Tools: {', '.join([t.type for t in assistant.tools])}")
     except Exception as e:
         console.print(f"Error: {e}", style="red")
-@app.command("list")
 
+
+@app.command("list")
 def list_assistants(
     limit: int = typer.Option(20, help="Number of assistants to list"),
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
@@ -69,8 +72,9 @@ def list_assistants(
         console.print(table)
     except Exception as e:
         console.print(f"❌ Error: {e}", style="red")
-@app.command("get")
 
+
+@app.command("get")
 def get_assistant(
     assistant_id: str = typer.Argument(..., help="Assistant ID to retrieve"),
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
@@ -92,8 +96,9 @@ def get_assistant(
                 console.print(f"   - {tool.type}")
     except Exception as e:
         console.print(f"Error: {e}", style="red")
-@app.command("update")
 
+
+@app.command("update")
 def update_assistant(
     assistant_id: str = typer.Argument(..., help="Assistant ID to update"),
     name: Optional[str] = typer.Option(None, help="New name"),
@@ -121,8 +126,9 @@ def update_assistant(
         console.print(f"Temperature: {assistant.temperature}")
     except Exception as e:
         console.print(f"Error: {e}", style="red")
-@app.command("delete")
 
+
+@app.command("delete")
 def delete_assistant(
     assistant_id: str = typer.Argument(..., help="Assistant ID to delete"),
     confirm: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation"),

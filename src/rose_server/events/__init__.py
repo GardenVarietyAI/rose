@@ -1,4 +1,5 @@
 """Event-native LLM system built with Pydantic for clean serialization."""
+
 from .event_types.base import LLMEvent
 from .event_types.generation import (
     ResponseCompleted,

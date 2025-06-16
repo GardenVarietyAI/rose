@@ -1,4 +1,5 @@
 """Unified file storage for all OpenAI file endpoints."""
+
 import asyncio
 import json
 import logging
@@ -15,6 +16,7 @@ from pydantic import ValidationError
 from rose_server.schemas.files import TrainingData
 
 logger = logging.getLogger(__name__)
+
 
 class FileStore:
     """Manages file storage for all purposes (fine-tuning, vector stores, assistants, etc.)."""

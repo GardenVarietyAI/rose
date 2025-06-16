@@ -1,4 +1,5 @@
 """Schema definitions for runs and run steps."""
+
 from enum import Enum
 from typing import Any, Dict, Optional
 
@@ -10,6 +11,7 @@ class RunStepType(str, Enum):
 
     MESSAGE_CREATION = "message_creation"
     TOOL_CALLS = "tool_calls"
+
 
 class RunStep(BaseModel):
     """Represents a step in a run execution."""

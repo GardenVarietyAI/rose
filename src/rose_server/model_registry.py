@@ -12,6 +12,7 @@ class ModelConfig(BaseModel):
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Sampling temperature")
     top_p: float = Field(default=0.9, ge=0.0, le=1.0, description="Top-p sampling parameter")
 
+
 class EmbeddingModelConfig(BaseModel):
     """Configuration for a single embedding model."""
 
@@ -19,6 +20,8 @@ class EmbeddingModelConfig(BaseModel):
     dimensions: int = Field(..., description="Vector dimensions")
     description: str = Field(..., description="Model description")
     format: Literal["OpenAI", "HuggingFace"] = Field(default="HuggingFace", description="API format compatibility")
+
+
 LLM_MODELS = {
     "qwen2.5-0.5b": {
         "model_name": "Qwen/Qwen2.5-0.5B-Instruct",
@@ -87,17 +90,21 @@ FINE_TUNING_MODELS = {
     if config.get("model_type") == "huggingface"
 }
 
+
 def get_llm_models() -> Dict[str, Dict]:
     """Get all LLM model configurations."""
     return LLM_MODELS.copy()
+
 
 def get_embedding_models() -> Dict[str, Dict]:
     """Get all embedding model configurations."""
     return EMBEDDING_MODELS.copy()
 
+
 def get_fine_tunable_models() -> Dict[str, str]:
     """Get mapping of model_id -> model_name for fine-tuning."""
     return FINE_TUNING_MODELS.copy()
+
 
 def get_model_config(model_id: str) -> Dict:
     """Get configuration for a specific LLM model."""

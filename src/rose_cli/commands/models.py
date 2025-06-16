@@ -1,4 +1,5 @@
 """Models command."""
+
 import time
 from typing import Optional
 
@@ -8,8 +9,9 @@ from rich.table import Table
 from ..utils import console, get_client, get_endpoint_url
 
 app = typer.Typer()
-@app.command()
 
+
+@app.command()
 def list(
     url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
     local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
@@ -35,8 +37,9 @@ def list(
                 console.print(model.id)
     except Exception as e:
         console.print(f"[red]error: {e}[/red]", file=typer.get_text_stream("stderr"))
-@app.command()
 
+
+@app.command()
 def download(
     model_name: str = typer.Argument(..., help="Model name to download (e.g., tinyllama, qwen2.5-0.5b)"),
     url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
@@ -45,11 +48,10 @@ def download(
     """Pre-download a model to avoid blocking during inference."""
     endpoint_url = get_endpoint_url(url, local)
     import httpx
+
     try:
         with httpx.Client(timeout=10.0) as client:
-            response = client.post(
-                f"{endpoint_url}/v1/models/{model_name}/download"
-            )
+            response = client.post(f"{endpoint_url}/v1/models/{model_name}/download")
             if response.status_code == 200:
                 data = response.json()
                 status = data.get("status", "unknown")

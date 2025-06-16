@@ -1,4 +1,5 @@
 """OpenAI-compatible fine-tuning API endpoints."""
+
 import logging
 from typing import Optional
 
@@ -14,8 +15,9 @@ from ..services import get_fine_tuning_store, get_job_store
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-@router.get("/v1/fine_tuning/queue/status")
 
+
+@router.get("/v1/fine_tuning/queue/status")
 async def get_queue_status() -> dict:
     """Get queue status for debugging."""
 
@@ -36,9 +38,11 @@ async def get_queue_status() -> dict:
             for job in result.scalars().all()
         ]
         return {"status_counts": status_counts, "recent_jobs": recent_jobs}
-    return await run_in_session(get_status)
-@router.post("/v1/fine_tuning/jobs", response_model=FineTuningJob)
 
+    return await run_in_session(get_status)
+
+
+@router.post("/v1/fine_tuning/jobs", response_model=FineTuningJob)
 async def create_fine_tuning_job(
     model: str = Body(..., description="The name of the model to fine-tune"),
     training_file: str = Body(..., description="The ID of the uploaded file for training"),
@@ -83,8 +87,9 @@ async def create_fine_tuning_job(
     except Exception as e:
         logger.error(f"Error creating fine-tuning job: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-@router.get("/v1/fine_tuning/jobs/{job_id}", response_model=FineTuningJob)
 
+
+@router.get("/v1/fine_tuning/jobs/{job_id}", response_model=FineTuningJob)
 async def retrieve_fine_tuning_job(job_id: str) -> FineTuningJob:
     """Retrieve a fine-tuning job."""
     store = get_fine_tuning_store()
@@ -92,8 +97,9 @@ async def retrieve_fine_tuning_job(job_id: str) -> FineTuningJob:
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
     return job
-@router.get("/v1/fine_tuning/jobs", response_model=dict)
 
+
+@router.get("/v1/fine_tuning/jobs", response_model=dict)
 async def list_fine_tuning_jobs(
     limit: int = Query(default=20, ge=1, le=100, description="Number of jobs to retrieve"),
     after: Optional[str] = Query(default=None, description="Pagination cursor"),
@@ -102,8 +108,9 @@ async def list_fine_tuning_jobs(
     store = get_fine_tuning_store()
     jobs = await store.list_jobs(limit=limit, after=after)
     return {"object": "list", "data": jobs, "has_more": len(jobs) == limit}
-@router.post("/v1/fine_tuning/jobs/{job_id}/cancel", response_model=FineTuningJob)
 
+
+@router.post("/v1/fine_tuning/jobs/{job_id}/cancel", response_model=FineTuningJob)
 async def cancel_fine_tuning_job(job_id: str) -> FineTuningJob:
     """Cancel a fine-tuning job."""
     store = get_fine_tuning_store()
@@ -118,6 +125,7 @@ async def cancel_fine_tuning_job(job_id: str) -> FineTuningJob:
         result = await session.execute(stmt)
         row = result.first()
         return row[0] if row else None
+
     queue_job = await run_in_session(find_job)
     if queue_job:
         success = await get_job_store().request_cancel(queue_job.id)
@@ -130,8 +138,9 @@ async def cancel_fine_tuning_job(job_id: str) -> FineTuningJob:
             await store.update_job_status(job_id, "cancelled")
     updated_job = await store.get_job(job_id)
     return updated_job
-@router.get("/v1/fine_tuning/jobs/{job_id}/events", response_model=dict)
 
+
+@router.get("/v1/fine_tuning/jobs/{job_id}/events", response_model=dict)
 async def list_fine_tuning_events(
     job_id: str,
     limit: int = Query(default=20, ge=1, le=100, description="Number of events to retrieve"),
@@ -144,8 +153,9 @@ async def list_fine_tuning_events(
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
     events = await store.get_events(job_id, limit=limit, after=after)
     return {"object": "list", "data": events, "has_more": len(events) == limit}
-@router.get("/v1/fine_tuning/jobs/{job_id}/checkpoints", response_model=dict)
 
+
+@router.get("/v1/fine_tuning/jobs/{job_id}/checkpoints", response_model=dict)
 async def list_fine_tuning_job_checkpoints(
     job_id: str,
     limit: int = Query(default=10, ge=1, le=100, description="Number of checkpoints to retrieve"),
@@ -157,8 +167,9 @@ async def list_fine_tuning_job_checkpoints(
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
     return {"object": "list", "data": [], "has_more": False}
-@router.post("/v1/fine_tuning/jobs/{job_id}/pause", response_model=FineTuningJob)
 
+
+@router.post("/v1/fine_tuning/jobs/{job_id}/pause", response_model=FineTuningJob)
 async def pause_fine_tuning_job(job_id: str) -> FineTuningJob:
     """Pause a fine-tuning job."""
     store = get_fine_tuning_store()
@@ -173,6 +184,7 @@ async def pause_fine_tuning_job(job_id: str) -> FineTuningJob:
         result = await session.execute(stmt)
         row = result.first()
         return row[0] if row else None
+
     queue_job = await run_in_session(find_job)
     if queue_job:
         success = await get_job_store().request_pause(queue_job.id)
@@ -182,8 +194,9 @@ async def pause_fine_tuning_job(job_id: str) -> FineTuningJob:
         raise HTTPException(status_code=400, detail=f"Job {job_id} not found in queue")
     updated_job = await store.get_job(job_id)
     return updated_job
-@router.post("/v1/fine_tuning/jobs/{job_id}/resume", response_model=FineTuningJob)
 
+
+@router.post("/v1/fine_tuning/jobs/{job_id}/resume", response_model=FineTuningJob)
 async def resume_fine_tuning_job(job_id: str) -> FineTuningJob:
     """Resume a paused fine-tuning job."""
     store = get_fine_tuning_store()

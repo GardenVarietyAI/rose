@@ -1,4 +1,5 @@
 """Tool models using OpenAI SDK types."""
+
 from openai.types.beta.assistant_tool import AssistantTool
 from openai.types.beta.function_tool import FunctionTool
 from openai.types.beta.threads.required_action_function_tool_call import RequiredActionFunctionToolCall

@@ -1,4 +1,5 @@
 """Training-related events for fine-tuning pipeline integration."""
+
 from typing import Any, Dict, Literal, Optional
 
 from pydantic import Field
@@ -15,6 +16,7 @@ class TrainingStarted(LLMEvent):
     num_examples: int = Field(..., ge=1, description="Number of training examples")
     hyperparameters: Dict[str, Any] = Field(default_factory=dict, description="Training hyperparameters")
 
+
 class TrainingStepCompleted(LLMEvent):
     """Fired after each training step completes."""
 
@@ -25,6 +27,7 @@ class TrainingStepCompleted(LLMEvent):
     tokens_processed: int = Field(..., ge=0, description="Total tokens processed so far")
     estimated_finish_time: Optional[float] = Field(None, description="Estimated completion timestamp")
 
+
 class CheckpointSaved(LLMEvent):
     """Fired when a training checkpoint is saved."""
 
@@ -32,6 +35,7 @@ class CheckpointSaved(LLMEvent):
     checkpoint_path: str = Field(..., description="Path to saved checkpoint")
     step: int = Field(..., ge=0, description="Step number of this checkpoint")
     loss: float = Field(..., description="Loss at checkpoint time")
+
 
 class TrainingCompleted(LLMEvent):
     """Fired when training job completes successfully."""
@@ -42,6 +46,7 @@ class TrainingCompleted(LLMEvent):
     final_loss: float = Field(..., description="Final training loss")
     training_time: float = Field(..., ge=0, description="Total training time in seconds")
     model_registered: bool = Field(default=False, description="Whether model was registered for inference")
+
 
 class TrainingError(LLMEvent):
     """Fired when training encounters an error."""

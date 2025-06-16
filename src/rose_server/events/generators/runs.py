@@ -1,4 +1,5 @@
 """Runs event generator for assistant execution."""
+
 from typing import List, Optional
 
 from ...schemas.chat import ChatMessage
@@ -14,10 +15,7 @@ class RunsGenerator(BaseEventGenerator):
     """
 
     async def prepare_prompt(
-        self, 
-        messages: List[ChatMessage], 
-        enable_tools: bool = False,
-        tools: Optional[List] = None
+        self, messages: List[ChatMessage], enable_tools: bool = False, tools: Optional[List] = None
     ) -> str:
         """Prepare prompt for assistant runs.
         Assistant runs use the same format as chat completions,

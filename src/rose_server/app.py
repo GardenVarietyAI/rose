@@ -1,4 +1,5 @@
 """FastAPI application factory and configuration."""
+
 import json
 import logging
 import os
@@ -30,6 +31,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("rose_server")
 
+
 async def log_request_body(request: Request, call_next):
     """Log all HTTP requests with method, path, headers, and POST body."""
     user_agent = request.headers.get("user-agent", "unknown")
@@ -49,8 +51,9 @@ async def log_request_body(request: Request, call_next):
         request._body = body
         request.body = lambda: body
     return await call_next(request)
-@asynccontextmanager
 
+
+@asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle."""
     directories = [
@@ -94,6 +97,7 @@ async def lifespan(app: FastAPI):
     await Services.shutdown()
     logger.info("Application shutdown completed")
 
+
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(
@@ -111,15 +115,18 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(router)
-    @app.get("/config")
 
+    @app.get("/config")
     async def get_config() -> dict:
         """Get the current service configuration."""
         return get_full_config()
-    @app.get("/health")
 
+    @app.get("/health")
     async def health_check() -> Dict[str, str]:
         """Simple health check endpoint."""
         return {"status": "ok"}
+
     return app
+
+
 app = create_app()

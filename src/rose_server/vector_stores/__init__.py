@@ -1,4 +1,5 @@
 """Vector stores implementation using ChromaDB."""
+
 from rose_server.schemas.embeddings import EmbeddingsRequest, EmbeddingsResponse
 from rose_server.vector_stores.models import (
     Vector,

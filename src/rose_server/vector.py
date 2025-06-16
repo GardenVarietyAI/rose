@@ -1,4 +1,5 @@
 """ChromaDB vector database manager."""
+
 import logging
 import os
 from typing import Any, Dict, List, Optional
@@ -7,6 +8,7 @@ import chromadb
 from chromadb.api.models.Collection import Collection
 
 logger = logging.getLogger(__name__)
+
 
 class ChromaDBManager:
     """Manager for ChromaDB vector database operations."""
@@ -36,8 +38,8 @@ class ChromaDBManager:
             logger.info(f"Falling back to persistent client at {self.persist_dir}")
             os.makedirs(self.persist_dir, exist_ok=True)
             self._client = chromadb.PersistentClient(path=self.persist_dir)
-    @property
 
+    @property
     def client(self) -> chromadb.Client:
         """Get the ChromaDB client."""
         if self._client is None:

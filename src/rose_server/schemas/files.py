@@ -1,4 +1,5 @@
 """File API schemas."""
+
 from typing import List, Optional
 
 from openai.types import FileObject
@@ -14,14 +15,14 @@ class TrainingData(BaseModel):
     non_preferred_output: Optional[List[dict]] = None
     prompt: Optional[str] = None
     completion: Optional[str] = None
-    @validator("messages")
 
+    @validator("messages")
     def validate_messages(cls, v):
         if v is not None and not v:
             raise ValueError("messages cannot be empty")
         return v
-    @validator("input")
 
+    @validator("input")
     def validate_input(cls, v):
         if v is not None:
             if "messages" not in v:
@@ -29,8 +30,8 @@ class TrainingData(BaseModel):
             if not v["messages"]:
                 raise ValueError("input.messages cannot be empty")
         return v
-    @validator("preferred_output", "non_preferred_output")
 
+    @validator("preferred_output", "non_preferred_output")
     def validate_outputs(cls, v):
         if v is not None and not v:
             raise ValueError("preferred_output and non_preferred_output cannot be empty")
@@ -50,6 +51,7 @@ class TrainingData(BaseModel):
                 "2. DPO preference format: {'input': {'messages': [...]}, 'preferred_output': [...], 'non_preferred_output': [...]}\n"
                 "3. Legacy completion format: {'prompt': '...', 'completion': '...'}"
             )
+
 
 class FileListResponse(BaseModel):
     """Response for listing files."""

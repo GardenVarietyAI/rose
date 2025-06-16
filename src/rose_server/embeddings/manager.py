@@ -1,4 +1,5 @@
 """Embedding model manager following the TransformersManager pattern."""
+
 import logging
 import os
 import threading
@@ -10,6 +11,7 @@ from transformers import AutoTokenizer
 from rose_server.model_registry import get_embedding_models
 
 logger = logging.getLogger(__name__)
+
 
 class EmbeddingManager:
     """Manager for SentenceTransformer embedding models only."""
@@ -85,6 +87,7 @@ class EmbeddingManager:
                 logger.info(f"Unloaded tokenizer for: {model_id}")
             if success:
                 import gc
+
                 gc.collect()
             return success
 
@@ -105,5 +108,6 @@ class EmbeddingManager:
             self.models.clear()
             self.tokenizers.clear()
             import gc
+
             gc.collect()
             logger.info("Cleaned up all embedding models")

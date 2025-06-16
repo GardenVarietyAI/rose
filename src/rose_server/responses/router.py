@@ -1,4 +1,5 @@
 """OpenAI Responses API endpoint with streaming and tool detection."""
+
 import json
 import logging
 import time
@@ -22,8 +23,9 @@ from rose_server.utils import extract_user_content
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["responses"])
-@router.get("/v1/responses/{response_id}", response_model=None)
 
+
+@router.get("/v1/responses/{response_id}", response_model=None)
 async def retrieve_response(response_id: str):
     """Retrieve a stored response by ID."""
     try:
@@ -31,6 +33,7 @@ async def retrieve_response(response_id: str):
         async def get_response_operation(session):
             response_msg = await session.get(Message, response_id)
             return response_msg
+
         response_msg = await run_in_session(get_response_operation, read_only=True)
         if not response_msg:
             return {"error": {"message": f"Response {response_id} not found", "type": "not_found", "code": None}}
@@ -67,8 +70,9 @@ async def retrieve_response(response_id: str):
     except Exception as e:
         logger.error(f"Error retrieving response: {str(e)}")
         return {"error": {"message": str(e), "type": "server_error", "code": None}}
-@router.post("/v1/responses", response_model=None)
 
+
+@router.post("/v1/responses", response_model=None)
 async def create_response(
     request: ResponsesRequest = Body(...),
     http_request: Request = None,
@@ -163,6 +167,7 @@ async def create_response(
         traceback.print_exc()
         return {"error": {"message": str(e), "type": "server_error", "code": None}}
 
+
 async def create_event_streaming_response(
     request: ResponsesRequest, messages: list[ChatMessage], enable_functions: bool
 ) -> StreamingResponse:
@@ -216,11 +221,13 @@ async def create_event_streaming_response(
             }
             yield f"data: {json.dumps(error_event)}\n\n"
             yield "data: [DONE]\n\n"
+
     return StreamingResponse(
         generate(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
     )
+
 
 async def create_event_complete_response(
     request: ResponsesRequest, messages: list[ChatMessage], enable_functions: bool
@@ -261,6 +268,7 @@ async def create_event_complete_response(
     except Exception as e:
         logger.error(f"Complete response error: {str(e)}")
         return {"error": {"message": f"Error generating response: {str(e)}", "type": "server_error", "code": None}}
+
 
 async def store_response_messages(request: ResponsesRequest, messages: list[ChatMessage], response: dict):
     """Store request/response messages in database."""
@@ -303,6 +311,7 @@ async def store_response_messages(request: ResponsesRequest, messages: list[Chat
             session.add(assistant_message)
             await session.commit()
             logger.info(f"Stored response {response['id']} to messages table")
+
         await run_in_session(store_messages_operation)
     except Exception as e:
         logger.error(f"Failed to store messages: {e}")

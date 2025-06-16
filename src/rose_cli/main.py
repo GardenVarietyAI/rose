@@ -1,4 +1,5 @@
 """ROSE CLI - Main entry point."""
+
 import typer
 
 from .commands import (
@@ -33,8 +34,11 @@ app.add_typer(cleanup.app, name="cleanup", help="Cleanup models, files, and jobs
 app.add_typer(responses.app, name="responses", help="Responses API operations")
 app.add_typer(evals.app, name="eval", help="Evaluation operations")
 
+
 def main():
     """Main entry point for the CLI."""
     app()
+
+
 if __name__ == "__main__":
     main()

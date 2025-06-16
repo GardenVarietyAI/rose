@@ -1,4 +1,5 @@
 """Tool formatting for LLM prompts."""
+
 import logging
 from pathlib import Path
 from typing import List, Optional
@@ -14,6 +15,7 @@ from .toolbox import BUILTIN_TOOLS, Tool
 logger = logging.getLogger(__name__)
 template_dir = Path(__file__).parent / "prompts"
 jinja_env = Environment(loader=FileSystemLoader(str(template_dir)), trim_blocks=True, lstrip_blocks=True)
+
 
 def format_tools_for_prompt(tools: List, assistant_id: Optional[str] = None, user_agent: Optional[str] = None) -> str:
     """Format tools into XML prompt instructions for LLMs.
@@ -92,6 +94,7 @@ def format_tools_for_prompt(tools: List, assistant_id: Optional[str] = None, use
         render_args["example_command"] = "cat README.md"
     return template.render(**render_args)
 
+
 def format_function_output(output: str, exit_code: int = 0, model: str = "gpt-4") -> str:
     """Format function call output for the model to understand.
 
@@ -108,6 +111,7 @@ def format_function_output(output: str, exit_code: int = 0, model: str = "gpt-4"
             output = chunked_output
     template = jinja_env.get_template("function_output.jinja2")
     return template.render(output=output, exit_code=exit_code)
+
 
 def validate_tools(tools: List[dict]) -> List[Tool]:
     """Validate and parse tool definitions.

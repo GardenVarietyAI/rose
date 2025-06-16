@@ -1,4 +1,5 @@
 """Responses API formatter for LLM events."""
+
 import json
 import time
 import uuid

@@ -1,4 +1,5 @@
 """Completion command for prompt completions."""
+
 from typing import Optional
 
 import typer
@@ -6,8 +7,9 @@ import typer
 from ..utils import get_client, get_endpoint_url
 
 app = typer.Typer()
-@app.command()
 
+
+@app.command()
 def complete(
     prompt: str = typer.Argument(..., help="Prompt to complete"),
     model: str = typer.Option("qwen-coder", "--model", "-m", help="Model to use"),

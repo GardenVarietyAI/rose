@@ -1,4 +1,5 @@
 """Tool output processing for runs."""
+
 import logging
 from typing import Any, Dict, List
 
@@ -14,6 +15,7 @@ from rose_server.services import get_model_registry
 from rose_server.threads.store import ThreadStore
 
 logger = logging.getLogger(__name__)
+
 
 async def process_tool_outputs(run: Run, tool_outputs: List[Dict[str, Any]], runs_store: RunsStore) -> Dict[str, Any]:
     """Process tool outputs and generate continuation response."""
@@ -60,13 +62,10 @@ async def process_tool_outputs(run: Run, tool_outputs: List[Dict[str, Any]], run
             prompt_tokens = 0
             completion_tokens = 0
             async for event in generator.generate_events(
-                messages,
-                temperature=run.temperature,
-                top_p=run.top_p,
-                enable_tools=False
+                messages, temperature=run.temperature, top_p=run.top_p, enable_tools=False
             ):
                 if isinstance(event, ResponseStarted):
-                    prompt_tokens = getattr(event, 'prompt_tokens', 0)
+                    prompt_tokens = getattr(event, "prompt_tokens", 0)
                 elif isinstance(event, TokenGenerated):
                     response_text += event.token
                     completion_tokens += 1
@@ -76,7 +75,7 @@ async def process_tool_outputs(run: Run, tool_outputs: List[Dict[str, Any]], run
             usage = {
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
-                "total_tokens": prompt_tokens + completion_tokens
+                "total_tokens": prompt_tokens + completion_tokens,
             }
     except Exception as e:
         logger.error(f"Error generating continuation response: {str(e)}")

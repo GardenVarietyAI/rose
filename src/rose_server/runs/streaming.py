@@ -1,4 +1,5 @@
 """Streaming utilities for runs execution."""
+
 import asyncio
 import json
 import time
@@ -16,6 +17,7 @@ async def stream_run_status(run_id: str, status: str, **kwargs) -> str:
     }
     return f"event: thread.run.{status}\ndata: {json.dumps(event_data)}\n\n"
 
+
 async def stream_message_created(message_id: str, thread_id: str, assistant_id: str = None, run_id: str = None) -> str:
     """Create a streaming event for message creation."""
     event_data = {
@@ -31,6 +33,7 @@ async def stream_message_created(message_id: str, thread_id: str, assistant_id: 
         "metadata": {},
     }
     return f"event: thread.message.created\ndata: {json.dumps(event_data)}\n\n"
+
 
 async def stream_message_in_progress(
     message_id: str, thread_id: str = None, assistant_id: str = None, run_id: str = None
@@ -50,6 +53,7 @@ async def stream_message_in_progress(
     }
     return f"event: thread.message.in_progress\ndata: {json.dumps(event_data)}\n\n"
 
+
 async def stream_message_chunk(run_id: str, message_id: str, text: str, index: int = 0) -> str:
     """Create a streaming event for message content delta."""
     event_data = {
@@ -58,6 +62,7 @@ async def stream_message_chunk(run_id: str, message_id: str, text: str, index: i
         "delta": {"content": [{"index": index, "type": "text", "text": {"value": text}}]},
     }
     return f"event: thread.message.delta\ndata: {json.dumps(event_data)}\n\n"
+
 
 async def stream_message_completed(
     message_id: str,
@@ -81,10 +86,12 @@ async def stream_message_completed(
     }
     return f"event: thread.message.completed\ndata: {json.dumps(event_data)}\n\n"
 
+
 async def stream_run_step_event(event_type: str, step: RunStep) -> str:
     """Create a streaming event for run step updates."""
     event_data = step.dict()
     return f"event: thread.run.step.{event_type}\ndata: {json.dumps(event_data)}\n\n"
+
 
 async def stream_agent_response(run_id: str, message_id: str, response_text: str) -> AsyncGenerator[str, None]:
     """Stream agent response word by word."""

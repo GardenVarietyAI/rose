@@ -1,4 +1,5 @@
 """OpenAI Responses API schemas."""
+
 from typing import Any, Dict, List, Literal, Optional, Union
 
 from openai.types.responses.function_tool_param import FunctionToolParam
@@ -22,19 +23,23 @@ class ResponsesRequest(BaseModel):
     store: Optional[bool] = Field(default=True, description="Whether to store the conversation")
     previous_response_id: Optional[str] = Field(default=None, description="Previous response ID")
 
+
 class ResponseEventBase(BaseModel):
     """Base class for response events."""
 
     type: str = Field(description="Event type")
     sequence_number: int = Field(description="Sequence number for this event")
 
+
 class ResponseCreatedEvent(ResponseEventBase):
     type: Literal["response.created"] = "response.created"
     response: Dict[str, Any] = Field(description="Response data")
 
+
 class ResponseInProgressEvent(ResponseEventBase):
     type: Literal["response.in_progress"] = "response.in_progress"
     response: Dict[str, Any] = Field(description="Response data")
+
 
 class ResponseContentPartAddedEvent(ResponseEventBase):
     type: Literal["response.content_part.added"] = "response.content_part.added"
@@ -43,12 +48,14 @@ class ResponseContentPartAddedEvent(ResponseEventBase):
     content_index: int = Field(description="Content index")
     part: Dict[str, Any] = Field(description="Content part")
 
+
 class ResponseOutputTextDeltaEvent(ResponseEventBase):
     type: Literal["response.output_text.delta"] = "response.output_text.delta"
     item_id: str = Field(description="Item ID")
     output_index: int = Field(description="Output index")
     content_index: int = Field(description="Content index")
     delta: str = Field(description="Text delta")
+
 
 class ResponseOutputTextDoneEvent(ResponseEventBase):
     type: Literal["response.output_text.done"] = "response.output_text.done"
@@ -57,6 +64,7 @@ class ResponseOutputTextDoneEvent(ResponseEventBase):
     content_index: int = Field(description="Content index")
     text: str = Field(description="Complete text")
 
+
 class ResponseContentPartDoneEvent(ResponseEventBase):
     type: Literal["response.content_part.done"] = "response.content_part.done"
     item_id: str = Field(description="Item ID")
@@ -64,15 +72,18 @@ class ResponseContentPartDoneEvent(ResponseEventBase):
     content_index: int = Field(description="Content index")
     part: Dict[str, Any] = Field(description="Content part")
 
+
 class ResponseOutputItemAddedEvent(ResponseEventBase):
     type: Literal["response.output_item.added"] = "response.output_item.added"
     output_index: int = Field(description="Output index")
     item: Dict[str, Any] = Field(description="Output item")
 
+
 class ResponseOutputItemDoneEvent(ResponseEventBase):
     type: Literal["response.output_item.done"] = "response.output_item.done"
     output_index: int = Field(description="Output index")
     item: Dict[str, Any] = Field(description="Output item")
+
 
 class ResponseFunctionCallArgumentsDeltaEvent(ResponseEventBase):
     type: Literal["response.function_call_arguments.delta"] = "response.function_call_arguments.delta"
@@ -81,12 +92,14 @@ class ResponseFunctionCallArgumentsDeltaEvent(ResponseEventBase):
     call_id: str = Field(description="Call ID")
     delta: str = Field(description="Delta content")
 
+
 class ResponseFunctionCallArgumentsDoneEvent(ResponseEventBase):
     type: Literal["response.function_call_arguments.done"] = "response.function_call_arguments.done"
     item_id: str = Field(description="Item ID")
     output_index: int = Field(description="Output index")
     call_id: str = Field(description="Call ID")
     arguments: str = Field(description="Complete arguments")
+
 
 class ResponseCompletedEvent(ResponseEventBase):
     type: Literal["response.completed"] = "response.completed"

@@ -1,4 +1,5 @@
 """Built-in retrieval tool handler."""
+
 import json
 import logging
 from typing import Dict, Optional, Tuple
@@ -7,6 +8,7 @@ from rose_server import vector
 from rose_server.embeddings.embedding import generate_embeddings
 
 logger = logging.getLogger(__name__)
+
 
 async def handle_retrieval_tool_call(assistant_id: str, query: str) -> str:
     """Handle the built-in retrieval tool call.
@@ -46,6 +48,7 @@ async def handle_retrieval_tool_call(assistant_id: str, query: str) -> str:
     except Exception as e:
         logger.error(f"Error searching documents: {str(e)}")
         return f"Error searching documents: {str(e)}"
+
 
 async def intercept_retrieval_tool_call(tool_call: Dict[str, any], assistant_id: str) -> Optional[Tuple[str, str]]:
     """Intercept and handle retrieval tool calls internally.

@@ -1,4 +1,5 @@
 """Assistant API schemas."""
+
 from typing import Any, Dict, List, Literal, Optional, Union
 
 from openai.types.beta.assistant_tool import AssistantTool
@@ -22,6 +23,7 @@ class Assistant(BaseModel):
     top_p: Optional[float] = Field(default=1.0, description="Nucleus sampling parameter")
     response_format: Optional[Dict[str, Any]] = Field(default=None, description="Response format specification")
 
+
 class CreateAssistantRequest(BaseModel):
     """Request to create a new assistant."""
 
@@ -36,6 +38,7 @@ class CreateAssistantRequest(BaseModel):
     top_p: Optional[float] = Field(default=1.0, description="Nucleus sampling parameter")
     response_format: Optional[Dict[str, Any]] = Field(default=None, description="Response format specification")
 
+
 class UpdateAssistantRequest(BaseModel):
     """Request to update an assistant."""
 
@@ -49,6 +52,7 @@ class UpdateAssistantRequest(BaseModel):
     temperature: Optional[float] = Field(default=None, description="Sampling temperature")
     top_p: Optional[float] = Field(default=None, description="Nucleus sampling parameter")
     response_format: Optional[Dict[str, Any]] = Field(default=None, description="Response format specification")
+
 
 class Run(BaseModel):
     """Represents a run of an assistant on a thread."""
@@ -90,6 +94,7 @@ class Run(BaseModel):
     tool_choice: Optional[Union[str, Dict[str, Any]]] = Field(default=None, description="Tool choice strategy")
     parallel_tool_calls: bool = Field(default=True, description="Whether to enable parallel tool calls")
     response_format: Optional[Dict[str, Any]] = Field(default=None, description="Response format specification")
+
 
 class CreateRunRequest(BaseModel):
     """Request to create a run."""

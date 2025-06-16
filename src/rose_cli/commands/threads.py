@@ -1,4 +1,5 @@
 """Thread management commands using OpenAI SDK."""
+
 import json
 from typing import Optional
 
@@ -10,8 +11,9 @@ from ..utils import get_client
 
 app = typer.Typer()
 console = Console()
-@app.command("create")
 
+
+@app.command("create")
 def create_thread(
     user_id: Optional[str] = typer.Option(None, help="User ID for the thread"),
     session_id: Optional[str] = typer.Option(None, help="Session ID"),
@@ -39,8 +41,9 @@ def create_thread(
                 console.print(f"   {key}: {value}")
     except Exception as e:
         console.print(f"Error: {e}", style="red")
-@app.command("list")
 
+
+@app.command("list")
 def list_threads(
     limit: int = typer.Option(20, help="Number of threads to list"),
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
@@ -49,6 +52,7 @@ def list_threads(
     client = get_client(base_url)
     try:
         import httpx
+
         base = base_url or "http://localhost:8004/v1"
         response = httpx.get(f"{base}/threads?limit={limit}")
         threads = response.json()
@@ -68,8 +72,9 @@ def list_threads(
         console.print(table)
     except Exception as e:
         console.print(f"❌ Error: {e}", style="red")
-@app.command("get")
 
+
+@app.command("get")
 def get_thread(
     thread_id: str = typer.Argument(..., help="Thread ID to retrieve"),
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
@@ -86,8 +91,9 @@ def get_thread(
                 console.print(f"   {key}: {value}")
     except Exception as e:
         console.print(f"❌ Error: {e}", style="red")
-@app.command("add-message")
 
+
+@app.command("add-message")
 def add_message(
     thread_id: str = typer.Argument(..., help="Thread ID"),
     content: str = typer.Argument(..., help="Message content"),
@@ -119,8 +125,9 @@ def add_message(
                 console.print(f"   {key}: {value}")
     except Exception as e:
         console.print(f"Error: {e}", style="red")
-@app.command("messages")
 
+
+@app.command("messages")
 def list_messages(
     thread_id: str = typer.Argument(..., help="Thread ID"),
     limit: int = typer.Option(20, help="Number of messages to list"),
@@ -144,8 +151,9 @@ def list_messages(
             console.print()
     except Exception as e:
         console.print(f"❌ Error: {e}", style="red")
-@app.command("delete")
 
+
+@app.command("delete")
 def delete_thread(
     thread_id: str = typer.Argument(..., help="Thread ID to delete"),
     confirm: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation"),

@@ -21,6 +21,7 @@ from .. import (
 
 logger = logging.getLogger(__name__)
 
+
 class ForceStopAfterN(StoppingCriteria):
     """Hard-stop after N *new* tokens."""
 
@@ -31,6 +32,7 @@ class ForceStopAfterN(StoppingCriteria):
     def __call__(self, input_ids, scores, **_) -> bool:
         return len(input_ids[0]) - self._prompt_len >= self._max_new
 
+
 class StopOnSpecialTokens(StoppingCriteria):
     """Abort when *any* special stop-token is seen."""
 
@@ -40,8 +42,9 @@ class StopOnSpecialTokens(StoppingCriteria):
 
     def __call__(self, input_ids, scores, **_) -> bool:
         return input_ids[0][-1].item() in self._stop_ids
-@contextmanager
 
+
+@contextmanager
 def background_generation(model, **gen_kwargs):
     """Run ``model.generate`` in a daemon thread and ensure cleanup."""
     t = threading.Thread(target=model.generate, kwargs=gen_kwargs, daemon=True)
@@ -52,6 +55,7 @@ def background_generation(model, **gen_kwargs):
         t.join(timeout=1.0)
         if t.is_alive():
             logger.warning("Generation thread still alive - continuing anyway.")
+
 
 class BaseEventGenerator:
     """Base class for event generators with common streaming logic."""

@@ -1,4 +1,5 @@
 """SQLModel-based storage for threads and messages with ChromaDB integration."""
+
 import json
 import logging
 import uuid
@@ -21,6 +22,7 @@ from ..database import (
 from ..schemas.threads import Thread, ThreadMessage
 
 logger = logging.getLogger(__name__)
+
 
 class ThreadStore:
     """SQLModel-based storage for threads and messages."""
@@ -97,6 +99,7 @@ class ThreadStore:
             await session.commit()
             await session.refresh(db_thread)
             return self._to_openai_thread(db_thread)
+
         result = await run_in_session(operation)
         logger.info(f"Created thread: {thread_id}")
         return result
@@ -109,6 +112,7 @@ class ThreadStore:
             if db_thread:
                 return self._to_openai_thread(db_thread)
             return None
+
         return await run_in_session(operation, read_only=True)
 
     async def update_thread(self, thread_id: str, metadata: Dict) -> Optional[Thread]:
@@ -124,6 +128,7 @@ class ThreadStore:
             await session.commit()
             await session.refresh(db_thread)
             return self._to_openai_thread(db_thread)
+
         result = await run_in_session(operation)
         logger.info(f"Updated thread: {thread_id}")
         return result
@@ -144,6 +149,7 @@ class ThreadStore:
             await session.commit()
             logger.info(f"Deleted thread: {thread_id} and {message_count} messages")
             return True
+
         return await run_in_session(operation)
 
     async def list_threads(self, limit: int = 20, order: str = "desc") -> List[Thread]:
@@ -158,6 +164,7 @@ class ThreadStore:
             statement = statement.limit(limit)
             db_threads = (await session.execute(statement)).scalars().all()
             return [self._to_openai_thread(t) for t in db_threads]
+
         return await run_in_session(operation, read_only=True)
 
     async def create_message(
@@ -239,6 +246,7 @@ class ThreadStore:
                 attachments=[],
             )
             return message
+
         message = await run_in_session(operation)
         if enable_embedding and self.chroma_client and embedding_func:
             await self._embed_message_to_chroma(message, embedding_func, collection_name)
@@ -295,6 +303,7 @@ class ThreadStore:
             statement = statement.limit(limit)
             db_messages = (await session.execute(statement)).scalars().all()
             return [self._to_openai_message(m) for m in db_messages]
+
         return await run_in_session(operation, read_only=True)
 
     async def get_message(self, thread_id: str, message_id: str) -> Optional[ThreadMessage]:
@@ -305,6 +314,7 @@ class ThreadStore:
             if db_message and db_message.thread_id == thread_id:
                 return self._to_openai_message(db_message)
             return None
+
         return await run_in_session(operation, read_only=True)
 
     async def update_message(self, thread_id: str, message_id: str, metadata: Dict) -> Optional[ThreadMessage]:
@@ -320,6 +330,7 @@ class ThreadStore:
             await session.commit()
             await session.refresh(db_message)
             return self._to_openai_message(db_message)
+
         result = await run_in_session(operation)
         logger.info(f"Updated message: {message_id}")
         return result
@@ -333,4 +344,5 @@ class ThreadStore:
             message_count_result = await session.execute(select(func.count(MessageDB.id)))
             message_count = message_count_result.scalar()
             return {"total_threads": thread_count, "total_messages": message_count, "storage_type": "sqlite"}
+
         return await run_in_session(operation, read_only=True)

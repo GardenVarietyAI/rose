@@ -1,4 +1,5 @@
 """Thread and message database entities."""
+
 import time
 from typing import Any, Dict, List, Optional
 
@@ -16,6 +17,7 @@ class Thread(SQLModel, table=True):
     tool_resources: Dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
     meta: Dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
     __table_args__ = (Index("idx_threads_created", "created_at"),)
+
 
 class Message(SQLModel, table=True):
     """Message model for database storage."""
@@ -40,6 +42,7 @@ class Message(SQLModel, table=True):
         Index("idx_messages_created", "created_at"),
         Index("idx_messages_role", "role"),
     )
+
 
 class MessageMetadata(SQLModel, table=True):
     """Additional metadata for messages."""

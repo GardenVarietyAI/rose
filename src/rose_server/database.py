@@ -1,6 +1,7 @@
 """Database setup and model re-exports for backward compatibility.
 Database setup stays here. SQLModel classes have been moved to entity files.
 """
+
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -30,8 +31,9 @@ engine = create_async_engine(
 )
 T = TypeVar("T")
 async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-@asynccontextmanager
 
+
+@asynccontextmanager
 async def get_session(read_only: bool = False) -> AsyncGenerator[AsyncSession, None]:
     """Get async database session context manager."""
     async with async_session_factory() as session:
@@ -44,6 +46,7 @@ async def get_session(read_only: bool = False) -> AsyncGenerator[AsyncSession, N
             raise
         finally:
             await session.close()
+
 
 async def run_in_session(operation: Callable[[AsyncSession], Any], read_only: bool = False) -> Any:
     """
@@ -58,14 +61,18 @@ async def run_in_session(operation: Callable[[AsyncSession], Any], read_only: bo
     async with get_session(read_only=read_only) as session:
         return await operation(session)
 
+
 async def create_all_tables():
     """Create all database tables."""
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
 
+
 def current_timestamp() -> int:
     """Get current Unix timestamp."""
     return int(time.time())
+
+
 __all__ = [
     "engine",
     "get_session",

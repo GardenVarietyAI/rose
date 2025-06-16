@@ -1,4 +1,5 @@
 """Cleanup commands for managing models, files, and jobs."""
+
 from typing import List, Optional
 
 import typer
@@ -9,8 +10,9 @@ from rich.table import Table
 
 console = Console()
 app = typer.Typer()
-@app.command()
 
+
+@app.command()
 def models(
     base_url: Optional[str] = typer.Option("http://localhost:8004/v1", "--base-url", help="Base URL"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be deleted without actually deleting"),
@@ -32,6 +34,7 @@ def models(
         table.add_column("Owner", style="yellow")
         for model in fine_tuned_models:
             from datetime import datetime
+
             created = datetime.fromtimestamp(model.created).strftime("%Y-%m-%d %H:%M")
             table.add_row(model.id, created, model.owned_by)
         console.print(table)
@@ -52,8 +55,9 @@ def models(
                 console.print(f"[red]✗[/red] Error deleting {model.id}: {e}")
     except Exception as e:
         console.print(f"[red]Error listing models: {e}[/red]")
-@app.command()
 
+
+@app.command()
 def files(
     base_url: Optional[str] = typer.Option("http://localhost:8004/v1", "--base-url", help="Base URL"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be deleted without actually deleting"),
@@ -93,8 +97,9 @@ def files(
                 console.print(f"[red]✗[/red] Error deleting {file.filename}: {e}")
     except Exception as e:
         console.print(f"[red]Error listing files: {e}[/red]")
-@app.command()
 
+
+@app.command()
 def jobs(
     base_url: Optional[str] = typer.Option("http://localhost:8004/v1", "--base-url", help="Base URL"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be deleted without actually deleting"),
@@ -116,6 +121,7 @@ def jobs(
         table.add_column("Created", style="green")
         for job in jobs_to_clean:
             from datetime import datetime
+
             created = datetime.fromtimestamp(job.created_at).strftime("%Y-%m-%d %H:%M")
             table.add_row(job.id, job.model, job.status, created)
         console.print(table)
@@ -126,6 +132,7 @@ def jobs(
             console.print("Cancelled.")
             return
         import httpx
+
         for job in jobs_to_clean:
             try:
                 response = httpx.delete(f"{base_url}/fine_tuning/jobs/{job.id}")
@@ -137,8 +144,9 @@ def jobs(
                 console.print(f"[red]✗[/red] Error deleting job {job.id}: {e}")
     except Exception as e:
         console.print(f"[red]Error listing jobs: {e}[/red]")
-@app.command()
 
+
+@app.command()
 def all(
     base_url: Optional[str] = typer.Option("http://localhost:8004/v1", "--base-url", help="Base URL"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be deleted without actually deleting"),
@@ -153,5 +161,7 @@ def all(
     if not dry_run and Confirm.ask("Also clean up fine-tuned models?"):
         models(base_url=base_url, dry_run=dry_run)
     console.print("\n[green]Cleanup complete![/green]")
+
+
 if __name__ == "__main__":
     app()

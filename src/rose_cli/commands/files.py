@@ -1,4 +1,5 @@
 """File commands."""
+
 import os
 from typing import Optional
 
@@ -7,8 +8,9 @@ import typer
 from ..utils import get_client, get_endpoint_url
 
 app = typer.Typer()
-@app.command()
 
+
+@app.command()
 def list(
     url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
     local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
@@ -23,8 +25,9 @@ def list(
             print(f"{file.id}\t{file.filename}\t{file.purpose}\t{size}")
     except Exception as e:
         print(f"error: {e}", file=typer.get_text_stream("stderr"))
-@app.command()
 
+
+@app.command()
 def upload(
     file_path: str = typer.Argument(..., help="Path to file"),
     purpose: str = typer.Option("fine-tune", "--purpose", "-p", help="File purpose"),

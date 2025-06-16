@@ -19,6 +19,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
+
 from .common import normalize_answer
 
 
@@ -32,6 +33,7 @@ def score(prediction: str, ground_truth: str) -> float:
         1.0 if normalized strings match exactly, 0.0 otherwise
     """
     return float(normalize_answer(prediction) == normalize_answer(ground_truth))
+
 
 def score_batch(predictions: list[str], ground_truths: list[str]) -> float:
     """Calculate average exact match score for a batch.

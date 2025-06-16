@@ -1,4 +1,5 @@
 """Evaluation database entities - OpenAI compatible."""
+
 import time
 from typing import Dict, List, Optional
 
@@ -34,6 +35,7 @@ class Eval(SQLModel, table=True):
             "created_at": self.created_at,
             "metadata": self.meta,
         }
+
 
 class EvalRun(SQLModel, table=True):
     """Evaluation execution run - results of running an eval."""
@@ -79,6 +81,7 @@ class EvalRun(SQLModel, table=True):
             "results": self.results,
             "metadata": self.meta,
         }
+
 
 class EvalSample(SQLModel, table=True):
     """Individual evaluation sample - for detailed analysis."""

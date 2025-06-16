@@ -1,4 +1,5 @@
 """Base event class using Pydantic for clean serialization."""
+
 import time
 import uuid
 from abc import ABC
@@ -17,6 +18,7 @@ class LLMEvent(BaseModel, ABC):
     - Automatic serialization via Pydantic
     - Type validation and documentation
     """
+
     id: str = Field(default_factory=lambda: f"event_{uuid.uuid4().hex[:8]}")
     timestamp: float = Field(default_factory=time.time)
     model_name: str = Field(..., description="Name/ID of the model that generated this event")
@@ -28,8 +30,8 @@ class LLMEvent(BaseModel, ABC):
         super().__init__(**data)
         if not self.event_type:
             self.event_type = self.__class__.__name__
-    @classmethod
 
+    @classmethod
     def create(cls, model_name: str, **kwargs) -> "LLMEvent":
         """Convenience factory method for creating events."""
         return cls(model_name=model_name, **kwargs)

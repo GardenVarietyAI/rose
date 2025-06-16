@@ -1,4 +1,5 @@
 """Async database operations for evaluations."""
+
 import time
 import uuid
 from typing import Dict, List, Optional
@@ -46,6 +47,7 @@ class EvalStore:
             await session.commit()
             await session.refresh(eval)
             return eval
+
         return await run_in_session(_create)
 
     async def get_eval(self, eval_id: str) -> Optional[Eval]:
@@ -54,6 +56,7 @@ class EvalStore:
         async def _get(session: AsyncSession) -> Optional[Eval]:
             result = await session.execute(select(Eval).where(Eval.id == eval_id))
             return result.scalar_one_or_none()
+
         return await run_in_session(_get)
 
     async def list_evals(self, limit: int = 20) -> List[Eval]:
@@ -62,6 +65,7 @@ class EvalStore:
         async def _list(session: AsyncSession) -> List[Eval]:
             result = await session.execute(select(Eval).order_by(Eval.created_at.desc()).limit(limit))
             return list(result.scalars().all())
+
         return await run_in_session(_list)
 
     async def delete_eval(self, eval_id: str) -> bool:
@@ -74,6 +78,7 @@ class EvalStore:
             await session.execute(delete(Eval).where(Eval.id == eval_id))
             await session.commit()
             return True
+
         return await run_in_session(_delete)
 
     async def create_eval_run(
@@ -102,6 +107,7 @@ class EvalStore:
             await session.commit()
             await session.refresh(eval_run)
             return eval_run
+
         return await run_in_session(_create)
 
     async def get_eval_run(self, run_id: str) -> Optional[EvalRun]:
@@ -110,6 +116,7 @@ class EvalStore:
         async def _get(session: AsyncSession) -> Optional[EvalRun]:
             result = await session.execute(select(EvalRun).where(EvalRun.id == run_id))
             return result.scalar_one_or_none()
+
         return await run_in_session(_get)
 
     async def list_eval_runs(self, eval_id: Optional[str] = None, limit: int = 20) -> List[EvalRun]:
@@ -122,6 +129,7 @@ class EvalStore:
             query = query.order_by(EvalRun.created_at.desc()).limit(limit)
             result = await session.execute(query)
             return list(result.scalars().all())
+
         return await run_in_session(_list)
 
     async def update_eval_run_results(self, run_id: str, results: Dict) -> None:
@@ -134,6 +142,7 @@ class EvalStore:
                 run.results = results
                 run.completed_at = int(time.time())
                 await session.commit()
+
         await run_in_session(_update)
 
     async def update_eval_run_error(self, run_id: str, error: str) -> None:
@@ -146,6 +155,7 @@ class EvalStore:
                 run.error_message = error
                 run.completed_at = int(time.time())
                 await session.commit()
+
         await run_in_session(_update)
 
     async def update_eval_run_status(self, run_id: str, status: str) -> None:
@@ -158,6 +168,7 @@ class EvalStore:
                 if status == "running":
                     run.started_at = int(time.time())
                 await session.commit()
+
         await run_in_session(_update)
 
     async def create_eval_sample(
@@ -195,14 +206,11 @@ class EvalStore:
             await session.commit()
             await session.refresh(eval_sample)
             return eval_sample
+
         return await run_in_session(_create)
 
     async def get_eval_samples(
-        self, 
-        eval_run_id: str, 
-        limit: int = 100,
-        offset: int = 0,
-        only_failed: bool = False
+        self, eval_run_id: str, limit: int = 100, offset: int = 0, only_failed: bool = False
     ) -> List[EvalSample]:
         """Get evaluation samples for a specific run."""
 
@@ -213,16 +221,16 @@ class EvalStore:
             query = query.order_by(EvalSample.sample_index).offset(offset).limit(limit)
             result = await session.execute(query)
             return list(result.scalars().all())
+
         return await run_in_session(_get_samples)
 
     async def get_eval_sample(self, sample_id: str) -> Optional[EvalSample]:
         """Get a specific evaluation sample by ID."""
 
         async def _get(session: AsyncSession) -> Optional[EvalSample]:
-            result = await session.execute(
-                select(EvalSample).where(EvalSample.id == sample_id)
-            )
+            result = await session.execute(select(EvalSample).where(EvalSample.id == sample_id))
             return result.scalar_one_or_none()
+
         return await run_in_session(_get)
 
     async def count_eval_samples(self, eval_run_id: str) -> Dict[str, int]:
@@ -230,8 +238,7 @@ class EvalStore:
 
         async def _count(session: AsyncSession) -> Dict[str, int]:
             total_result = await session.execute(
-                select(func.count(EvalSample.id))
-                .where(EvalSample.eval_run_id == eval_run_id)
+                select(func.count(EvalSample.id)).where(EvalSample.eval_run_id == eval_run_id)
             )
             total = total_result.scalar() or 0
             passed_result = await session.execute(
@@ -240,9 +247,6 @@ class EvalStore:
                 .where(EvalSample.passed == True)
             )
             passed = passed_result.scalar() or 0
-            return {
-                "total": total,
-                "passed": passed,
-                "failed": total - passed
-            }
+            return {"total": total, "passed": passed, "failed": total - passed}
+
         return await run_in_session(_count)

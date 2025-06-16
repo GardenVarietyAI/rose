@@ -1,4 +1,5 @@
 """Completions event generator for text completion API."""
+
 import time
 from typing import List, Optional, Union
 
@@ -21,7 +22,7 @@ class CompletionsGenerator(BaseEventGenerator):
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         echo: bool = False,
-        **kwargs
+        **kwargs,
     ):
         """Generate events from a raw prompt.
         Args:
@@ -39,25 +40,14 @@ class CompletionsGenerator(BaseEventGenerator):
         self._echo_prompt = prompt if echo else None
         messages = [ChatMessage(role="user", content=prompt)]
         if echo:
-            yield TokenGenerated(
-                token=prompt,
-                timestamp=time.time(),
-                model_name=self.llm.model_name
-            )
+            yield TokenGenerated(token=prompt, timestamp=time.time(), model_name=self.llm.model_name)
         async for event in self.generate_events(
-            messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            enable_tools=False,
-            **kwargs
+            messages, temperature=temperature, max_tokens=max_tokens, enable_tools=False, **kwargs
         ):
             yield event
 
     async def prepare_prompt(
-        self, 
-        messages: List[ChatMessage], 
-        enable_tools: bool = False,
-        tools: Optional[List] = None
+        self, messages: List[ChatMessage], enable_tools: bool = False, tools: Optional[List] = None
     ) -> str:
         """Prepare prompt for completions.
         Completions API uses a simpler format without roles.

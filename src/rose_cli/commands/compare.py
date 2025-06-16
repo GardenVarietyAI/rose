@@ -1,4 +1,5 @@
 """Compare command."""
+
 from typing import Optional
 
 import typer
@@ -6,8 +7,9 @@ import typer
 from ..utils import get_client
 
 app = typer.Typer()
-@app.command()
 
+
+@app.command()
 def models(
     message: str = typer.Argument(..., help="Message to test"),
     local_model: str = typer.Option("qwen-coder", "--local-model", help="Local model"),

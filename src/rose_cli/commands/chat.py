@@ -1,4 +1,5 @@
 """Chat command."""
+
 from typing import Optional
 
 import typer
@@ -6,6 +7,7 @@ import typer
 from ..utils import get_client, get_endpoint_url
 
 app = typer.Typer()
+
 
 def chat_handler(
     message: str,
@@ -60,8 +62,9 @@ def chat_handler(
                 print(response.choices[0].message.content)
     except Exception as e:
         print(f"error: {e}", file=typer.get_text_stream("stderr"))
-@app.callback(invoke_without_command=True)
 
+
+@app.callback(invoke_without_command=True)
 def chat(
     ctx: typer.Context,
     message: str = typer.Argument(None, help="Message to send"),
@@ -74,4 +77,6 @@ def chat(
 ):
     """Chat with models."""
     if ctx.invoked_subcommand is None and message:
-        chat_handler(message=message, model=model, url=url, local=local, system=system, stream=stream, completion=completion)
+        chat_handler(
+            message=message, model=model, url=url, local=local, system=system, stream=stream, completion=completion
+        )

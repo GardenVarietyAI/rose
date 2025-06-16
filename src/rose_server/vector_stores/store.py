@@ -22,8 +22,10 @@ logger = logging.getLogger(__name__)
 DEFAULT_EMBEDDING_MODEL = "text-embedding-ada-002"
 _META_EXCLUDE = {"display_name", "dimensions", "created_at"}
 
+
 class VectorStoreNotFoundError(RuntimeError):
     pass
+
 
 class VectorStoreStore:
     """OpenAI-compatible vector-store operations backed by ChromaDB."""
@@ -90,7 +92,9 @@ class VectorStoreStore:
         self._manager().get_or_create_collection(vid, metadata=meta)
         logger.info("Created vector store %s (%s)", p.name, vid)
         public_meta = {k: v for k, v in meta.items() if k not in _META_EXCLUDE}
-        return VectorStoreMetadata(id=vid, name=p.name, dimensions=sample_dim, metadata=public_meta, created_at=meta["created_at"])
+        return VectorStoreMetadata(
+            id=vid, name=p.name, dimensions=sample_dim, metadata=public_meta, created_at=meta["created_at"]
+        )
 
     async def get_vector_store(self, vid: str) -> VectorStoreMetadata:
         col = self._collection(vid)
