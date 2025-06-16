@@ -1,5 +1,3 @@
-"""Thread management commands using OpenAI SDK."""
-
 import json
 from typing import Optional
 
@@ -21,7 +19,6 @@ def create_thread(
     source: Optional[str] = typer.Option(None, help="Source of the thread (api, web, cli)"),
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
-    """Create a new thread."""
     client = get_client(base_url)
     metadata = {}
     if user_id:
@@ -48,7 +45,6 @@ def list_threads(
     limit: int = typer.Option(20, help="Number of threads to list"),
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
-    """List threads."""
     get_client(base_url)
     try:
         import httpx
@@ -79,7 +75,6 @@ def get_thread(
     thread_id: str = typer.Argument(..., help="Thread ID to retrieve"),
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
-    """Get a specific thread."""
     client = get_client(base_url)
     try:
         thread = client.beta.threads.retrieve(thread_id)
@@ -103,7 +98,6 @@ def add_message(
     response_time_ms: Optional[str] = typer.Option(None, help="Response time in ms"),
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
-    """Add a message to a thread."""
     client = get_client(base_url)
     metadata = {}
     if model_used:
@@ -134,7 +128,6 @@ def list_messages(
     order: str = typer.Option("desc", help="Sort order (asc/desc)"),
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
-    """List messages in a thread."""
     client = get_client(base_url)
     try:
         messages = client.beta.threads.messages.list(thread_id=thread_id, limit=limit, order=order)
@@ -159,7 +152,6 @@ def delete_thread(
     confirm: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation"),
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
-    """Delete a thread and all its messages."""
     if not confirm:
         confirm = typer.confirm(f"Are you sure you want to delete thread {thread_id}?")
         if not confirm:

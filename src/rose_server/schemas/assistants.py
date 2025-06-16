@@ -1,5 +1,3 @@
-"""Assistant API schemas."""
-
 from typing import Any, Dict, List, Literal, Optional, Union
 
 from openai.types.beta.assistant_tool import AssistantTool
@@ -7,8 +5,6 @@ from pydantic import BaseModel, Field
 
 
 class Assistant(BaseModel):
-    """Represents an AI assistant."""
-
     id: str = Field(description="Unique identifier for the assistant")
     object: str = Field(default="assistant", description="Object type")
     created_at: int = Field(description="Unix timestamp when the assistant was created")
@@ -25,8 +21,6 @@ class Assistant(BaseModel):
 
 
 class CreateAssistantRequest(BaseModel):
-    """Request to create a new assistant."""
-
     model: str = Field(description="Model to use for the assistant")
     name: Optional[str] = Field(default=None, description="Name of the assistant")
     description: Optional[str] = Field(default=None, description="Description of the assistant")
@@ -40,8 +34,6 @@ class CreateAssistantRequest(BaseModel):
 
 
 class UpdateAssistantRequest(BaseModel):
-    """Request to update an assistant."""
-
     model: Optional[str] = Field(default=None, description="Model to use for the assistant")
     name: Optional[str] = Field(default=None, description="Name of the assistant")
     description: Optional[str] = Field(default=None, description="Description of the assistant")
@@ -55,8 +47,6 @@ class UpdateAssistantRequest(BaseModel):
 
 
 class Run(BaseModel):
-    """Represents a run of an assistant on a thread."""
-
     id: str = Field(description="Unique identifier for the run")
     object: str = Field(default="thread.run", description="Object type")
     created_at: int = Field(description="Unix timestamp when the run was created")
@@ -97,8 +87,6 @@ class Run(BaseModel):
 
 
 class CreateRunRequest(BaseModel):
-    """Request to create a run."""
-
     assistant_id: str = Field(description="ID of the assistant to use")
     model: Optional[str] = Field(default=None, description="Override the model")
     instructions: Optional[str] = Field(default=None, description="Override the instructions")

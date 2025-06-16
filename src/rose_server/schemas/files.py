@@ -1,5 +1,3 @@
-"""File API schemas."""
-
 from typing import List, Optional
 
 from openai.types import FileObject
@@ -7,8 +5,6 @@ from pydantic import BaseModel, Field, validator
 
 
 class TrainingData(BaseModel):
-    """Validation model for fine-tuning training data - OpenAI compatible formats only."""
-
     messages: Optional[List[dict]] = None
     input: Optional[dict] = None
     preferred_output: Optional[List[dict]] = None
@@ -55,8 +51,6 @@ class TrainingData(BaseModel):
 
 
 class FileListResponse(BaseModel):
-    """Response for listing files."""
-
     object: str = Field(default="list", description="Object type")
     data: List[FileObject] = Field(default_factory=list, description="List of files")
     has_more: bool = Field(default=False, description="Whether there are more files")

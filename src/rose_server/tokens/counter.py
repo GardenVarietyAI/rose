@@ -1,5 +1,3 @@
-"""HuggingFace-native tokenizer service for exact token counting."""
-
 import logging
 from functools import lru_cache
 from typing import Dict, List
@@ -12,14 +10,11 @@ logger = logging.getLogger(__name__)
 
 
 class TokenizerService:
-    """HuggingFace tokenizer service with OpenAI-compatible responses."""
-
     def __init__(self, model_registry=None):
         self._tokenizer_cache: Dict[str, AutoTokenizer] = {}
         self._model_registry = model_registry
 
     def _get_tokenizer(self, model_id: str) -> AutoTokenizer:
-        """Get cached tokenizer for model."""
         if model_id not in self._tokenizer_cache:
             model_path = model_id
             if self._model_registry:
@@ -40,7 +35,6 @@ class TokenizerService:
 
     @lru_cache(maxsize=10000)
     def _count_tokens_cached(self, text: str, model_id: str) -> int:
-        """Internal cached token counting function."""
         if not text:
             return 0
         tokenizer = self._get_tokenizer(model_id)
@@ -48,7 +42,6 @@ class TokenizerService:
         return len(tokens)
 
     def count_tokens(self, text: str, model_id: str = "qwen-coder") -> int:
-        """Count tokens using exact HuggingFace tokenizer."""
         return self._count_tokens_cached(text, model_id)
 
     def count_messages(self, messages: List[ChatMessage], model_id: str = "qwen-coder") -> Dict[str, int]:
@@ -68,18 +61,15 @@ class TokenizerService:
             raise
 
     def tokenize(self, text: str, model_id: str = "qwen-coder") -> List[int]:
-        """Tokenize text into token IDs."""
         if not text:
             return []
         tokenizer = self._get_tokenizer(model_id)
         return tokenizer.encode(text, add_special_tokens=False)
 
     def estimate_tokens_fast(self, text: str, model_id: str = "qwen-coder") -> int:
-        """Fast token estimation for streaming performance."""
         return max(1, len(text) // 4)
 
     def get_cache_stats(self) -> Dict[str, int]:
-        """Get cache performance statistics."""
         cache_info = self._count_tokens_cached.cache_info()
         return {
             "lru_hits": cache_info.hits,

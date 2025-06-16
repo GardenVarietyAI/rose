@@ -20,30 +20,30 @@ fi
 # Function to cleanup on exit
 cleanup() {
     echo -e "\nShutting down..."
-    
+
     # Send SIGTERM to processes
     if kill -0 $SERVICE_PID 2>/dev/null; then
         echo "   Stopping API service..."
         kill -TERM $SERVICE_PID
     fi
-    
+
     if kill -0 $WORKER_PID 2>/dev/null; then
         echo "   Stopping worker..."
         kill -TERM $WORKER_PID
     fi
-    
+
     # Wait a bit for graceful shutdown
     sleep 2
-    
+
     # Force kill if still running
     if kill -0 $SERVICE_PID 2>/dev/null; then
         kill -9 $SERVICE_PID 2>/dev/null || true
     fi
-    
+
     if kill -0 $WORKER_PID 2>/dev/null; then
         kill -9 $WORKER_PID 2>/dev/null || true
     fi
-    
+
     echo "Shutdown complete"
     exit 0
 }

@@ -1,5 +1,3 @@
-"""Global services registry - lean dependency management without DI framework."""
-
 import logging
 from typing import Any, Dict
 
@@ -7,31 +5,25 @@ logger = logging.getLogger(__name__)
 
 
 class Services:
-    """Dynamic service registry - futureproof and testable."""
-
     _registry: Dict[str, Any] = {}
 
     @classmethod
     def register(cls, name: str, instance: Any) -> None:
-        """Register a service instance."""
         cls._registry[name] = instance
         logger.debug(f"Registered service: {name}")
 
     @classmethod
     def get(cls, name: str) -> Any:
-        """Get a registered service."""
         if name not in cls._registry:
             raise KeyError(f"Service '{name}' not registered. Available: {list(cls._registry.keys())}")
         return cls._registry[name]
 
     @classmethod
     def list_services(cls) -> list[str]:
-        """List all registered services."""
         return list(cls._registry.keys())
 
     @classmethod
     async def shutdown(cls) -> None:
-        """Shutdown all services gracefully."""
         job_store = cls._registry.get("job_store")
         if job_store and hasattr(job_store, "shutdown"):
             await job_store.shutdown()
@@ -40,13 +32,11 @@ class Services:
 
     @classmethod
     def clear(cls) -> None:
-        """Clear all services (for testing)."""
         cls._registry.clear()
         logger.debug("Services registry cleared")
 
 
 def get_file_store():
-    """Get the file store service."""
     return Services.get("file_store")
 
 

@@ -1,5 +1,3 @@
-"""Fine-tuning commands."""
-
 import json
 import os
 import tempfile
@@ -20,7 +18,6 @@ def list(
     local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
     table: bool = typer.Option(False, "--table", "-t", help="Show as table"),
 ):
-    """List fine-tuning jobs."""
     endpoint_url = get_endpoint_url(url, local)
     client = get_client(endpoint_url)
     try:
@@ -59,7 +56,6 @@ def create(
     url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
     local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
 ):
-    """Create a fine-tuning job."""
     endpoint_url = get_endpoint_url(url, local)
     client = get_client(endpoint_url)
     try:
@@ -84,7 +80,6 @@ def status(
     url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
     local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
 ):
-    """Get fine-tuning job status."""
     endpoint_url = get_endpoint_url(url, local)
     client = get_client(endpoint_url)
     try:
@@ -104,7 +99,6 @@ def events(
     tail: int = typer.Option(10, "--tail", "-n", help="Number of recent events"),
     follow: bool = typer.Option(False, "--follow", "-f", help="Follow events live"),
 ):
-    """Show fine-tuning job events."""
     endpoint_url = get_endpoint_url(url, local)
     client = get_client(endpoint_url)
     try:
@@ -150,7 +144,6 @@ def pause(
     url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
     local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
 ):
-    """Pause a fine-tuning job."""
     endpoint_url = get_endpoint_url(url, local)
     client = get_client(endpoint_url)
     try:
@@ -167,7 +160,6 @@ def resume(
     url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
     local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
 ):
-    """Resume a fine-tuning job."""
     endpoint_url = get_endpoint_url(url, local)
     client = get_client(endpoint_url)
     try:

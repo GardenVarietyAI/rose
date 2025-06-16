@@ -1,5 +1,3 @@
-"""ChromaDB vector database manager."""
-
 import logging
 import os
 from typing import Any, Dict, List, Optional
@@ -11,8 +9,6 @@ logger = logging.getLogger(__name__)
 
 
 class ChromaDBManager:
-    """Manager for ChromaDB vector database operations."""
-
     def __init__(self, host: Optional[str] = None, port: Optional[int] = None, persist_dir: Optional[str] = None):
         """Initialize ChromaDB manager.
 
@@ -28,7 +24,6 @@ class ChromaDBManager:
         self._init_client()
 
     def _init_client(self) -> None:
-        """Initialize the ChromaDB client with fallback support."""
         try:
             self._client = chromadb.HttpClient(host=self.host, port=self.port)
             logger.info(f"Connected to ChromaDB at {self.host}:{self.port}")
@@ -41,7 +36,6 @@ class ChromaDBManager:
 
     @property
     def client(self) -> chromadb.Client:
-        """Get the ChromaDB client."""
         if self._client is None:
             self._init_client()
         return self._client

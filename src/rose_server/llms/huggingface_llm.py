@@ -1,5 +1,3 @@
-"""HuggingFace LLM implementation for fine-tuned models."""
-
 import logging
 import os
 import traceback
@@ -13,10 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class HuggingFaceLLM:
-    """HuggingFace-based LLM implementation for fine-tuned models."""
-
     def __init__(self, config: Dict[str, Any]):
-        """Initialize the HuggingFace LLM with given configuration."""
         self.config = config
         self.model_name = config.get("model_name", "huggingface_llm")
         self.model_path = config.get("model_path")
@@ -29,16 +24,13 @@ class HuggingFaceLLM:
 
     @property
     def model(self):
-        """Get the model."""
         return self._model
 
     @property
     def tokenizer(self):
-        """Get the tokenizer."""
         return self._tokenizer
 
     def _load_model(self) -> bool:
-        """Load the HuggingFace model with proper error handling."""
         try:
             offload_dir = os.path.join(ServiceConfig.MODEL_OFFLOAD_DIR, self.model_name)
             self._model, self._tokenizer = load_model_and_tokenizer(
@@ -58,7 +50,6 @@ class HuggingFaceLLM:
             return False
 
     def format_messages(self, messages: List[ChatMessage]) -> str:
-        """Format chat messages for the model's expected input format."""
         if hasattr(self.tokenizer, "apply_chat_template") and self.tokenizer.chat_template:
             chat_messages = [{"role": msg.role, "content": msg.content} for msg in messages]
             return self.tokenizer.apply_chat_template(chat_messages, tokenize=False, add_generation_prompt=True)
@@ -74,7 +65,6 @@ class HuggingFaceLLM:
         return prompt
 
     def get_max_tokens(self) -> Tuple[int, int]:
-        """Get maximum token limits for prompt and response."""
         max_response_tokens = self.config.get("max_response_tokens", 512)
         n_ctx = self.config.get("n_ctx", 2048)
         max_prompt_tokens = n_ctx - max_response_tokens

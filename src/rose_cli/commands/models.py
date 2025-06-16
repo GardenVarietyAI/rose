@@ -1,5 +1,3 @@
-"""Models command."""
-
 import time
 from typing import Optional
 
@@ -17,7 +15,6 @@ def list(
     local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
     table: bool = typer.Option(False, "--table", "-t", help="Show as table"),
 ):
-    """List available models."""
     endpoint_url = get_endpoint_url(url, local)
     client = get_client(endpoint_url)
     try:
@@ -45,7 +42,6 @@ def download(
     url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
     local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
 ):
-    """Pre-download a model to avoid blocking during inference."""
     endpoint_url = get_endpoint_url(url, local)
     import httpx
 
