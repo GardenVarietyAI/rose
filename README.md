@@ -1,5 +1,8 @@
 # ROSE Server
 
+ [![CI](https://github.com/GardenVarietyAI/rose-server/actions/workflows/ci.yml/badge.svg)](https://github.
+  com/GardenVarietyAI/rose-server/actions/workflows/ci.yml)
+
 An LLM server implementing a subset of OpenAI’s API for local model experimentation
 
 This is pre-release software. Use at your own risk!
