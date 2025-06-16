@@ -11,8 +11,7 @@ WORKDIR /app
 
 COPY pyproject.toml poetry.lock ./
 
-RUN poetry config virtualenvs.create false && \
-    poetry install --no-interaction --no-ansi
+RUN poetry install --no-interaction --no-ansi
 
 COPY src/ ./src/
 
@@ -23,7 +22,7 @@ RUN mkdir -p /app/data/uploads \
 
 EXPOSE 8004
 
-ENV PYTHONPATH=/app/src:$PYTHONPATH
+ENV PYTHONPATH=/app/src
 ENV ROSE_SERVER_HOST=0.0.0.0
 ENV ROSE_SERVER_PORT=8004
 ENV ROSE_SERVER_DATA_DIR=/app/data
@@ -34,4 +33,4 @@ ENV ROSE_SERVER_FINE_TUNING_CHECKPOINT_DIR=/app/data/fine_tuning_checkpoints
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8004/health || exit 1
 
-CMD ["uvicorn", "rose_server.app:app", "--host", "0.0.0.0", "--port", "8004"]
+CMD ["poetry", "run", "uvicorn", "rose_server.app:app", "--host", "0.0.0.0", "--port", "8004"]
