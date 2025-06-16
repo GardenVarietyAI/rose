@@ -51,8 +51,8 @@ export OPENAI_BASE_URL=http://localhost:8004/v1
 
 ```bash
 # Clone the repository
-git clone <repository-url>
-cd llm-service
+git clone git@github.com:GardenVarietyAI/rose-server.git
+cd rose-server
 
 # Install base dependencies
 poetry install
@@ -68,10 +68,10 @@ poetry install --with nvidia
 
 ```bash
 # Start API service (port 8004)
-poetry run llm-service
+poetry run rose-server
 
 # Start background worker (for fine-tuning and jobs)
-poetry run llm-worker
+poetry run rose-worker
 
 # Or run both via convenience script:
 ./start.sh
