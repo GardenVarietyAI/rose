@@ -36,8 +36,8 @@ jobs:
     
     - name: Test API startup
       run: |
-        docker-compose up -d
+        docker compose up -d
         sleep 30
         curl -f http://localhost:8004/health || exit 1
-        docker-compose logs rose-server
-        docker-compose down
+        docker compose logs rose-server
+        docker compose down
