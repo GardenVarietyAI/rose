@@ -64,6 +64,7 @@ LLM_MODELS = {
         "lora_target_modules": ["q_proj", "k_proj", "v_proj", "dense"],
     },
 }
+
 EMBEDDING_MODELS = {
     "text-embedding-ada-002": {
         "model_name": "BAAI/bge-large-en-v1.5",
@@ -84,26 +85,17 @@ EMBEDDING_MODELS = {
         "format": "HuggingFace",
     },
 }
-FINE_TUNING_MODELS = {
+
+FINE_TUNING_MODELS: Dict[str, str] = {
     model_id: config["model_name"]
     for model_id, config in LLM_MODELS.items()
     if config.get("model_type") == "huggingface"
 }
 
 
-def get_llm_models() -> Dict[str, Dict]:
-    """Get all LLM model configurations."""
-    return LLM_MODELS.copy()
-
-
 def get_embedding_models() -> Dict[str, Dict]:
     """Get all embedding model configurations."""
     return EMBEDDING_MODELS.copy()
-
-
-def get_fine_tunable_models() -> Dict[str, str]:
-    """Get mapping of model_id -> model_name for fine-tuning."""
-    return FINE_TUNING_MODELS.copy()
 
 
 def get_model_config(model_id: str) -> Dict:

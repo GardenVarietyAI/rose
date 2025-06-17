@@ -43,6 +43,10 @@ class FineTuningJob(SQLModel, table=True):
         internal_fields = ["started_at"]
         for field in internal_fields:
             data.pop(field, None)
+        # Map internal statuses to valid OpenAI statuses
+        status_mapping = {"cancelling": "cancelled", "pausing": "cancelled"}
+        if data["status"] in status_mapping:
+            data["status"] = status_mapping[data["status"]]
         return OpenAIFineTuningJob(**data)
 
 

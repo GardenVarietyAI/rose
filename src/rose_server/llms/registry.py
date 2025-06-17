@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from rose_server.config import ServiceConfig
-from rose_server.model_registry import get_llm_models
+from rose_server.model_registry import LLM_MODELS
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class ModelRegistry:
 
     def _load_base_models(self):
         """Load base model configurations from settings."""
-        self.models.update(get_llm_models())
+        self.models.update(LLM_MODELS.copy())
         logger.info(f"Loaded {len(self.models)} base model configurations")
 
     def _load_fine_tuned_models(self):
@@ -35,16 +35,17 @@ class ModelRegistry:
                 registry = json.load(f)
             loaded = 0
             for model_id, model_info in registry.items():
-                if Path(model_info["path"]).exists():
+                model_path = Path(ServiceConfig.DATA_DIR) / model_info["path"]
+                if model_path.exists():
                     self.register_model(
                         model_id=model_id,
-                        model_path=model_info["path"],
+                        model_path=str(model_path),
                         base_model=model_info.get("base_model", "qwen2.5-0.5b"),
                         persist=False,
                     )
                     loaded += 1
                 else:
-                    logger.warning(f"Model path not found for {model_id}: {model_info['path']}")
+                    logger.warning(f"Model path not found for {model_id}: {model_path}")
             logger.info(f"Loaded {loaded} fine-tuned models from registry")
         except Exception as e:
             logger.error(f"Error loading fine-tuned models registry: {e}")

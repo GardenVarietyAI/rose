@@ -101,7 +101,11 @@ def process_training_job_sync(job_id: int, payload: Dict[str, Any]) -> Optional[
 
     def progress(level: str, msg: str, data: Dict | None = None) -> None:
         getattr(logger, level if level in ("warning", "error") else "info")("Training %s - %s", ft_job_id, msg)
-        _post_webhook("job.progress", "training", job_id, ft_job_id, {"level": level, "message": msg, **(data or {})})
+        # Map levels to valid OpenAI API values
+        valid_level = "warn" if level == "warning" else level if level in ("info", "error") else "info"
+        _post_webhook(
+            "job.progress", "training", job_id, ft_job_id, {"level": valid_level, "message": msg, **(data or {})}
+        )
 
     _post_webhook("job.running", "training", job_id, ft_job_id)
     hyper = payload.get("hyperparameters", {})
