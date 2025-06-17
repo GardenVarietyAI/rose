@@ -154,8 +154,12 @@ class AssistantStore:
             statement = statement.limit(limit)
             db_assistants = (await session.execute(statement)).scalars().all()
             assistant_ids = [a.id for a in db_assistants]
-            tools_statement = select(AssistantTool).where(AssistantTool.assistant_id.in_(assistant_ids))
-            all_tools = (await session.execute(tools_statement)).scalars().all()
+            all_tools = []
+            if assistant_ids:
+                tools_statement = select(AssistantTool).where(
+                    AssistantTool.assistant_id.in_(assistant_ids)
+                )
+                all_tools = (await session.execute(tools_statement)).scalars().all()
             tools_by_assistant = {}
             for tool in all_tools:
                 if tool.assistant_id not in tools_by_assistant:
