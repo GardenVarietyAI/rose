@@ -18,7 +18,7 @@ from transformers.training_args import TrainingArguments
 
 from ...config import ServiceConfig
 from ...hf.loading import load_model_and_tokenizer
-from ...model_registry import FINE_TUNING_MODELS
+from ...model_registry import FINE_TUNING_MODELS, get_model_config
 from .callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
 from .hyperparams import HyperParams
 
@@ -41,25 +41,34 @@ class HFTrainer:
         event_callback: Optional[Callable[[str, str, Dict[str, Any]], None]] = None,
     ) -> Dict[str, Any]:
         """Run a fine-tuning job and return a result dict."""
+
         os.environ["TRANSFORMERS_VERBOSITY"] = "warning"
+
         raw_data = _load_jsonl(training_file_path)
         hp = HyperParams.resolve(hyperparameters)
+
         torch.manual_seed(hp.seed)
         np.random.seed(hp.seed)
+
         if torch.cuda.is_available():
             torch.cuda.manual_seed(hp.seed)
+
         model, tokenizer = self._load_model_and_tok(model_name, hp)
         ds = _prepare_dataset(raw_data, tokenizer, hp.max_length)
         args = _make_training_args(job_id, hp, len(ds))
         data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8)
+
         callbacks: List[TrainerCallback] = [
             EventCallback(event_callback),
             HardwareMonitorCallback(event_callback),
         ]
+
         if check_cancel_callback:
             callbacks.append(CancellationCallback(check_cancel_callback, job_id))
+
         if hp.validation_split > 0:
             callbacks.append(EarlyStoppingCallback(early_stopping_patience=hp.early_stopping_patience))
+
         trainer = Trainer(
             model=model,
             args=args,
@@ -69,6 +78,7 @@ class HFTrainer:
             data_collator=data_collator,
             callbacks=callbacks,
         )
+
         try:
             if event_callback:
                 event_callback(
@@ -86,10 +96,12 @@ class HFTrainer:
                         else "cpu",
                     },
                 )
+
             result = trainer.train(resume_from_checkpoint=_latest_checkpoint(job_id))
             out_dir = self._save_model(trainer, model_name, hp.suffix)
             metrics = result.metrics
             tokens = int(trainer.state.num_input_tokens_seen) if hasattr(trainer.state, "num_input_tokens_seen") else 0
+
             return {
                 "success": True,
                 "final_loss": metrics.get("train_loss", 0),
@@ -111,6 +123,7 @@ class HFTrainer:
 
         if model_name not in self.fine_tuning_models:
             raise ValueError(f"Model {model_name} not supported for fine-tuning")
+
         hf_model_name = self.fine_tuning_models[model_name]
         device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
         model, tokenizer = load_model_and_tokenizer(
@@ -119,13 +132,13 @@ class HFTrainer:
             device_map=None,
             offload_dir=None,
         )
+
         if hp.use_lora:
             lora_cfg = hp.lora_config or {}
             # Get target modules from model registry if not specified
             target_modules = lora_cfg.get("target_modules")
-            if not target_modules:
-                from ...model_registry import get_model_config
 
+            if not target_modules:
                 model_config = get_model_config(model_name)
                 target_modules = model_config.get("lora_target_modules", ["q_proj", "v_proj"])
 
@@ -137,20 +150,27 @@ class HFTrainer:
                 bias="none",
                 task_type=TaskType.CAUSAL_LM,
             )
+
             model = get_peft_model(model, lora_config)
+
             if hasattr(model, "print_trainable_parameters"):
                 model.print_trainable_parameters()
+
         return model, tokenizer
 
     def _save_model(self, trainer: Trainer, base_name: str, suffix: str) -> Path:
         ts = int(time.time())
+
         if suffix and suffix != "None":
             model_id = f"{base_name}-ft-{ts}-{suffix}"
         else:
             model_id = f"{base_name}-ft-{ts}"
+
         out = Path(ServiceConfig.DATA_DIR) / "models" / model_id
         out.mkdir(parents=True, exist_ok=True)
+
         trainer.save_model(str(out))
+
         # Check if this is a PEFT model
         if hasattr(trainer.model, "peft_config"):
             if torch.backends.mps.is_available():
@@ -166,6 +186,7 @@ class HFTrainer:
                     logger.info("Successfully merged and saved model")
                 except Exception as e:
                     logger.error(f"Failed to merge_and_unload model: {e}")
+
         relative_path = out.relative_to(Path(ServiceConfig.DATA_DIR))
         self._update_registry(model_id, str(relative_path), base_name)
         return out
@@ -192,6 +213,7 @@ class HFTrainer:
             "hf_model_name": hf_model_name,  # Add actual HF name
             "created_at": time.time(),
         }
+
         try:
             with open(registry_path, "w") as f:
                 json.dump(registry, f, indent=2)
@@ -217,8 +239,10 @@ def _prepare_dataset(raw: Sequence[Dict[str, Any]], tokenizer: Any, max_len: int
     def to_text(item: Dict[str, Any]) -> str:
         if "messages" in item and hasattr(tokenizer, "apply_chat_template"):
             return tokenizer.apply_chat_template(item["messages"], tokenize=False, add_generation_prompt=False)
+
         if "prompt" in item and "completion" in item:
             return item["prompt"] + item["completion"]
+
         return item.get("text", "")
 
     texts = [to_text(ex) for ex in raw]
@@ -239,6 +263,7 @@ def _make_training_args(job_id: str, hp: HyperParams, n_samples: int) -> Trainin
     total_steps = steps_per_epoch // actual_gas * hp.n_epochs
     warmup = int(total_steps * hp.warmup_ratio)
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+
     return TrainingArguments(
         output_dir=str(out_dir),
         overwrite_output_dir=True,
