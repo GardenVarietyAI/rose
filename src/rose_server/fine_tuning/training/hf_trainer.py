@@ -2,8 +2,6 @@ import json
 import logging
 import os
 import time
-from dataclasses import dataclass, field
-from functools import partialmethod
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence
 
@@ -11,208 +9,18 @@ import numpy as np
 import torch
 from datasets import Dataset
 from peft import LoraConfig, TaskType, get_peft_model
-from transformers import (
-    DataCollatorForLanguageModeling,
-    EarlyStoppingCallback,
-    Trainer,
-    TrainerCallback,
-    TrainerControl,
-    TrainingArguments,
-)
+from transformers.data.data_collator import DataCollatorForLanguageModeling
+from transformers.trainer import Trainer
+from transformers.trainer_callback import EarlyStoppingCallback, TrainerCallback
+from transformers.training_args import TrainingArguments
 
 from ...config import ServiceConfig
 from ...hf.loading import load_model_and_tokenizer
 from ...model_registry import get_fine_tunable_models
+from .callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
+from .hyperparams import HyperParams
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class HyperParams:
-    """User-supplied or auto-resolved hyper-parameters."""
-
-    batch_size: int | str | None = None
-    max_length: int | str | None = None
-    n_epochs: int | str | None = 3
-    learning_rate_multiplier: float | str | None = 1.0
-    gradient_accumulation_steps: int | str | None = None
-    validation_split: float = 0.1
-    early_stopping_patience: int = 3
-    warmup_ratio: float = 0.1
-    scheduler_type: str = "cosine"
-    min_lr_ratio: float = 0.1
-    use_lora: bool = True
-    lora_config: dict | None = None
-    seed: int = 42
-    suffix: str = "custom"
-    learning_rate: float = field(init=False)
-
-    @classmethod
-    def resolve(cls, raw: Dict, optimised=None) -> "HyperParams":
-        """Coerce raw dict & 'auto' values into concrete numbers."""
-        hp = cls(**raw)
-        default_batch_size = 1
-        default_max_length = 2048
-        default_grad_accum = 4
-        if optimised:
-            hp.batch_size = cls._auto_int(hp.batch_size, optimised.batch_size)
-            hp.max_length = cls._auto_int(hp.max_length, optimised.max_length)
-            hp.gradient_accumulation_steps = cls._auto_int(
-                hp.gradient_accumulation_steps, optimised.gradient_accumulation_steps
-            )
-        else:
-            hp.batch_size = cls._auto_int(hp.batch_size, default_batch_size)
-            hp.max_length = cls._auto_int(hp.max_length, default_max_length)
-            hp.gradient_accumulation_steps = cls._auto_int(hp.gradient_accumulation_steps, default_grad_accum)
-        hp.n_epochs = cls._auto_int(hp.n_epochs, 3)
-        lr_mult = hp.learning_rate_multiplier
-        if lr_mult is None or lr_mult == "auto":
-            lr_mult = 1.0
-        else:
-            lr_mult = float(lr_mult)
-        hp.learning_rate_multiplier = lr_mult
-        hp.learning_rate = ServiceConfig.FINE_TUNING_DEFAULT_LEARNING_RATE * lr_mult
-        return hp
-
-    @staticmethod
-    def _auto_int(val: int | str | None, fallback: int | None) -> int:
-        if val is None or val == "auto":
-            if fallback is None:
-                return 1
-            return int(fallback)
-        return int(val)
-
-
-class _BaseCallback(TrainerCallback):
-    """Shared utilities for custom callbacks."""
-
-    def __init__(self, event_cb: Optional[Callable] = None) -> None:
-        self.event_cb = event_cb
-        self._t0: float | None = None
-
-    def _send(self, level: str, msg: str, data: Dict | None = None) -> None:
-        if self.event_cb:
-            self.event_cb(level, msg, data or {})
-
-    def _eta(self, done: int, total: int) -> str:
-        if not self._t0 or done == 0:
-            return "--:--"
-        seconds = (time.time() - self._t0) / done * (total - done)
-        return f"{int(seconds // 60)}m {int(seconds % 60)}s"
-
-
-class HardwareMonitorCallback(_BaseCallback):
-    """Simple hardware monitoring callback."""
-
-    def on_log(self, args, state, control, logs=None, **_):
-        if not logs or state.global_step % 10 != 0:
-            return
-        metrics = {}
-        if torch.cuda.is_available():
-            try:
-                import pynvml
-
-                pynvml.nvmlInit()
-                handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-                mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-                metrics["gpu_memory_used_gb"] = round(mem_info.used / 1024**3, 2)
-                metrics["gpu_memory_total_gb"] = round(mem_info.total / 1024**3, 2)
-                metrics["gpu_memory_percent"] = round(mem_info.used / mem_info.total * 100, 1)
-                temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
-                metrics["gpu_temperature"] = temp
-                util = pynvml.nvmlDeviceGetUtilizationRates(handle)
-                metrics["gpu_utilization"] = util.gpu
-            except Exception:
-                pass
-        elif torch.backends.mps.is_available():
-            try:
-                allocated = torch.mps.current_allocated_memory() / 1024**3
-                metrics["mps_memory_gb"] = round(allocated, 2)
-            except Exception:
-                pass
-        try:
-            import psutil
-
-            process = psutil.Process()
-            metrics["cpu_percent"] = process.cpu_percent()
-            metrics["ram_gb"] = round(process.memory_info().rss / 1024**3, 2)
-        except Exception:
-            pass
-        if metrics:
-            self._send("debug", "Hardware metrics", metrics)
-
-
-class EventCallback(_BaseCallback):
-    """Streams high-level training progress to ``event_callback``."""
-
-    def on_train_begin(self, args, state, control, **_):
-        self._t0 = time.time()
-
-    def on_epoch_begin(self, args, state, control, **_):
-        self._send(
-            "info",
-            f"Epoch {state.epoch + 1}/{args.num_train_epochs} started",
-            {"epoch": state.epoch + 1},
-        )
-
-    def on_log(self, args, state, control, logs=None, **_):
-        if not logs or "loss" not in logs:
-            return
-        total = args.max_steps
-        if total <= 0:
-            if hasattr(state, "num_train_epochs") and hasattr(args, "num_train_epochs"):
-                if state.global_step > 0 and state.epoch > 0:
-                    steps_per_epoch = int(state.global_step / state.epoch)
-                    total = steps_per_epoch * args.num_train_epochs
-                else:
-                    total = 0
-            else:
-                total = 0
-        pct = 100 * state.global_step / total if total > 0 else 0
-        self._send(
-            "info",
-            f"Step {state.global_step}/{total} "
-            f"({pct:.1f} %) - loss {logs['loss']:.4f} - ETA {self._eta(state.global_step, total)}",
-            {
-                "step": state.global_step,
-                "loss": logs["loss"],
-                "progress_pct": round(pct, 2),
-            },
-        )
-
-
-class CancellationCallback(TrainerCallback):
-    """Stops training early when an external controller requests it."""
-
-    def __init__(
-        self,
-        status_fn: Callable[[], str],
-        job_id: str,
-    ) -> None:
-        self._status_fn = status_fn
-        self._job_id = job_id
-        self.cancelled = False
-        self.paused = False
-
-    def on_step_end(self, args, state, control, **_) -> "TrainerControl":
-        match self._status_fn():
-            case "cancelling":
-                self.cancelled, control.should_training_stop = True, True
-            case "pausing":
-                self.paused, control.should_save, control.should_training_stop = True, True, True
-        return control
-
-    def on_save(self, args, state, control, **kwargs):
-        if self.paused:
-            meta = {
-                "is_paused": True,
-                "global_step": state.global_step,
-                "epoch": state.epoch,
-            }
-            (Path(ServiceConfig.DATA_DIR) / "checkpoints" / self._job_id / "pause_meta.json").write_text(
-                json.dumps(meta)
-            )
-        return control
 
 
 class HFTrainer:
@@ -231,7 +39,7 @@ class HFTrainer:
         event_callback: Optional[Callable[[str, str, Dict], None]] = None,
     ) -> Dict:
         """Run a fine-tuning job and return a result dict."""
-        _silence_transformers()
+        os.environ["TRANSFORMERS_VERBOSITY"] = "warning"
         raw_data = _load_jsonl(training_file_path)
         hp = HyperParams.resolve(hyperparameters)
         torch.manual_seed(hp.seed)
@@ -269,7 +77,11 @@ class HFTrainer:
                         "num_examples": len(ds),
                         "batch_size": args.per_device_train_batch_size,
                         "epochs": args.num_train_epochs,
-                        "device": "cuda" if torch.cuda.is_available() else "cpu",
+                        "device": "cuda"
+                        if torch.cuda.is_available()
+                        else "mps"
+                        if torch.backends.mps.is_available()
+                        else "cpu",
                     },
                 )
             result = trainer.train(resume_from_checkpoint=_latest_checkpoint(job_id))
@@ -296,7 +108,7 @@ class HFTrainer:
         if model_name not in self.fine_tuning_models:
             raise ValueError(f"Model {model_name} not supported for fine-tuning")
         hf_model_name = self.fine_tuning_models[model_name]
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
         model, tokenizer = load_model_and_tokenizer(
             model_id=hf_model_name,
             device=device,
@@ -305,10 +117,18 @@ class HFTrainer:
         )
         if hp.use_lora:
             lora_cfg = hp.lora_config or {}
+            # Get target modules from model registry if not specified
+            target_modules = lora_cfg.get("target_modules")
+            if not target_modules:
+                from ...model_registry import get_model_config
+
+                model_config = get_model_config(model_name)
+                target_modules = model_config.get("lora_target_modules", ["q_proj", "v_proj"])
+
             lora_config = LoraConfig(
                 r=lora_cfg.get("r", 16),
                 lora_alpha=lora_cfg.get("lora_alpha", 32),
-                target_modules=lora_cfg.get("target_modules"),
+                target_modules=target_modules,
                 lora_dropout=lora_cfg.get("lora_dropout", 0.05),
                 bias="none",
                 task_type=TaskType.CAUSAL_LM,
@@ -352,7 +172,16 @@ class HFTrainer:
                     registry = json.load(f)
             except Exception as e:
                 logger.warning(f"Failed to load registry: {e}")
-        registry[model_id] = {"path": model_path, "base_model": base_model, "created_at": time.time()}
+
+        # Get the actual HuggingFace model name, not the simplified name
+        hf_model_name = self.fine_tuning_models.get(base_model, base_model)
+
+        registry[model_id] = {
+            "path": model_path,
+            "base_model": base_model,  # Keep simplified name for compatibility
+            "hf_model_name": hf_model_name,  # Add actual HF name
+            "created_at": time.time(),
+        }
         try:
             with open(registry_path, "w") as f:
                 json.dump(registry, f, indent=2)
@@ -405,6 +234,7 @@ def _make_training_args(job_id: str, hp: HyperParams, n_samples: int) -> Trainin
         overwrite_output_dir=True,
         num_train_epochs=hp.n_epochs,
         per_device_train_batch_size=per_device,
+        per_device_eval_batch_size=ServiceConfig.FINE_TUNING_EVAL_BATCH_SIZE,
         gradient_accumulation_steps=actual_gas,
         learning_rate=hp.learning_rate,
         warmup_steps=warmup,
@@ -438,10 +268,3 @@ def _latest_checkpoint(job_id: str) -> Optional[str]:
         return None
     ckpts = sorted(base.glob("checkpoint-*"), key=lambda p: int(p.name.split("-")[1]))
     return str(ckpts[-1]) if ckpts else None
-
-
-def _silence_transformers() -> None:
-    os.environ["TRANSFORMERS_VERBOSITY"] = "warning"
-    from tqdm import tqdm
-
-    tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
