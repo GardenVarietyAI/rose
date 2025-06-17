@@ -89,11 +89,7 @@ class HFTrainer:
                         "num_examples": len(ds),
                         "batch_size": args.per_device_train_batch_size,
                         "epochs": args.num_train_epochs,
-                        "device": "cuda"
-                        if torch.cuda.is_available()
-                        else "mps"
-                        if torch.backends.mps.is_available()
-                        else "cpu",
+                        "device": get_optimal_device(),
                     },
                 )
 
@@ -123,7 +119,7 @@ class HFTrainer:
             raise ValueError(f"Model {model_name} not supported for fine-tuning")
 
         hf_model_name = self.fine_tuning_models[model_name]
-        device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+        device = get_optimal_device()
         model, tokenizer = load_model_and_tokenizer(
             model_id=hf_model_name,
             device=device,
@@ -227,6 +223,16 @@ class HFTrainer:
         gc.collect()
 
 
+def get_optimal_device() -> str:
+    """Get the optimal device for model inference/training."""
+    if torch.cuda.is_available():
+        return "cuda"
+    elif torch.backends.mps.is_available():
+        return "mps"
+    else:
+        return "cpu"
+
+
 def _load_jsonl(fp: Path) -> List[Dict[str, Any]]:
     """Read JSONL file, ignoring blank lines."""
     lines = [ln for ln in fp.read_text("utf-8").splitlines() if ln.strip()]
@@ -261,7 +267,7 @@ def _make_training_args(job_id: str, hp: HyperParams, n_samples: int) -> Trainin
     n_epochs = int(hp.n_epochs) if hp.n_epochs else 3
     total_steps = steps_per_epoch // actual_gas * n_epochs
     warmup = int(total_steps * float(hp.warmup_ratio))
-    device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+    device = get_optimal_device()
 
     return TrainingArguments(
         output_dir=str(out_dir),
