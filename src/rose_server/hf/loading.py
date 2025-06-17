@@ -63,7 +63,7 @@ def load_model_and_tokenizer(
 
     # Check if this is a LoRA model by looking for adapter_config.json
     adapter_config_path = Path(source_path) / "adapter_config.json"
-    if model_path and adapter_config_path.exists():
+    if adapter_config_path.exists():
         logger.info(f"Detected LoRA adapter at {source_path}")
         # Load adapter config to find base model
         with open(adapter_config_path, "r") as f:
