@@ -76,9 +76,9 @@ class HFTrainer:
                 "model_path": str(out_dir),
                 "model_name": out_dir.name,
             }
-        except Exception as exc:
+        except Exception:
             logger.exception("Training failed")
-            return {"success": False, "error": str(exc)}
+            raise  # Let the caller handle it
         finally:
             self.cleanup()
 
