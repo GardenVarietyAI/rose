@@ -18,7 +18,7 @@ from ...config import ServiceConfig
 from ...hf.loading import load_model_and_tokenizer
 from ...model_registry import FINE_TUNING_MODELS, get_model_config
 from .callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
-from .hyperparams import HyperParams
+from .hyperparams import HyperParams, ResolvedHyperParams
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +78,7 @@ class HFTrainer:
         finally:
             self.cleanup()
 
-    def _prepare_training_state(self, hp: HyperParams) -> None:
+    def _prepare_training_state(self, hp: ResolvedHyperParams) -> None:
         torch.manual_seed(hp.seed)
         np.random.seed(hp.seed)
         if torch.cuda.is_available():
@@ -89,7 +89,7 @@ class HFTrainer:
         event_callback: Optional[Callable[[str, str, Dict[str, Any]], None]],
         check_cancel_callback: Optional[Callable[[], str]],
         job_id: str,
-        hp: HyperParams,
+        hp: ResolvedHyperParams,
     ) -> List[TrainerCallback]:
         callbacks: List[TrainerCallback] = [
             EventCallback(event_callback),
@@ -111,7 +111,7 @@ class HFTrainer:
         dataset: Dataset,
         args: TrainingArguments,
         callbacks: List[TrainerCallback],
-        hp: HyperParams,
+        hp: ResolvedHyperParams,
     ) -> Trainer:
         data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8)
 
@@ -145,7 +145,7 @@ class HFTrainer:
                 },
             )
 
-    def _load_model_and_tok(self, model_name: str, hp: HyperParams) -> Tuple[Any, Any]:
+    def _load_model_and_tok(self, model_name: str, hp: ResolvedHyperParams) -> Tuple[Any, Any]:
         """Load model with hyperparameters applied."""
         if model_name not in self.fine_tuning_models:
             raise ValueError(f"Model {model_name} not supported for fine-tuning")
@@ -164,7 +164,7 @@ class HFTrainer:
 
         return model, tokenizer
 
-    def _apply_lora(self, model: Any, model_name: str, hp: HyperParams) -> Any:
+    def _apply_lora(self, model: Any, model_name: str, hp: ResolvedHyperParams) -> Any:
         """Apply LoRA adaptation to the model."""
         lora_cfg = hp.lora_config or {}
 
@@ -296,7 +296,7 @@ def _prepare_dataset(raw: Sequence[Dict[str, Any]], tokenizer: Any, max_len: int
     return ds.map(tokenize, batched=True, remove_columns=["text"])
 
 
-def _make_training_args(job_id: str, hp: HyperParams, n_samples: int) -> TrainingArguments:
+def _make_training_args(job_id: str, hp: ResolvedHyperParams, n_samples: int) -> TrainingArguments:
     out_dir = Path(ServiceConfig.DATA_DIR) / "checkpoints" / job_id
     out_dir.mkdir(parents=True, exist_ok=True)
     per_device = hp.batch_size
