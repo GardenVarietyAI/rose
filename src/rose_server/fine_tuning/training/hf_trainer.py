@@ -3,15 +3,13 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
 from datasets import Dataset
-from peft import LoraConfig, PeftModel, TaskType, get_peft_model
+from peft import LoraConfig, TaskType, get_peft_model
 from transformers.data.data_collator import DataCollatorForLanguageModeling
-from transformers.modeling_utils import PreTrainedModel
-from transformers.tokenization_utils import PreTrainedTokenizer
 from transformers.trainer import Trainer
 from transformers.trainer_callback import EarlyStoppingCallback, TrainerCallback
 from transformers.training_args import TrainingArguments
@@ -54,7 +52,9 @@ class HFTrainer:
             torch.cuda.manual_seed(hp.seed)
 
         model, tokenizer = self._load_model_and_tok(model_name, hp)
-        ds = _prepare_dataset(raw_data, tokenizer, hp.max_length)
+        ds = _prepare_dataset(
+            raw_data, tokenizer, int(hp.max_length) if hp.max_length else ServiceConfig.FINE_TUNING_DEFAULT_MAX_LENGTH
+        )
         args = _make_training_args(job_id, hp, len(ds))
         data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8)
 
@@ -116,9 +116,7 @@ class HFTrainer:
         finally:
             self.cleanup()
 
-    def _load_model_and_tok(
-        self, model_name: str, hp: HyperParams
-    ) -> Tuple[Union[PreTrainedModel, PeftModel], PreTrainedTokenizer]:
+    def _load_model_and_tok(self, model_name: str, hp: HyperParams) -> Tuple[Any, Any]:
         """Load model with hyperparameters applied."""
 
         if model_name not in self.fine_tuning_models:
@@ -151,7 +149,7 @@ class HFTrainer:
                 task_type=TaskType.CAUSAL_LM,
             )
 
-            model = get_peft_model(model, lora_config)
+            model = get_peft_model(model, lora_config)  # type: ignore[arg-type]
 
             if hasattr(model, "print_trainable_parameters"):
                 model.print_trainable_parameters()
@@ -181,7 +179,7 @@ class HFTrainer:
             else:
                 try:
                     logger.info("Merging LoRA adapters into base model...")
-                    merged_model = trainer.model.merge_and_unload()
+                    merged_model = trainer.model.merge_and_unload()  # type: ignore[union-attr]
                     merged_model.save_pretrained(str(out))
                     logger.info("Successfully merged and saved model")
                 except Exception as e:
@@ -257,17 +255,18 @@ def _prepare_dataset(raw: Sequence[Dict[str, Any]], tokenizer: Any, max_len: int
 def _make_training_args(job_id: str, hp: HyperParams, n_samples: int) -> TrainingArguments:
     out_dir = Path(ServiceConfig.DATA_DIR) / "checkpoints" / job_id
     out_dir.mkdir(parents=True, exist_ok=True)
-    per_device = int(hp.batch_size)
+    per_device = int(hp.batch_size) if hp.batch_size else 1
     steps_per_epoch = max(n_samples // per_device, 1)
     actual_gas = int(hp.gradient_accumulation_steps or 1)
-    total_steps = steps_per_epoch // actual_gas * hp.n_epochs
-    warmup = int(total_steps * hp.warmup_ratio)
+    n_epochs = int(hp.n_epochs) if hp.n_epochs else 3
+    total_steps = steps_per_epoch // actual_gas * n_epochs
+    warmup = int(total_steps * float(hp.warmup_ratio))
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
     return TrainingArguments(
         output_dir=str(out_dir),
         overwrite_output_dir=True,
-        num_train_epochs=hp.n_epochs,
+        num_train_epochs=n_epochs,
         per_device_train_batch_size=per_device,
         per_device_eval_batch_size=ServiceConfig.FINE_TUNING_EVAL_BATCH_SIZE,
         gradient_accumulation_steps=actual_gas,
