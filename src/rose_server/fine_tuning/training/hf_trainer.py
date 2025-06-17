@@ -9,8 +9,9 @@ import numpy as np
 import torch
 from datasets import Dataset
 from peft import LoraConfig, PeftModel, TaskType, get_peft_model
-from transformers import PreTrainedModel, PreTrainedTokenizer
 from transformers.data.data_collator import DataCollatorForLanguageModeling
+from transformers.modeling_utils import PreTrainedModel
+from transformers.tokenization_utils import PreTrainedTokenizer
 from transformers.trainer import Trainer
 from transformers.trainer_callback import EarlyStoppingCallback, TrainerCallback
 from transformers.training_args import TrainingArguments
@@ -88,7 +89,7 @@ class HFTrainer:
             result = trainer.train(resume_from_checkpoint=_latest_checkpoint(job_id))
             out_dir = self._save_model(trainer, model_name, hp.suffix)
             metrics = result.metrics
-            tokens = int(metrics.get("train_samples_per_second", 0) * trainer.state.global_step)
+            tokens = int(trainer.state.num_input_tokens_seen) if hasattr(trainer.state, "num_input_tokens_seen") else 0
             return {
                 "success": True,
                 "final_loss": metrics.get("train_loss", 0),
@@ -224,7 +225,7 @@ def _prepare_dataset(raw: Sequence[Dict[str, Any]], tokenizer: Any, max_len: int
     ds = Dataset.from_dict({"text": texts})
 
     def tokenize(batch: Dict[str, List[str]]) -> Dict[str, Any]:
-        return tokenizer(batch["text"], truncation=True, padding="max_length", max_length=max_len)
+        return tokenizer(batch["text"], truncation=True, padding=True, max_length=max_len)
 
     return ds.map(tokenize, batched=True, remove_columns=["text"])
 
@@ -264,6 +265,7 @@ def _make_training_args(job_id: str, hp: HyperParams, n_samples: int) -> Trainin
         remove_unused_columns=False,
         report_to=[],
         dataloader_pin_memory=(device == "cuda"),
+        include_num_input_tokens_seen=True,
     )
 
 
