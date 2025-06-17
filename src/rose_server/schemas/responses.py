@@ -6,22 +6,23 @@ from openai.types.responses.function_tool_param import FunctionToolParam
 from pydantic import BaseModel, Field
 
 
-class ResponseContentItem(BaseModel):
-    type: Literal["text", "output_text"]
+class ResponsesContentItem(BaseModel):
+    type: Literal["output_text"]
     text: str
+    annotations: List[Any] = []
 
 
-class ResponseOutputItem(BaseModel):
+class ResponsesOutputItem(BaseModel):
     id: str
     type: Literal["message", "function_call"]
     status: Optional[str] = "completed"
     role: str
-    content: Optional[List[ResponseContentItem]] = None
+    content: Optional[List[ResponsesContentItem]] = None
     name: Optional[str] = None  # For function calls
     arguments: Optional[str] = None  # For function calls
 
 
-class ResponseUsage(BaseModel):
+class ResponsesUsage(BaseModel):
     input_tokens: int
     output_tokens: int
     total_tokens: int
@@ -32,11 +33,11 @@ class ResponseUsage(BaseModel):
 class ResponsesResponse(BaseModel):
     id: str
     object: Literal["response"] = "response"
-    created: int
+    created_at: int
     model: str
     status: Literal["completed", "in_progress", "failed"] = "completed"
-    output: List[ResponseOutputItem]
-    usage: ResponseUsage
+    output: List[ResponsesOutputItem]
+    usage: ResponsesUsage
 
 
 class ResponsesRequest(BaseModel):

@@ -10,7 +10,7 @@ from sqlmodel import Field, SQLModel
 class Thread(SQLModel, table=True):
     """Thread model for database storage."""
 
-    __tablename__ = "threads"
+    __tablename__: str = "threads"
     id: str = Field(primary_key=True)
     object: str = Field(default="thread")
     created_at: int = Field(default_factory=lambda: int(time.time()))
@@ -22,7 +22,7 @@ class Thread(SQLModel, table=True):
 class Message(SQLModel, table=True):
     """Message model for database storage."""
 
-    __tablename__ = "messages"
+    __tablename__: str = "messages"
     id: str = Field(primary_key=True)
     object: str = Field(default="thread.message")
     created_at: int = Field(default_factory=lambda: int(time.time()))
@@ -47,7 +47,7 @@ class Message(SQLModel, table=True):
 class MessageMetadata(SQLModel, table=True):
     """Additional metadata for messages."""
 
-    __tablename__ = "message_metadata"
+    __tablename__: str = "message_metadata"
     id: int = Field(primary_key=True)
     message_id: str = Field(foreign_key="messages.id")
     key: str

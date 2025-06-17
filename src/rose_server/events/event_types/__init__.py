@@ -1,3 +1,4 @@
+from .base import LLMEvent
 from .generation import (
     ResponseCompleted,
     ResponseStarted,
@@ -10,6 +11,7 @@ from .resource import ModelLoaded, ModelUnloaded, ResourceAcquired, ResourceRele
 from .training import CheckpointSaved, TrainingCompleted, TrainingError, TrainingStarted, TrainingStepCompleted
 
 __all__ = [
+    "LLMEvent",
     "ResponseStarted",
     "TokenGenerated",
     "ToolCallStarted",

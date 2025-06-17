@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Tuple
 from rose_server.config import ServiceConfig
 from rose_server.hf.loading import load_model_and_tokenizer
 from rose_server.schemas.chat import ChatMessage
+from rose_server.services import get_model_registry
 
 logger = logging.getLogger(__name__)
 
@@ -69,3 +70,20 @@ class HuggingFaceLLM:
         n_ctx = self.config.get("n_ctx", 2048)
         max_prompt_tokens = n_ctx - max_response_tokens
         return max_prompt_tokens, max_response_tokens
+
+    @classmethod
+    async def load_model(cls, model_name: str) -> "HuggingFaceLLM":
+        """Load model from registry with error handling."""
+        registry = get_model_registry()
+
+        if model_name not in registry.list_models():
+            raise ValueError(f"Model '{model_name}' not found")
+
+        config = registry.get_model_config(model_name)
+        if not config:
+            raise ValueError(f"Model '{model_name}' is not available")
+
+        try:
+            return cls(config)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load model '{model_name}': {str(e)}") from e

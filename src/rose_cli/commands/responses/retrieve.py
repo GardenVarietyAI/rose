@@ -1,6 +1,7 @@
 from typing import Optional
 
 import typer
+from openai.types.responses import ResponseOutputMessage, ResponseOutputText
 
 from ...utils import get_client, get_endpoint_url
 
@@ -12,28 +13,18 @@ def retrieve_response(
 ):
     """Retrieve a stored response."""
     endpoint_url = get_endpoint_url(url, local)
-    get_client(endpoint_url)
+    client = get_client(endpoint_url)
     try:
-        # Use custom endpoint for retrieval
-        import httpx
-
-        with httpx.Client() as http_client:
-            response = http_client.get(f"{endpoint_url}/responses/{response_id}")
-            response.raise_for_status()
-            data = response.json()
-            print(f"Response ID: {data['id']}")
-            print(f"Status: {data['status']}")
-            print(f"Created: {data['created']}")
-            print("\nOutput:")
-            for item in data["output"]:
-                if isinstance(item, dict):
-                    if "content" in item:
-                        print(item["content"])
-                    elif "type" in item and item["type"] == "message":
-                        print(f"[{item.get('role', 'assistant')}]: {item.get('content', '')}")
-                else:
-                    print(item)
-    except httpx.HTTPStatusError as e:
-        print(f"HTTP error: {e.response.status_code} - {e.response.text}", file=typer.get_text_stream("stderr"))
+        response = client.responses.retrieve(response_id)
+        print(f"Response ID: {response.id}")
+        print(f"Status: {response.status}")
+        print(f"Created: {response.created_at}")
+        print("\nOutput:")
+        if response.output:
+            for item in response.output:
+                if isinstance(item, ResponseOutputMessage) and item.content:
+                    for content_item in item.content:
+                        if isinstance(content_item, ResponseOutputText) and content_item.text:
+                            print(content_item.text)
     except Exception as e:
         print(f"error: {e}", file=typer.get_text_stream("stderr"))
