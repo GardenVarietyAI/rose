@@ -3,12 +3,13 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
 from datasets import Dataset
-from peft import LoraConfig, TaskType, get_peft_model
+from peft import LoraConfig, PeftModel, TaskType, get_peft_model
+from transformers import PreTrainedModel, PreTrainedTokenizer
 from transformers.data.data_collator import DataCollatorForLanguageModeling
 from transformers.trainer import Trainer
 from transformers.trainer_callback import EarlyStoppingCallback, TrainerCallback
@@ -34,10 +35,10 @@ class HFTrainer:
         job_id: str,
         model_name: str,
         training_file_path: Path,
-        hyperparameters: Dict,
+        hyperparameters: Dict[str, Any],
         check_cancel_callback: Optional[Callable[[], str]] = None,
-        event_callback: Optional[Callable[[str, str, Dict], None]] = None,
-    ) -> Dict:
+        event_callback: Optional[Callable[[str, str, Dict[str, Any]], None]] = None,
+    ) -> Dict[str, Any]:
         """Run a fine-tuning job and return a result dict."""
         os.environ["TRANSFORMERS_VERBOSITY"] = "warning"
         raw_data = _load_jsonl(training_file_path)
@@ -46,10 +47,10 @@ class HFTrainer:
         np.random.seed(hp.seed)
         if torch.cuda.is_available():
             torch.cuda.manual_seed(hp.seed)
-        model, tok = self._load_model_and_tok(model_name, hp)
-        ds = _prepare_dataset(raw_data, tok, hp.max_length)
+        model, tokenizer = self._load_model_and_tok(model_name, hp)
+        ds = _prepare_dataset(raw_data, tokenizer, hp.max_length)
         args = _make_training_args(job_id, hp, len(ds))
-        data_collator = DataCollatorForLanguageModeling(tokenizer=tok, mlm=False, pad_to_multiple_of=8)
+        data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8)
         callbacks: List[TrainerCallback] = [
             EventCallback(event_callback),
             HardwareMonitorCallback(event_callback),
@@ -63,7 +64,7 @@ class HFTrainer:
             args=args,
             train_dataset=ds,
             eval_dataset=_maybe_split(ds, hp.validation_split),
-            processing_class=tok,
+            processing_class=tokenizer,
             data_collator=data_collator,
             callbacks=callbacks,
         )
@@ -102,7 +103,9 @@ class HFTrainer:
         finally:
             self.cleanup()
 
-    def _load_model_and_tok(self, model_name: str, hp: HyperParams):
+    def _load_model_and_tok(
+        self, model_name: str, hp: HyperParams
+    ) -> Tuple[Union[PreTrainedModel, PeftModel], PreTrainedTokenizer]:
         """Load model with hyperparameters applied."""
 
         if model_name not in self.fine_tuning_models:
@@ -134,16 +137,21 @@ class HFTrainer:
                 task_type=TaskType.CAUSAL_LM,
             )
             model = get_peft_model(model, lora_config)
-            model.print_trainable_parameters()
+            if hasattr(model, "print_trainable_parameters"):
+                model.print_trainable_parameters()
         return model, tokenizer
 
     def _save_model(self, trainer: Trainer, base_name: str, suffix: str) -> Path:
         ts = int(time.time())
-        model_id = f"{base_name}-ft-{ts}-{suffix}"
+        if suffix and suffix != "None":
+            model_id = f"{base_name}-ft-{ts}-{suffix}"
+        else:
+            model_id = f"{base_name}-ft-{ts}"
         out = Path(ServiceConfig.DATA_DIR) / "models" / model_id
         out.mkdir(parents=True, exist_ok=True)
         trainer.save_model(str(out))
-        if hasattr(trainer.model, "merge_and_unload"):
+        # Check if this is a PEFT model
+        if hasattr(trainer.model, "peft_config"):
             if torch.backends.mps.is_available():
                 logger.warning(
                     "Skipping merge_and_unload on Apple Silicon due to potential hanging issues. "
@@ -157,7 +165,8 @@ class HFTrainer:
                     logger.info("Successfully merged and saved model")
                 except Exception as e:
                     logger.error(f"Failed to merge_and_unload model: {e}")
-        self._update_registry(model_id, str(out), base_name)
+        relative_path = out.relative_to(Path(ServiceConfig.DATA_DIR))
+        self._update_registry(model_id, str(relative_path), base_name)
         return out
 
     def _update_registry(self, model_id: str, model_path: str, base_model: str):
@@ -197,16 +206,16 @@ class HFTrainer:
         gc.collect()
 
 
-def _load_jsonl(fp: Path) -> List[Dict]:
+def _load_jsonl(fp: Path) -> List[Dict[str, Any]]:
     """Read JSONL file, ignoring blank lines."""
     lines = [ln for ln in fp.read_text("utf-8").splitlines() if ln.strip()]
     return [json.loads(ln) for ln in lines]
 
 
-def _prepare_dataset(raw: Sequence[Dict], tok, max_len: int) -> Dataset:
-    def to_text(item: Dict) -> str:
-        if "messages" in item and hasattr(tok, "apply_chat_template"):
-            return tok.apply_chat_template(item["messages"], tokenize=False, add_generation_prompt=False)
+def _prepare_dataset(raw: Sequence[Dict[str, Any]], tokenizer: Any, max_len: int) -> Dataset:
+    def to_text(item: Dict[str, Any]) -> str:
+        if "messages" in item and hasattr(tokenizer, "apply_chat_template"):
+            return tokenizer.apply_chat_template(item["messages"], tokenize=False, add_generation_prompt=False)
         if "prompt" in item and "completion" in item:
             return item["prompt"] + item["completion"]
         return item.get("text", "")
@@ -214,8 +223,8 @@ def _prepare_dataset(raw: Sequence[Dict], tok, max_len: int) -> Dataset:
     texts = [to_text(ex) for ex in raw]
     ds = Dataset.from_dict({"text": texts})
 
-    def tokenize(batch):
-        return tok(batch["text"], truncation=True, padding="max_length", max_length=max_len)
+    def tokenize(batch: Dict[str, List[str]]) -> Dict[str, Any]:
+        return tokenizer(batch["text"], truncation=True, padding="max_length", max_length=max_len)
 
     return ds.map(tokenize, batched=True, remove_columns=["text"])
 
