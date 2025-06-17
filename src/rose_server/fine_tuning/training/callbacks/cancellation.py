@@ -39,7 +39,7 @@ class CancellationCallback(TrainerCallback):
                 "global_step": state.global_step,
                 "epoch": state.epoch,
             }
-            (Path(ServiceConfig.DATA_DIR) / "checkpoints" / self._job_id / "pause_meta.json").write_text(
-                json.dumps(meta)
-            )
+            pause_meta_path = Path(ServiceConfig.DATA_DIR) / "checkpoints" / self._job_id / "pause_meta.json"
+            pause_meta_path.parent.mkdir(parents=True, exist_ok=True)
+            pause_meta_path.write_text(json.dumps(meta))
         return control
