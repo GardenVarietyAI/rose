@@ -70,6 +70,7 @@ class ResponsesFormatter:
                     {
                         "type": "message",
                         "id": f"msg_{uuid.uuid4().hex}",
+                        "status": "completed",
                         "role": "assistant",
                         "content": [{"type": "text", "text": final_text}],
                     }
@@ -119,6 +120,7 @@ class ResponsesFormatter:
                 {
                     "type": "message",
                     "id": f"msg_{uuid.uuid4().hex}",
+                    "status": "completed",
                     "role": "assistant",
                     "content": [{"type": "text", "text": content}],
                 }
