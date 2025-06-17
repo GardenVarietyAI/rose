@@ -117,9 +117,9 @@ async def retrieve_response(response_id: str):
         text_content = ""
 
         if isinstance(response_msg.content, list):
-            for content_item in response_msg.content:
-                if isinstance(content_item, dict) and content_item.get("type") == "text":
-                    text_content = content_item.get("text", "")
+            for item in response_msg.content:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    text_content = item.get("text", "")
                     break
         else:
             logger.warning(f"Unexpected content format for response {response_id}: {type(response_msg.content)}")

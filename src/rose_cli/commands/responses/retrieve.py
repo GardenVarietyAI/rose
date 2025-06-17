@@ -19,6 +19,11 @@ def retrieve_response(
         print(f"Response ID: {response.id}")
         print(f"Status: {response.status}")
         print(f"Created: {response.created_at}")
+        print(
+            f"Usage: input_tokens={response.usage.input_tokens}, "
+            f"output_tokens={response.usage.output_tokens}, "
+            f"total={response.usage.total_tokens}"
+        )
         print("\nOutput:")
         if response.output:
             for item in response.output:

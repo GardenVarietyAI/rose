@@ -3,9 +3,7 @@
 import json
 import time
 import uuid
-from typing import Any, Dict, Optional, Sequence, Union
-
-from pydantic import BaseModel, Field
+from typing import Any, Dict, Optional, Sequence
 
 from ...schemas.responses import (
     ResponsesContentItem,
@@ -22,17 +20,6 @@ from ..event_types import (
     ToolCallCompleted,
     ToolCallStarted,
 )
-
-
-class ResponsesFunctionCallItem(BaseModel):
-    """Output item representing a function call."""
-
-    id: str = Field(...)
-    type: str = Field(default="function_call", const=True)
-    status: Optional[str] = "completed"
-    role: str = "assistant"
-    name: str
-    arguments: str
 
 
 class ResponsesFormatter:
@@ -104,11 +91,9 @@ class ResponsesFormatter:
             },
         }
 
-    def _build_output_items_from_content(
-        self, content: str
-    ) -> list[Union[ResponsesOutputItem, ResponsesFunctionCallItem]]:
+    def _build_output_items_from_content(self, content: str) -> list[ResponsesOutputItem]:
         """Build output items from content string."""
-        output_items: list[Union[ResponsesOutputItem, ResponsesFunctionCallItem]] = []
+        output_items: list[ResponsesOutputItem] = []
 
         if not content:
             return output_items
@@ -116,8 +101,11 @@ class ResponsesFormatter:
         # Check for tool calls
         tool_call, cleaned_text = parse_xml_tool_call(content)
         if tool_call:
-            function_item = ResponsesFunctionCallItem(
+            function_item = ResponsesOutputItem(
                 id=f"call_{uuid.uuid4().hex[:16]}",
+                type="function_call",
+                status="completed",
+                role="assistant",
                 name=tool_call["tool"],
                 arguments=json.dumps(tool_call["arguments"]),
             )
@@ -154,29 +142,9 @@ class ResponsesFormatter:
         token_events = [e for e in events if isinstance(e, TokenGenerated)]
         end_event = next((e for e in events if isinstance(e, ResponseCompleted)), None)
         content = "".join(e.token for e in token_events)
-        output_items: list[Union[ResponsesOutputItem, ResponsesFunctionCallItem]] = []
 
-        if content:
-            tool_call, cleaned_text = parse_xml_tool_call(content)
-            if tool_call:
-                function_item = ResponsesFunctionCallItem(
-                    id=f"call_{uuid.uuid4().hex[:16]}",
-                    name=tool_call["tool"],
-                    arguments=json.dumps(tool_call["arguments"]),
-                )
-                output_items.append(function_item)
-                content = cleaned_text
-
-        if content.strip():
-            output_items.append(
-                ResponsesOutputItem(
-                    id=f"msg_{uuid.uuid4().hex}",
-                    type="message",
-                    status="completed",
-                    role="assistant",
-                    content=[ResponsesContentItem(type="output_text", text=content)],
-                )
-            )
+        # Use the helper method to build output items
+        output_items = self._build_output_items_from_content(content)
 
         usage = ResponsesUsage(
             input_tokens=start_event.input_tokens if start_event else 0,
