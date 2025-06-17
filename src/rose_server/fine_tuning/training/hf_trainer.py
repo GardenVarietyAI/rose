@@ -149,7 +149,6 @@ class HFTrainer:
 
     def _load_model_and_tok(self, model_name: str, hp: HyperParams) -> Tuple[Any, Any]:
         """Load model with hyperparameters applied."""
-
         if model_name not in self.fine_tuning_models:
             raise ValueError(f"Model {model_name} not supported for fine-tuning")
 
@@ -163,29 +162,35 @@ class HFTrainer:
         )
 
         if hp.use_lora:
-            lora_cfg = hp.lora_config or {}
-            # Get target modules from model registry if not specified
-            target_modules = lora_cfg.get("target_modules")
-
-            if not target_modules:
-                model_config = get_model_config(model_name)
-                target_modules = model_config.get("lora_target_modules", ["q_proj", "v_proj"])
-
-            lora_config = LoraConfig(
-                r=lora_cfg.get("r", 16),
-                lora_alpha=lora_cfg.get("lora_alpha", 32),
-                target_modules=target_modules,
-                lora_dropout=lora_cfg.get("lora_dropout", 0.05),
-                bias="none",
-                task_type=TaskType.CAUSAL_LM,
-            )
-
-            model = get_peft_model(model, lora_config)  # type: ignore[arg-type]
-
-            if hasattr(model, "print_trainable_parameters"):
-                model.print_trainable_parameters()
+            model = self._apply_lora(model, model_name, hp)
 
         return model, tokenizer
+
+    def _apply_lora(self, model: Any, model_name: str, hp: HyperParams) -> Any:
+        """Apply LoRA adaptation to the model."""
+        lora_cfg = hp.lora_config or {}
+
+        # Get target modules from config or model registry
+        target_modules = lora_cfg.get("target_modules")
+        if not target_modules:
+            model_config = get_model_config(model_name)
+            target_modules = model_config.get("lora_target_modules", ["q_proj", "v_proj"])
+
+        lora_config = LoraConfig(
+            r=lora_cfg.get("r", 16),
+            lora_alpha=lora_cfg.get("lora_alpha", 32),
+            target_modules=target_modules,
+            lora_dropout=lora_cfg.get("lora_dropout", 0.05),
+            bias="none",
+            task_type=TaskType.CAUSAL_LM,
+        )
+
+        model = get_peft_model(model, lora_config)  # type: ignore[arg-type]
+
+        if hasattr(model, "print_trainable_parameters"):
+            model.print_trainable_parameters()
+
+        return model
 
     def _save_model(self, trainer: Trainer, base_name: str, suffix: str) -> Path:
         ts = int(time.time())
