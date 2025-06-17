@@ -16,7 +16,7 @@ from rose_server.events.formatters import ResponsesFormatter
 from rose_server.events.generators import ResponsesGenerator
 from rose_server.llms.huggingface_llm import HuggingFaceLLM
 from rose_server.schemas.chat import ChatMessage
-from rose_server.schemas.responses import ResponsesRequest
+from rose_server.schemas.responses import ResponsesRequest, ResponsesResponse
 from rose_server.services import get_model_registry
 from rose_server.tools import format_function_output
 from rose_server.utils import extract_user_content
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["responses"])
 
 
-@router.get("/v1/responses/{response_id}", response_model=None)
+@router.get("/v1/responses/{response_id}", response_model=ResponsesResponse)
 async def retrieve_response(response_id: str):
     """Retrieve a stored response by ID."""
     try:
@@ -37,7 +37,9 @@ async def retrieve_response(response_id: str):
         response_msg = await run_in_session(get_response_operation, read_only=True)
         if not response_msg:
             return {"error": {"message": f"Response {response_id} not found", "type": "not_found", "code": None}}
+
         text_content = ""
+
         if isinstance(response_msg.content, list):
             for content_item in response_msg.content:
                 if isinstance(content_item, dict) and content_item.get("type") == "text":
@@ -46,7 +48,9 @@ async def retrieve_response(response_id: str):
         else:
             logger.warning(f"Unexpected content format for response {response_id}: {type(response_msg.content)}")
             text_content = str(response_msg.content) if response_msg.content else ""
+
         model_name = response_msg.meta.get("model", "unknown") if response_msg.meta else "unknown"
+
         return {
             "id": response_msg.id,
             "object": "response",

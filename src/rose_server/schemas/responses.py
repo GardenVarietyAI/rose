@@ -6,6 +6,39 @@ from openai.types.responses.function_tool_param import FunctionToolParam
 from pydantic import BaseModel, Field
 
 
+class ResponseContentItem(BaseModel):
+    type: Literal["text", "output_text"]
+    text: str
+
+
+class ResponseOutputItem(BaseModel):
+    id: str
+    type: Literal["message", "function_call"]
+    status: Optional[str] = "completed"
+    role: str
+    content: Optional[List[ResponseContentItem]] = None
+    name: Optional[str] = None  # For function calls
+    arguments: Optional[str] = None  # For function calls
+
+
+class ResponseUsage(BaseModel):
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+    input_tokens_details: Dict[str, int] = {"cached_tokens": 0}
+    output_tokens_details: Dict[str, int] = {"reasoning_tokens": 0}
+
+
+class ResponsesResponse(BaseModel):
+    id: str
+    object: Literal["response"] = "response"
+    created: int
+    model: str
+    status: Literal["completed", "in_progress", "failed"] = "completed"
+    output: List[ResponseOutputItem]
+    usage: ResponseUsage
+
+
 class ResponsesRequest(BaseModel):
     """OpenAI-compatible responses API request format."""
 
