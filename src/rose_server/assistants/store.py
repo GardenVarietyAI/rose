@@ -156,9 +156,7 @@ class AssistantStore:
             assistant_ids = [a.id for a in db_assistants]
             all_tools = []
             if assistant_ids:
-                tools_statement = select(AssistantTool).where(
-                    AssistantTool.assistant_id.in_(assistant_ids)
-                )
+                tools_statement = select(AssistantTool).where(AssistantTool.assistant_id.in_(assistant_ids))
                 all_tools = (await session.execute(tools_statement)).scalars().all()
             tools_by_assistant = {}
             for tool in all_tools:
