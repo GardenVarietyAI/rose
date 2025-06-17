@@ -17,10 +17,7 @@ class HardwareMonitorCallback(_BaseCallback):
 
         metrics = {}
         if torch.cuda.is_available():
-            try:
-                logger.warning("Not implemented")
-            except Exception:
-                pass
+            pass  # CUDA monitoring not implemented
 
         if torch.backends.mps.is_available():
             try:
