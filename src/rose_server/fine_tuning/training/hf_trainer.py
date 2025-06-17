@@ -50,9 +50,7 @@ class HFTrainer:
 
         # Load model and prepare dataset
         model, tokenizer = self._load_model_and_tok(model_name, hp)
-        ds = _prepare_dataset(
-            raw_data, tokenizer, int(hp.max_length) if hp.max_length else ServiceConfig.FINE_TUNING_DEFAULT_MAX_LENGTH
-        )
+        ds = _prepare_dataset(raw_data, tokenizer, hp.max_length)
 
         # Build training components
         args = _make_training_args(job_id, hp, len(ds))
@@ -301,18 +299,17 @@ def _prepare_dataset(raw: Sequence[Dict[str, Any]], tokenizer: Any, max_len: int
 def _make_training_args(job_id: str, hp: HyperParams, n_samples: int) -> TrainingArguments:
     out_dir = Path(ServiceConfig.DATA_DIR) / "checkpoints" / job_id
     out_dir.mkdir(parents=True, exist_ok=True)
-    per_device = int(hp.batch_size) if hp.batch_size else 1
+    per_device = hp.batch_size
     steps_per_epoch = max(n_samples // per_device, 1)
-    actual_gas = int(hp.gradient_accumulation_steps or 1)
-    n_epochs = int(hp.n_epochs) if hp.n_epochs else 3
-    total_steps = steps_per_epoch // actual_gas * n_epochs
-    warmup = int(total_steps * float(hp.warmup_ratio))
+    actual_gas = hp.gradient_accumulation_steps
+    total_steps = steps_per_epoch // actual_gas * hp.n_epochs
+    warmup = int(total_steps * hp.warmup_ratio)
     device = get_optimal_device()
 
     return TrainingArguments(
         output_dir=str(out_dir),
         overwrite_output_dir=True,
-        num_train_epochs=n_epochs,
+        num_train_epochs=hp.n_epochs,
         per_device_train_batch_size=per_device,
         per_device_eval_batch_size=ServiceConfig.FINE_TUNING_EVAL_BATCH_SIZE,
         gradient_accumulation_steps=actual_gas,
