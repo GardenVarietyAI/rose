@@ -1,16 +1,12 @@
-"""Completion command for prompt completions."""
-
 from typing import Optional
 
 import typer
 
-from ..utils import get_client, get_endpoint_url
-
-app = typer.Typer()
+from ...utils import get_client, get_endpoint_url
 
 
-@app.command()
-def complete(
+def create_completion(
+    ctx: typer.Context,
     prompt: str = typer.Argument(..., help="Prompt to complete"),
     model: str = typer.Option("qwen-coder", "--model", "-m", help="Model to use"),
     url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
@@ -21,15 +17,19 @@ def complete(
     echo: bool = typer.Option(False, "--echo", "-e", help="Echo the prompt in the response"),
 ):
     """Generate text completions from prompts."""
+    if ctx.invoked_subcommand is not None:
+        return
+
     endpoint_url = get_endpoint_url(url, local)
     client = get_client(endpoint_url)
+
     try:
         if stream:
             response = client.completions.create(
                 model=model,
                 prompt=prompt,
-                max_tokens=max_tokens,
                 temperature=temperature,
+                max_tokens=max_tokens,
                 stream=True,
                 echo=echo,
             )
@@ -41,8 +41,8 @@ def complete(
             response = client.completions.create(
                 model=model,
                 prompt=prompt,
-                max_tokens=max_tokens,
                 temperature=temperature,
+                max_tokens=max_tokens,
                 echo=echo,
             )
             print(response.choices[0].text)
