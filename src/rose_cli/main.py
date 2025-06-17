@@ -2,9 +2,8 @@
 
 import typer
 
-# Import refactored command modules
-# Import legacy command modules (to be refactored)
 from .commands import (
+    agents,
     assistants,
     chat,
     cleanup,
@@ -23,8 +22,9 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
-# Refactored commands
+app.add_typer(agents.app, name="agents", help="Agent operations")
 app.add_typer(chat.app, name="chat", help="Chat with models")
+app.add_typer(compare.app, name="compare", help="Compare model responses")
 app.add_typer(completions.app, name="completions", help="Generate completions")
 app.add_typer(models.app, name="models", help="Model management")
 app.add_typer(files.app, name="files", help="File operations")
@@ -34,9 +34,6 @@ app.add_typer(assistants.app, name="assistants", help="Assistant management")
 app.add_typer(cleanup.app, name="cleanup", help="Cleanup models, files, and jobs")
 app.add_typer(responses.app, name="responses", help="Responses API operations")
 app.add_typer(evals.app, name="eval", help="Evaluation operations")
-
-# Legacy commands (to be refactored)
-app.add_typer(compare.app, name="compare", help="Compare model responses")
 
 
 def main():
