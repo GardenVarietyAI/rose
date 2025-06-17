@@ -3,9 +3,16 @@
 import json
 import time
 import uuid
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, Optional, Sequence, Union
 
-from ...schemas.responses import ResponsesContentItem, ResponsesOutputItem, ResponsesResponse, ResponsesUsage
+from pydantic import BaseModel, Field
+
+from ...schemas.responses import (
+    ResponsesContentItem,
+    ResponsesOutputItem,
+    ResponsesResponse,
+    ResponsesUsage,
+)
 from ...tools import parse_xml_tool_call
 from ..event_types import (
     LLMEvent,
@@ -15,6 +22,17 @@ from ..event_types import (
     ToolCallCompleted,
     ToolCallStarted,
 )
+
+
+class ResponsesFunctionCallItem(BaseModel):
+    """Output item representing a function call."""
+
+    id: str = Field(...)
+    type: str = Field(default="function_call", const=True)
+    status: Optional[str] = "completed"
+    role: str = "assistant"
+    name: str
+    arguments: str
 
 
 class ResponsesFormatter:
@@ -86,9 +104,11 @@ class ResponsesFormatter:
             },
         }
 
-    def _build_output_items_from_content(self, content: str) -> list[ResponsesOutputItem]:
+    def _build_output_items_from_content(
+        self, content: str
+    ) -> list[Union[ResponsesOutputItem, ResponsesFunctionCallItem]]:
         """Build output items from content string."""
-        output_items: list[ResponsesOutputItem] = []
+        output_items: list[Union[ResponsesOutputItem, ResponsesFunctionCallItem]] = []
 
         if not content:
             return output_items
@@ -96,11 +116,8 @@ class ResponsesFormatter:
         # Check for tool calls
         tool_call, cleaned_text = parse_xml_tool_call(content)
         if tool_call:
-            function_item = ResponsesOutputItem(
+            function_item = ResponsesFunctionCallItem(
                 id=f"call_{uuid.uuid4().hex[:16]}",
-                type="function_call",
-                status="completed",
-                role="assistant",
                 name=tool_call["tool"],
                 arguments=json.dumps(tool_call["arguments"]),
             )
@@ -137,17 +154,13 @@ class ResponsesFormatter:
         token_events = [e for e in events if isinstance(e, TokenGenerated)]
         end_event = next((e for e in events if isinstance(e, ResponseCompleted)), None)
         content = "".join(e.token for e in token_events)
-        output_items: list[ResponsesOutputItem] = []
+        output_items: list[Union[ResponsesOutputItem, ResponsesFunctionCallItem]] = []
 
         if content:
             tool_call, cleaned_text = parse_xml_tool_call(content)
             if tool_call:
-                # TODO: Add ResponsesFunctionCallItem when we support function calls
-                function_item = ResponsesOutputItem(
+                function_item = ResponsesFunctionCallItem(
                     id=f"call_{uuid.uuid4().hex[:16]}",
-                    type="function_call",
-                    status="completed",
-                    role="assistant",
                     name=tool_call["tool"],
                     arguments=json.dumps(tool_call["arguments"]),
                 )
