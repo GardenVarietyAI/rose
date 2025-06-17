@@ -1,6 +1,7 @@
 from typing import Optional
 
 import typer
+from openai.types.responses import ResponseOutputMessage, ResponseOutputText, ResponseTextDeltaEvent
 
 from ...utils import get_client, get_endpoint_url
 
@@ -17,34 +18,35 @@ def create_response(
     """Create a response using the Responses API."""
     endpoint_url = get_endpoint_url(url, local)
     client = get_client(endpoint_url)
-    input_data = [{"type": "message", "role": "user", "content": message}]
     try:
-        response = client.responses.create(
-            model=model,
-            input=input_data,
-            instructions=instructions,
-            store=store,
-            stream=stream,
-        )
         if stream:
-            for event in response:
-                if hasattr(event, "delta") and event.delta:
+            response_stream = client.responses.create(
+                model=model,
+                input=message,
+                instructions=instructions,
+                store=store,
+                stream=True,
+            )
+            for event in response_stream:
+                if isinstance(event, ResponseTextDeltaEvent):
                     print(event.delta, end="", flush=True)
             print()
         else:
+            response = client.responses.create(
+                model=model,
+                input=message,
+                instructions=instructions,
+                store=store,
+                stream=False,
+            )
             print(f"Response ID: {response.id}")
             print(f"Status: {response.status}")
-            for item in response.output:
-                if hasattr(item, "content"):
-                    for content in item.content:
-                        if hasattr(content, "text"):
-                            print(content.text)
-                        elif hasattr(content, "content"):
-                            print(content.content)
-                elif hasattr(item, "text"):
-                    print(item.text)
-                elif isinstance(item, dict) and "content" in item:
-                    print(item["content"])
+            if response.output:
+                for item in response.output:
+                    if isinstance(item, ResponseOutputMessage) and item.content:
+                        for content_item in item.content:
+                            if isinstance(content_item, ResponseOutputText) and content_item.text:
+                                print(content_item.text)
             if store:
                 print(f"\nResponse stored with ID: {response.id}")
     except Exception as e:
