@@ -39,60 +39,28 @@ class HFTrainer:
         event_callback: Optional[Callable[[str, str, Dict[str, Any]], None]] = None,
     ) -> Dict[str, Any]:
         """Run a fine-tuning job and return a result dict."""
-
         os.environ["TRANSFORMERS_VERBOSITY"] = "warning"
 
+        # Load and prepare data
         raw_data = _load_jsonl(training_file_path)
         hp = HyperParams.resolve(hyperparameters)
 
-        torch.manual_seed(hp.seed)
-        np.random.seed(hp.seed)
+        # Set up training state
+        self._prepare_training_state(hp)
 
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed(hp.seed)
-
+        # Load model and prepare dataset
         model, tokenizer = self._load_model_and_tok(model_name, hp)
         ds = _prepare_dataset(
             raw_data, tokenizer, int(hp.max_length) if hp.max_length else ServiceConfig.FINE_TUNING_DEFAULT_MAX_LENGTH
         )
+
+        # Build training components
         args = _make_training_args(job_id, hp, len(ds))
-        data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8)
-
-        callbacks: List[TrainerCallback] = [
-            EventCallback(event_callback),
-            HardwareMonitorCallback(event_callback),
-        ]
-
-        if check_cancel_callback:
-            callbacks.append(CancellationCallback(check_cancel_callback, job_id))
-
-        if hp.validation_split > 0:
-            callbacks.append(EarlyStoppingCallback(early_stopping_patience=hp.early_stopping_patience))
-
-        trainer = Trainer(
-            model=model,
-            args=args,
-            train_dataset=ds,
-            eval_dataset=_maybe_split(ds, hp.validation_split),
-            processing_class=tokenizer,
-            data_collator=data_collator,
-            callbacks=callbacks,
-        )
+        callbacks = self._build_callbacks(event_callback, check_cancel_callback, job_id, hp)
+        trainer = self._build_trainer(model, tokenizer, ds, args, callbacks, hp)
 
         try:
-            if event_callback:
-                event_callback(
-                    "info",
-                    "Training started",
-                    {
-                        "model": model_name,
-                        "num_examples": len(ds),
-                        "batch_size": args.per_device_train_batch_size,
-                        "epochs": args.num_train_epochs,
-                        "device": get_optimal_device(),
-                    },
-                )
-
+            self._log_training_start(event_callback, model_name, ds, args)
             result = trainer.train(resume_from_checkpoint=_latest_checkpoint(job_id))
             out_dir = self._save_model(trainer, model_name, hp.suffix)
             metrics = result.metrics
@@ -111,6 +79,73 @@ class HFTrainer:
             return {"success": False, "error": str(exc)}
         finally:
             self.cleanup()
+
+    def _prepare_training_state(self, hp: HyperParams) -> None:
+        torch.manual_seed(hp.seed)
+        np.random.seed(hp.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(hp.seed)
+
+    def _build_callbacks(
+        self,
+        event_callback: Optional[Callable[[str, str, Dict[str, Any]], None]],
+        check_cancel_callback: Optional[Callable[[], str]],
+        job_id: str,
+        hp: HyperParams,
+    ) -> List[TrainerCallback]:
+        callbacks: List[TrainerCallback] = [
+            EventCallback(event_callback),
+            HardwareMonitorCallback(event_callback),
+        ]
+
+        if check_cancel_callback:
+            callbacks.append(CancellationCallback(check_cancel_callback, job_id))
+
+        if hp.validation_split > 0:
+            callbacks.append(EarlyStoppingCallback(early_stopping_patience=hp.early_stopping_patience))
+
+        return callbacks
+
+    def _build_trainer(
+        self,
+        model: Any,
+        tokenizer: Any,
+        dataset: Dataset,
+        args: TrainingArguments,
+        callbacks: List[TrainerCallback],
+        hp: HyperParams,
+    ) -> Trainer:
+        data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8)
+
+        return Trainer(
+            model=model,
+            args=args,
+            train_dataset=dataset,
+            eval_dataset=_maybe_split(dataset, hp.validation_split),
+            processing_class=tokenizer,
+            data_collator=data_collator,
+            callbacks=callbacks,
+        )
+
+    def _log_training_start(
+        self,
+        event_callback: Optional[Callable[[str, str, Dict[str, Any]], None]],
+        model_name: str,
+        dataset: Dataset,
+        args: TrainingArguments,
+    ) -> None:
+        if event_callback:
+            event_callback(
+                "info",
+                "Training started",
+                {
+                    "model": model_name,
+                    "num_examples": len(dataset),
+                    "batch_size": args.per_device_train_batch_size,
+                    "epochs": args.num_train_epochs,
+                    "device": get_optimal_device(),
+                },
+            )
 
     def _load_model_and_tok(self, model_name: str, hp: HyperParams) -> Tuple[Any, Any]:
         """Load model with hyperparameters applied."""
