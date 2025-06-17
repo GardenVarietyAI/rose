@@ -8,7 +8,7 @@ import aiofiles.os
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
-from rose_server.model_registry import get_embedding_models, get_llm_models
+from rose_server.model_registry import LLM_MODELS, get_embedding_models
 from rose_server.services import get_model_registry
 
 router = APIRouter(prefix="/v1")
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 def _generate_openai_model_mapping():
     """Generate OpenAI model mapping from app_settings to prevent mismatches."""
     mapping = {}
-    model_configs = get_llm_models()
+    model_configs = LLM_MODELS.copy()
     for model_name in model_configs.keys():
         if model_name == "llama":
             mapping["llama-3"] = model_name

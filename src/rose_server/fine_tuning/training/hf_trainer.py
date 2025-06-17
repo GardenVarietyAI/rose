@@ -16,7 +16,7 @@ from transformers.training_args import TrainingArguments
 
 from ...config import ServiceConfig
 from ...hf.loading import load_model_and_tokenizer
-from ...model_registry import get_fine_tunable_models
+from ...model_registry import FINE_TUNING_MODELS
 from .callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
 from .hyperparams import HyperParams
 
@@ -27,7 +27,7 @@ class HFTrainer:
     """Wraps HF Trainer with checkpoint management and resource monitoring."""
 
     def __init__(self) -> None:
-        self.fine_tuning_models = get_fine_tunable_models()
+        self.fine_tuning_models = FINE_TUNING_MODELS.copy()
 
     def train(
         self,

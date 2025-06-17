@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from rose_server.config import ServiceConfig
-from rose_server.model_registry import get_llm_models
+from rose_server.model_registry import LLM_MODELS
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class ModelRegistry:
 
     def _load_base_models(self):
         """Load base model configurations from settings."""
-        self.models.update(get_llm_models())
+        self.models.update(LLM_MODELS.copy())
         logger.info(f"Loaded {len(self.models)} base model configurations")
 
     def _load_fine_tuned_models(self):
