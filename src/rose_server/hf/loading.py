@@ -9,6 +9,8 @@ from typing import Optional, Tuple
 import torch
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers.modeling_utils import PreTrainedModel
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
 from ..config import ServiceConfig
 
@@ -22,7 +24,7 @@ def load_model_and_tokenizer(
     torch_dtype: Optional[torch.dtype] = None,
     offload_dir: Optional[str] = None,
     device_map: Optional[str] = None,
-) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
+) -> Tuple[PreTrainedModel, PreTrainedTokenizerBase]:
     """Load HuggingFace model and tokenizer.
     Args:
         model_id: Model identifier

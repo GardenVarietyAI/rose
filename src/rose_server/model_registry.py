@@ -86,7 +86,7 @@ EMBEDDING_MODELS = {
     },
 }
 
-FINE_TUNING_MODELS = {
+FINE_TUNING_MODELS: Dict[str, str] = {
     model_id: config["model_name"]
     for model_id, config in LLM_MODELS.items()
     if config.get("model_type") == "huggingface"

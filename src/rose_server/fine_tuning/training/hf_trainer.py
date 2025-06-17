@@ -3,7 +3,11 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple
+
+if TYPE_CHECKING:
+    from transformers.modeling_utils import PreTrainedModel
+    from transformers.tokenization_utils_base import BatchEncoding, PreTrainedTokenizerBase
 
 import numpy as np
 import torch
@@ -106,8 +110,8 @@ class HFTrainer:
 
     def _build_trainer(
         self,
-        model: Any,
-        tokenizer: Any,
+        model: "PreTrainedModel",
+        tokenizer: "PreTrainedTokenizerBase",
         dataset: Dataset,
         args: TrainingArguments,
         callbacks: List[TrainerCallback],
@@ -145,7 +149,9 @@ class HFTrainer:
                 },
             )
 
-    def _load_model_and_tok(self, model_name: str, hp: ResolvedHyperParams) -> Tuple[Any, Any]:
+    def _load_model_and_tok(
+        self, model_name: str, hp: ResolvedHyperParams
+    ) -> Tuple["PreTrainedModel", "PreTrainedTokenizerBase"]:
         """Load model with hyperparameters applied."""
         if model_name not in self.fine_tuning_models:
             raise ValueError(f"Model {model_name} not supported for fine-tuning")
@@ -164,7 +170,7 @@ class HFTrainer:
 
         return model, tokenizer
 
-    def _apply_lora(self, model: Any, model_name: str, hp: ResolvedHyperParams) -> Any:
+    def _apply_lora(self, model: "PreTrainedModel", model_name: str, hp: ResolvedHyperParams) -> Any:
         """Apply LoRA adaptation to the model."""
         lora_cfg = hp.lora_config or {}
 
@@ -183,10 +189,10 @@ class HFTrainer:
             task_type=TaskType.CAUSAL_LM,
         )
 
-        model = get_peft_model(model, lora_config)  # type: ignore[arg-type]
+        model = get_peft_model(model, lora_config)  # type: ignore[arg-type,assignment]
 
         if hasattr(model, "print_trainable_parameters"):
-            model.print_trainable_parameters()
+            model.print_trainable_parameters()  # type: ignore[operator]
 
         return model
 
@@ -213,7 +219,7 @@ class HFTrainer:
             else:
                 try:
                     logger.info("Merging LoRA adapters into base model...")
-                    merged_model = trainer.model.merge_and_unload()  # type: ignore[union-attr]
+                    merged_model = trainer.model.merge_and_unload()  # type: ignore[attr-defined,operator]
                     merged_model.save_pretrained(str(out))
                     logger.info("Successfully merged and saved model")
                 except Exception as e:
@@ -277,10 +283,10 @@ def _load_jsonl(fp: Path) -> List[Dict[str, Any]]:
     return [json.loads(ln) for ln in lines]
 
 
-def _prepare_dataset(raw: Sequence[Dict[str, Any]], tokenizer: Any, max_len: int) -> Dataset:
+def _prepare_dataset(raw: Sequence[Dict[str, Any]], tokenizer: "PreTrainedTokenizerBase", max_len: int) -> Dataset:
     def to_text(item: Dict[str, Any]) -> str:
         if "messages" in item and hasattr(tokenizer, "apply_chat_template"):
-            return tokenizer.apply_chat_template(item["messages"], tokenize=False, add_generation_prompt=False)
+            return str(tokenizer.apply_chat_template(item["messages"], tokenize=False, add_generation_prompt=False))
 
         if "prompt" in item and "completion" in item:
             return item["prompt"] + item["completion"]
@@ -290,7 +296,7 @@ def _prepare_dataset(raw: Sequence[Dict[str, Any]], tokenizer: Any, max_len: int
     texts = [to_text(ex) for ex in raw]
     ds = Dataset.from_dict({"text": texts})
 
-    def tokenize(batch: Dict[str, List[str]]) -> Dict[str, Any]:
+    def tokenize(batch: Dict[str, List[str]]) -> "BatchEncoding":
         return tokenizer(batch["text"], truncation=True, padding=True, max_length=max_len)
 
     return ds.map(tokenize, batched=True, remove_columns=["text"])
