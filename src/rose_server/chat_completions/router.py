@@ -23,11 +23,9 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def _prepare_tool_params(request: ChatRequest, context: str = "") -> dict:
+def _prepare_tool_params(request: ChatRequest) -> dict:
     """Extract tool parameters from request and log them."""
     enable_tools = bool(request.tools)
-    tool_count = len(request.tools) if request.tools else 0
-    logger.info(f"Chat completions{context}: enable_tools={enable_tools}, tools={tool_count}")
     return {"enable_tools": enable_tools, "tools": request.tools, "tool_choice": request.tool_choice}
 
 
@@ -85,7 +83,7 @@ async def create_event_streaming_response(
     async def generate():
         """Generate SSE events from LLM events."""
         try:
-            tool_params = _prepare_tool_params(request, " streaming")
+            tool_params = _prepare_tool_params(request)
             async for event in generator.generate_events(
                 messages, temperature=request.temperature, max_tokens=request.max_tokens, **tool_params
             ):
