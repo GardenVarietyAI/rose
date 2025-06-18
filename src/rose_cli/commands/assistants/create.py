@@ -1,6 +1,8 @@
-from typing import Optional
+from typing import Any, Optional
 
 import typer
+from openai.types.beta.code_interpreter_tool_param import CodeInterpreterToolParam
+from openai.types.beta.file_search_tool_param import FileSearchToolParam
 from rich.console import Console
 
 from ...utils import get_client
@@ -20,11 +22,11 @@ def create_assistant(
 ):
     """Create a new assistant."""
     client = get_client()
-    tools = []
+    tools: list[Any] = []
     if code_interpreter:
-        tools.append({"type": "code_interpreter"})
+        tools.append(CodeInterpreterToolParam(type="code_interpreter"))
     if file_search:
-        tools.append({"type": "file_search"})
+        tools.append(FileSearchToolParam(type="file_search"))
     try:
         assistant = client.beta.assistants.create(
             name=name,

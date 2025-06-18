@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 import typer
 
@@ -18,18 +18,18 @@ def create_job(
     try:
         console.print("[yellow]Creating fine-tuning job...[/yellow]")
 
-        hyperparameters = {
+        hyperparameters: dict[str, Any] = {
             "n_epochs": epochs,
             "learning_rate_multiplier": learning_rate,
         }
-        if batch_size:
+        if batch_size is not None:
             hyperparameters["batch_size"] = batch_size
 
         job = client.fine_tuning.jobs.create(
             training_file=file_id,
             model=model,
             suffix=suffix,
-            hyperparameters=hyperparameters,
+            hyperparameters=hyperparameters,  # type: ignore
         )
         console.print(f"[green]Fine-tuning job created: {job.id}[/green]")
         console.print(f"Status: {job.status}")

@@ -1,5 +1,5 @@
 import json
-from typing import Optional
+from typing import Literal, Optional
 
 import typer
 from rich.console import Console
@@ -12,7 +12,7 @@ console = Console()
 def add_message(
     thread_id: str = typer.Argument(..., help="Thread ID to add message to"),
     content: str = typer.Argument(..., help="Message content"),
-    role: str = typer.Option("user", help="Message role (user/assistant)"),
+    role: Literal["user", "assistant"] = typer.Option("user", help="Message role (user/assistant)"),
     metadata_json: Optional[str] = typer.Option(None, help="Metadata as JSON string"),
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
@@ -35,7 +35,10 @@ def add_message(
         )
         console.print(f"Created message: [green]{message.id}[/green]")
         console.print(f"Role: {message.role}")
-        console.print(f"Content: {message.content[0].text.value}")
+        if message.content and len(message.content) > 0:
+            content_block = message.content[0]
+            if hasattr(content_block, "text") and hasattr(content_block.text, "value"):
+                console.print(f"Content: {content_block.text.value}")
         if message.metadata:
             console.print("Metadata:")
             for key, value in message.metadata.items():

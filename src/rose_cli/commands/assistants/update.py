@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 import typer
 from rich.console import Console
@@ -19,7 +19,7 @@ def update_assistant(
 ):
     """Update an assistant."""
     client = get_client()
-    update_data = {}
+    update_data: dict[str, Any] = {}
     if name is not None:
         update_data["name"] = name
     if model is not None:

@@ -1,26 +1,28 @@
-from typing import Optional
+from typing import Optional, cast
 
 import typer
 from openai import OpenAI
+from openai.types.chat import ChatCompletionChunk, ChatCompletionMessageParam
 
 from ...utils import get_client
 
 
 def _do_chat(client: OpenAI, model: str, prompt: str, system: Optional[str], stream: bool):
-    messages = []
+    messages: list[ChatCompletionMessageParam] = []
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
 
     try:
         if stream:
-            response = client.chat.completions.create(
+            stream_response = client.chat.completions.create(
                 model=model,
                 messages=messages,
                 stream=True,
             )
-            for chunk in response:
-                if chunk.choices[0].delta.content:
+            for chunk in stream_response:
+                chunk = cast(ChatCompletionChunk, chunk)
+                if chunk.choices and chunk.choices[0].delta.content:
                     print(chunk.choices[0].delta.content, end="", flush=True)
             print()
         else:

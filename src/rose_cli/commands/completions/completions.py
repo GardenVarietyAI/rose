@@ -20,7 +20,7 @@ def create_completion(
 
     try:
         if stream:
-            response = client.completions.create(
+            stream_response = client.completions.create(
                 model=model,
                 prompt=prompt,
                 temperature=temperature,
@@ -28,7 +28,7 @@ def create_completion(
                 stream=True,
                 echo=echo,
             )
-            for chunk in response:
+            for chunk in stream_response:
                 if chunk.choices[0].text:
                     print(chunk.choices[0].text, end="", flush=True)
             print()

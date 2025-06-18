@@ -1,3 +1,5 @@
+from typing import Any
+
 import typer
 
 from ...utils import console, get_client
@@ -57,9 +59,10 @@ def test_fine_tuned_model(
             for msg in prompt["messages"]:
                 console.print(f"  [{msg['role']}]: {msg['content']}")
 
+            messages: list[Any] = prompt["messages"]
             response = client.chat.completions.create(
                 model=job.fine_tuned_model,
-                messages=prompt["messages"],
+                messages=messages,
                 max_tokens=150,
             )
 
