@@ -1,21 +1,17 @@
 import time
 from datetime import datetime
-from typing import Optional
 
 import typer
 
-from ...utils import console, get_client, get_endpoint_url
+from ...utils import console, get_client
 
 
 def show_events(
     job_id: str = typer.Argument(..., help="Fine-tuning job ID"),
     follow: bool = typer.Option(False, "--follow", "-f", help="Follow events"),
-    url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
-    local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
 ):
     """Show fine-tuning job events."""
-    endpoint_url = get_endpoint_url(url, local)
-    client = get_client(endpoint_url)
+    client = get_client()
     try:
         job = client.fine_tuning.jobs.retrieve(job_id)
         console.print(f"[yellow]Events for job {job_id} (status: {job.status})[/yellow]")

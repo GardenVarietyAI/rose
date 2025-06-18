@@ -1,4 +1,4 @@
-from rich import box
+import typer
 from rich.console import Console
 from rich.table import Table
 
@@ -7,33 +7,35 @@ from ...utils import get_client
 console = Console()
 
 
-def list_evals():
-    """List all evaluations."""
+def list_evals(
+    limit: int = typer.Option(20, "--limit", "-l", help="Number of evals to list"),
+    order: str = typer.Option("desc", "--order", "-o", help="Sort order (asc/desc)"),
+):
+    """List evaluations."""
     client = get_client()
     try:
-        response = client.get("/v1/evals")
-        response.raise_for_status()
-        evals = response.json()
-        if not evals.get("data"):
-            console.print("[yellow]No evaluations found.[/yellow]")
-            return
-        table = Table(title="Evaluations", box=box.ROUNDED)
-        table.add_column("ID", style="cyan", no_wrap=True)
-        table.add_column("Name", style="green")
-        table.add_column("Type", style="yellow")
-        table.add_column("Created", style="blue")
-        for eval_item in evals["data"]:
-            created_at = eval_item.get("created_at", "N/A")
-            if isinstance(created_at, (int, float)):
-                from datetime import datetime
+        evals = client.evals.list(
+            limit=limit,
+            order=order,  # type: ignore
+        )
 
-                created_at = datetime.fromtimestamp(created_at).strftime("%Y-%m-%d %H:%M")
+        if not evals.data:
+            console.print("No evaluations found.")
+            return
+
+        table = Table(title="Evaluations")
+        table.add_column("ID", style="cyan")
+        table.add_column("Name", style="green")
+        table.add_column("Created", style="blue")
+
+        for eval_item in evals.data:
             table.add_row(
-                eval_item.get("id", "N/A"),
-                eval_item.get("name", "N/A"),
-                eval_item.get("data_source", {}).get("type", "N/A"),
-                created_at,
+                eval_item.id,
+                eval_item.name or "-",
+                str(eval_item.created_at),
             )
+
         console.print(table)
+
     except Exception as e:
-        console.print(f"[red]Error listing evals: {e}[/red]")
+        console.print(f"[red]Error: {e}[/red]")

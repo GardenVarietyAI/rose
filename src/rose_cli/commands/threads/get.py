@@ -1,5 +1,3 @@
-from typing import Optional
-
 import typer
 from rich.console import Console
 
@@ -10,10 +8,9 @@ console = Console()
 
 def get_thread(
     thread_id: str = typer.Argument(..., help="Thread ID to get details for"),
-    base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """Get a specific thread."""
-    client = get_client(base_url)
+    client = get_client()
     try:
         thread = client.beta.threads.retrieve(thread_id)
         console.print(f"Thread ID: [cyan]{thread.id}[/cyan]")

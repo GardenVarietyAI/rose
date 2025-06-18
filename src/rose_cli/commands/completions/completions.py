@@ -1,16 +1,12 @@
-from typing import Optional
-
 import typer
 
-from ...utils import get_client, get_endpoint_url
+from ...utils import get_client
 
 
 def create_completion(
     ctx: typer.Context,
     prompt: str = typer.Argument(..., help="Prompt to complete"),
     model: str = typer.Option("qwen-coder", "--model", "-m", help="Model to use"),
-    url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
-    local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
     max_tokens: int = typer.Option(100, "--max-tokens", "-t", help="Maximum tokens to generate"),
     temperature: float = typer.Option(0.7, "--temperature", help="Sampling temperature"),
     stream: bool = typer.Option(False, "--stream", "-s", help="Stream response"),
@@ -20,12 +16,11 @@ def create_completion(
     if ctx.invoked_subcommand is not None:
         return
 
-    endpoint_url = get_endpoint_url(url, local)
-    client = get_client(endpoint_url)
+    client = get_client()
 
     try:
         if stream:
-            response = client.completions.create(
+            stream_response = client.completions.create(
                 model=model,
                 prompt=prompt,
                 temperature=temperature,
@@ -33,7 +28,7 @@ def create_completion(
                 stream=True,
                 echo=echo,
             )
-            for chunk in response:
+            for chunk in stream_response:
                 if chunk.choices[0].text:
                     print(chunk.choices[0].text, end="", flush=True)
             print()

@@ -1,5 +1,3 @@
-from typing import Optional
-
 import typer
 from rich.console import Console
 
@@ -10,10 +8,9 @@ console = Console()
 
 def get_assistant(
     assistant_id: str = typer.Argument(..., help="Assistant ID"),
-    base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """Get a specific assistant."""
-    client = get_client(base_url)
+    client = get_client()
     try:
         assistant = client.beta.assistants.retrieve(assistant_id)
         console.print(f"[cyan]Assistant ID:[/cyan] {assistant.id}")

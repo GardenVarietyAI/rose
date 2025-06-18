@@ -1,6 +1,4 @@
-import json
-from pathlib import Path
-from typing import Optional
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -11,78 +9,40 @@ console = Console()
 
 
 def create_eval(
-    name: str,
-    description: Optional[str] = typer.Option(None, "--description", "-d", help="Description of the evaluation"),
-    file: Optional[Path] = typer.Option(None, "--file", "-f", exists=True, help="JSONL file with evaluation data"),
-    dataset: Optional[str] = typer.Option(None, "--dataset", help="Use a standard dataset (gsm8k, humaneval, mmlu)"),
+    name: str = typer.Option(..., "--name", "-n", help="Evaluation name"),
+    file_id: str = typer.Option(..., "--file", "-f", help="Dataset file ID"),
+    criteria_type: str = typer.Option("text-similarity", "--criteria", "-c", help="Testing criteria type"),
 ):
-    """Create a new evaluation definition."""
+    """Create a new evaluation."""
     client = get_client()
-    metadata = {}
-    if description:
-        metadata["description"] = description
-    if file:
-        content = []
-        with open(file, "r") as f:
-            for line in f:
-                item = json.loads(line.strip())
-                if "input" in item and "expected" in item:
-                    content.append({"item": {"input": item["input"], "expected": item["expected"]}})
-                else:
-                    content.append({"item": item})
-        data_source_config = {
-            "type": "stored_completions",
-            "metadata": {"source": "inline", "content": json.dumps(content)},
-        }
-    elif dataset:
-        name = dataset
-        data_source_config = {"type": "stored_completions", "metadata": {"source": dataset}}
-    else:
-        data_source_config = {"type": "stored_completions", "metadata": {"source": "default"}}
-
-    # Handle specific dataset configurations
-    if dataset == "gsm8k":
-        metadata.update(
-            {
-                "name": "GSM8K Math Problems",
-                "description": "Grade school math problems",
-                "source": "gsm8k",
-                "url": "https://github.com/openai/grade-school-math",
-                "max_samples": 100,
-            }
-        )
-    elif dataset == "humaneval":
-        metadata.update(
-            {
-                "name": "HumanEval",
-                "description": "Python programming problems",
-                "source": "humaneval",
-                "url": "https://github.com/openai/human-eval",
-                "max_samples": 50,
-            }
-        )
-    elif dataset == "mmlu":
-        metadata.update(
-            {
-                "name": "MMLU",
-                "description": "Massive Multitask Language Understanding",
-                "source": "mmlu",
-                "url": "https://github.com/hendrycks/test",
-                "max_samples": 100,
-            }
-        )
-
-    data = {
-        "name": name,
-        "data_source": data_source_config,
-        "metadata": metadata,
-    }
     try:
-        response = client.post("/v1/evals", json=data)
-        response.raise_for_status()
-        result = response.json()
-        console.print(f"[green]Created evaluation: {result['id']}[/green]")
-        console.print(f"Name: {result['name']}")
-        console.print(f"Created: {result['created_at']}")
+        # Build data source config
+        data_source_config: Any = {
+            "type": "stored_completions",
+            "completion_tag_suffix": file_id,
+        }
+
+        # Build testing criteria based on type
+        criteria: Any = [
+            {
+                "type": "text_similarity",
+                "name": "similarity_check",
+                "input": "{{item.prompt}}",
+                "reference": "{{item.expected}}",
+                "evaluation_metric": "cosine",
+                "pass_threshold": 0.8,
+            }
+        ]
+
+        response = client.evals.create(
+            name=name,
+            data_source_config=data_source_config,
+            testing_criteria=criteria,
+        )
+
+        console.print(f"[green]Created evaluation: {response.id}[/green]")
+        console.print(f"Name: {response.name}")
+        console.print(f"Created: {response.created_at}")
+
     except Exception as e:
-        console.print(f"[red]Error creating eval: {e}[/red]")
+        console.print(f"[red]Error: {e}[/red]")

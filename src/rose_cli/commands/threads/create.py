@@ -13,10 +13,9 @@ def create_thread(
     session_id: Optional[str] = typer.Option(None, help="Session ID"),
     conversation_type: Optional[str] = typer.Option(None, help="Type of conversation (chat, assistant, etc)"),
     source: Optional[str] = typer.Option(None, help="Source of the thread (api, web, cli)"),
-    base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """Create a new thread."""
-    client = get_client(base_url)
+    client = get_client()
     metadata = {}
     if user_id:
         metadata["user_id"] = user_id
