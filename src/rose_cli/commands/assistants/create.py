@@ -18,6 +18,7 @@ def create_assistant(
     temperature: float = typer.Option(0.7, help="Temperature (0.0-2.0)"),
     code_interpreter: bool = typer.Option(False, help="Enable code interpreter"),
     file_search: bool = typer.Option(False, help="Enable file search"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Only output the assistant ID"),
 ):
     """Create a new assistant."""
     client = get_client()
@@ -35,11 +36,15 @@ def create_assistant(
             tools=tools,
             temperature=temperature,
         )
-        console.print(f"Created assistant: [green]{assistant.id}[/green]")
-        console.print(f"Name: {assistant.name}")
-        console.print(f"Model: {assistant.model}")
-        console.print(f"Temperature: {assistant.temperature}")
-        if assistant.tools:
-            console.print(f"Tools: {', '.join([t.type for t in assistant.tools])}")
+
+        if quiet:
+            print(assistant.id)
+        else:
+            console.print(f"Created assistant: [green]{assistant.id}[/green]")
+            console.print(f"Name: {assistant.name}")
+            console.print(f"Model: {assistant.model}")
+            console.print(f"Temperature: {assistant.temperature}")
+            if assistant.tools:
+                console.print(f"Tools: {', '.join([t.type for t in assistant.tools])}")
     except Exception as e:
         console.print(f"Error: {e}", style="red")

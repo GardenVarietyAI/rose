@@ -31,16 +31,8 @@ def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMessage]:
         messages.append(ChatMessage(role="user", content=request.input))
     elif isinstance(request.input, list):
         for item in request.input:
-            if isinstance(item, dict) and item.get("type") == "message":
-                role = item.get("role", "user")
-                content = item.get("content", "")
-                if isinstance(content, list):
-                    text_parts = []
-                    for c in content:
-                        if isinstance(c, dict) and c.get("type") == "text":
-                            text_parts.append(c.get("text", ""))
-                    content = " ".join(text_parts)
-                messages.append(ChatMessage(role=role, content=content))
+            if isinstance(item, dict) and "role" in item and "content" in item:
+                messages.append(ChatMessage(role=item["role"], content=item["content"]))
     return messages
 
 
@@ -164,7 +156,20 @@ async def create_response(
     request: ResponsesRequest = Body(...),
 ):
     try:
+        logger.info(f"RESPONSES API - Input type: {type(request.input)}, Input: {request.input}")
+        logger.info(f"RESPONSES API - Instructions: {request.instructions}")
         messages = _convert_input_to_messages(request)
+        logger.info(f"RESPONSES API - Converted messages: {messages}")
+
+        if not messages:
+            logger.error("No messages extracted from request")
+            return {
+                "error": {
+                    "message": "No valid messages found in request",
+                    "type": "invalid_request_error",
+                    "code": None,
+                }
+            }
         llm = await HuggingFaceLLM.load_model(request.model)
 
         if request.stream:

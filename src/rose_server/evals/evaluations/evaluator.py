@@ -1,6 +1,7 @@
 """Sync evaluation logic for worker processing."""
 
 import asyncio
+import json
 import logging
 import re
 import time
@@ -13,6 +14,7 @@ from ...events.generators import RunsGenerator
 from ...llms.huggingface_llm import HuggingFaceLLM
 from ...llms.registry import ModelRegistry
 from ...schemas.chat import ChatMessage
+from ...services import get_file_store
 from .scorers import exact_match, f1_score
 from .scorers.common import normalize_answer
 
@@ -28,7 +30,7 @@ class Evaluator:
             "f1": f1_score.score,
         }
 
-    def run_evaluation(self, eval_id: str, model: str, eval_name: str, queue_job_id: int, **kwargs) -> Dict:
+    async def run_evaluation(self, eval_id: str, model: str, eval_name: str, queue_job_id: int, **kwargs) -> Dict:
         """Run an evaluation synchronously.
 
         Args:
@@ -44,7 +46,7 @@ class Evaluator:
         logger.info(f"Metadata: {kwargs.get('metadata', {})}")
         try:
             metadata = kwargs
-            data_source = metadata.get("data_source", {})
+            data_source = metadata.get("data_source", {}) or {}
             metadata.get("eval_def_id")
             inline_content = metadata.get("inline_content")
             max_samples = metadata.get("max_samples")
@@ -60,19 +62,47 @@ class Evaluator:
                     dataset_content = dataset_content[:max_samples]
                     total_samples = max_samples
             else:
-                is_inline = data_source.get("source", {}).get("type") == "inline"
-                if is_inline:
-                    dataset_content = data_source.get("source", {}).get("content", [])
-                    total_samples = len(dataset_content)
-                    if max_samples is not None and max_samples < total_samples:
-                        dataset_content = dataset_content[:max_samples]
-                        total_samples = max_samples
-                else:
-                    dataset_content = data_source.get("source", {}).get("content", [])
-                    total_samples = len(dataset_content)
-                    if max_samples is not None and max_samples < total_samples:
-                        dataset_content = dataset_content[:max_samples]
+                # Check if this is a stored completions evaluation
+                if data_source.get("type") == "stored_completions":
+                    completion_tag_suffix = data_source.get("completion_tag_suffix")
+                    if completion_tag_suffix:
+                        logger.info(f"Loading stored completions from file: {completion_tag_suffix}")
+                        dataset_content = await self._load_stored_completions(completion_tag_suffix)
+                        is_inline = True  # Treat stored completions as inline content
                         total_samples = len(dataset_content)
+                        if max_samples is not None and max_samples < total_samples:
+                            dataset_content = dataset_content[:max_samples]
+                            total_samples = max_samples
+                    else:
+                        logger.error("stored_completions type missing completion_tag_suffix")
+                        dataset_content = []
+                        total_samples = 0
+                else:
+                    # Handle regular source-based evaluations
+                    source_config = data_source.get("source", {}) or {}
+                    is_inline = source_config.get("type") == "inline"
+                    if is_inline:
+                        dataset_content = source_config.get("content", [])
+                        total_samples = len(dataset_content)
+                        if max_samples is not None and max_samples < total_samples:
+                            dataset_content = dataset_content[:max_samples]
+                            total_samples = max_samples
+                    else:
+                        dataset_content = source_config.get("content", [])
+                        total_samples = len(dataset_content)
+                        if max_samples is not None and max_samples < total_samples:
+                            dataset_content = dataset_content[:max_samples]
+                            total_samples = len(dataset_content)
+
+            # Validate that we have dataset content to work with
+            if not dataset_content:
+                logger.error(
+                    f"No dataset content found. data_source: {data_source}, inline_content: {bool(inline_content)}"
+                )
+                raise ValueError("No dataset content provided for evaluation")
+
+            logger.info(f"Using {'inline' if is_inline else 'external'} dataset with {total_samples} samples")
+
             model_registry = ModelRegistry()
             model_config = model_registry.get_model_config(model)
             if not model_config:
@@ -185,6 +215,42 @@ class Evaluator:
             )
         logger.info(f"Loaded {len(samples)} samples from inline data")
         return samples
+
+    async def _load_stored_completions(self, file_id: str) -> List[Dict]:
+        """Load dataset from stored completions file."""
+        try:
+            file_store = get_file_store()
+            file_content = await file_store.get_file_content(file_id)
+            if not file_content:
+                logger.error(f"Could not load file content for file_id: {file_id}")
+                return []
+
+            # Parse JSONL content
+            content_str = file_content.decode("utf-8")
+            samples = []
+            for line_num, line in enumerate(content_str.strip().split("\n"), 1):
+                if not line.strip():
+                    continue
+                try:
+                    data = json.loads(line)
+                    # Extract the item from the JSONL structure
+                    item = data.get("item", {})
+                    samples.append(
+                        {
+                            "input": item.get("input", ""),
+                            "expected": item.get("expected", item.get("ground_truth", "")),
+                        }
+                    )
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Failed to parse line {line_num} in file {file_id}: {e}")
+                    continue
+
+            logger.info(f"Loaded {len(samples)} samples from stored file {file_id}")
+            return samples
+
+        except Exception as e:
+            logger.error(f"Failed to load stored completions from file {file_id}: {e}")
+            return []
 
     def _format_sample(self, eval_name: str, item: Dict, config: Dict) -> Tuple[str, str]:
         """Format a dataset sample based on eval type.

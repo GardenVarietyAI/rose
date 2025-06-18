@@ -12,6 +12,7 @@ def create_eval(
     name: str = typer.Option(..., "--name", "-n", help="Evaluation name"),
     file_id: str = typer.Option(..., "--file", "-f", help="Dataset file ID"),
     criteria_type: str = typer.Option("text-similarity", "--criteria", "-c", help="Testing criteria type"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Only output the evaluation ID"),
 ):
     """Create a new evaluation."""
     client = get_client()
@@ -40,9 +41,12 @@ def create_eval(
             testing_criteria=criteria,
         )
 
-        console.print(f"[green]Created evaluation: {response.id}[/green]")
-        console.print(f"Name: {response.name}")
-        console.print(f"Created: {response.created_at}")
+        if quiet:
+            print(response.id)
+        else:
+            console.print(f"[green]Created evaluation: {response.id}[/green]")
+            console.print(f"Name: {response.name}")
+            console.print(f"Created: {response.created_at}")
 
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")

@@ -2,7 +2,6 @@
 
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from openai.types.responses.function_tool_param import FunctionToolParam
 from pydantic import BaseModel, Field
 
 
@@ -47,7 +46,7 @@ class ResponsesRequest(BaseModel):
     input: Union[str, List[Dict[str, Any]]] = Field(description="Input messages or text")
     instructions: Optional[str] = Field(default=None, description="System instructions")
     stream: Optional[bool] = Field(default=False, description="Whether to stream the response")
-    tools: Optional[List[FunctionToolParam]] = Field(default=None, description="Available tools")
+    tools: Optional[List[Dict[str, Any]]] = Field(default=None, description="Available tools")
     tool_choice: Optional[str] = Field(default="auto", description="Tool choice strategy")
     parallel_tool_calls: Optional[bool] = Field(default=True, description="Whether to allow parallel tool calls")
     max_output_tokens: Optional[int] = Field(default=None, description="Maximum tokens to generate")

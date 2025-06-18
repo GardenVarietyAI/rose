@@ -116,6 +116,17 @@ class ModelRegistry:
         """List only fine-tuned model IDs."""
         return [model_id for model_id, config in self.models.items() if config.get("is_fine_tuned", False)]
 
+    def reload_fine_tuned_models(self):
+        """Reload fine-tuned models from registry file."""
+        # Remove existing fine-tuned models from memory
+        fine_tuned_ids = [model_id for model_id, config in self.models.items() if config.get("is_fine_tuned", False)]
+        for model_id in fine_tuned_ids:
+            del self.models[model_id]
+
+        # Reload from file
+        self._load_fine_tuned_models()
+        logger.info("Reloaded fine-tuned models registry")
+
     def _save_fine_tuned_registry(self):
         """Save fine-tuned models to registry file."""
         try:

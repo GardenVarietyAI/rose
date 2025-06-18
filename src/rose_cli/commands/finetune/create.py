@@ -12,11 +12,13 @@ def create_job(
     epochs: int = typer.Option(3, "--epochs", "-e", help="Number of epochs"),
     batch_size: Optional[int] = typer.Option(None, "--batch-size", "-b", help="Batch size"),
     learning_rate: float = typer.Option(1.0, "--learning-rate", "-lr", help="Learning rate multiplier"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Only output the job ID"),
 ):
     """Create a fine-tuning job."""
     client = get_client()
     try:
-        console.print("[yellow]Creating fine-tuning job...[/yellow]")
+        if not quiet:
+            console.print("[yellow]Creating fine-tuning job...[/yellow]")
 
         hyperparameters: dict[str, Any] = {
             "n_epochs": epochs,
@@ -31,7 +33,11 @@ def create_job(
             suffix=suffix,
             hyperparameters=hyperparameters,  # type: ignore
         )
-        console.print(f"[green]Fine-tuning job created: {job.id}[/green]")
-        console.print(f"Status: {job.status}")
+
+        if quiet:
+            print(job.id)
+        else:
+            console.print(f"[green]Fine-tuning job created: {job.id}[/green]")
+            console.print(f"Status: {job.status}")
     except Exception as e:
         console.print(f"[red]error: {e}[/red]")

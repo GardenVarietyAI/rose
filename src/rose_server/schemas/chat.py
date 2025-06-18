@@ -1,13 +1,13 @@
 """Chat completions API schemas."""
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
 
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant", "system", "tool"] = Field(description="Role of the message sender")
-    content: str = Field(description="Content of the message")
+    content: Union[str, List[Dict[str, Any]]] = Field(description="Content of the message")
 
 
 class ChatRequest(BaseModel):

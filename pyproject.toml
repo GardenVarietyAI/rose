@@ -47,6 +47,7 @@ optional = true
 typer = "^0.16.0"
 rich = "^13.7.1"
 httpx = "^0.28.1"
+openai-agents = "^0.0.19"
 
 
 [tool.poetry.group.nvidia]

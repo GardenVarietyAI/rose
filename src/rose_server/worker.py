@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import gc
 import logging
 import signal
@@ -173,7 +174,7 @@ def process_eval_job_sync(job_id: int, payload: Dict[str, Any]) -> Optional[Dict
     _post_webhook("job.running", "eval", job_id, eval_id)
     evaluator = Evaluator()
     try:
-        result = evaluator.run_evaluation(eval_id, model, eval_name, job_id, **payload.get("metadata", {}))
+        result = asyncio.run(evaluator.run_evaluation(eval_id, model, eval_name, job_id, **payload.get("metadata", {})))
     except Exception as exc:
         logger.exception("Eval crashed")
         _post_webhook("job.failed", "eval", job_id, eval_id, {"error": str(exc)})

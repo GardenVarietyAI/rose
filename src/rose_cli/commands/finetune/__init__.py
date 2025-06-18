@@ -7,7 +7,6 @@ from .get import get_job
 from .list import list_jobs
 from .pause import pause_job
 from .resume import resume_job
-from .test import test_fine_tuned_model
 
 app = typer.Typer()
 
@@ -18,4 +17,3 @@ app.command(name="events")(show_events)
 app.command(name="pause")(pause_job)
 app.command(name="resume")(resume_job)
 app.command(name="cancel")(cancel_job)
-app.command(name="test")(test_fine_tuned_model)
