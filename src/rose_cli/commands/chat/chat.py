@@ -16,7 +16,6 @@ def _do_chat(client: OpenAI, model: str, prompt: str, system: Optional[str], str
     # Build user message with optional name
     user_message: ChatCompletionMessageParam = {"role": "user", "content": prompt}
     if name:
-        # Type ignore for name field which is valid but not in all message types
         user_message["name"] = name  # type: ignore[typeddict-unknown-key]
 
     messages.append(user_message)

@@ -46,15 +46,7 @@ class HuggingFaceLLM:
         return self._tokenizer
 
     def _load_model(self) -> bool:
-        """
-        Load model/tokenizer once and cache them.
-
-        Returns
-        -------
-        bool
-            True  → success
-            False → failure (already logged)
-        """
+        """Load model/tokenizer once and cache them."""
         try:
             offload_dir = os.path.join(ServiceConfig.MODEL_OFFLOAD_DIR, self.model_name)
             # torch_dtype "auto" means let the model decide
@@ -128,12 +120,10 @@ class HuggingFaceLLM:
     def _extract_text(msg: ChatMessage) -> Optional[str]:
         """
         Pull plain text out of msg.content.
-
-        •   content is None                     → return None
-        •   content is str                      → return as-is
-        •   content is list[dict]               → grab first item with type
-            'text' or 'input_text'
-        •   anything else                       → return None
+        - content is None then return None
+        - content is str then return as-is
+        - content is list[dict], 'text' or 'input_text' then grab first item with type
+        - anything else then return None
         """
         if msg.content is None:
             return None
@@ -147,18 +137,11 @@ class HuggingFaceLLM:
                 if item_type in ("text", "input_text") and "text" in item:
                     return item["text"]
                 else:
-                    # Log when we skip non-text content
                     logger.debug(f"Skipping non-text content part: type={item_type}")
         return None
 
     def get_max_tokens(self) -> Tuple[int, int]:
-        """
-        Compute how many tokens are left for the prompt vs. the completion.
-
-        Returns
-        -------
-        (max_prompt_tokens, max_response_tokens)
-        """
+        """Compute how many tokens are left for the prompt vs. the completion."""
         max_response = self.config.get("max_response_tokens", 512)
         ctx_window = self.config.get("n_ctx", 2048)
         return ctx_window - max_response, max_response
