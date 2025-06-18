@@ -7,11 +7,19 @@ from openai.types.chat import ChatCompletionChunk, ChatCompletionMessageParam
 from ...utils import get_client
 
 
-def _do_chat(client: OpenAI, model: str, prompt: str, system: Optional[str], stream: bool):
+def _do_chat(client: OpenAI, model: str, prompt: str, system: Optional[str], stream: bool, name: Optional[str] = None):
     messages: list[ChatCompletionMessageParam] = []
     if system:
-        messages.append({"role": "system", "content": system})
-    messages.append({"role": "user", "content": prompt})
+        system_msg: ChatCompletionMessageParam = {"role": "system", "content": system}
+        messages.append(system_msg)
+
+    # Build user message with optional name
+    user_message: ChatCompletionMessageParam = {"role": "user", "content": prompt}
+    if name:
+        # Type ignore for name field which is valid but not in all message types
+        user_message["name"] = name  # type: ignore[typeddict-unknown-key]
+
+    messages.append(user_message)
 
     try:
         if stream:

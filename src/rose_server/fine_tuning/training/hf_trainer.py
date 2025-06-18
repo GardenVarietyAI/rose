@@ -19,7 +19,7 @@ from transformers.trainer_callback import EarlyStoppingCallback, TrainerCallback
 from transformers.training_args import TrainingArguments
 
 from ...config import ServiceConfig
-from ...hf.loading import load_model_and_tokenizer
+from ...llms.loading import load_model_and_tokenizer
 from ...model_registry import FINE_TUNING_MODELS, get_model_config
 from .callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
 from .hyperparams import HyperParams, ResolvedHyperParams
@@ -219,7 +219,7 @@ class HFTrainer:
             else:
                 try:
                     logger.info("Merging LoRA adapters into base model...")
-                    merged_model = trainer.model.merge_and_unload()  # type: ignore[attr-defined,operator]
+                    merged_model = trainer.model.merge_and_unload()  # type: ignore[attr-defined,operator,union-attr]
                     merged_model.save_pretrained(str(out))
                     logger.info("Successfully merged and saved model")
                 except Exception as e:
