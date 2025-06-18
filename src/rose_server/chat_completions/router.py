@@ -8,37 +8,32 @@ import logging
 import time
 import uuid
 
-from fastapi import APIRouter, Body, Request
+from fastapi import APIRouter, Body
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
+from rose_server.events import LLMEvent
 from rose_server.events.formatters import ChatCompletionsFormatter
 from rose_server.events.generators import ChatCompletionsGenerator
 from rose_server.llms.huggingface_llm import HuggingFaceLLM
-from rose_server.schemas.chat import ChatMessage, OpenAIRequest
+from rose_server.schemas.chat import ChatMessage, ChatRequest
 from rose_server.services import get_model_registry
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def _prepare_tool_params(request: OpenAIRequest, context: str = "") -> dict:
+def _prepare_tool_params(request: ChatRequest) -> dict:
     """Extract tool parameters from request and log them."""
     enable_tools = bool(request.tools)
-    tool_count = len(request.tools) if request.tools else 0
-    logger.info(f"Chat completions{context}: enable_tools={enable_tools}, tools={tool_count}")
     return {"enable_tools": enable_tools, "tools": request.tools, "tool_choice": request.tool_choice}
 
 
 @router.post("/v1/chat/completions", response_model=None)
 async def event_based_chat_completions(
-    request: OpenAIRequest = Body(...),
-    http_request: Request = None,
+    request: ChatRequest = Body(...),
 ) -> JSONResponse | EventSourceResponse:
-    """Event-based OpenAI API-compatible endpoint for chat completions.
-    This uses our new event system but provides identical responses
-    to the original implementation.
-    """
+    """Event-based endpoint for chat completions."""
     registry = get_model_registry()
     if request.model not in registry.list_models():
         return JSONResponse(
@@ -53,7 +48,7 @@ async def event_based_chat_completions(
             },
         )
     logger.info(f"[EVENT] Using model: {request.model}")
-    messages = [ChatMessage(role=msg.role, content=msg.content) for msg in request.messages]
+    messages = request.messages
     logger.info(f"[EVENT] Message count: {len(messages)}")
     try:
         registry = get_model_registry()
@@ -81,14 +76,14 @@ async def create_event_streaming_response(
     generator: ChatCompletionsGenerator,
     messages: list[ChatMessage],
     formatter: ChatCompletionsFormatter,
-    request: OpenAIRequest,
+    request: ChatRequest,
 ) -> EventSourceResponse:
     """Create streaming response using events and sse-starlette."""
 
     async def generate():
         """Generate SSE events from LLM events."""
         try:
-            tool_params = _prepare_tool_params(request, " streaming")
+            tool_params = _prepare_tool_params(request)
             async for event in generator.generate_events(
                 messages, temperature=request.temperature, max_tokens=request.max_tokens, **tool_params
             ):
@@ -114,12 +109,12 @@ async def create_event_complete_response(
     generator: ChatCompletionsGenerator,
     messages: list[ChatMessage],
     formatter: ChatCompletionsFormatter,
-    request: OpenAIRequest,
+    request: ChatRequest,
 ) -> JSONResponse:
     """Create complete (non-streaming) response from events."""
     try:
         tool_params = _prepare_tool_params(request)
-        all_events = []
+        all_events: list[LLMEvent] = []
         async for event in generator.generate_events(
             messages, temperature=request.temperature, max_tokens=request.max_tokens, **tool_params
         ):
