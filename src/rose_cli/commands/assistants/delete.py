@@ -13,7 +13,7 @@ def delete_assistant(
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """Delete an assistant."""
-    client = get_client(base_url)
+    client = get_client()
     if not typer.confirm(f"Are you sure you want to delete assistant {assistant_id}?"):
         console.print("Cancelled.")
         return

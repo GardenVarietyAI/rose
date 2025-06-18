@@ -19,7 +19,7 @@ def create_assistant(
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """Create a new assistant."""
-    client = get_client(base_url)
+    client = get_client()
     tools = []
     if code_interpreter:
         tools.append({"type": "code_interpreter"})

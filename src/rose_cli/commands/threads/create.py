@@ -16,7 +16,7 @@ def create_thread(
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """Create a new thread."""
-    client = get_client(base_url)
+    client = get_client()
     metadata = {}
     if user_id:
         metadata["user_id"] = user_id

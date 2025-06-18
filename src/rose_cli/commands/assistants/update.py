@@ -18,7 +18,7 @@ def update_assistant(
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """Update an assistant."""
-    client = get_client(base_url)
+    client = get_client()
     update_data = {}
     if name is not None:
         update_data["name"] = name

@@ -2,7 +2,7 @@ from typing import Optional
 
 import typer
 
-from ...utils import console, get_client, get_endpoint_url
+from ...utils import console, get_client
 
 
 def create_job(
@@ -12,12 +12,9 @@ def create_job(
     epochs: int = typer.Option(3, "--epochs", "-e", help="Number of epochs"),
     batch_size: Optional[int] = typer.Option(None, "--batch-size", "-b", help="Batch size"),
     learning_rate: float = typer.Option(1.0, "--learning-rate", "-lr", help="Learning rate multiplier"),
-    url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
-    local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
 ):
     """Create a fine-tuning job."""
-    endpoint_url = get_endpoint_url(url, local)
-    client = get_client(endpoint_url)
+    client = get_client()
     try:
         console.print("[yellow]Creating fine-tuning job...[/yellow]")
 

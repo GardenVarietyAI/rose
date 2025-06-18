@@ -13,7 +13,7 @@ def get_thread(
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """Get a specific thread."""
-    client = get_client(base_url)
+    client = get_client()
     try:
         thread = client.beta.threads.retrieve(thread_id)
         console.print(f"Thread ID: [cyan]{thread.id}[/cyan]")

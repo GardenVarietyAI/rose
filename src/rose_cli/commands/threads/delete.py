@@ -13,7 +13,7 @@ def delete_thread(
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """Delete a thread and all its messages."""
-    client = get_client(base_url)
+    client = get_client()
     if not typer.confirm(f"Are you sure you want to delete thread {thread_id}?"):
         console.print("Cancelled.")
         return

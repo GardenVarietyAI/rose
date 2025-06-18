@@ -21,7 +21,7 @@ def compare(
     messages.append({"role": "user", "content": message})
 
     try:
-        local_client = get_client("http://localhost:8004/v1")
+        local_client = get_client()
         local_response = local_client.chat.completions.create(
             model=local_model,
             messages=messages,

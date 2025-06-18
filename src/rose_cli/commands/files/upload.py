@@ -1,9 +1,8 @@
 import os
-from typing import Optional
 
 import typer
 
-from ...utils import get_client, get_endpoint_url
+from ...utils import get_client
 
 app = typer.Typer()
 
@@ -12,12 +11,9 @@ app = typer.Typer()
 def upload_file(
     file_path: str = typer.Argument(..., help="Path to file"),
     purpose: str = typer.Option("fine-tune", "--purpose", "-p", help="File purpose"),
-    url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
-    local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
 ):
     """Upload a file."""
-    endpoint_url = get_endpoint_url(url, local)
-    client = get_client(endpoint_url)
+    client = get_client()
     try:
         if not os.path.exists(file_path):
             print(f"error: file not found: {file_path}", file=typer.get_text_stream("stderr"))

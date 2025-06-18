@@ -13,7 +13,7 @@ def get_assistant(
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """Get a specific assistant."""
-    client = get_client(base_url)
+    client = get_client()
     try:
         assistant = client.beta.assistants.retrieve(assistant_id)
         console.print(f"[cyan]Assistant ID:[/cyan] {assistant.id}")

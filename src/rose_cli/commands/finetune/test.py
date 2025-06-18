@@ -1,18 +1,13 @@
-from typing import Optional
-
 import typer
 
-from ...utils import console, get_client, get_endpoint_url
+from ...utils import console, get_client
 
 
 def test_fine_tuned_model(
     job_id: str = typer.Argument(..., help="Fine-tuning job ID"),
-    url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
-    local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
 ):
     """Test a fine-tuned model with sample prompts."""
-    endpoint_url = get_endpoint_url(url, local)
-    client = get_client(endpoint_url)
+    client = get_client()
 
     try:
         # Get the fine-tuning job

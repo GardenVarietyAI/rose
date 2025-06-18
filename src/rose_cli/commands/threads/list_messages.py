@@ -14,7 +14,7 @@ def list_messages(
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """List messages in a thread."""
-    client = get_client(base_url)
+    client = get_client()
     try:
         messages = client.beta.threads.messages.list(thread_id=thread_id, limit=limit)
         for message in messages.data:

@@ -1,20 +1,14 @@
-from typing import Optional
-
 import typer
 
-from ...utils import get_client, get_endpoint_url
+from ...utils import get_client
 
 app = typer.Typer()
 
 
 @app.command()
-def list_files(
-    url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
-    local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
-):
+def list_files():
     """List uploaded files."""
-    endpoint_url = get_endpoint_url(url, local)
-    client = get_client(endpoint_url)
+    client = get_client()
     try:
         files = client.files.list()
         for file in files.data:

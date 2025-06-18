@@ -15,7 +15,7 @@ def list_threads(
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """List threads."""
-    get_client(base_url)
+    get_client()
     try:
         url = base_url or "http://localhost:8004"
         with httpx.Client() as client:

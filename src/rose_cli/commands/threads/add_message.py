@@ -17,7 +17,7 @@ def add_message(
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """Add a message to a thread."""
-    client = get_client(base_url)
+    client = get_client()
     metadata = {}
     if metadata_json:
         try:
