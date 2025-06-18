@@ -1,5 +1,5 @@
 import json
-from typing import Literal, Optional
+from typing import Optional
 
 import typer
 from rich.console import Console
@@ -12,7 +12,7 @@ console = Console()
 def add_message(
     thread_id: str = typer.Argument(..., help="Thread ID to add message to"),
     content: str = typer.Argument(..., help="Message content"),
-    role: Literal["user", "assistant"] = typer.Option("user", help="Message role (user/assistant)"),
+    role: str = typer.Option("user", help="Message role (user/assistant)"),
     metadata_json: Optional[str] = typer.Option(None, help="Metadata as JSON string"),
     base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):

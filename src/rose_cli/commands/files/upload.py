@@ -1,5 +1,4 @@
 import os
-from typing import Literal
 
 import typer
 
@@ -11,8 +10,8 @@ app = typer.Typer()
 @app.command()
 def upload_file(
     file_path: str = typer.Argument(..., help="Path to file"),
-    purpose: Literal["assistants", "batch", "fine-tune", "vision", "user_data", "evals"] = typer.Option(
-        "fine-tune", "--purpose", "-p", help="File purpose"
+    purpose: str = typer.Option(
+        "fine-tune", "--purpose", "-p", help="File purpose (assistants, batch, fine-tune, vision, user_data, evals)"
     ),
 ):
     """Upload a file."""
