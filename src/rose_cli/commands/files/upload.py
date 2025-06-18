@@ -21,7 +21,7 @@ def upload_file(
             print(f"error: file not found: {file_path}", file=typer.get_text_stream("stderr"))
             raise typer.Exit(1)
         with open(file_path, "rb") as f:
-            file_obj = client.files.create(file=f, purpose=purpose)
+            file_obj = client.files.create(file=f, purpose=purpose)  # type: ignore
         print(file_obj.id)
     except Exception as e:
         print(f"error: {e}", file=typer.get_text_stream("stderr"))

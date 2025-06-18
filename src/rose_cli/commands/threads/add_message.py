@@ -29,7 +29,7 @@ def add_message(
     try:
         message = client.beta.threads.messages.create(
             thread_id=thread_id,
-            role=role,
+            role=role,  # type: ignore
             content=content,
             metadata=metadata,
         )

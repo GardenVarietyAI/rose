@@ -16,7 +16,7 @@ def list_evals(
     try:
         evals = client.evals.list(
             limit=limit,
-            order=order,
+            order=order,  # type: ignore
         )
 
         if not evals.data:
