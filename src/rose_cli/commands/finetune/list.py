@@ -1,19 +1,14 @@
-from typing import Optional
-
 import typer
 from rich.table import Table
 
-from ...utils import console, get_client, get_endpoint_url
+from ...utils import console, get_client
 
 
 def list_jobs(
-    url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
-    local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
     table: bool = typer.Option(False, "--table", "-t", help="Show as table"),
 ):
     """List fine-tuning jobs."""
-    endpoint_url = get_endpoint_url(url, local)
-    client = get_client(endpoint_url)
+    client = get_client()
     try:
         jobs = client.fine_tuning.jobs.list()
         if table:

@@ -3,7 +3,7 @@ from typing import Optional
 import typer
 from openai.types.responses import ResponseOutputMessage, ResponseOutputText, ResponseTextDeltaEvent
 
-from ...utils import get_client, get_endpoint_url
+from ...utils import get_client
 
 
 def create_response(
@@ -16,8 +16,7 @@ def create_response(
     instructions: Optional[str] = typer.Option(None, "--instructions", "-i", help="System instructions"),
 ):
     """Create a response using the Responses API."""
-    endpoint_url = get_endpoint_url(url, local)
-    client = get_client(endpoint_url)
+    client = get_client()
     try:
         if stream:
             response_stream = client.responses.create(

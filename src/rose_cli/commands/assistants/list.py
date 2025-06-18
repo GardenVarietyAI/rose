@@ -1,5 +1,3 @@
-from typing import Optional
-
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -11,10 +9,9 @@ console = Console()
 
 def list_assistants(
     limit: int = typer.Option(20, help="Number of assistants to list"),
-    base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """List assistants."""
-    client = get_client(base_url)
+    client = get_client()
     try:
         assistants = client.beta.assistants.list(limit=limit)
         if not assistants.data:

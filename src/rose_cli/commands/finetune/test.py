@@ -1,18 +1,15 @@
-from typing import Optional
+from typing import Any
 
 import typer
 
-from ...utils import console, get_client, get_endpoint_url
+from ...utils import console, get_client
 
 
 def test_fine_tuned_model(
     job_id: str = typer.Argument(..., help="Fine-tuning job ID"),
-    url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
-    local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
 ):
     """Test a fine-tuned model with sample prompts."""
-    endpoint_url = get_endpoint_url(url, local)
-    client = get_client(endpoint_url)
+    client = get_client()
 
     try:
         # Get the fine-tuning job
@@ -62,9 +59,10 @@ def test_fine_tuned_model(
             for msg in prompt["messages"]:
                 console.print(f"  [{msg['role']}]: {msg['content']}")
 
+            messages: list[Any] = prompt["messages"]
             response = client.chat.completions.create(
                 model=job.fine_tuned_model,
-                messages=prompt["messages"],
+                messages=messages,
                 max_tokens=150,
             )
 

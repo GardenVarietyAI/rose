@@ -1,26 +1,28 @@
-from typing import Optional
+from typing import Optional, cast
 
 import typer
 from openai import OpenAI
+from openai.types.chat import ChatCompletionChunk, ChatCompletionMessageParam
 
-from ...utils import get_client, get_endpoint_url
+from ...utils import get_client
 
 
 def _do_chat(client: OpenAI, model: str, prompt: str, system: Optional[str], stream: bool):
-    messages = []
+    messages: list[ChatCompletionMessageParam] = []
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
 
     try:
         if stream:
-            response = client.chat.completions.create(
+            stream_response = client.chat.completions.create(
                 model=model,
                 messages=messages,
                 stream=True,
             )
-            for chunk in response:
-                if chunk.choices[0].delta.content:
+            for chunk in stream_response:
+                chunk = cast(ChatCompletionChunk, chunk)
+                if chunk.choices and chunk.choices[0].delta.content:
                     print(chunk.choices[0].delta.content, end="", flush=True)
             print()
         else:
@@ -38,14 +40,11 @@ def chat(
     prompt: str = typer.Argument(..., help="Message to send"),
     model: str = typer.Option("qwen-coder", "--model", "-m", help="Model to use"),
     system: Optional[str] = typer.Option(None, "--system", "-s", help="System prompt"),
-    url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
-    local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
     stream: bool = typer.Option(True, "--stream/--no-stream", help="Stream response"),
 ):
     """Chat with models using a single message."""
     if ctx.invoked_subcommand is not None:
         return
 
-    endpoint_url = get_endpoint_url(url, local)
-    client = get_client(endpoint_url)
+    client = get_client()
     _do_chat(client, model, prompt, system, stream)

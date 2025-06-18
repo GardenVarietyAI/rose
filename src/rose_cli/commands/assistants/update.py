@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 import typer
 from rich.console import Console
@@ -15,11 +15,10 @@ def update_assistant(
     instructions: Optional[str] = typer.Option(None, help="New instructions"),
     description: Optional[str] = typer.Option(None, help="New description"),
     temperature: Optional[float] = typer.Option(None, help="New temperature (0.0-2.0)"),
-    base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """Update an assistant."""
-    client = get_client(base_url)
-    update_data = {}
+    client = get_client()
+    update_data: dict[str, Any] = {}
     if name is not None:
         update_data["name"] = name
     if model is not None:

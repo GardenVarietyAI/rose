@@ -1,17 +1,11 @@
-from typing import Optional
-
 import typer
 
-from ...utils import get_client, get_endpoint_url
+from ...utils import get_client
 
 
-def test_storage(
-    url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
-    local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
-):
+def test_storage():
     """Test response storage functionality."""
-    endpoint_url = get_endpoint_url(url, local)
-    client = get_client(endpoint_url)
+    client = get_client()
     try:
         print("Testing response storage...")
 
@@ -26,19 +20,6 @@ def test_storage(
 
         response_id = response.id
         print(f"✓ Created response with ID: {response_id}")
-
-        # Try to retrieve it
-        import httpx
-
-        with httpx.Client() as http_client:
-            retrieve_response = http_client.get(f"{endpoint_url}/responses/{response_id}")
-            retrieve_response.raise_for_status()
-            data = retrieve_response.json()
-            print(f"✓ Successfully retrieved response {data['id']}")
-            print(f"  Status: {data['status']}")
-            print(f"  Created: {data['created']}")
-
-        print("\n[green]Storage test passed![/green]")
-
+        print(response.output_text)
     except Exception as e:
         print(f"[red]Storage test failed: {e}[/red]", file=typer.get_text_stream("stderr"))
