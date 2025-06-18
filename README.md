@@ -42,13 +42,6 @@ export OPENAI_API_KEY=sk-dummy-key
 export OPENAI_BASE_URL=http://localhost:8004/v1
 ```
 
-### Prerequisites
-
-- Python 3.13+
-- Poetry
-- CUDA-capable GPU (recommended) or Apple Silicon Mac
-- 16GB+ RAM (32GB recommended for fine-tuning)
-
 ### Installation
 
 ```bash
