@@ -229,9 +229,16 @@ async def create_eval_run(
         metadata["max_samples"] = request.data_source.max_samples
     if eval_def.data_source_config:
         eval_metadata = eval_def.data_source_config.get("metadata", {})
+        # Handle inline content
         if eval_metadata.get("source") == "inline":
             content_str = eval_metadata.get("content", "[]")
             metadata["inline_content"] = json.loads(content_str) if isinstance(content_str, str) else content_str
+        # Handle stored completions
+        elif eval_def.data_source_config.get("type") == "stored_completions":
+            # Pass the data source config to the evaluator so it can load the file
+            metadata["data_source"]["type"] = "stored_completions"
+            if "completion_tag_suffix" in eval_def.data_source_config:
+                metadata["data_source"]["completion_tag_suffix"] = eval_def.data_source_config["completion_tag_suffix"]
     await EvalJob.dispatch(
         eval_id=run_id,
         model=model,

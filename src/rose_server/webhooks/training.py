@@ -6,6 +6,7 @@ from ..database import run_in_session
 from ..entities.jobs import Job
 from ..fine_tuning.store import FineTuningStore
 from ..schemas.webhooks import WebhookEvent
+from ..services import get_model_registry
 from .results_output import create_result_file
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,14 @@ async def _handle_training_completed(event: WebhookEvent) -> None:
     if result_file_id:
         await store.update_job_result_files(event.object_id, [result_file_id])
     await _update_queue_job_completed(event)
+
+    # Reload model registry to include the new fine-tuned model
+    try:
+        registry = get_model_registry()
+        registry.reload_fine_tuned_models()
+        logger.info(f"Reloaded model registry after training job {event.object_id} completed")
+    except Exception as e:
+        logger.error(f"Failed to reload model registry: {e}")
 
 
 async def _handle_training_failed(event: WebhookEvent) -> None:

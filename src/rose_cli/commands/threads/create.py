@@ -13,6 +13,7 @@ def create_thread(
     session_id: Optional[str] = typer.Option(None, help="Session ID"),
     conversation_type: Optional[str] = typer.Option(None, help="Type of conversation (chat, assistant, etc)"),
     source: Optional[str] = typer.Option(None, help="Source of the thread (api, web, cli)"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Only output the thread ID"),
 ):
     """Create a new thread."""
     client = get_client()
@@ -27,10 +28,14 @@ def create_thread(
         metadata["source"] = source
     try:
         thread = client.beta.threads.create(metadata=metadata)
-        console.print(f"Created thread: [green]{thread.id}[/green]")
-        if thread.metadata:
-            console.print("Metadata:")
-            for key, value in thread.metadata.items():
-                console.print(f"   {key}: {value}")
+
+        if quiet:
+            print(thread.id)
+        else:
+            console.print(f"Created thread: [green]{thread.id}[/green]")
+            if thread.metadata:
+                console.print("Metadata:")
+                for key, value in thread.metadata.items():
+                    console.print(f"   {key}: {value}")
     except Exception as e:
         console.print(f"Error: {e}", style="red")

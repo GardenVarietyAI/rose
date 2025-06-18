@@ -143,7 +143,6 @@ class ResponsesFormatter:
         end_event = next((e for e in events if isinstance(e, ResponseCompleted)), None)
         content = "".join(e.token for e in token_events)
 
-        # Use the helper method to build output items
         output_items = self._build_output_items_from_content(content)
 
         usage = ResponsesUsage(

@@ -52,16 +52,39 @@ class HuggingFaceLLM:
 
     def format_messages(self, messages: List[ChatMessage]) -> str:
         if hasattr(self.tokenizer, "apply_chat_template") and self.tokenizer.chat_template:
-            chat_messages = [{"role": msg.role, "content": msg.content} for msg in messages]
+            chat_messages = []
+            for msg in messages:
+                # Extract text content if content is a list
+                if isinstance(msg.content, list):
+                    text_content = ""
+                    for item in msg.content:
+                        if isinstance(item, dict) and item.get("type") in ["text", "input_text"] and "text" in item:
+                            text_content = item["text"]
+                            break
+                    content = text_content
+                else:
+                    content = msg.content
+                chat_messages.append({"role": msg.role, "content": content})
             return self.tokenizer.apply_chat_template(chat_messages, tokenize=False, add_generation_prompt=True)
         prompt = ""
         for msg in messages:
+            # Extract text content if content is a list
+            if isinstance(msg.content, list):
+                text_content = ""
+                for item in msg.content:
+                    if isinstance(item, dict) and item.get("type") in ["text", "input_text"] and "text" in item:
+                        text_content = item["text"]
+                        break
+                content = text_content
+            else:
+                content = msg.content
+
             if msg.role == "system":
-                prompt += f"System: {msg.content}\n\n"
+                prompt += f"System: {content}\n\n"
             elif msg.role == "user":
-                prompt += f"User: {msg.content}\n\n"
+                prompt += f"User: {content}\n\n"
             elif msg.role == "assistant":
-                prompt += f"Assistant: {msg.content}\n\n"
+                prompt += f"Assistant: {content}\n\n"
         prompt += "Assistant: "
         return prompt
 

@@ -14,6 +14,7 @@ def add_message(
     content: str = typer.Argument(..., help="Message content"),
     role: str = typer.Option("user", help="Message role (user/assistant)"),
     metadata_json: Optional[str] = typer.Option(None, help="Metadata as JSON string"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Only output the message ID"),
 ):
     """Add a message to a thread."""
     client = get_client()
@@ -32,15 +33,19 @@ def add_message(
             content=content,
             metadata=metadata,
         )
-        console.print(f"Created message: [green]{message.id}[/green]")
-        console.print(f"Role: {message.role}")
-        if message.content and len(message.content) > 0:
-            content_block = message.content[0]
-            if hasattr(content_block, "text") and hasattr(content_block.text, "value"):
-                console.print(f"Content: {content_block.text.value}")
-        if message.metadata:
-            console.print("Metadata:")
-            for key, value in message.metadata.items():
-                console.print(f"   {key}: {value}")
+
+        if quiet:
+            print(message.id)
+        else:
+            console.print(f"Created message: [green]{message.id}[/green]")
+            console.print(f"Role: {message.role}")
+            if message.content and len(message.content) > 0:
+                content_block = message.content[0]
+                if hasattr(content_block, "text") and hasattr(content_block.text, "value"):
+                    console.print(f"Content: {content_block.text.value}")
+            if message.metadata:
+                console.print("Metadata:")
+                for key, value in message.metadata.items():
+                    console.print(f"   {key}: {value}")
     except Exception as e:
         console.print(f"Error: {e}", style="red")

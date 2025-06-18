@@ -7,35 +7,36 @@ console = Console()
 
 
 def eval_status(
-    run_id: str = typer.Argument(..., help="Run ID"),
+    run_id: str = typer.Option(..., "--run-id", "-r", help="Run ID"),
+    eval_id: str = typer.Option(..., "--eval-id", "-e", help="Evaluation ID"),
 ):
     """Check the status of an evaluation run."""
     client = get_client()
     try:
-        # Get run status - we'll need to use the low-level API
-        # since we don't have the eval_id
-        response = client._client.get(f"/v1/evals/runs/{run_id}")
-        run = response.json()
+        run = client.evals.runs.retrieve(eval_id=eval_id, run_id=run_id)
 
-        console.print(f"[cyan]Run ID:[/cyan] {run['id']}")
-        console.print(f"[cyan]Status:[/cyan] {run['status']}")
-        console.print(f"[cyan]Created:[/cyan] {run.get('created_at', '-')}")
+        console.print(f"[cyan]Run ID:[/cyan] {run.id}")
+        console.print(f"[cyan]Status:[/cyan] {run.status}")
+        console.print(f"[cyan]Model:[/cyan] {run.model}")
+        console.print(f"[cyan]Created:[/cyan] {run.created_at}")
 
-        if run.get("completed_at"):
-            console.print(f"[cyan]Completed:[/cyan] {run['completed_at']}")
-
-        if run.get("error"):
-            console.print(f"[red]Error:[/red] {run['error']}")
-
-        # Show progress if available
-        if run.get("progress_percent") is not None:
-            console.print(f"[cyan]Progress:[/cyan] {run['progress_percent']}%")
+        if run.error:
+            console.print(f"[red]Error:[/red] {run.error}")
 
         # Show results if completed
-        if run["status"] == "completed" and run.get("results"):
-            console.print("\n[cyan]Results:[/cyan]")
-            for key, value in run["results"].items():
-                console.print(f"  {key}: {value}")
+        if run.status == "completed":
+            if run.result_counts:
+                console.print("\n[cyan]Result Counts:[/cyan]")
+                console.print(f"  Total: {run.result_counts.total}")
+                console.print(f"  Passed: {run.result_counts.passed}")
+                console.print(f"  Failed: {run.result_counts.failed}")
+
+            if run.per_testing_criteria_results:
+                console.print("\n[cyan]Per Criteria Results:[/cyan]")
+                for criteria in run.per_testing_criteria_results:
+                    total = criteria.passed + criteria.failed
+                    pass_rate = criteria.passed / total if total > 0 else 0
+                    console.print(f"  {criteria.testing_criteria}: {criteria.passed}/{total} passed ({pass_rate:.2%})")
 
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")

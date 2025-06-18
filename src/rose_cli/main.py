@@ -2,9 +2,8 @@
 
 import typer
 
-# Import refactored command modules
-# Import legacy command modules (to be refactored)
 from .commands import (
+    actors,
     assistants,
     chat,
     completions,
@@ -13,6 +12,7 @@ from .commands import (
     finetune,
     models,
     responses,
+    runs,
     threads,
 )
 
@@ -21,7 +21,7 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
-# Refactored commands
+app.add_typer(actors.app, name="actors", help="Actor operations")
 app.add_typer(chat.app, name="chat", help="Chat with models")
 app.add_typer(completions.app, name="completions", help="Generate completions")
 app.add_typer(models.app, name="models", help="Model management")
@@ -29,6 +29,7 @@ app.add_typer(files.app, name="files", help="File operations")
 app.add_typer(finetune.app, name="finetune", help="Fine-tuning operations")
 app.add_typer(threads.app, name="threads", help="Thread management")
 app.add_typer(assistants.app, name="assistants", help="Assistant management")
+app.add_typer(runs.app, name="runs", help="Run management")
 app.add_typer(responses.app, name="responses", help="Responses API operations")
 app.add_typer(evals.app, name="eval", help="Evaluation operations")
 
