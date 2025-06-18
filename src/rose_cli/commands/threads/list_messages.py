@@ -1,5 +1,3 @@
-from typing import Optional
-
 import typer
 from rich.console import Console
 
@@ -11,7 +9,6 @@ console = Console()
 def list_messages(
     thread_id: str = typer.Argument(..., help="Thread ID to list messages for"),
     limit: int = typer.Option(20, help="Number of messages to list"),
-    base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """List messages in a thread."""
     client = get_client()

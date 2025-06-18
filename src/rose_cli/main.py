@@ -7,7 +7,6 @@ import typer
 from .commands import (
     assistants,
     chat,
-    cleanup,
     completions,
     evals,
     files,
@@ -30,7 +29,6 @@ app.add_typer(files.app, name="files", help="File operations")
 app.add_typer(finetune.app, name="finetune", help="Fine-tuning operations")
 app.add_typer(threads.app, name="threads", help="Thread management")
 app.add_typer(assistants.app, name="assistants", help="Assistant management")
-app.add_typer(cleanup.app, name="cleanup", help="Cleanup models, files, and jobs")
 app.add_typer(responses.app, name="responses", help="Responses API operations")
 app.add_typer(evals.app, name="eval", help="Evaluation operations")
 

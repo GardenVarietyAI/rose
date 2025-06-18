@@ -18,7 +18,6 @@ def create_assistant(
     temperature: float = typer.Option(0.7, help="Temperature (0.0-2.0)"),
     code_interpreter: bool = typer.Option(False, help="Enable code interpreter"),
     file_search: bool = typer.Option(False, help="Enable file search"),
-    base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """Create a new assistant."""
     client = get_client()

@@ -1,25 +1,20 @@
-from typing import Optional
-
 import httpx
 import typer
 from rich.console import Console
 from rich.table import Table
 
-from ...utils import get_client
+from ...utils import BASE_URL
 
 console = Console()
 
 
 def list_threads(
     limit: int = typer.Option(20, help="Number of threads to list"),
-    base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """List threads."""
-    get_client()
     try:
-        url = base_url or "http://localhost:8004"
         with httpx.Client() as client:
-            response = client.get(f"{url}/v1/threads", params={"limit": limit})
+            response = client.get(f"{BASE_URL}/v1/threads", params={"limit": limit})
             response.raise_for_status()
             data = response.json()
 
@@ -48,7 +43,5 @@ def list_threads(
             )
 
         console.print(table)
-    except httpx.HTTPStatusError as e:
-        console.print(f"HTTP Error: {e.response.status_code} - {e.response.text}", style="red")
     except Exception as e:
         console.print(f"Error: {e}", style="red")

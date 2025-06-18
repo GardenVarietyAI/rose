@@ -14,7 +14,6 @@ def add_message(
     content: str = typer.Argument(..., help="Message content"),
     role: str = typer.Option("user", help="Message role (user/assistant)"),
     metadata_json: Optional[str] = typer.Option(None, help="Metadata as JSON string"),
-    base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """Add a message to a thread."""
     client = get_client()

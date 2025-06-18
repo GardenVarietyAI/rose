@@ -1,5 +1,3 @@
-from typing import Optional
-
 import typer
 from rich.console import Console
 
@@ -10,7 +8,6 @@ console = Console()
 
 def delete_assistant(
     assistant_id: str = typer.Argument(..., help="Assistant ID to delete"),
-    base_url: Optional[str] = typer.Option(None, help="Override base URL"),
 ):
     """Delete an assistant."""
     client = get_client()
