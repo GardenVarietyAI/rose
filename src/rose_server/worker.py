@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import gc
 import logging
 import signal
@@ -14,14 +13,12 @@ from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from .config import ServiceConfig
-from .evals.evaluations.evaluator import Evaluator
 from .fine_tuning.training import HFTrainer
 
 logger = logging.getLogger(__name__)
 BASE_URL = "http://localhost:8004"
 HTTP_TIMEOUT = 10
 POLL_INTERVAL = 5
-EVAL_JOB_TIMEOUT = 1_800
 TRAINING_JOB_TIMEOUT = 7_200
 
 
@@ -163,47 +160,17 @@ def process_training_job_sync(job_id: int, payload: Dict[str, Any]) -> Optional[
     return None
 
 
-def process_eval_job_sync(job_id: int, payload: Dict[str, Any]) -> Optional[Dict]:
-    logger.info("Processing eval job %s: %s", job_id, payload)
-    eval_id = payload.get("eval_id")
-    model = payload.get("model")
-    eval_name = payload.get("eval")
-    if not all((eval_id, model, eval_name)):
-        logger.error("Eval job missing required fields")
-        return None
-    _post_webhook("job.running", "eval", job_id, eval_id)
-    evaluator = Evaluator()
-    try:
-        result = asyncio.run(evaluator.run_evaluation(eval_id, model, eval_name, job_id, **payload.get("metadata", {})))
-    except Exception as exc:
-        logger.exception("Eval crashed")
-        _post_webhook("job.failed", "eval", job_id, eval_id, {"error": str(exc)})
-        raise
-    finally:
-        del evaluator
-        gc.collect()
-    _post_webhook(
-        "job.completed",
-        "eval",
-        job_id,
-        eval_id,
-        {"results": result.get("aggregate", {}), "samples": result.get("samples", [])},
-    )
-    return {"eval_id": eval_id, "status": "completed", "results": result}
-
-
 def _schedule_poller(scheduler: BackgroundScheduler) -> None:
     """Register a polling job that fetches new work every POLL_INTERVAL seconds."""
 
     processors: Dict[str, Callable[[int, Dict], Optional[Dict]]] = {
         "training": process_training_job_sync,
-        "eval": process_eval_job_sync,
     }
 
     def poll() -> None:
         with _session() as client:
             try:
-                r = client.get(f"{BASE_URL}/v1/jobs", params={"status": "queued", "limit": 10})
+                r = client.get(f"{BASE_URL}/v1/jobs", params={"status": "queued", "type": "training", "limit": 10})
                 for job in r.json().get("data", []):
                     jid = str(job["id"])
                     if scheduler.get_job(jid):
@@ -211,7 +178,7 @@ def _schedule_poller(scheduler: BackgroundScheduler) -> None:
                     job_detail = client.get(f"{BASE_URL}/v1/jobs/{jid}").json()
                     jtype = job_detail["type"]
                     if jtype in processors:
-                        executor = jtype if jtype in ("training", "eval") else "default"
+                        executor = "training" if jtype == "training" else "default"
                         scheduler.add_job(
                             processors[jtype],
                             args=[int(jid), job_detail["payload"]],
@@ -231,34 +198,37 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
     )
+
     logger.info(
-        "Worker starting - training:%d  eval:%d",
+        "Training Worker starting - max training=%d",
         ServiceConfig.MAX_CONCURRENT_TRAINING,
-        ServiceConfig.MAX_CONCURRENT_EVAL,
     )
+
     executors = {
         "default": ThreadPoolExecutor(max_workers=1),
         "training": ThreadPoolExecutor(max_workers=ServiceConfig.MAX_CONCURRENT_TRAINING),
-        "eval": ThreadPoolExecutor(max_workers=ServiceConfig.MAX_CONCURRENT_EVAL),
     }
     scheduler = BackgroundScheduler(executors=executors)
     scheduler.start()
     _schedule_poller(scheduler)
-    stop_flag = {"quit": False}
 
-    def _graceful(*_):
+    # graceful shutdown
+    stop_flag: Dict[str, bool] = {"quit": False}
+
+    def _graceful(*_: Any) -> None:
         stop_flag["quit"] = True
 
     signal.signal(signal.SIGINT, _graceful)
     signal.signal(signal.SIGTERM, _graceful)
     logger.info("Worker ready - polling every %ds", POLL_INTERVAL)
+
     try:
         while not stop_flag["quit"]:
             time.sleep(1)
     finally:
         logger.info("Shutting down...")
         scheduler.shutdown(wait=True)
-        logger.info("Bye")
+        logger.info("Goodbye")
 
 
 if __name__ == "__main__":

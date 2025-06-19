@@ -6,13 +6,15 @@ authors = ["Garden Variety AI"]
 readme = "README.md"
 packages = [
     {include = "rose_server", from = "src"},
-    {include = "rose_cli", from = "src"}
+    {include = "rose_cli", from = "src"},
+    {include = "rose_evals", from = "src"}
 ]
 
 [tool.poetry.scripts]
 rose = "rose_cli.main:main"
 rose-server = "rose_server.main:main"
 rose-worker = "rose_server.worker:main"
+rose-eval-worker = "rose_evals.worker:main"
 
 [tool.poetry.dependencies]
 python = ">=3.13,<4.0"
@@ -95,6 +97,10 @@ unfixable = []
 force-single-line = false
 force-wrap-aliases = true
 combine-as-imports = true
+
+[tool.mypy]
+plugins = ["sqlalchemy.ext.mypy.plugin"]
+ignore_missing_imports = true
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

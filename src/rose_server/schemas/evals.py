@@ -46,29 +46,31 @@ class TextSimilarityGrader(BaseModel):
 
 
 class EvalCreateRequest(BaseModel):
-    """Request to create an evaluation - simplified."""
+    """Request to create an evaluation - OpenAI compatible."""
 
-    name: str
-    metadata: Optional[Dict[str, str]] = None
+    name: Optional[str] = None
+    data_source_config: Dict[str, Any]
+    testing_criteria: List[Dict[str, Any]]
+    metadata: Optional[Dict[str, Any]] = None
 
 
-class EvalObject(BaseModel):
+class EvalResponse(BaseModel):
     """Evaluation object - OpenAI compatible."""
 
-    object: Literal["eval"] = "eval"
     id: str
-    data_source_config: StoredCompletionsDataSourceConfig
-    testing_criteria: List[Union[StringCheckGrader, TextSimilarityGrader]]
-    name: str
+    object: Literal["eval"] = "eval"
     created_at: int
-    metadata: Optional[Dict[str, str]] = None
+    name: Optional[str] = None
+    data_source_config: Dict[str, Any]
+    testing_criteria: List[Dict[str, Any]]
+    metadata: Optional[Dict[str, Any]] = None
 
 
 class EvalListResponse(BaseModel):
     """Paginated response for eval listing - OpenAI SDK compatible."""
 
     object: Literal["list"] = "list"
-    data: List[EvalObject]
+    data: List[EvalResponse]
     has_more: bool = False
     first_id: Optional[str] = None
     last_id: Optional[str] = None
@@ -123,5 +125,8 @@ class EvalRunResponse(BaseModel):
     started_at: Optional[int] = None
     completed_at: Optional[int] = None
     data_source: Optional[DataSourceConfig] = None
+    result_counts: Optional[Dict[str, int]] = None
+    report_url: Optional[str] = None
     results: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None

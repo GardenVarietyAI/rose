@@ -12,10 +12,10 @@ class Eval(SQLModel, table=True):
 
     __tablename__ = "evals"
     id: str = Field(primary_key=True)
-    name: str = Field(index=True, description="Evaluation name (gsm8k, humaneval, etc.)")
-    description: Optional[str] = Field(default=None, description="Evaluation description")
+    object: str = Field(default="eval", description="Object type for OpenAI compatibility")
+    name: Optional[str] = Field(default=None, index=True, description="Evaluation name")
     data_source_config: Dict = Field(sa_type=JSON, description="Data source configuration")
-    testing_criteria: List[Dict] = Field(sa_type=JSON, description="Grading criteria")
+    testing_criteria: List[Dict] = Field(sa_type=JSON, description="Testing criteria/graders")
     created_at: int = Field(default_factory=lambda: int(time.time()))
     meta: Optional[Dict] = Field(default=None, sa_type=JSON)
     __table_args__ = (
@@ -23,18 +23,15 @@ class Eval(SQLModel, table=True):
         Index("idx_evals_created", "created_at"),
     )
 
-    def to_openai_format(self) -> Dict:
-        """Convert to OpenAI-compatible format."""
-        return {
-            "id": self.id,
-            "object": "eval",
-            "name": self.name,
-            "description": self.description,
-            "data_source_config": self.data_source_config,
-            "testing_criteria": self.testing_criteria,
-            "created_at": self.created_at,
-            "metadata": self.meta,
-        }
+    def model_dump(self, *args, **kwargs):
+        base = super().model_dump(*args, **kwargs)
+        base["metadata"] = self.meta
+        base.pop("meta", None)  # Remove internal field
+        return base
+
+    def dict(self, *args, **kwargs):
+        """Legacy method for backwards compatibility."""
+        return self.model_dump(*args, **kwargs)
 
 
 class EvalRun(SQLModel, table=True):
@@ -42,6 +39,7 @@ class EvalRun(SQLModel, table=True):
 
     __tablename__ = "eval_runs"
     id: str = Field(primary_key=True)
+    object: str = Field(default="eval.run", description="Object type for OpenAI compatibility")
     eval_id: str = Field(foreign_key="evals.id", index=True, description="Reference to eval definition")
     name: str = Field(description="Run name/description")
     model: str = Field(index=True, description="Model being evaluated")
@@ -49,14 +47,11 @@ class EvalRun(SQLModel, table=True):
     created_at: int = Field(default_factory=lambda: int(time.time()))
     started_at: Optional[int] = None
     completed_at: Optional[int] = None
-    data_source: Optional[Dict] = Field(default=None, sa_type=JSON, description="Run-specific data source")
+    data_source: Optional[Dict] = Field(default=None, sa_type=JSON, description="Run-specific data source config")
     results: Optional[Dict] = Field(default=None, sa_type=JSON, description="Evaluation results")
+    result_counts: Optional[Dict] = Field(default=None, sa_type=JSON, description="OpenAI-style result counts")
+    report_url: Optional[str] = Field(default=None, description="URL to view eval report")
     meta: Optional[Dict] = Field(default=None, sa_type=JSON)
-    total_samples: int = Field(default=0)
-    completed_samples: int = Field(default=0)
-    failed_samples: int = Field(default=0)
-    avg_response_time: Optional[float] = None
-    total_tokens: Optional[int] = None
     error_message: Optional[str] = None
     __table_args__ = (
         Index("idx_eval_runs_eval", "eval_id"),
@@ -65,22 +60,22 @@ class EvalRun(SQLModel, table=True):
         Index("idx_eval_runs_created", "created_at"),
     )
 
-    def to_openai_format(self) -> Dict:
-        """Convert to OpenAI-compatible format."""
-        return {
-            "id": self.id,
-            "object": "eval.run",
-            "eval_id": self.eval_id,
-            "name": self.name,
-            "model": self.model,
-            "status": self.status,
-            "created_at": self.created_at,
-            "started_at": self.started_at,
-            "completed_at": self.completed_at,
-            "data_source": self.data_source,
-            "results": self.results,
-            "metadata": self.meta,
-        }
+    def model_dump(self, *args, **kwargs):
+        base = super().model_dump(*args, **kwargs)
+        base["metadata"] = self.meta
+
+        # Map error field
+        if self.error_message:
+            base["error"] = self.error_message
+
+        # Remove internal fields
+        base.pop("meta", None)
+        base.pop("error_message", None)
+        return base
+
+    def dict(self, *args, **kwargs):
+        """Legacy method for backwards compatibility."""
+        return self.model_dump(*args, **kwargs)
 
 
 class EvalSample(SQLModel, table=True):
@@ -88,11 +83,12 @@ class EvalSample(SQLModel, table=True):
 
     __tablename__ = "eval_samples"
     id: str = Field(primary_key=True)
+    object: str = Field(default="eval.sample", description="Object type for OpenAI compatibility")
     eval_run_id: str = Field(foreign_key="eval_runs.id")
     sample_index: int = Field(description="Index within the eval run")
     input: str = Field(description="Input prompt/question")
-    expected_output: str = Field(description="Expected answer/output")
-    actual_output: str = Field(description="Model's actual output")
+    ideal: str = Field(description="Ideal/expected output")
+    completion: str = Field(description="Model's completion/output")
     score: float = Field(description="Sample score (0.0 to 1.0)")
     passed: bool = Field(description="Whether sample passed threshold")
     response_time: Optional[float] = None
@@ -104,3 +100,13 @@ class EvalSample(SQLModel, table=True):
         Index("idx_eval_samples_score", "score"),
         Index("idx_eval_samples_passed", "passed"),
     )
+
+    def model_dump(self, *args, **kwargs):
+        base = super().model_dump(*args, **kwargs)
+        base["metadata"] = self.meta
+        base.pop("meta", None)
+        return base
+
+    def dict(self, *args, **kwargs):
+        """Legacy method for backwards compatibility."""
+        return self.model_dump(*args, **kwargs)
