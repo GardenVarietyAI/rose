@@ -3,7 +3,7 @@
 import logging
 from typing import Tuple
 
-from rose_server.config import ResponseConfig
+from rose_core.config.service import ResponseConfig
 from rose_server.services import get_tokenizer_service
 
 logger = logging.getLogger(__name__)

@@ -1,12 +1,13 @@
 """Model registry for managing base and fine-tuned models."""
 
-import json
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from rose_server.config import ServiceConfig
-from rose_server.model_registry import LLM_MODELS
+from rose_core.config.models import LLM_MODELS
+from rose_core.config.service import ServiceConfig
+
+from .store import LanguageModelStore
 
 logger = logging.getLogger(__name__)
 
@@ -16,41 +17,48 @@ class ModelRegistry:
 
     def __init__(self):
         self.models: Dict[str, Dict[str, Any]] = {}
-        self._registry_path = Path(ServiceConfig.DATA_DIR) / "fine_tuned_models.json"
+        self.store = LanguageModelStore()
         self._load_base_models()
-        self._load_fine_tuned_models()
 
     def _load_base_models(self):
         """Load base model configurations from settings."""
         self.models.update(LLM_MODELS.copy())
         logger.info(f"Loaded {len(self.models)} base model configurations")
 
-    def _load_fine_tuned_models(self):
-        """Load fine-tuned models from registry file."""
-        if not self._registry_path.exists():
-            logger.debug("No fine-tuned models registry found")
-            return
-        try:
-            with open(self._registry_path, "r") as f:
-                registry = json.load(f)
-            loaded = 0
-            for model_id, model_info in registry.items():
-                model_path = Path(ServiceConfig.DATA_DIR) / model_info["path"]
-                if model_path.exists():
-                    self.register_model(
-                        model_id=model_id,
-                        model_path=str(model_path),
-                        base_model=model_info.get("base_model", "qwen2.5-0.5b"),
-                        persist=False,
-                    )
-                    loaded += 1
-                else:
-                    logger.warning(f"Model path not found for {model_id}: {model_path}")
-            logger.info(f"Loaded {loaded} fine-tuned models from registry")
-        except Exception as e:
-            logger.error(f"Error loading fine-tuned models registry: {e}")
+    async def initialize(self):
+        """Initialize the registry with fine-tuned models from database."""
+        await self._load_fine_tuned_models()
 
-    def register_model(
+    async def _load_fine_tuned_models(self):
+        """Load fine-tuned models from database."""
+        try:
+            fine_tuned_models = await self.store.list_fine_tuned()
+            loaded = 0
+            for model in fine_tuned_models:
+                if model.path:
+                    model_path = Path(ServiceConfig.DATA_DIR) / model.path
+                    if model_path.exists():
+                        # Get base model config and update it
+                        base_config = self.models.get(model.base_model, {}).copy()
+                        base_config.update(
+                            {
+                                "model_name": model.id,
+                                "name": model.name,
+                                "model_path": str(model_path),
+                                "base_model": model.base_model,
+                                "is_fine_tuned": True,
+                                "created_at": model.created_at,
+                            }
+                        )
+                        self.models[model.id] = base_config
+                        loaded += 1
+                    else:
+                        logger.warning(f"Model path not found for {model.id}: {model_path}")
+            logger.info(f"Loaded {loaded} fine-tuned models from database")
+        except Exception as e:
+            logger.error(f"Error loading fine-tuned models from database: {e}")
+
+    async def register_model(
         self,
         model_id: str,
         model_path: Optional[str] = None,
@@ -64,7 +72,7 @@ class ModelRegistry:
             model_path: Path to fine-tuned model directory (for fine-tuned models)
             base_model: Base model name (for fine-tuned models)
             config: Full configuration (for base models or overrides)
-            persist: Whether to save fine-tuned models to registry file
+            persist: Whether to save fine-tuned models to database
         Returns:
             True if registration successful
         """
@@ -73,15 +81,34 @@ class ModelRegistry:
                 if not Path(model_path).exists():
                     logger.error(f"Model path does not exist: {model_path}")
                     return False
-                base_config = self.models.get(base_model, {}).copy()
+
+                # Store in database if persist is True
+                if persist:
+                    # Get relative path for storage
+                    relative_path = Path(model_path).relative_to(ServiceConfig.DATA_DIR)
+                    hf_model_name = self.models.get(base_model, {}).get("hf_model_name") if base_model else None
+
+                    await self.store.create(
+                        id=model_id,
+                        path=str(relative_path),
+                        base_model=base_model,
+                        hf_model_name=hf_model_name,
+                    )
+
+                # Update in-memory registry
+                base_config = self.models.get(base_model, {}).copy() if base_model else {}
                 base_config.update(
-                    {"model_name": model_id, "model_path": model_path, "base_model": base_model, "is_fine_tuned": True}
+                    {
+                        "model_name": model_id,
+                        "model_path": model_path,
+                        "base_model": base_model,
+                        "is_fine_tuned": True,
+                        "created_at": None,  # Will be set from database
+                    }
                 )
                 if config:
                     base_config.update(config)
                 self.models[model_id] = base_config
-                if persist:
-                    self._save_fine_tuned_registry()
             else:
                 if not config:
                     logger.error(f"No config provided for base model {model_id}")
@@ -93,14 +120,18 @@ class ModelRegistry:
             logger.error(f"Error registering model {model_id}: {e}")
             return False
 
-    def unregister_model(self, model_id: str) -> bool:
+    async def unregister_model(self, model_id: str) -> bool:
         """Remove a model from the registry."""
         if model_id not in self.models:
             return False
         is_fine_tuned = self.models[model_id].get("is_fine_tuned", False)
-        del self.models[model_id]
+
+        # Delete from database if it's a fine-tuned model
         if is_fine_tuned:
-            self._save_fine_tuned_registry()
+            await self.store.delete(model_id)
+
+        # Remove from in-memory registry
+        del self.models[model_id]
         logger.info(f"Unregistered model: {model_id}")
         return True
 
@@ -116,31 +147,13 @@ class ModelRegistry:
         """List only fine-tuned model IDs."""
         return [model_id for model_id, config in self.models.items() if config.get("is_fine_tuned", False)]
 
-    def reload_fine_tuned_models(self):
-        """Reload fine-tuned models from registry file."""
+    async def reload_fine_tuned_models(self):
+        """Reload fine-tuned models from database."""
         # Remove existing fine-tuned models from memory
         fine_tuned_ids = [model_id for model_id, config in self.models.items() if config.get("is_fine_tuned", False)]
         for model_id in fine_tuned_ids:
             del self.models[model_id]
 
-        # Reload from file
-        self._load_fine_tuned_models()
-        logger.info("Reloaded fine-tuned models registry")
-
-    def _save_fine_tuned_registry(self):
-        """Save fine-tuned models to registry file."""
-        try:
-            registry = {}
-            for model_id, config in self.models.items():
-                if config.get("is_fine_tuned", False):
-                    registry[model_id] = {
-                        "path": config["model_path"],
-                        "base_model": config.get("base_model", "unknown"),
-                        "created_at": config.get("created_at", 0),
-                    }
-            self._registry_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self._registry_path, "w") as f:
-                json.dump(registry, f, indent=2)
-            logger.debug(f"Saved {len(registry)} fine-tuned models to registry")
-        except Exception as e:
-            logger.error(f"Failed to save fine-tuned models registry: {e}")
+        # Reload from database
+        await self._load_fine_tuned_models()
+        logger.info("Reloaded fine-tuned models from database")

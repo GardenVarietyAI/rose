@@ -18,9 +18,10 @@ from transformers.trainer import Trainer
 from transformers.trainer_callback import EarlyStoppingCallback, TrainerCallback
 from transformers.training_args import TrainingArguments
 
-from ...config import ServiceConfig
-from ...language_models.loading import load_model_and_tokenizer
-from ...model_registry import FINE_TUNING_MODELS, get_model_config
+from rose_core.config.models import FINE_TUNING_MODELS, get_model_config
+from rose_core.config.service import ServiceConfig
+from rose_core.models import load_model_and_tokenizer
+
 from .callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
 from .hyperparams import HyperParams, ResolvedHyperParams
 
@@ -225,39 +226,7 @@ class HFTrainer:
                 except Exception as e:
                     logger.error(f"Failed to merge_and_unload model: {e}")
 
-        relative_path = out.relative_to(Path(ServiceConfig.DATA_DIR))
-        self._update_registry(model_id, str(relative_path), base_name)
         return out
-
-    def _update_registry(self, model_id: str, model_path: str, base_model: str):
-        """Update the fine-tuned models registry."""
-        import json
-
-        registry_path = Path(ServiceConfig.DATA_DIR) / "fine_tuned_models.json"
-        registry = {}
-        if registry_path.exists():
-            try:
-                with open(registry_path, "r") as f:
-                    registry = json.load(f)
-            except Exception as e:
-                logger.warning(f"Failed to load registry: {e}")
-
-        # Get the actual HuggingFace model name, not the simplified name
-        hf_model_name = self.fine_tuning_models.get(base_model, base_model)
-
-        registry[model_id] = {
-            "path": model_path,
-            "base_model": base_model,  # Keep simplified name for compatibility
-            "hf_model_name": hf_model_name,  # Add actual HF name
-            "created_at": time.time(),
-        }
-
-        try:
-            with open(registry_path, "w") as f:
-                json.dump(registry, f, indent=2)
-            logger.info(f"Updated fine-tuned models registry with {model_id}")
-        except Exception as e:
-            logger.error(f"Failed to update registry: {e}")
 
     def cleanup(self):
         """Clean up all resources held by HFTrainer."""

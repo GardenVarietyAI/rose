@@ -8,7 +8,7 @@ import aiofiles.os
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
-from rose_server.model_registry import LLM_MODELS, get_embedding_models
+from rose_core.config.models import LLM_MODELS, get_embedding_models
 from rose_server.services import get_model_registry
 
 router = APIRouter(prefix="/v1")
@@ -215,7 +215,7 @@ async def delete_model(model: str) -> JSONResponse:
             },
         )
     try:
-        success = registry.unregister_model(model)
+        success = await registry.unregister_model(model)
         if not success:
             logger.warning(f"Failed to unregister model {model} from registry")
         model_path = config.get("model_path")

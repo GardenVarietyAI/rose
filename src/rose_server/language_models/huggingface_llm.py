@@ -7,8 +7,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from transformers.modeling_utils import PreTrainedModel
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
-from rose_server.config import ServiceConfig
-from rose_server.language_models.loading import load_model_and_tokenizer
+from rose_core.config.service import ServiceConfig
+from rose_core.models import load_model_and_tokenizer
 from rose_server.schemas.chat import ChatMessage
 from rose_server.services import get_model_registry
 

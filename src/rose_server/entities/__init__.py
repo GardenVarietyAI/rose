@@ -16,6 +16,7 @@ from .fine_tuning import (
     FineTuningEvent,
     FineTuningJob,
 )
+from .language_models import LanguageModel
 from .threads import (
     Message,
     MessageMetadata,
@@ -33,4 +34,5 @@ __all__ = [
     "Eval",
     "EvalRun",
     "EvalSample",
+    "LanguageModel",
 ]

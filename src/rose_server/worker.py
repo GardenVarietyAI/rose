@@ -12,7 +12,8 @@ import torch
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from .config import ServiceConfig
+from rose_core.config.service import ServiceConfig
+
 from .fine_tuning.training import HFTrainer
 
 logger = logging.getLogger(__name__)
