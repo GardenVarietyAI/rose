@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 from rose_server.assistants.store import get_assistant_store
 from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.events.generators import RunsGenerator
-from rose_server.llms.huggingface_llm import HuggingFaceLLM
+from rose_server.language_models.huggingface_llm import HuggingFaceLLM
 from rose_server.runs.store import RunsStore
 from rose_server.schemas.assistants import Run
 from rose_server.schemas.chat import ChatMessage

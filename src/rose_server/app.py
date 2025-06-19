@@ -14,7 +14,7 @@ from rose_server.database import create_all_tables
 from rose_server.embeddings.manager import EmbeddingManager
 from rose_server.files.store import FileStore
 from rose_server.fine_tuning.store import FineTuningStore
-from rose_server.llms.registry import ModelRegistry
+from rose_server.language_models.registry import ModelRegistry
 from rose_server.queues.store import JobStore
 from rose_server.router import router
 from rose_server.services import Services, get_vector_store_store

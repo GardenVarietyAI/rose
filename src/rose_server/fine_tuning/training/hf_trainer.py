@@ -19,7 +19,7 @@ from transformers.trainer_callback import EarlyStoppingCallback, TrainerCallback
 from transformers.training_args import TrainingArguments
 
 from ...config import ServiceConfig
-from ...llms.loading import load_model_and_tokenizer
+from ...language_models.loading import load_model_and_tokenizer
 from ...model_registry import FINE_TUNING_MODELS, get_model_config
 from .callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
 from .hyperparams import HyperParams, ResolvedHyperParams
