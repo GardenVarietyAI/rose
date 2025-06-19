@@ -3,7 +3,7 @@ import sys
 
 import uvicorn
 
-from rose_server.config import ServiceConfig
+from rose_core.config.service import ServiceConfig
 
 
 def handle_exit(signum, frame):

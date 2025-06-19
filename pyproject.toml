@@ -5,6 +5,7 @@ description = "ROSE - Run your own LLM server"
 authors = ["Garden Variety AI"]
 readme = "README.md"
 packages = [
+    {include = "rose_core", from = "src"},
     {include = "rose_server", from = "src"},
     {include = "rose_cli", from = "src"},
     {include = "rose_evals", from = "src"}

@@ -8,7 +8,7 @@ from typing import AsyncGenerator, List, Optional
 
 from transformers import StoppingCriteria, StoppingCriteriaList, TextIteratorStreamer
 
-from ...llms.huggingface_llm import HuggingFaceLLM
+from ...language_models.huggingface_llm import HuggingFaceLLM
 from ...schemas.chat import ChatMessage
 from ...tools import StreamingXMLDetector
 from .. import (

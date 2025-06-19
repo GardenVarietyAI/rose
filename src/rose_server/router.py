@@ -10,7 +10,7 @@ from rose_server.evals.router import router as evals_router
 from rose_server.evals.runs.router import router as eval_runs_router
 from rose_server.files.router import router as files_router
 from rose_server.fine_tuning.router import router as fine_tuning_router
-from rose_server.llms.router import router as llms_router
+from rose_server.language_models.router import router as llms_router
 from rose_server.queues.router import router as jobs_router
 from rose_server.responses.router import router as responses_router
 from rose_server.runs.router import router as runs_router

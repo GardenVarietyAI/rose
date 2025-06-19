@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 
 from rose_server.events.formatters import ResponsesFormatter
 from rose_server.events.generators import ResponsesGenerator
-from rose_server.llms.huggingface_llm import HuggingFaceLLM
+from rose_server.language_models.huggingface_llm import HuggingFaceLLM
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.responses import (
     ResponsesContentItem,

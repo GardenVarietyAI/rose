@@ -9,12 +9,12 @@ from typing import Dict
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from rose_server.config import ServiceConfig, get_full_config
+from rose_core.config.service import ServiceConfig, get_full_config
 from rose_server.database import create_all_tables
 from rose_server.embeddings.manager import EmbeddingManager
 from rose_server.files.store import FileStore
 from rose_server.fine_tuning.store import FineTuningStore
-from rose_server.llms.registry import ModelRegistry
+from rose_server.language_models.registry import ModelRegistry
 from rose_server.queues.store import JobStore
 from rose_server.router import router
 from rose_server.services import Services, get_vector_store_store
@@ -82,6 +82,7 @@ async def lifespan(app: FastAPI):
     await job_store.initialize()
     Services.register("job_store", job_store)
     model_registry = ModelRegistry()
+    await model_registry.initialize()
     Services.register("model_registry", model_registry)
     embedding_manager = EmbeddingManager()
     Services.register("embedding_manager", embedding_manager)

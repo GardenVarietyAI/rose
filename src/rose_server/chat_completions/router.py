@@ -15,7 +15,7 @@ from sse_starlette.sse import EventSourceResponse
 from rose_server.events import LLMEvent
 from rose_server.events.formatters import ChatCompletionsFormatter
 from rose_server.events.generators import ChatCompletionsGenerator
-from rose_server.llms.huggingface_llm import HuggingFaceLLM
+from rose_server.language_models.huggingface_llm import HuggingFaceLLM
 from rose_server.schemas.chat import ChatMessage, ChatRequest
 from rose_server.services import get_model_registry
 

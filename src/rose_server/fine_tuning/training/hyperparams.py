@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Dict
 
-from ...config import ServiceConfig
+from rose_core.config.service import ServiceConfig
 
 logger = logging.getLogger(__name__)
 

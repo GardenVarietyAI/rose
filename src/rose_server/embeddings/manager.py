@@ -8,7 +8,7 @@ from typing import Any, Dict
 from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer
 
-from rose_server.model_registry import get_embedding_models
+from rose_core.config.models import get_embedding_models
 
 logger = logging.getLogger(__name__)
 

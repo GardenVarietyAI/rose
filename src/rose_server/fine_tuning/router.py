@@ -7,7 +7,8 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from openai.types.fine_tuning import FineTuningJob
 from sqlmodel import func, select
 
-from ..config import ServiceConfig
+from rose_core.config.service import ServiceConfig
+
 from ..database import run_in_session
 from ..entities.jobs import Job as QueueJob
 from ..queues.facade import TrainingJob

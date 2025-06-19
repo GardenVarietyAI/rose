@@ -6,7 +6,7 @@ from typing import Callable
 from transformers.trainer_callback import TrainerCallback, TrainerControl, TrainerState
 from transformers.training_args import TrainingArguments
 
-from ....config import ServiceConfig
+from rose_core.config.service import ServiceConfig
 
 logger = logging.getLogger(__name__)
 

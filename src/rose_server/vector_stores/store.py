@@ -3,8 +3,8 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from rose_core.config.models import get_embedding_models
 from rose_server.embeddings import generate_embeddings
-from rose_server.model_registry import get_embedding_models
 from rose_server.services import get_chromadb_manager
 from rose_server.vector import ChromaDBManager
 from rose_server.vector_stores.models import (

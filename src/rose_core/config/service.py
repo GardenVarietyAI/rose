@@ -184,7 +184,7 @@ def get_full_config() -> dict:
     """Get full configuration summary."""
     return {
         "service": ServiceConfig.get_service_info(),
-        "llms": LLMConfig.get_config_summary(),
+        "language_models": LLMConfig.get_config_summary(),
         "embeddings": EmbeddingConfig.get_config_summary(),
         "responses": ResponseConfig.get_config_summary(),
         "environment": {

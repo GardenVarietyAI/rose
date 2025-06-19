@@ -7,7 +7,7 @@ from typing import AsyncGenerator
 
 from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.events.generators import RunsGenerator
-from rose_server.llms.huggingface_llm import HuggingFaceLLM
+from rose_server.language_models.huggingface_llm import HuggingFaceLLM
 from rose_server.runs.store import RunsStore
 from rose_server.runs.streaming import (
     stream_message_chunk,
