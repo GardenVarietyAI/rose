@@ -7,6 +7,7 @@ from rose_server.chat_completions.router import router as chat_completions_route
 from rose_server.completions.router import router as completions_router
 from rose_server.embeddings.router import router as embeddings_router
 from rose_server.evals.router import router as evals_router
+from rose_server.evals.runs.router import router as eval_runs_router
 from rose_server.files.router import router as files_router
 from rose_server.fine_tuning.router import router as fine_tuning_router
 from rose_server.llms.router import router as llms_router
@@ -31,20 +32,6 @@ router.include_router(files_router)
 router.include_router(chat_completions_router)
 router.include_router(completions_router)
 router.include_router(evals_router)
+router.include_router(eval_runs_router)
 router.include_router(jobs_router)
 router.include_router(webhooks_router)
-
-
-@router.post("/v1/traces")
-async def create_trace():
-    return {"id": "trace_dummy", "object": "trace"}
-
-
-@router.get("/v1/traces/{trace_id}")
-async def get_trace(trace_id: str):
-    return {"id": trace_id, "object": "trace"}
-
-
-@router.post("/v1/projects/{project_id}/traces")
-async def create_project_trace(project_id: str):
-    return {"id": "trace_dummy", "object": "trace"}

@@ -1,4 +1,4 @@
-# ROSE Server
+# ^ROSE
 
  [![CI](https://github.com/GardenVarietyAI/rose-server/actions/workflows/ci.yml/badge.svg)](https://github.com/GardenVarietyAI/rose-server/actions/workflows/ci.yml)
 

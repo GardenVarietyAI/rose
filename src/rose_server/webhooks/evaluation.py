@@ -4,7 +4,8 @@ import logging
 
 from ..database import run_in_session
 from ..entities.jobs import Job
-from ..evals.store import EvalStore
+from ..evals.runs.store import EvalRunStore
+from ..evals.samples.store import EvalSampleStore
 from ..schemas.webhooks import WebhookEvent
 
 logger = logging.getLogger(__name__)
@@ -25,24 +26,25 @@ async def handle_eval_webhook(event: WebhookEvent) -> dict:
 
 async def _handle_eval_completed(event: WebhookEvent) -> None:
     """Handle successful evaluation job completion."""
-    store = EvalStore()
-    await store.update_eval_run_results(
+    run_store = EvalRunStore()
+    await run_store.update_results(
         event.object_id,
         results=event.data.get("results", {}),
     )
-    await _persist_eval_samples(event, store)
+    sample_store = EvalSampleStore()
+    await _persist_eval_samples(event, sample_store)
     await _update_queue_job_completed(event)
 
 
 async def _handle_eval_failed(event: WebhookEvent) -> None:
     """Handle failed evaluation job."""
-    store = EvalStore()
+    run_store = EvalRunStore()
     error_msg = event.data.get("error", "Unknown error")
-    await store.update_eval_run_error(event.object_id, error_msg)
+    await run_store.update_error(event.object_id, error_msg)
     await _update_queue_job_failed(event, error_msg)
 
 
-async def _persist_eval_samples(event: WebhookEvent, store: EvalStore) -> None:
+async def _persist_eval_samples(event: WebhookEvent, store: EvalSampleStore) -> None:
     """Persist individual evaluation sample results."""
     samples = event.data.get("samples", [])
     if not samples:
@@ -51,7 +53,7 @@ async def _persist_eval_samples(event: WebhookEvent, store: EvalStore) -> None:
     failed_count = 0
     for sample in samples:
         try:
-            await store.create_eval_sample(eval_run_id=event.object_id, **sample)
+            await store.create(eval_run_id=event.object_id, **sample)
         except Exception as e:
             failed_count += 1
             logger.error(f"Failed to persist sample {sample.get('sample_index')}: {e}")
@@ -95,8 +97,8 @@ async def _update_queue_job_failed(event: WebhookEvent, error_msg: str) -> None:
 
 async def _handle_eval_running(event: WebhookEvent) -> None:
     """Handle evaluation job starting to run."""
-    store = EvalStore()
-    await store.update_eval_run_status(event.object_id, status="running")
+    run_store = EvalRunStore()
+    await run_store.update_status(event.object_id, status="running")
 
     async def update_job(session):
         job = await session.get(Job, event.job_id)

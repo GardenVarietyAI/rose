@@ -30,7 +30,7 @@ class ServiceConfig:
 
     SERVICE_NAME = "ROSE"
     SERVICE_VERSION = "0.1.0"
-    HOST = get_env_str("HOST", "0.0.0.0")
+    HOST = get_env_str("HOST", "127.0.0.1")
     PORT = get_env_int("PORT", 8004)
     RELOAD = get_env_bool("RELOAD", True)
     LOG_LEVEL = get_env_str("LOG_LEVEL", "INFO")
