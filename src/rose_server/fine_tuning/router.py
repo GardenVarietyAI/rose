@@ -7,7 +7,11 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from openai.types.fine_tuning import FineTuningJob
 from sqlmodel import func, select
 
-from rose_core.config.service import ServiceConfig
+from rose_core.config.service import (
+    FINE_TUNING_DEFAULT_BATCH_SIZE,
+    FINE_TUNING_DEFAULT_EPOCHS,
+    FINE_TUNING_DEFAULT_LEARNING_RATE_MULTIPLIER,
+)
 
 from ..database import run_in_session
 from ..entities.jobs import Job as QueueJob
@@ -67,9 +71,9 @@ async def create_fine_tuning_job(
                 logger.warning(f"Unsupported fine-tuning method type: {method_type}, using supervised")
         if not hyperparameters:
             hyperparameters = {
-                "n_epochs": ServiceConfig.FINE_TUNING_DEFAULT_EPOCHS,
-                "batch_size": ServiceConfig.FINE_TUNING_DEFAULT_BATCH_SIZE,
-                "learning_rate_multiplier": ServiceConfig.FINE_TUNING_DEFAULT_LEARNING_RATE_MULTIPLIER,
+                "n_epochs": FINE_TUNING_DEFAULT_EPOCHS,
+                "batch_size": FINE_TUNING_DEFAULT_BATCH_SIZE,
+                "learning_rate_multiplier": FINE_TUNING_DEFAULT_LEARNING_RATE_MULTIPLIER,
             }
         job = await store.create_job(
             model=model,

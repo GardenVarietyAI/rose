@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from transformers.modeling_utils import PreTrainedModel
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
-from rose_core.config.service import ServiceConfig
+from rose_core.config.service import MODEL_OFFLOAD_DIR
 from rose_core.models import load_model_and_tokenizer
 from rose_server.schemas.chat import ChatMessage
 from rose_server.services import get_model_registry
@@ -48,7 +48,7 @@ class HuggingFaceLLM:
     def _load_model(self) -> bool:
         """Load model/tokenizer once and cache them."""
         try:
-            offload_dir = os.path.join(ServiceConfig.MODEL_OFFLOAD_DIR, self.model_name)
+            offload_dir = os.path.join(MODEL_OFFLOAD_DIR, self.model_name)
             # torch_dtype "auto" means let the model decide
             torch_dtype = None if self.config.get("torch_dtype") == "auto" else self.config.get("torch_dtype")
             self._model, self._tokenizer = load_model_and_tokenizer(

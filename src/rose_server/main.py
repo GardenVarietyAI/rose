@@ -3,7 +3,7 @@ import sys
 
 import uvicorn
 
-from rose_core.config.service import ServiceConfig
+from rose_core.config.service import HOST, PORT
 
 
 def handle_exit(signum, frame):
@@ -16,8 +16,8 @@ def main():
     signal.signal(signal.SIGTERM, handle_exit)
     uvicorn.run(
         "rose_server.app:app",
-        host=ServiceConfig.HOST,
-        port=ServiceConfig.PORT,
+        host=HOST,
+        port=PORT,
         reload=False,
     )
 

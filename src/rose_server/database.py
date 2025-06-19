@@ -10,7 +10,7 @@ from typing import Any, AsyncGenerator, Callable, TypeVar
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 
-from rose_core.config.service import ServiceConfig
+from rose_core.config.service import DATA_DIR
 
 from .entities.assistants import Assistant, AssistantTool
 from .entities.fine_tuning import FineTuningEvent, FineTuningJob
@@ -18,7 +18,7 @@ from .entities.jobs import Job
 from .entities.language_models import LanguageModel
 from .entities.threads import Message, MessageMetadata, Thread
 
-DB_PATH = Path(ServiceConfig.DATA_DIR) / "rose_server.db"
+DB_PATH = Path(DATA_DIR) / "rose_server.db"
 engine = create_async_engine(
     f"sqlite+aiosqlite:///{DB_PATH}",
     echo=False,

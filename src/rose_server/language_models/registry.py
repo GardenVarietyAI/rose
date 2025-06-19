@@ -4,8 +4,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from rose_core.config.models import LLM_MODELS
-from rose_core.config.service import ServiceConfig
+from rose_core.config.service import DATA_DIR, LLM_MODELS
 
 from .store import LanguageModelStore
 
@@ -36,7 +35,7 @@ class ModelRegistry:
             loaded = 0
             for model in fine_tuned_models:
                 if model.path:
-                    model_path = Path(ServiceConfig.DATA_DIR) / model.path
+                    model_path = Path(DATA_DIR) / model.path
                     if model_path.exists():
                         # Get base model config and update it
                         base_config = self.models.get(model.base_model, {}).copy()
@@ -85,7 +84,7 @@ class ModelRegistry:
                 # Store in database if persist is True
                 if persist:
                     # Get relative path for storage
-                    relative_path = Path(model_path).relative_to(ServiceConfig.DATA_DIR)
+                    relative_path = Path(model_path).relative_to(DATA_DIR)
                     hf_model_name = self.models.get(base_model, {}).get("hf_model_name") if base_model else None
 
                     await self.store.create(

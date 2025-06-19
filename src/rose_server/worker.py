@@ -12,7 +12,7 @@ import torch
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from rose_core.config.service import ServiceConfig
+from rose_core.config.service import DATA_DIR, MAX_CONCURRENT_TRAINING
 
 from .fine_tuning.training import HFTrainer
 
@@ -82,7 +82,7 @@ def process_training_job_sync(job_id: int, payload: Dict[str, Any]) -> Optional[
     if not ft_job_id:
         logger.error("Missing 'job_id' in training payload")
         return None
-    train_file = Path(ServiceConfig.DATA_DIR, "uploads", payload["training_file"]).resolve()
+    train_file = Path(DATA_DIR, "uploads", payload["training_file"]).resolve()
 
     def check_cancel() -> Optional[str]:
         try:
@@ -202,12 +202,12 @@ def main() -> None:
 
     logger.info(
         "Training Worker starting - max training=%d",
-        ServiceConfig.MAX_CONCURRENT_TRAINING,
+        MAX_CONCURRENT_TRAINING,
     )
 
     executors = {
         "default": ThreadPoolExecutor(max_workers=1),
-        "training": ThreadPoolExecutor(max_workers=ServiceConfig.MAX_CONCURRENT_TRAINING),
+        "training": ThreadPoolExecutor(max_workers=MAX_CONCURRENT_TRAINING),
     }
     scheduler = BackgroundScheduler(executors=executors)
     scheduler.start()
