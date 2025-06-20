@@ -11,7 +11,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from rose_server.events import TokenGenerated
 from rose_server.events.generators import CompletionsGenerator
-from rose_server.language_models.huggingface_llm import HuggingFaceLLM
+from rose_server.language_models import model_cache
 from rose_server.schemas.completions import (
     CompletionChoice,
     CompletionChunk,
@@ -59,7 +59,7 @@ async def create_completion(
     if not config:
         return JSONResponse(status_code=400, content={"error": f"Model {request.model} not available"})
     try:
-        llm = HuggingFaceLLM(config)
+        llm = await model_cache.get_model(request.model, config)
     except Exception as e:
         logger.error(f"Failed to create model {request.model}: {e}")
         return JSONResponse(status_code=500, content={"error": f"Failed to load model: {str(e)}"})
