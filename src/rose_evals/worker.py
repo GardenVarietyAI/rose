@@ -10,6 +10,7 @@ import httpx
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 
+from rose_core.models import cleanup_model_memory
 from rose_core.webhook import post_webhook as _post_webhook
 
 from .evaluators.simple_evaluator import SimpleEvaluator
@@ -73,6 +74,8 @@ def process_eval_job(job_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
         logger.exception(f"Eval job {job_id} failed")
         post_webhook("job.failed", job_id, eval_id, {"error": {"message": str(exc), "code": "job_error"}})
         raise
+    finally:
+        cleanup_model_memory()
 
 
 def schedule_poller(scheduler: BackgroundScheduler) -> None:
