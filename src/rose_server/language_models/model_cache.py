@@ -3,8 +3,6 @@
 import asyncio
 from typing import Dict
 
-from rose_core.models import cleanup_model_memory
-
 from .huggingface_llm import HuggingFaceLLM
 
 # Module-private cache
@@ -20,22 +18,26 @@ async def get_model(model_id: str, config: Dict) -> HuggingFaceLLM:
         return _models[model_id]
 
 
+def _cleanup_model(model: HuggingFaceLLM) -> None:
+    """Internal helper to clean up a model instance."""
+    model.cleanup()
+
+
 async def clear_model(model_id: str) -> None:
     """Remove a specific model from cache and clean up."""
     async with _lock:
         if model_id in _models:
             model = _models.pop(model_id)
-            if hasattr(model, "cleanup"):
-                model.cleanup()
-            else:
-                model._model = None
-                model._tokenizer = None
-                cleanup_model_memory()
+            _cleanup_model(model)
 
 
 async def clear_all() -> None:
     """Clear all cached models."""
     async with _lock:
-        model_ids = list(_models.keys())
-        for model_id in model_ids:
-            await clear_model(model_id)
+        # Pop all models at once while holding the lock
+        models_to_cleanup = list(_models.values())
+        _models.clear()
+
+    # Clean up models outside the lock
+    for model in models_to_cleanup:
+        _cleanup_model(model)
