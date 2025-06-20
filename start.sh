@@ -69,7 +69,7 @@ sleep 2
 
 # Start the fine-tuning service
 echo "Starting fine-tuning service..."
-poetry run rose-finetune &
+poetry run rose-ft-worker &
 TRAINING_WORKER_PID=$!
 
 # Start the eval worker

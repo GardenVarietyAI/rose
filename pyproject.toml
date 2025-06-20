@@ -16,7 +16,7 @@ packages = [
 rose = "rose_cli.main:main"
 rose-server = "rose_server.main:main"
 rose-eval-worker = "rose_evals.worker:main"
-rose-finetune = "rose_ft.worker:main"
+rose-ft-worker = "rose_ft.worker:main"
 
 [tool.poetry.dependencies]
 python = ">=3.13,<4.0"

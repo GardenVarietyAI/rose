@@ -12,7 +12,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from rose_core.config.service import HOST, LOG_FORMAT, LOG_LEVEL, MAX_CONCURRENT_TRAINING, PORT
 from rose_core.models import cleanup_model_memory
 
-from .trainer import run_training_job
+from .training.trainer import run_training_job
 
 logger = logging.getLogger(__name__)
 

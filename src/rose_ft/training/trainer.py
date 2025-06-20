@@ -7,7 +7,7 @@ import httpx
 from rose_core.config.service import DATA_DIR, HOST, PORT
 from rose_core.webhook import post_webhook
 
-from .training import HFTrainer
+from . import HFTrainer
 
 logger = logging.getLogger(__name__)
 
