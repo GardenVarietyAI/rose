@@ -8,7 +8,7 @@ from typing import Any, Dict
 from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer
 
-from rose_core.config.models import get_embedding_models
+from rose_core.config.service import EMBEDDING_MODELS
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class EmbeddingManager:
 
     def _load_configs(self):
         """Load embedding model configurations from app settings."""
-        self.model_configs.update(get_embedding_models())
+        self.model_configs.update(EMBEDDING_MODELS)
         logger.info(f"Loaded {len(self.model_configs)} embedding model configurations")
 
     def register_model(self, model_id: str, model_path: str) -> bool:

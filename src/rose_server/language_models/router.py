@@ -8,7 +8,7 @@ import aiofiles.os
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
-from rose_core.config.models import LLM_MODELS, get_embedding_models
+from rose_core.config.service import EMBEDDING_MODELS, LLM_MODELS
 from rose_server.services import get_model_registry
 
 router = APIRouter(prefix="/v1")
@@ -69,7 +69,7 @@ async def openai_api_models() -> JSONResponse:
                     "parent": None,
                 }
             )
-    for model_id in get_embedding_models().keys():
+    for model_id in EMBEDDING_MODELS.keys():
         model_data.append(
             {
                 "id": model_id,
@@ -125,7 +125,7 @@ async def get_model_details(model_id: str) -> JSONResponse:
                 "parent": base_model if is_fine_tuned else None,
             }
         )
-    if model_id in get_embedding_models():
+    if model_id in EMBEDDING_MODELS:
         return JSONResponse(
             content={
                 "id": model_id,

@@ -9,7 +9,16 @@ from typing import Dict
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from rose_core.config.service import ServiceConfig, get_full_config
+from rose_core.config.service import (
+    CHROMA_HOST,
+    CHROMA_PERSIST_DIR,
+    CHROMA_PORT,
+    DATA_DIR,
+    FINE_TUNING_CHECKPOINT_DIR,
+    LOG_FORMAT,
+    LOG_LEVEL,
+    MODEL_OFFLOAD_DIR,
+)
 from rose_server.database import create_all_tables
 from rose_server.embeddings.manager import EmbeddingManager
 from rose_server.files.store import FileStore
@@ -26,8 +35,8 @@ from rose_server.vector_stores.store import VectorStoreStore
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["ANONYMIZED_TELEMETRY"] = "false"
 logging.basicConfig(
-    level=getattr(logging, ServiceConfig.LOG_LEVEL),
-    format=ServiceConfig.LOG_FORMAT,
+    level=getattr(logging, LOG_LEVEL),
+    format=LOG_FORMAT,
 )
 logger = logging.getLogger("rose_server")
 
@@ -57,10 +66,10 @@ async def log_request_body(request: Request, call_next):
 async def lifespan(app: FastAPI):
     """Manage application lifecycle."""
     directories = [
-        ServiceConfig.DATA_DIR,
-        ServiceConfig.MODEL_OFFLOAD_DIR,
-        ServiceConfig.CHROMA_PERSIST_DIR,
-        ServiceConfig.FINE_TUNING_CHECKPOINT_DIR,
+        DATA_DIR,
+        MODEL_OFFLOAD_DIR,
+        CHROMA_PERSIST_DIR,
+        FINE_TUNING_CHECKPOINT_DIR,
     ]
     for directory in directories:
         os.makedirs(directory, exist_ok=True)
@@ -68,9 +77,9 @@ async def lifespan(app: FastAPI):
     await create_all_tables()
     logger.info("SQLite database initialized with WAL mode")
     chromadb_manager = ChromaDBManager(
-        host=ServiceConfig.CHROMA_HOST,
-        port=ServiceConfig.CHROMA_PORT,
-        persist_dir=ServiceConfig.CHROMA_PERSIST_DIR,
+        host=CHROMA_HOST,
+        port=CHROMA_PORT,
+        persist_dir=CHROMA_PERSIST_DIR,
     )
     Services.register("chromadb_manager", chromadb_manager)
     file_store = FileStore()
@@ -116,11 +125,6 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(router)
-
-    @app.get("/config")
-    async def get_config() -> dict:
-        """Get the current service configuration."""
-        return get_full_config()
 
     @app.get("/health")
     async def health_check() -> Dict[str, str]:

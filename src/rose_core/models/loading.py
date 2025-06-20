@@ -12,7 +12,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.modeling_utils import PreTrainedModel
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
-from rose_core.config import ServiceConfig
+from rose_core.config.service import MODEL_OFFLOAD_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ def load_model_and_tokenizer(
     if torch_dtype is None:
         torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
     if offload_dir is None and device == "auto" and torch.cuda.is_available():
-        offload_dir = os.path.join(ServiceConfig.MODEL_OFFLOAD_DIR, model_id.replace("/", "_"))
+        offload_dir = os.path.join(MODEL_OFFLOAD_DIR, model_id.replace("/", "_"))
     if offload_dir:
         os.makedirs(offload_dir, exist_ok=True)
     if device_map is not None:

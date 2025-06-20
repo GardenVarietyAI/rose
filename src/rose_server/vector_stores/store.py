@@ -3,7 +3,7 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from rose_core.config.models import get_embedding_models
+from rose_core.config.service import EMBEDDING_MODELS
 from rose_server.embeddings import generate_embeddings
 from rose_server.services import get_chromadb_manager
 from rose_server.vector import ChromaDBManager
@@ -80,7 +80,7 @@ class VectorStoreStore:
         try:
             sample_dim = len(generate_embeddings("x", model_name=model)["data"][0]["embedding"])
         except Exception as exc:
-            registry = get_embedding_models()
+            registry = EMBEDDING_MODELS
             sample_dim = registry.get(model, registry[DEFAULT_EMBEDDING_MODEL])["dimensions"]
             logger.warning("Fallback to registry dimension for %s (reason: %s)", model, exc)
         meta = {

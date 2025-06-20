@@ -10,6 +10,8 @@ import httpx
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 
+from rose_core.webhook import post_webhook as _post_webhook
+
 from .evaluators.simple_evaluator import SimpleEvaluator
 
 logger = logging.getLogger(__name__)
@@ -21,21 +23,7 @@ MAX_CONCURRENT_EVAL = int(os.getenv("ROSE_MAX_CONCURRENT_EVAL", "2"))
 
 
 def post_webhook(event: str, job_id: int, eval_id: str, data: Optional[Dict[str, Any]] = None) -> None:
-    """Post webhook event to server."""
-    payload = {
-        "event": event,
-        "object": "eval",
-        "job_id": job_id,
-        "object_id": eval_id,
-        "created_at": int(time.time()),
-        "data": data or {},
-    }
-
-    try:
-        with httpx.Client(timeout=HTTP_TIMEOUT) as client:
-            client.post(f"{BASE_URL}/v1/webhooks/jobs", json=payload)
-    except Exception as exc:
-        logger.warning(f"Webhook '{event}' failed: {exc}")
+    _post_webhook(event, "eval", job_id, eval_id, data)
 
 
 def process_eval_job(job_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:

@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Dict
 
-from rose_core.config.service import ServiceConfig
+from rose_core.config.service import FINE_TUNING_DEFAULT_LEARNING_RATE, FINE_TUNING_DEFAULT_MAX_LENGTH
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ class HyperParams:
 
         # Resolve all fields to guaranteed types
         batch_size = cls._auto_int(hp.batch_size, 1)
-        max_length = cls._auto_int(hp.max_length, ServiceConfig.FINE_TUNING_DEFAULT_MAX_LENGTH)
+        max_length = cls._auto_int(hp.max_length, FINE_TUNING_DEFAULT_MAX_LENGTH)
         n_epochs = cls._auto_int(hp.n_epochs, 3)
         gradient_accumulation_steps = cls._auto_int(hp.gradient_accumulation_steps, 1)
 
@@ -65,7 +65,7 @@ class HyperParams:
         else:
             lr_mult = float(lr_mult)
 
-        learning_rate = ServiceConfig.FINE_TUNING_DEFAULT_LEARNING_RATE * lr_mult
+        learning_rate = FINE_TUNING_DEFAULT_LEARNING_RATE * lr_mult
 
         return ResolvedHyperParams(
             batch_size=batch_size,

@@ -1,193 +1,163 @@
 import os
 
+# Environment prefix
 ENV_PREFIX = "ROSE_SERVER_"
+
+# Multiprocessing settings
 os.environ["LOKY_MAX_CPU_COUNT"] = "1"
 os.environ["LOKY_CONTEXT_STRATEGY"] = "spawn"
 
+# Service settings
+SERVICE_NAME = "ROSE"
+SERVICE_VERSION = "0.1.0"
+HOST = os.getenv(f"{ENV_PREFIX}HOST", "127.0.0.1")
+PORT = int(os.getenv(f"{ENV_PREFIX}PORT", "8004"))
+RELOAD = os.getenv(f"{ENV_PREFIX}RELOAD", "true").lower() in ("true", "1", "yes")
+LOG_LEVEL = os.getenv(f"{ENV_PREFIX}LOG_LEVEL", "INFO")
+LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+WEBHOOK_URL = os.getenv(f"{ENV_PREFIX}WEBHOOK_URL", "http://localhost:8004/v1/webhooks/jobs")
 
-def get_env_int(key: str, default: int) -> int:
-    """Get integer from environment variable."""
-    return int(os.getenv(f"{ENV_PREFIX}{key}", str(default)))
+# Data directories
+DATA_DIR = os.getenv(f"{ENV_PREFIX}DATA_DIR", "./data")
+CHROMA_PERSIST_DIR = os.getenv(f"{ENV_PREFIX}CHROMA_PERSIST_DIR", "./data/chroma")
+MODEL_OFFLOAD_DIR = os.getenv(f"{ENV_PREFIX}MODEL_OFFLOAD_DIR", "./data/offload")
 
+# ChromaDB settings
+CHROMA_HOST = os.getenv(f"{ENV_PREFIX}CHROMA_HOST", "localhost")
+CHROMA_PORT = int(os.getenv(f"{ENV_PREFIX}CHROMA_PORT", "8003"))
 
-def get_env_float(key: str, default: float) -> float:
-    """Get float from environment variable."""
-    return float(os.getenv(f"{ENV_PREFIX}{key}", str(default)))
+# Health check
+HEALTH_CHECK_ENABLED = os.getenv(f"{ENV_PREFIX}HEALTH_CHECK_ENABLED", "true").lower() in ("true", "1", "yes")
+HEALTH_CHECK_WINDOW_MINUTES = int(os.getenv(f"{ENV_PREFIX}HEALTH_CHECK_WINDOW_MINUTES", "5"))
 
+# Fine-tuning settings
+FINE_TUNING_DEFAULT_EPOCHS = int(os.getenv(f"{ENV_PREFIX}FINE_TUNING_DEFAULT_EPOCHS", "3"))
+FINE_TUNING_DEFAULT_MAX_LENGTH = int(os.getenv(f"{ENV_PREFIX}FINE_TUNING_DEFAULT_MAX_LENGTH", "512"))
+FINE_TUNING_DEFAULT_LEARNING_RATE = float(os.getenv(f"{ENV_PREFIX}FINE_TUNING_DEFAULT_LEARNING_RATE", "5e-6"))
+FINE_TUNING_DEFAULT_BATCH_SIZE = os.getenv(f"{ENV_PREFIX}FINE_TUNING_DEFAULT_BATCH_SIZE", "auto")
+FINE_TUNING_DEFAULT_LEARNING_RATE_MULTIPLIER = os.getenv(
+    f"{ENV_PREFIX}FINE_TUNING_DEFAULT_LEARNING_RATE_MULTIPLIER", "auto"
+)
+FINE_TUNING_CHECKPOINT_DIR = os.getenv(f"{ENV_PREFIX}FINE_TUNING_CHECKPOINT_DIR", "data/checkpoints")
+FINE_TUNING_CHECKPOINT_INTERVAL = int(os.getenv(f"{ENV_PREFIX}FINE_TUNING_CHECKPOINT_INTERVAL", "10"))
+FINE_TUNING_EVAL_BATCH_SIZE = int(os.getenv(f"{ENV_PREFIX}FINE_TUNING_EVAL_BATCH_SIZE", "1"))
+FINE_TUNING_MAX_CHECKPOINTS = int(os.getenv(f"{ENV_PREFIX}FINE_TUNING_MAX_CHECKPOINTS", "5"))
+FINE_TUNING_STATUS_CHECK_INTERVAL = int(os.getenv(f"{ENV_PREFIX}FINE_TUNING_STATUS_CHECK_INTERVAL", "5"))
+FINE_TUNING_MIN_DISK_SPACE_MB = int(os.getenv(f"{ENV_PREFIX}FINE_TUNING_MIN_DISK_SPACE_MB", "500"))
+MAX_CONCURRENT_TRAINING = int(os.getenv(f"{ENV_PREFIX}MAX_CONCURRENT_TRAINING", "1"))
+MAX_CONCURRENT_EVAL = int(os.getenv(f"{ENV_PREFIX}MAX_CONCURRENT_EVAL", "2"))
 
-def get_env_bool(key: str, default: bool) -> bool:
-    """Get boolean from environment variable."""
-    return os.getenv(f"{ENV_PREFIX}{key}", str(default)).lower() in ("true", "1", "yes")
+# LLM settings
+DEFAULT_MODEL = os.getenv(f"{ENV_PREFIX}DEFAULT_MODEL", "qwen-coder")
+DEFAULT_LOCAL_MODEL = os.getenv(f"{ENV_PREFIX}DEFAULT_LOCAL_MODEL", "qwen-coder")
+MAX_CONTEXT_LENGTH = int(os.getenv(f"{ENV_PREFIX}MAX_CONTEXT_LENGTH", "128000"))
+DEFAULT_MAX_TOKENS = int(os.getenv(f"{ENV_PREFIX}DEFAULT_MAX_TOKENS", "4096"))
+DEFAULT_TEMPERATURE = float(os.getenv(f"{ENV_PREFIX}DEFAULT_TEMPERATURE", "0.7"))
+MAX_CONCURRENT_INFERENCE = int(os.getenv(f"{ENV_PREFIX}MAX_CONCURRENT_INFERENCE", "1"))
+MAX_RETRIES = int(os.getenv(f"{ENV_PREFIX}MAX_RETRIES", "3"))
+RETRY_DELAY = float(os.getenv(f"{ENV_PREFIX}RETRY_DELAY", "1.0"))
 
+# Embedding settings
+DEFAULT_EMBEDDING_MODEL = os.getenv(f"{ENV_PREFIX}DEFAULT_EMBEDDING_MODEL", "text-embedding-3-small")
+EMBEDDING_MAX_BATCH_SIZE = int(os.getenv(f"{ENV_PREFIX}EMBEDDING_MAX_BATCH_SIZE", "100"))
+EMBEDDING_MAX_CONCURRENT_REQUESTS = int(os.getenv(f"{ENV_PREFIX}EMBEDDING_MAX_CONCURRENT", "5"))
+ENABLE_EMBEDDING_CACHE = os.getenv(f"{ENV_PREFIX}ENABLE_EMBEDDING_CACHE", "true").lower() in ("true", "1", "yes")
+EMBEDDING_CACHE_SIZE = int(os.getenv(f"{ENV_PREFIX}EMBEDDING_CACHE_SIZE", "10000"))
 
-def get_env_str(key: str, default: str) -> str:
-    """Get string from environment variable."""
-    return os.getenv(f"{ENV_PREFIX}{key}", default)
+# Response settings
+DEFAULT_TIMEOUT_SECONDS = int(os.getenv(f"{ENV_PREFIX}DEFAULT_TIMEOUT", "120"))
+MAX_TIMEOUT_SECONDS = int(os.getenv(f"{ENV_PREFIX}MAX_TIMEOUT", "600"))
+CHUNK_TIMEOUT_SECONDS = int(os.getenv(f"{ENV_PREFIX}CHUNK_TIMEOUT", "30"))
+MAX_OUTPUT_TOKENS = int(os.getenv(f"{ENV_PREFIX}MAX_OUTPUT_TOKENS", "8000"))
+WARN_OUTPUT_TOKENS = int(os.getenv(f"{ENV_PREFIX}WARN_OUTPUT_TOKENS", "6000"))
+MAX_TOOL_OUTPUT_TOKENS = int(os.getenv(f"{ENV_PREFIX}MAX_TOOL_OUTPUT_TOKENS", "4000"))
+MAX_OUTPUT_CHARS = int(os.getenv(f"{ENV_PREFIX}MAX_OUTPUT_CHARS", "15000"))
+LARGE_OUTPUT_CHARS = int(os.getenv(f"{ENV_PREFIX}LARGE_OUTPUT_CHARS", "50000"))
+ENABLE_TIMEOUT_MONITORING = os.getenv(f"{ENV_PREFIX}ENABLE_TIMEOUT_MONITORING", "true").lower() in ("true", "1", "yes")
+ENABLE_COMPLETION_DETECTION = os.getenv(f"{ENV_PREFIX}ENABLE_COMPLETION_DETECTION", "true").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+ENABLE_OUTPUT_CHUNKING = os.getenv(f"{ENV_PREFIX}ENABLE_OUTPUT_CHUNKING", "true").lower() in ("true", "1", "yes")
 
+# Model timeout overrides
+MODEL_TIMEOUT_OVERRIDES = {
+    "phi4": 120,
+    "qwen-coder": 90,
+    "qwen2.5-0.5b": 60,
+    "llama": 90,
+}
 
-class ServiceConfig:
-    """General service configuration."""
+# LLM Model configurations
+LLM_MODELS = {
+    "qwen2.5-0.5b": {
+        "model_name": "Qwen/Qwen2.5-0.5B-Instruct",
+        "model_type": "huggingface",
+        "temperature": 0.3,
+        "top_p": 0.9,
+        "memory_gb": 1.5,
+        "lora_target_modules": ["q_proj", "k_proj", "v_proj", "o_proj"],
+    },
+    "tinyllama": {
+        "model_name": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        "model_type": "huggingface",
+        "temperature": 0.4,
+        "top_p": 0.9,
+        "memory_gb": 2.0,
+        "lora_target_modules": ["q_proj", "k_proj", "v_proj", "o_proj"],
+    },
+    "qwen-coder": {
+        "model_name": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+        "model_type": "huggingface",
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "memory_gb": 3.0,
+        "lora_target_modules": ["q_proj", "k_proj", "v_proj", "o_proj"],
+    },
+    "phi-2": {
+        "model_name": "microsoft/phi-2",
+        "model_type": "huggingface",
+        "temperature": 0.5,
+        "top_p": 0.9,
+        "memory_gb": 5.0,
+        "lora_target_modules": ["q_proj", "k_proj", "v_proj", "dense"],
+    },
+    "phi-1.5": {
+        "model_name": "microsoft/phi-1_5",
+        "model_type": "huggingface",
+        "temperature": 0.7,
+        "top_p": 0.95,
+        "memory_gb": 2.5,
+        "lora_target_modules": ["q_proj", "k_proj", "v_proj", "dense"],
+    },
+}
 
-    SERVICE_NAME = "ROSE"
-    SERVICE_VERSION = "0.1.0"
-    HOST = get_env_str("HOST", "127.0.0.1")
-    PORT = get_env_int("PORT", 8004)
-    RELOAD = get_env_bool("RELOAD", True)
-    LOG_LEVEL = get_env_str("LOG_LEVEL", "INFO")
-    LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    DATA_DIR = get_env_str("DATA_DIR", "./data")
-    CHROMA_PERSIST_DIR = get_env_str("CHROMA_PERSIST_DIR", "./data/chroma")
-    MODEL_OFFLOAD_DIR = get_env_str("MODEL_OFFLOAD_DIR", "./data/offload")
-    CHROMA_HOST = get_env_str("CHROMA_HOST", "localhost")
-    CHROMA_PORT = get_env_int("CHROMA_PORT", 8003)
-    HEALTH_CHECK_ENABLED = get_env_bool("HEALTH_CHECK_ENABLED", True)
-    HEALTH_CHECK_WINDOW_MINUTES = get_env_int("HEALTH_CHECK_WINDOW_MINUTES", 5)
-    FINE_TUNING_DEFAULT_EPOCHS = get_env_int("FINE_TUNING_DEFAULT_EPOCHS", 3)
-    FINE_TUNING_DEFAULT_MAX_LENGTH = get_env_int("FINE_TUNING_DEFAULT_MAX_LENGTH", 512)
-    FINE_TUNING_DEFAULT_LEARNING_RATE = get_env_float("FINE_TUNING_DEFAULT_LEARNING_RATE", 5e-6)
-    FINE_TUNING_DEFAULT_BATCH_SIZE = get_env_str("FINE_TUNING_DEFAULT_BATCH_SIZE", "auto")
-    FINE_TUNING_DEFAULT_LEARNING_RATE_MULTIPLIER = get_env_str("FINE_TUNING_DEFAULT_LEARNING_RATE_MULTIPLIER", "auto")
-    FINE_TUNING_CHECKPOINT_DIR = get_env_str("FINE_TUNING_CHECKPOINT_DIR", "data/checkpoints")
-    FINE_TUNING_CHECKPOINT_INTERVAL = get_env_int("FINE_TUNING_CHECKPOINT_INTERVAL", 10)
-    FINE_TUNING_EVAL_BATCH_SIZE = get_env_int("FINE_TUNING_EVAL_BATCH_SIZE", 1)
-    FINE_TUNING_MAX_CHECKPOINTS = get_env_int("FINE_TUNING_MAX_CHECKPOINTS", 5)
-    FINE_TUNING_STATUS_CHECK_INTERVAL = get_env_int("FINE_TUNING_STATUS_CHECK_INTERVAL", 5)
-    FINE_TUNING_MIN_DISK_SPACE_MB = get_env_int("FINE_TUNING_MIN_DISK_SPACE_MB", 500)
-    MAX_CONCURRENT_TRAINING = get_env_int("MAX_CONCURRENT_TRAINING", 1)
-    MAX_CONCURRENT_EVAL = get_env_int("MAX_CONCURRENT_EVAL", 2)
+# Embedding model configurations
+EMBEDDING_MODELS = {
+    "text-embedding-ada-002": {
+        "model_name": "BAAI/bge-large-en-v1.5",
+        "dimensions": 1536,
+        "description": "OpenAI's ada-002 model - emulated using BGE model with matching dimensions",
+        "format": "OpenAI",
+    },
+    "nomic-embed-text": {
+        "model_name": "nomic-ai/nomic-embed-text-v1",
+        "dimensions": 768,
+        "description": "Very fast, good all-rounder, GPU/CPU friendly",
+        "format": "HuggingFace",
+    },
+    "bge-small-en-v1.5": {
+        "model_name": "BAAI/bge-small-en-v1.5",
+        "dimensions": 384,
+        "description": "Tiny and very RAG-optimized, fast and low-memory",
+        "format": "HuggingFace",
+    },
+}
 
-    @classmethod
-    def get_service_info(cls) -> dict:
-        """Get service information."""
-        return {
-            "name": cls.SERVICE_NAME,
-            "version": cls.SERVICE_VERSION,
-            "host": cls.HOST,
-            "port": cls.PORT,
-        }
-
-
-class LLMConfig:
-    """Configuration for LLM handling."""
-
-    DEFAULT_MODEL = get_env_str("DEFAULT_MODEL", "qwen-coder")
-    DEFAULT_LOCAL_MODEL = get_env_str("DEFAULT_LOCAL_MODEL", "qwen-coder")
-    MAX_CONTEXT_LENGTH = get_env_int("MAX_CONTEXT_LENGTH", 128000)
-    DEFAULT_MAX_TOKENS = get_env_int("DEFAULT_MAX_TOKENS", 4096)
-    DEFAULT_TEMPERATURE = get_env_float("DEFAULT_TEMPERATURE", 0.7)
-    MAX_CONCURRENT_INFERENCE = get_env_int("MAX_CONCURRENT_INFERENCE", 1)
-    MAX_CONCURRENT_TRAINING = get_env_int("MAX_CONCURRENT_TRAINING", 1)
-    MAX_RETRIES = get_env_int("MAX_RETRIES", 3)
-    RETRY_DELAY = get_env_float("RETRY_DELAY", 1.0)
-
-    @classmethod
-    def get_config_summary(cls) -> dict:
-        """Get configuration summary."""
-        return {
-            "defaults": {
-                "model": cls.DEFAULT_MODEL,
-                "local_model": cls.DEFAULT_LOCAL_MODEL,
-                "max_tokens": cls.DEFAULT_MAX_TOKENS,
-                "temperature": cls.DEFAULT_TEMPERATURE,
-            },
-            "limits": {
-                "max_context": cls.MAX_CONTEXT_LENGTH,
-                "concurrent_inference": cls.MAX_CONCURRENT_INFERENCE,
-                "concurrent_training": cls.MAX_CONCURRENT_TRAINING,
-            },
-            "retry": {
-                "max_retries": cls.MAX_RETRIES,
-                "delay": cls.RETRY_DELAY,
-            },
-        }
-
-
-class EmbeddingConfig:
-    """Configuration for embeddings."""
-
-    DEFAULT_EMBEDDING_MODEL = get_env_str("DEFAULT_EMBEDDING_MODEL", "text-embedding-3-small")
-    MAX_BATCH_SIZE = get_env_int("EMBEDDING_MAX_BATCH_SIZE", 100)
-    MAX_CONCURRENT_REQUESTS = get_env_int("EMBEDDING_MAX_CONCURRENT", 5)
-    ENABLE_EMBEDDING_CACHE = get_env_bool("ENABLE_EMBEDDING_CACHE", True)
-    EMBEDDING_CACHE_SIZE = get_env_int("EMBEDDING_CACHE_SIZE", 10000)
-
-    @classmethod
-    def get_config_summary(cls) -> dict:
-        """Get configuration summary."""
-        return {
-            "default_model": cls.DEFAULT_EMBEDDING_MODEL,
-            "batch": {
-                "max_size": cls.MAX_BATCH_SIZE,
-                "max_concurrent": cls.MAX_CONCURRENT_REQUESTS,
-            },
-            "cache": {
-                "enabled": cls.ENABLE_EMBEDDING_CACHE,
-                "size": cls.EMBEDDING_CACHE_SIZE,
-            },
-        }
-
-
-class ResponseConfig:
-    """Configuration for response handling."""
-
-    DEFAULT_TIMEOUT_SECONDS = get_env_int("DEFAULT_TIMEOUT", 120)
-    MAX_TIMEOUT_SECONDS = get_env_int("MAX_TIMEOUT", 600)
-    CHUNK_TIMEOUT_SECONDS = get_env_int("CHUNK_TIMEOUT", 30)
-    MAX_OUTPUT_TOKENS = get_env_int("MAX_OUTPUT_TOKENS", 8000)
-    WARN_OUTPUT_TOKENS = get_env_int("WARN_OUTPUT_TOKENS", 6000)
-    MAX_TOOL_OUTPUT_TOKENS = get_env_int("MAX_TOOL_OUTPUT_TOKENS", 4000)
-    MAX_OUTPUT_CHARS = get_env_int("MAX_OUTPUT_CHARS", 15000)
-    LARGE_OUTPUT_CHARS = get_env_int("LARGE_OUTPUT_CHARS", 50000)
-    ENABLE_TIMEOUT_MONITORING = get_env_bool("ENABLE_TIMEOUT_MONITORING", True)
-    ENABLE_COMPLETION_DETECTION = get_env_bool("ENABLE_COMPLETION_DETECTION", True)
-    ENABLE_OUTPUT_CHUNKING = get_env_bool("ENABLE_OUTPUT_CHUNKING", True)
-    MODEL_TIMEOUT_OVERRIDES = {
-        "phi4": 120,
-        "qwen-coder": 90,
-        "qwen2.5-0.5b": 60,
-        "llama": 90,
-    }
-
-    @classmethod
-    def get_timeout_for_model(cls, model: str) -> int:
-        """Get timeout for specific model."""
-        if model in cls.MODEL_TIMEOUT_OVERRIDES:
-            return cls.MODEL_TIMEOUT_OVERRIDES[model]
-        for model_prefix, timeout in cls.MODEL_TIMEOUT_OVERRIDES.items():
-            if model.startswith(model_prefix):
-                return timeout
-        return cls.DEFAULT_TIMEOUT_SECONDS
-
-    @classmethod
-    def get_config_summary(cls) -> dict:
-        """Get configuration summary for logging."""
-        return {
-            "timeouts": {
-                "default": cls.DEFAULT_TIMEOUT_SECONDS,
-                "max": cls.MAX_TIMEOUT_SECONDS,
-                "chunk": cls.CHUNK_TIMEOUT_SECONDS,
-            },
-            "limits": {
-                "max_output_tokens": cls.MAX_OUTPUT_TOKENS,
-                "warn_output_tokens": cls.WARN_OUTPUT_TOKENS,
-                "max_tool_output_tokens": cls.MAX_TOOL_OUTPUT_TOKENS,
-            },
-            "features": {
-                "timeout_monitoring": cls.ENABLE_TIMEOUT_MONITORING,
-                "completion_detection": cls.ENABLE_COMPLETION_DETECTION,
-                "output_chunking": cls.ENABLE_OUTPUT_CHUNKING,
-            },
-        }
-
-
-def get_full_config() -> dict:
-    """Get full configuration summary."""
-    return {
-        "service": ServiceConfig.get_service_info(),
-        "language_models": LLMConfig.get_config_summary(),
-        "embeddings": EmbeddingConfig.get_config_summary(),
-        "responses": ResponseConfig.get_config_summary(),
-        "environment": {
-            "prefix": ENV_PREFIX,
-        },
-    }
+# Fine-tuning models (derived from LLM_MODELS)
+FINE_TUNING_MODELS = {
+    model_id: config["model_name"]
+    for model_id, config in LLM_MODELS.items()
+    if config.get("model_type") == "huggingface"
+}

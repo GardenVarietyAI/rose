@@ -2,11 +2,13 @@ import asyncio
 import json
 import logging
 import threading
+import time
 import uuid
 from contextlib import contextmanager
 from typing import AsyncGenerator, List, Optional
 
-from transformers import StoppingCriteria, StoppingCriteriaList, TextIteratorStreamer
+from transformers.generation.stopping_criteria import StoppingCriteria, StoppingCriteriaList
+from transformers.generation.streamers import TextIteratorStreamer
 
 from ...language_models.huggingface_llm import HuggingFaceLLM
 from ...schemas.chat import ChatMessage
@@ -46,20 +48,19 @@ class StopOnSpecialTokens(StoppingCriteria):
 
 @contextmanager
 def background_generation(model, **gen_kwargs):
-    """Run ``model.generate`` in a daemon thread and ensure cleanup."""
+    """Run model.generate in a daemon thread and ensure cleanup."""
     t = threading.Thread(target=model.generate, kwargs=gen_kwargs, daemon=True)
     t.start()
     try:
         yield
     finally:
-        t.join(timeout=1.0)
+        # Give the thread more time to finish gracefully
+        t.join(timeout=5.0)
         if t.is_alive():
-            logger.warning("Generation thread still alive - continuing anyway.")
+            logger.warning("Generation thread still alive after 5s, continuing anyway...")
 
 
 class BaseEventGenerator:
-    """Base class for event generators with common streaming logic."""
-
     def __init__(self, llm: HuggingFaceLLM):
         """Initialize with a HuggingFaceLLM instance."""
         self.llm = llm
@@ -88,6 +89,7 @@ class BaseEventGenerator:
                 total_tokens=0,
                 finish_reason="error",
                 output_tokens=0,
+                completion_time=0.0,
             )
             return
         prompt = await self.prepare_prompt(messages, enable_tools=enable_tools, tools=tools)
@@ -122,6 +124,7 @@ class BaseEventGenerator:
         enable_tools: bool,
     ) -> AsyncGenerator:
         """Common streaming logic."""
+        start_time = time.time()
         streamer = TextIteratorStreamer(self.llm.tokenizer, skip_prompt=True, skip_special_tokens=True)
         stop_list = StoppingCriteriaList(
             [
@@ -173,6 +176,7 @@ class BaseEventGenerator:
                             token=plain,
                             token_id=total_tokens,
                             position=position,
+                            logprob=None,
                         )
                         position += 1
                 else:
@@ -182,6 +186,7 @@ class BaseEventGenerator:
                         token=token,
                         token_id=total_tokens,
                         position=position,
+                        logprob=None,
                     )
                     position += 1
                 await asyncio.sleep(0)
@@ -195,11 +200,14 @@ class BaseEventGenerator:
                     token=leftover,
                     token_id=total_tokens,
                     position=position,
+                    logprob=None,
                 )
+        completion_time = time.time() - start_time
         yield ResponseCompleted(
             model_name=self.model_name,
             response_id=response_id,
             total_tokens=total_tokens,
             finish_reason="stop",
             output_tokens=total_tokens,
+            completion_time=completion_time,
         )

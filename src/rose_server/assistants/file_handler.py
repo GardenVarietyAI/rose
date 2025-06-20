@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 import aiofiles
 import aiofiles.os
 
-from rose_core.config.service import EmbeddingConfig
+from rose_core.config.service import DEFAULT_EMBEDDING_MODEL
 from rose_server import vector
 from rose_server.embeddings.embedding import generate_embeddings
 
@@ -61,7 +61,7 @@ class AssistantFileHandler:
             chunk_id = f"{file_id}_chunk_{i}"
             try:
                 embedding_response = generate_embeddings(
-                    model=EmbeddingConfig.DEFAULT_EMBEDDING_MODEL,
+                    model=DEFAULT_EMBEDDING_MODEL,
                     input=[chunk],
                 )
                 if embedding_response.get("data"):

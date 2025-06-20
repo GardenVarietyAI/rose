@@ -18,8 +18,7 @@ from transformers.trainer import Trainer
 from transformers.trainer_callback import EarlyStoppingCallback, TrainerCallback
 from transformers.training_args import TrainingArguments
 
-from rose_core.config.models import FINE_TUNING_MODELS, get_model_config
-from rose_core.config.service import ServiceConfig
+from rose_core.config.service import DATA_DIR, FINE_TUNING_EVAL_BATCH_SIZE, FINE_TUNING_MODELS, LLM_MODELS
 from rose_core.models import load_model_and_tokenizer
 
 from .callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
@@ -178,8 +177,8 @@ class HFTrainer:
         # Get target modules from config or model registry
         target_modules = lora_cfg.get("target_modules")
         if not target_modules:
-            model_config = get_model_config(model_name)
-            target_modules = model_config.get("lora_target_modules", ["q_proj", "v_proj"])
+            model_config = LLM_MODELS.get(model_name, {})
+            target_modules = model_config.get("lora_target_modules", ["q_proj", "k_proj", "v_proj", "o_proj"])
 
         lora_config = LoraConfig(
             r=lora_cfg.get("r", 16),
@@ -205,7 +204,7 @@ class HFTrainer:
         else:
             model_id = f"{base_name}-ft-{ts}"
 
-        out = Path(ServiceConfig.DATA_DIR) / "models" / model_id
+        out = Path(DATA_DIR) / "models" / model_id
         out.mkdir(parents=True, exist_ok=True)
 
         trainer.save_model(str(out))
@@ -272,7 +271,7 @@ def _prepare_dataset(raw: Sequence[Dict[str, Any]], tokenizer: "PreTrainedTokeni
 
 
 def _make_training_args(job_id: str, hp: ResolvedHyperParams, n_samples: int) -> TrainingArguments:
-    out_dir = Path(ServiceConfig.DATA_DIR) / "checkpoints" / job_id
+    out_dir = Path(DATA_DIR) / "checkpoints" / job_id
     out_dir.mkdir(parents=True, exist_ok=True)
     per_device = hp.batch_size
     steps_per_epoch = max(n_samples // per_device, 1)
@@ -286,7 +285,7 @@ def _make_training_args(job_id: str, hp: ResolvedHyperParams, n_samples: int) ->
         overwrite_output_dir=True,
         num_train_epochs=hp.n_epochs,
         per_device_train_batch_size=per_device,
-        per_device_eval_batch_size=ServiceConfig.FINE_TUNING_EVAL_BATCH_SIZE,
+        per_device_eval_batch_size=FINE_TUNING_EVAL_BATCH_SIZE,
         gradient_accumulation_steps=actual_gas,
         learning_rate=hp.learning_rate,
         warmup_steps=warmup,
@@ -316,7 +315,7 @@ def _maybe_split(ds: Dataset, val_ratio: float) -> Optional[Dataset]:
 
 
 def _latest_checkpoint(job_id: str) -> Optional[str]:
-    base = Path(ServiceConfig.DATA_DIR) / "checkpoints" / job_id
+    base = Path(DATA_DIR) / "checkpoints" / job_id
     if not base.exists():
         return None
     ckpts = sorted(base.glob("checkpoint-*"), key=lambda p: int(p.name.split("-")[1]))
