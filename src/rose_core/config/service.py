@@ -15,6 +15,7 @@ PORT = int(os.getenv(f"{ENV_PREFIX}PORT", "8004"))
 RELOAD = os.getenv(f"{ENV_PREFIX}RELOAD", "true").lower() in ("true", "1", "yes")
 LOG_LEVEL = os.getenv(f"{ENV_PREFIX}LOG_LEVEL", "INFO")
 LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+WEBHOOK_URL = os.getenv(f"{ENV_PREFIX}WEBHOOK_URL", "http://localhost:8004/v1/webhooks/jobs")
 
 # Data directories
 DATA_DIR = os.getenv(f"{ENV_PREFIX}DATA_DIR", "./data")

@@ -28,7 +28,7 @@ cleanup() {
     fi
 
     if kill -0 $TRAINING_WORKER_PID 2>/dev/null; then
-        echo "   Stopping training worker..."
+        echo "   Stopping fine-tuning service..."
         kill -TERM $TRAINING_WORKER_PID
     fi
 
@@ -67,9 +67,9 @@ SERVICE_PID=$!
 # Wait a bit for service to start
 sleep 2
 
-# Start the training worker
-echo "Starting training worker..."
-poetry run rose-worker &
+# Start the fine-tuning service
+echo "Starting fine-tuning service..."
+poetry run rose-finetune &
 TRAINING_WORKER_PID=$!
 
 # Start the eval worker
@@ -80,7 +80,7 @@ EVAL_WORKER_PID=$!
 echo "ROSE Server is running!"
 echo "   API: http://localhost:8004"
 echo "   Docs: http://localhost:8004/docs"
-echo "   Training Worker: PID $TRAINING_WORKER_PID"
+echo "   Fine-tuning Service: PID $TRAINING_WORKER_PID"
 echo "   Eval Worker: PID $EVAL_WORKER_PID"
 echo ""
 echo "Press Ctrl+C to stop"

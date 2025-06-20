@@ -8,14 +8,15 @@ packages = [
     {include = "rose_core", from = "src"},
     {include = "rose_server", from = "src"},
     {include = "rose_cli", from = "src"},
-    {include = "rose_evals", from = "src"}
+    {include = "rose_evals", from = "src"},
+    {include = "rose_finetune", from = "src"}
 ]
 
 [tool.poetry.scripts]
 rose = "rose_cli.main:main"
 rose-server = "rose_server.main:main"
-rose-worker = "rose_server.worker:main"
 rose-eval-worker = "rose_evals.worker:main"
+rose-finetune = "rose_finetune.worker:main"
 
 [tool.poetry.dependencies]
 python = ">=3.13,<4.0"

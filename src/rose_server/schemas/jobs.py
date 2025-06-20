@@ -1,6 +1,9 @@
 """Job queue schemas."""
 
 from enum import Enum
+from typing import Dict, Optional
+
+from pydantic import BaseModel
 
 
 class JobStatus(str, Enum):
@@ -22,3 +25,10 @@ class JobType(str, Enum):
     TRAINING = "training"
     EVAL = "eval"
     BATCH_INFERENCE = "batch_inference"
+
+
+class JobUpdateRequest(BaseModel):
+    """Job update request."""
+
+    status: str
+    result: Optional[Dict] = None
