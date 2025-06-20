@@ -178,7 +178,7 @@ class HFTrainer:
         target_modules = lora_cfg.get("target_modules")
         if not target_modules:
             model_config = LLM_MODELS.get(model_name, {})
-            target_modules = model_config.get("lora_target_modules", ["q_proj", "v_proj"])
+            target_modules = model_config.get("lora_target_modules", ["q_proj", "k_proj", "v_proj", "o_proj"])
 
         lora_config = LoraConfig(
             r=lora_cfg.get("r", 16),
