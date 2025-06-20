@@ -104,3 +104,10 @@ If your loss plateaus or doesn't decrease:
 1. Check your learning rate (try reducing by 10x)
 2. Ensure your data is properly formatted
 3. Verify the model is actually learning your examples (not just the template)
+
+## Working with Large Datasets
+
+Fine-tuning jobs now stream training data line by line.  Place your JSONL files
+on local storage and ROSE will build an Arrow dataset in the background without
+loading the entire file into memory.  This keeps RAM usage low, but requires
+enough disk space for the temporary cache.

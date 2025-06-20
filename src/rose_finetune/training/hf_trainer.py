@@ -3,7 +3,7 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 if TYPE_CHECKING:
     from transformers.modeling_utils import PreTrainedModel
@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 import numpy as np
 import torch
-from datasets import Dataset
+from datasets import Dataset, load_dataset
 from peft import LoraConfig, TaskType, get_peft_model
 from transformers.data.data_collator import DataCollatorForLanguageModeling
 from transformers.trainer import Trainer
@@ -245,13 +245,22 @@ def get_optimal_device() -> str:
         return "cpu"
 
 
-def _load_jsonl(fp: Path) -> List[Dict[str, Any]]:
-    """Read JSONL file, ignoring blank lines."""
-    lines = [ln for ln in fp.read_text("utf-8").splitlines() if ln.strip()]
-    return [json.loads(ln) for ln in lines]
+def _load_jsonl(fp: Path):
+    """Stream JSONL file to avoid loading everything into memory."""
+    try:
+        return load_dataset("json", data_files=str(fp), split="train", streaming=True)
+    except Exception:  # Fallback for environments without dataset streaming
+        def gen() -> Iterable[Dict[str, Any]]:
+            with fp.open("r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        yield json.loads(line)
+
+        return gen()
 
 
-def _prepare_dataset(raw: Sequence[Dict[str, Any]], tokenizer: "PreTrainedTokenizerBase", max_len: int) -> Dataset:
+def _prepare_dataset(raw: Iterable[Dict[str, Any]], tokenizer: "PreTrainedTokenizerBase", max_len: int) -> Dataset:
     def to_text(item: Dict[str, Any]) -> str:
         if "messages" in item and hasattr(tokenizer, "apply_chat_template"):
             return str(tokenizer.apply_chat_template(item["messages"], tokenize=False, add_generation_prompt=False))
@@ -261,8 +270,11 @@ def _prepare_dataset(raw: Sequence[Dict[str, Any]], tokenizer: "PreTrainedTokeni
 
         return item.get("text", "")
 
-    texts = [to_text(ex) for ex in raw]
-    ds = Dataset.from_dict({"text": texts})
+    def gen() -> Iterable[Dict[str, str]]:
+        for ex in raw:
+            yield {"text": to_text(ex)}
+
+    ds = Dataset.from_generator(gen)
 
     def tokenize(batch: Dict[str, List[str]]) -> "BatchEncoding":
         return tokenizer(batch["text"], truncation=True, padding=True, max_length=max_len)
