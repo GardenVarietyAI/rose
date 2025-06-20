@@ -11,6 +11,14 @@ logger = logging.getLogger(__name__)
 class HardwareMonitorCallback(_BaseCallback):
     """Simple hardware monitoring callback."""
 
+    def __init__(self, event_cb=None) -> None:
+        super().__init__(event_cb)
+        self._process = None  # Initialize to None to avoid AttributeError
+
+    def on_train_begin(self, args, state, control, **_):
+        self._process = psutil.Process()
+        self._process.cpu_percent(None)
+
     def on_log(self, args, state, control, logs=None, **_):
         if not logs or state.global_step % 10 != 0:
             return
@@ -26,8 +34,7 @@ class HardwareMonitorCallback(_BaseCallback):
             except Exception:
                 pass
 
-        process = psutil.Process()
-        metrics["cpu_percent"] = process.cpu_percent()
-        metrics["ram_gb"] = round(process.memory_info().rss / 1024**3, 2)
+        metrics["cpu_percent"] = self._process.cpu_percent()
+        metrics["ram_gb"] = round(self._process.memory_info().rss / 1024**3, 2)
 
         self._send("debug", "Hardware metrics", metrics)
