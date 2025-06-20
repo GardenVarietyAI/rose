@@ -250,6 +250,7 @@ def _load_jsonl(fp: Path):
     try:
         return load_dataset("json", data_files=str(fp), split="train", streaming=True)
     except Exception:  # Fallback for environments without dataset streaming
+
         def gen() -> Iterable[Dict[str, Any]]:
             with fp.open("r", encoding="utf-8") as f:
                 for line in f:
