@@ -7,7 +7,7 @@ from typing import AsyncGenerator
 
 from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.events.generators import RunsGenerator
-from rose_server.language_models.huggingface_llm import HuggingFaceLLM
+from rose_server.language_models import model_cache
 from rose_server.runs.store import RunsStore
 from rose_server.runs.streaming import (
     stream_message_chunk,
@@ -134,7 +134,7 @@ async def execute_assistant_run_streaming(run: Run, thread_store, assistant) -> 
             yield await stream_run_status(run.id, "failed", last_error=error)
             return
         try:
-            llm = HuggingFaceLLM(config)
+            llm = await model_cache.get_model(requested_model, config)
         except Exception as e:
             error = {"code": "model_error", "message": f"Failed to create model: {str(e)}"}
             await runs_store.update_run_status(run.id, "failed", last_error=error)

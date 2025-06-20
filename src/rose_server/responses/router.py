@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 
 from rose_server.events.formatters import ResponsesFormatter
 from rose_server.events.generators import ResponsesGenerator
-from rose_server.language_models.huggingface_llm import HuggingFaceLLM
+from rose_server.language_models import model_cache
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.responses import (
     ResponsesContentItem,
@@ -15,6 +15,7 @@ from rose_server.schemas.responses import (
     ResponsesResponse,
     ResponsesUsage,
 )
+from rose_server.services import get_model_registry
 
 from .store import ResponsesStore
 
@@ -36,7 +37,7 @@ def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMessage]:
     return messages
 
 
-async def _generate_streaming_response(request: ResponsesRequest, llm: HuggingFaceLLM, messages: list[ChatMessage]):
+async def _generate_streaming_response(request: ResponsesRequest, llm, messages: list[ChatMessage]):
     async def generate():
         try:
             generator = ResponsesGenerator(llm)
@@ -61,7 +62,7 @@ async def _generate_streaming_response(request: ResponsesRequest, llm: HuggingFa
     )
 
 
-async def _generate_complete_response(request: ResponsesRequest, llm: HuggingFaceLLM, messages: list[ChatMessage]):
+async def _generate_complete_response(request: ResponsesRequest, llm, messages: list[ChatMessage]):
     generator = ResponsesGenerator(llm)
     formatter = ResponsesFormatter()
     all_events = []
@@ -170,7 +171,27 @@ async def create_response(
                     "code": None,
                 }
             }
-        llm = await HuggingFaceLLM.load_model(request.model)
+        registry = get_model_registry()
+        if request.model not in registry.list_models():
+            return {
+                "error": {
+                    "message": f"Model '{request.model}' not found",
+                    "type": "invalid_request_error",
+                    "code": None,
+                }
+            }
+
+        config = registry.get_model_config(request.model)
+        if not config:
+            return {
+                "error": {
+                    "message": f"No configuration found for model '{request.model}'",
+                    "type": "invalid_request_error",
+                    "code": None,
+                }
+            }
+
+        llm = await model_cache.get_model(request.model, config)
 
         if request.stream:
             return await _generate_streaming_response(request, llm, messages)

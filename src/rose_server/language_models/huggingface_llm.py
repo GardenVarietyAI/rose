@@ -8,7 +8,7 @@ from transformers.modeling_utils import PreTrainedModel
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
 from rose_core.config.service import MODEL_OFFLOAD_DIR
-from rose_core.models import load_model_and_tokenizer
+from rose_core.models import cleanup_model_memory, load_model_and_tokenizer
 from rose_server.schemas.chat import ChatMessage
 from rose_server.services import get_model_registry
 
@@ -165,3 +165,11 @@ class HuggingFaceLLM:
             return cls(config)
         except Exception as e:
             raise RuntimeError(f"Failed to load model '{model_name}': {e}") from e
+
+    def cleanup(self):
+        """Clean up model resources and memory."""
+        # Clear references to allow garbage collection
+        self._model = None
+        self._tokenizer = None
+        # Clean up GPU/memory
+        cleanup_model_memory()

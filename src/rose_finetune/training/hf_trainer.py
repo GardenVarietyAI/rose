@@ -19,7 +19,7 @@ from transformers.trainer_callback import EarlyStoppingCallback, TrainerCallback
 from transformers.training_args import TrainingArguments
 
 from rose_core.config.service import DATA_DIR, FINE_TUNING_EVAL_BATCH_SIZE, FINE_TUNING_MODELS, LLM_MODELS
-from rose_core.models import load_model_and_tokenizer
+from rose_core.models import cleanup_model_memory, load_model_and_tokenizer
 
 from .callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
 from .hyperparams import HyperParams, ResolvedHyperParams
@@ -230,9 +230,7 @@ class HFTrainer:
     def cleanup(self):
         """Clean up all resources held by HFTrainer."""
 
-        import gc
-
-        gc.collect()
+        cleanup_model_memory()
 
 
 def get_optimal_device() -> str:

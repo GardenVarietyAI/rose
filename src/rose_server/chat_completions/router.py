@@ -15,7 +15,7 @@ from sse_starlette.sse import EventSourceResponse
 from rose_server.events import LLMEvent
 from rose_server.events.formatters import ChatCompletionsFormatter
 from rose_server.events.generators import ChatCompletionsGenerator
-from rose_server.language_models.huggingface_llm import HuggingFaceLLM
+from rose_server.language_models import model_cache
 from rose_server.schemas.chat import ChatMessage, ChatRequest
 from rose_server.services import get_model_registry
 
@@ -56,7 +56,7 @@ async def event_based_chat_completions(
         if not config:
             return JSONResponse(status_code=400, content={"error": f"Model {request.model} not available"})
         try:
-            base_llm = HuggingFaceLLM(config)
+            base_llm = await model_cache.get_model(request.model, config)
         except Exception as e:
             logger.error(f"Failed to create model {request.model}: {e}")
             return JSONResponse(status_code=500, content={"error": f"Failed to load model: {str(e)}"})

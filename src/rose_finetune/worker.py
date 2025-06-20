@@ -1,17 +1,16 @@
 """Rose Fine-tuning Worker - processes fine-tuning jobs."""
 
-import gc
 import logging
 import signal
 import time
 from typing import Any, Dict, Optional
 
 import httpx
-import torch
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from rose_core.config.service import HOST, LOG_FORMAT, LOG_LEVEL, MAX_CONCURRENT_TRAINING, PORT
+from rose_core.models import cleanup_model_memory
 
 from .trainer import run_training_job
 
@@ -68,11 +67,7 @@ def process_training_job(job_id: int, payload: Dict[str, Any]) -> Dict[str, Any]
         raise
     finally:
         # Clean up memory
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        elif torch.backends.mps.is_available():
-            torch.mps.empty_cache()
+        cleanup_model_memory()
 
 
 def update_job_status(job_id: int, status: str, result: Optional[Dict] = None) -> None:

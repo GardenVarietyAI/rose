@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 from rose_server.assistants.store import get_assistant_store
 from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.events.generators import RunsGenerator
-from rose_server.language_models.huggingface_llm import HuggingFaceLLM
+from rose_server.language_models import model_cache
 from rose_server.runs.store import RunsStore
 from rose_server.schemas.assistants import Run
 from rose_server.schemas.chat import ChatMessage
@@ -55,7 +55,7 @@ async def process_tool_outputs(run: Run, tool_outputs: List[Dict[str, Any]], run
         registry = get_model_registry()
         config = registry.get_model_config(run.model)
         if config:
-            llm = HuggingFaceLLM(config)
+            llm = await model_cache.get_model(run.model, config)
             generator = RunsGenerator(llm)
             messages = [ChatMessage(role="user", content=continuation_prompt)]
             response_text = ""
