@@ -13,9 +13,9 @@ class HardwareMonitorCallback(_BaseCallback):
 
     def __init__(self, event_cb=None) -> None:
         super().__init__(event_cb)
-        self._process = psutil.Process()
 
     def on_train_begin(self, args, state, control, **_):
+        self._process = psutil.Process()
         self._process.cpu_percent(None)
 
     def on_log(self, args, state, control, logs=None, **_):
