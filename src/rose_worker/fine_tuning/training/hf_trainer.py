@@ -1,17 +1,15 @@
-import json
 import logging
-import os
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 if TYPE_CHECKING:
     from transformers.modeling_utils import PreTrainedModel
-    from transformers.tokenization_utils_base import BatchEncoding, PreTrainedTokenizerBase
+    from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
 import numpy as np
 import torch
-from datasets import Dataset, IterableDataset, load_dataset
+from datasets import Dataset, load_dataset
 from peft import LoraConfig, TaskType, get_peft_model
 from peft.peft_model import PeftModel
 from transformers.data.data_collator import DataCollatorForLanguageModeling
@@ -45,13 +43,8 @@ class HFTrainer:
         event_callback: Optional[Callable[[str, str, Dict[str, Any]], None]] = None,
     ) -> Dict[str, Any]:
         """Run a fine-tuning job and return a result dict."""
-        os.environ["TRANSFORMERS_VERBOSITY"] = "warning"
-
-        # Load and prepare data
-        raw_data = _load_jsonl(training_file_path)
         hp = HyperParams.resolve(hyperparameters)
 
-        # Set up training state
         torch.manual_seed(hp.seed)
         np.random.seed(hp.seed)
         if torch.cuda.is_available():
@@ -74,18 +67,21 @@ class HFTrainer:
         if hp.validation_split > 0:
             callbacks.append(EarlyStoppingCallback(early_stopping_patience=hp.early_stopping_patience))
 
-        ds = _prepare_dataset(raw_data, tokenizer, hp.max_length)
-        args = _make_training_args(job_id, hp, len(ds))
+        # Load dataset and convert to text format
+        raw_dataset = load_dataset("json", data_files=str(training_file_path), split="train")
+        text_dataset = _prepare_dataset(raw_dataset, tokenizer)  # type: ignore[arg-type]
+        args = _make_training_args(job_id, hp, len(text_dataset))
 
+        # tokenization
         data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8)
 
-        # Build proper train / validation split
+        # Build train / validation split
         if hp.validation_split > 0:
-            split = ds.train_test_split(hp.validation_split, seed=42)
+            split = text_dataset.train_test_split(hp.validation_split, seed=42)
             train_ds = split["train"]
             eval_ds = split["test"]
         else:
-            train_ds = ds
+            train_ds = text_dataset
             eval_ds = None
 
         trainer = Trainer(
@@ -99,7 +95,7 @@ class HFTrainer:
         )
 
         try:
-            self._log_training_start(event_callback, model_name, ds, args)
+            self._log_training_start(event_callback, model_name, text_dataset, args)
             result = trainer.train(resume_from_checkpoint=_latest_checkpoint(job_id))
             out_dir = self._save_model(trainer, model_name, hp.suffix)
             metrics = result.metrics
@@ -115,10 +111,9 @@ class HFTrainer:
             }
         except Exception:
             logger.exception("Training failed")
-            raise  # Let the caller handle it
+            raise
         finally:
-            # Pass the model to cleanup for proper PEFT handling
-            cleanup_model_memory(trainer.model if "trainer" in locals() else None)
+            cleanup_model_memory(model)
 
     def _log_training_start(
         self,
@@ -203,45 +198,14 @@ class HFTrainer:
         cleanup_model_memory()
 
 
-def _load_jsonl(fp: Path) -> Union[Dataset, IterableDataset, Iterable[Dict[str, Any]]]:
-    """Stream JSONL file to avoid loading everything into memory."""
-    try:
-        return load_dataset("json", data_files=str(fp), split="train", streaming=True)
-    except Exception:  # Fallback for environments without dataset streaming
+def _prepare_dataset(dataset: Dataset, tokenizer: "PreTrainedTokenizerBase") -> Dataset:
+    """Apply chat template to messages."""
 
-        def gen() -> Iterable[Dict[str, Any]]:
-            with fp.open("r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line:
-                        yield json.loads(line)
+    def format_example(example: Dict[str, Any]) -> Dict[str, str]:
+        text = tokenizer.apply_chat_template(example["messages"], tokenize=False)
+        return {"text": str(text)}
 
-        return gen()
-
-
-def _prepare_dataset(
-    raw: Union[Dataset, IterableDataset, Iterable[Dict[str, Any]]], tokenizer: "PreTrainedTokenizerBase", max_len: int
-) -> Dataset:
-    def to_text(item: Dict[str, Any]) -> str:
-        if "messages" in item and hasattr(tokenizer, "apply_chat_template"):
-            return str(tokenizer.apply_chat_template(item["messages"], tokenize=False, add_generation_prompt=False))
-
-        if "prompt" in item and "completion" in item:
-            return str(item["prompt"]) + str(item["completion"])
-
-        return str(item.get("text", ""))
-
-    def gen() -> Iterable[Dict[str, str]]:
-        for ex in raw:
-            yield {"text": to_text(ex)}
-
-    ds = Dataset.from_generator(gen)
-
-    def tokenize(batch: Dict[str, List[str]]) -> "BatchEncoding":
-        result = tokenizer(batch["text"], truncation=True, padding=True, max_length=max_len)
-        return result  # type: ignore[no-any-return]
-
-    return ds.map(tokenize, batched=True, remove_columns=["text"])
+    return dataset.map(format_example, remove_columns=dataset.column_names)
 
 
 def _make_training_args(job_id: str, hp: ResolvedHyperParams, n_samples: int) -> TrainingArguments:
