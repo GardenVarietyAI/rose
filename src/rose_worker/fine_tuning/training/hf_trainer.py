@@ -14,7 +14,7 @@ from transformers.trainer import Trainer
 from transformers.trainer_callback import EarlyStoppingCallback, TrainerCallback
 from transformers.training_args import TrainingArguments
 
-from rose_core.config.service import DATA_DIR, FINE_TUNING_EVAL_BATCH_SIZE, FINE_TUNING_MODELS, LLM_MODELS
+from rose_core.config.service import DATA_DIR, FINE_TUNING_EVAL_BATCH_SIZE, FINE_TUNING_MODELS
 from rose_core.models import get_tokenizer, load_hf_model
 from rose_core.models.loading import get_optimal_device
 
@@ -46,13 +46,13 @@ def train(
     hf_model_name = FINE_TUNING_MODELS[model_name]
     model = load_hf_model(model_id=hf_model_name)
     tokenizer = get_tokenizer(hf_model_name)
+    model_config = FINE_TUNING_MODELS.get(model_name, {})
 
     if hp.use_lora:
         hp.lora_config = hp.lora_config or {}
 
         target_modules = hp.lora_config.get("target_modules")
         if not target_modules:
-            model_config = LLM_MODELS.get(model_name, {})
             target_modules = model_config.get("lora_target_modules", ["q_proj", "k_proj", "v_proj", "o_proj"])
 
         lora_config = LoraConfig(
@@ -63,11 +63,13 @@ def train(
             bias="none",
             task_type=TaskType.CAUSAL_LM,
         )
+
         peft_model = get_peft_model(model, lora_config)  # type: ignore[arg-type]
         if not isinstance(peft_model, PeftModel):
             raise TypeError(
                 "Expected 'peft_model' to be an instance of 'PeftModel', but got {type(peft_model).__name__}."
             )
+
         peft_model.print_trainable_parameters()
 
         model = peft_model
@@ -86,26 +88,25 @@ def train(
         text = tokenizer.apply_chat_template(example["messages"], tokenize=False)
         return tokenizer(str(text), truncation=True, model_max_length=hp.max_length)
 
+    checkpoint_dir = Path(DATA_DIR) / "checkpoints" / job_id
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
     tokenized_dataset = raw_dataset.map(tokenize_example, remove_columns=raw_dataset.column_names)
 
     n_samples = len(tokenized_dataset)
-    out_dir = Path(DATA_DIR) / "checkpoints" / job_id
-    out_dir.mkdir(parents=True, exist_ok=True)
     per_device = hp.batch_size
     steps_per_epoch = max(n_samples // per_device, 1)
-    actual_gas = hp.gradient_accumulation_steps
-    total_steps = steps_per_epoch // actual_gas * hp.n_epochs
-    warmup = int(total_steps * hp.warmup_ratio)
+    total_steps = steps_per_epoch // hp.gradient_accumulation_steps * hp.n_epochs
     device = get_optimal_device()
 
     args = TrainingArguments(
-        output_dir=str(out_dir),
+        output_dir=str(checkpoint_dir),
         num_train_epochs=hp.n_epochs,
         per_device_train_batch_size=per_device,
         per_device_eval_batch_size=FINE_TUNING_EVAL_BATCH_SIZE,
-        gradient_accumulation_steps=actual_gas,
+        gradient_accumulation_steps=hp.gradient_accumulation_steps,
         learning_rate=hp.learning_rate,
-        warmup_steps=warmup,
+        warmup_steps=int(total_steps * hp.warmup_ratio),
         lr_scheduler_type=hp.scheduler_type,
         eval_strategy="epoch" if hp.validation_split else "no",
         save_strategy="epoch",
@@ -113,7 +114,7 @@ def train(
         load_best_model_at_end=bool(hp.validation_split),
         metric_for_best_model="loss",
         optim="adamw_torch",
-        logging_dir=str(out_dir / "logs"),
+        logging_dir=str(checkpoint_dir / "logs"),
         logging_steps=10,
         log_level="info",
         disable_tqdm=True,
@@ -148,14 +149,12 @@ def train(
         callbacks=callbacks,
     )
 
-    checkpoint_dir = Path(DATA_DIR) / "checkpoints" / job_id
-    checkpoint_dir.mkdir(parents=True, exist_ok=True)
     latest = max(
         (p for p in checkpoint_dir.glob("checkpoint-*") if p.is_dir()),
         default=None,
         key=lambda p: int(p.name.split("-")[1]),
     )
-    result = trainer.train(resume_from_checkpoint=str(latest) if latest else None)
+    result = trainer.train(resume_from_checkpoint=str(latest))
 
     ts = int(time.time())
     model_id = f"{model_name}-ft-{ts}"
@@ -170,10 +169,7 @@ def train(
     # Check if this is a PEFT model
     if hasattr(trainer.model, "peft_config"):
         if torch.backends.mps.is_available():
-            logger.warning(
-                "Skipping merge_and_unload on Apple Silicon due to potential hanging issues. "
-                "The model is saved with separate adapter weights."
-            )
+            logger.warning("Skipping merge_and_unload on Apple Silicon")
         else:
             logger.info("Merging LoRA adapters into base model...")
             merged_model = trainer.model.merge_and_unload()  # type: ignore[union-attr,operator]
