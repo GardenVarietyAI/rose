@@ -1,9 +1,13 @@
 """ROSE Worker - handles both fine-tuning and evaluation jobs."""
 
 import logging
+import os
 import signal
 import time
 from typing import Any, Dict, Optional
+
+# Disable PostHog analytics
+os.environ["POSTHOG_DISABLED"] = "1"
 
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler

@@ -11,7 +11,15 @@ console = Console()
 def create_eval(
     name: str = typer.Option(..., "--name", "-n", help="Evaluation name"),
     file_id: str = typer.Option(..., "--file", "-f", help="Dataset file ID"),
-    criteria_type: str = typer.Option("text-similarity", "--criteria", "-c", help="Testing criteria type"),
+    grader_type: str = typer.Option(
+        "text_similarity",
+        "--grader",
+        "-g",
+        help="Grader type: text_similarity (flexible), string_check (exact), numeric_check (extracts numbers)",
+    ),
+    metric: str = typer.Option(
+        "f1", "--metric", "-m", help="Evaluation metric: exact_match, f1, fuzzy_match, includes, numeric_exact"
+    ),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Only output the evaluation ID"),
 ):
     """Create a new evaluation."""
@@ -23,17 +31,42 @@ def create_eval(
             "completion_tag_suffix": file_id,
         }
 
-        # Build testing criteria based on type
-        criteria: Any = [
-            {
-                "type": "text_similarity",
-                "name": "similarity_check",
-                "input": "{{item.prompt}}",
-                "reference": "{{item.expected}}",
-                "evaluation_metric": "cosine",
-                "pass_threshold": 0.8,
-            }
-        ]
+        # Build testing criteria based on grader type
+        if grader_type == "string_check":
+            criteria: Any = [
+                {
+                    "type": "string_check",
+                    "name": "exact_match_check",
+                    "input": "{{sample.output_text}}",
+                    "reference": "{{item.expected}}",
+                    "operation": "eq",
+                }
+            ]
+        elif grader_type == "numeric_check":
+            # Use text_similarity type with numeric_exact metric
+            # The grader will use the numeric scorer for evaluation
+            criteria = [
+                {
+                    "type": "text_similarity",
+                    "name": "numeric_check",
+                    "input": "{{sample.output_text}}",
+                    "reference": "{{item.expected}}",
+                    "evaluation_metric": "numeric_exact",
+                    "pass_threshold": 1.0,  # Numeric exact match is binary (0 or 1)
+                }
+            ]
+        else:
+            # Default text similarity with configurable metric
+            criteria = [
+                {
+                    "type": "text_similarity",
+                    "name": "similarity_check",
+                    "input": "{{sample.output_text}}",
+                    "reference": "{{item.expected}}",
+                    "evaluation_metric": metric,
+                    "pass_threshold": 0.8,
+                }
+            ]
 
         response = client.evals.create(
             name=name,

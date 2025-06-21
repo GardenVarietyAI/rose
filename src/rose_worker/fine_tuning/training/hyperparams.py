@@ -65,7 +65,11 @@ class HyperParams:
         else:
             lr_mult = float(lr_mult)
 
-        learning_rate = FINE_TUNING_DEFAULT_LEARNING_RATE * lr_mult
+        # If learning_rate is explicitly provided in raw dict, use it directly
+        if "learning_rate" in raw and raw["learning_rate"] is not None:
+            learning_rate = float(raw["learning_rate"])
+        else:
+            learning_rate = FINE_TUNING_DEFAULT_LEARNING_RATE * lr_mult
 
         return ResolvedHyperParams(
             batch_size=batch_size,
