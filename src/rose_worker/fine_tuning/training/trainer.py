@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 import httpx
 
 from rose_core.config.service import DATA_DIR, HOST, PORT
-from rose_core.webhook import post_webhook
+from rose_worker.client import post_webhook
 
 from . import HFTrainer
 

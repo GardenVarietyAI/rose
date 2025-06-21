@@ -1,19 +1,14 @@
 """Training job processor."""
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-import httpx
-
-from rose_core.config.service import HOST, PORT
 from rose_core.models import cleanup_model_memory
+from rose_worker.client import update_job_status
 
 from .training.trainer import run_training_job
 
 logger = logging.getLogger(__name__)
-
-BASE_URL = f"http://{HOST}:{PORT}"
-HTTP_TIMEOUT = 30
 
 
 def process_training_job(job_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -57,16 +52,3 @@ def process_training_job(job_id: int, payload: Dict[str, Any]) -> Dict[str, Any]
         raise
     finally:
         cleanup_model_memory()
-
-
-def update_job_status(job_id: int, status: str, result: Optional[Dict[str, Any]] = None) -> None:
-    """Update job status in the API."""
-    try:
-        with httpx.Client(timeout=HTTP_TIMEOUT) as client:
-            response = client.patch(
-                f"{BASE_URL}/v1/jobs/{job_id}",
-                json={"status": status, "result": result},
-            )
-            response.raise_for_status()
-    except Exception as e:
-        logger.error(f"Failed to update job {job_id} status: {e}")

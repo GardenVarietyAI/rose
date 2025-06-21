@@ -4,7 +4,7 @@ import logging
 from typing import Any, Dict
 
 from rose_core.models import cleanup_model_memory
-from rose_core.webhook import post_webhook
+from rose_worker.client import post_webhook
 
 from .evaluators.simple_evaluator import SimpleEvaluator
 

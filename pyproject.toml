@@ -8,9 +8,7 @@ packages = [
     {include = "rose_core", from = "src"},
     {include = "rose_server", from = "src"},
     {include = "rose_worker", from = "src"},
-    {include = "rose_cli", from = "src"},
-    {include = "rose_evals", from = "src"},
-    {include = "rose_ft", from = "src"}
+    {include = "rose_cli", from = "src"}
 ]
 
 [tool.poetry.scripts]
