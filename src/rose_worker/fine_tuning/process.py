@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 def process_training_job(job_id: int, payload: Dict[str, Any]) -> None:
     """Process a single training job."""
-    ft_job_id: str = payload["ft_job_id"]
-    model_name: str = payload["model_name"]
+    ft_job_id: str = payload["job_id"]
+    model_name: str = payload["model"]
     training_file: str = payload["training_file"]
     hyperparameters: Dict[str, Any] = payload.get("hyperparameters", {})
     suffix: Optional[str] = payload["suffix"]
