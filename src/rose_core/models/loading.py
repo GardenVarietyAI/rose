@@ -22,7 +22,7 @@ def get_tokenizer(path: str) -> PreTrainedTokenizerBase:
     tokenizer = AutoTokenizer.from_pretrained(path)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    return tokenizer
+    return tokenizer  # type: ignore[no-any-return]
 
 
 def get_torch_dtype(torch_dtype: Optional[torch.dtype] = None) -> torch.dtype:
@@ -68,7 +68,7 @@ def load_hf_model(
     offload_dir = os.path.join(MODEL_OFFLOAD_DIR, model_id.replace("/", "_"))
     os.makedirs(offload_dir, exist_ok=True)
 
-    model = AutoModelForCausalLM.from_pretrained(
+    model = AutoModelForCausalLM.from_pretrained(  # type: ignore[no-untyped-call]
         model_id,
         torch_dtype=get_torch_dtype(torch_dtype),
         offload_folder=offload_dir,
@@ -79,7 +79,7 @@ def load_hf_model(
     )
 
     logger.info(f"Successfully loaded model: {model_id}")
-    return model
+    return model  # type: ignore[no-any-return]
 
 
 def load_peft_model(
@@ -130,7 +130,7 @@ def load_peft_model(
 
     # Load base model first
     logger.info(f"Loading base model: {base_model_name}")
-    base_model = AutoModelForCausalLM.from_pretrained(
+    base_model = AutoModelForCausalLM.from_pretrained(  # type: ignore[no-untyped-call]
         base_model_name,
         torch_dtype=get_torch_dtype(torch_dtype),
         trust_remote_code=True,
@@ -151,7 +151,7 @@ def load_peft_model(
     return model
 
 
-def cleanup_model_memory():
+def cleanup_model_memory() -> None:
     """Clean up model memory and cache."""
     import gc
 

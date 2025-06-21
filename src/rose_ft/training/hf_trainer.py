@@ -115,7 +115,7 @@ class HFTrainer:
             logger.exception("Training failed")
             raise  # Let the caller handle it
         finally:
-            self.cleanup()
+            cleanup_model_memory()
 
     def _log_training_start(
         self,
@@ -185,7 +185,7 @@ class HFTrainer:
             else:
                 try:
                     logger.info("Merging LoRA adapters into base model...")
-                    merged_model = trainer.model.merge_and_unload()  # type: ignore[attr-defined,operator,union-attr]
+                    merged_model = trainer.model.merge_and_unload()  # type: ignore[union-attr,operator]
                     merged_model.save_pretrained(str(out))
                     logger.info("Successfully merged and saved model")
                 except Exception as e:
@@ -193,7 +193,7 @@ class HFTrainer:
 
         return out
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         cleanup_model_memory()
 
 
@@ -221,9 +221,9 @@ def _prepare_dataset(
             return str(tokenizer.apply_chat_template(item["messages"], tokenize=False, add_generation_prompt=False))
 
         if "prompt" in item and "completion" in item:
-            return item["prompt"] + item["completion"]
+            return str(item["prompt"]) + str(item["completion"])
 
-        return item.get("text", "")
+        return str(item.get("text", ""))
 
     def gen() -> Iterable[Dict[str, str]]:
         for ex in raw:
@@ -232,7 +232,8 @@ def _prepare_dataset(
     ds = Dataset.from_generator(gen)
 
     def tokenize(batch: Dict[str, List[str]]) -> "BatchEncoding":
-        return tokenizer(batch["text"], truncation=True, padding=True, max_length=max_len)
+        result = tokenizer(batch["text"], truncation=True, padding=True, max_length=max_len)
+        return result  # type: ignore[no-any-return]
 
     return ds.map(tokenize, batched=True, remove_columns=["text"])
 
@@ -282,4 +283,6 @@ def _latest_checkpoint(job_id: str) -> Optional[str]:
     if not base.exists():
         return None
     ckpts = sorted(base.glob("checkpoint-*"), key=lambda p: int(p.name.split("-")[1]))
-    return str(ckpts[-1]) if ckpts else None
+    if ckpts:
+        return str(ckpts[-1])
+    return None

@@ -38,11 +38,11 @@ class HuggingFaceLLM:
         self._load_model()
 
     @property
-    def model(self):
+    def model(self) -> Optional[Union[PreTrainedModel, PeftModel]]:
         return self._model
 
     @property
-    def tokenizer(self):
+    def tokenizer(self) -> Optional[PreTrainedTokenizerBase]:
         return self._tokenizer
 
     def _load_model(self) -> bool:
@@ -145,7 +145,7 @@ class HuggingFaceLLM:
             if isinstance(item, dict):
                 item_type = item.get("type")
                 if item_type in ("text", "input_text") and "text" in item:
-                    return item["text"]
+                    return str(item["text"])
                 else:
                     logger.debug(f"Skipping non-text content part: type={item_type}")
         return None
@@ -176,7 +176,7 @@ class HuggingFaceLLM:
         except Exception as e:
             raise RuntimeError(f"Failed to load model '{model_name}': {e}") from e
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Clean up model resources and memory."""
         # Clear references to allow garbage collection
         self._model = None
