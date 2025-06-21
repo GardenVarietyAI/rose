@@ -12,11 +12,6 @@ logger = logging.getLogger(__name__)
 _client = ServiceClient()
 
 
-def _check_cancelled(job_id: int, ft_job_id: str) -> str:
-    """Check if a job has been cancelled."""
-    return _client.check_fine_tuning_job_status(ft_job_id)
-
-
 def run_training_job(
     job_id: int,
     ft_job_id: str,
@@ -36,7 +31,7 @@ def run_training_job(
 
     # Create cancellation check callback
     def check_cancel_callback() -> str:
-        return _check_cancelled(job_id, ft_job_id)
+        return _client.check_fine_tuning_job_status(ft_job_id)
 
     # Send job running webhook
     post_webhook("job.running", "training", job_id, ft_job_id)

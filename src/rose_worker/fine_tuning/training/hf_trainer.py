@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 if TYPE_CHECKING:
     from transformers.modeling_utils import PreTrainedModel
-    from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
 import numpy as np
 import torch
@@ -13,6 +12,7 @@ from datasets import Dataset, load_dataset
 from peft import LoraConfig, TaskType, get_peft_model
 from peft.peft_model import PeftModel
 from transformers.data.data_collator import DataCollatorForLanguageModeling
+from transformers.tokenization_utils_base import BatchEncoding
 from transformers.trainer import Trainer
 from transformers.trainer_callback import EarlyStoppingCallback, TrainerCallback
 from transformers.training_args import TrainingArguments
@@ -43,15 +43,15 @@ class HFTrainer:
         event_callback: Optional[Callable[[str, str, Dict[str, Any]], None]] = None,
     ) -> Dict[str, Any]:
         """Run a fine-tuning job and return a result dict."""
-        hp = HyperParams.resolve(hyperparameters)
 
+        if model_name not in self.fine_tuning_models:
+            raise ValueError(f"Model {model_name} not supported for fine-tuning")
+
+        hp = HyperParams.resolve(hyperparameters)
         torch.manual_seed(hp.seed)
         np.random.seed(hp.seed)
         if torch.cuda.is_available():
             torch.cuda.manual_seed(hp.seed)
-
-        if model_name not in self.fine_tuning_models:
-            raise ValueError(f"Model {model_name} not supported for fine-tuning")
 
         hf_model_name = self.fine_tuning_models[model_name]
         model = load_hf_model(model_id=hf_model_name)
@@ -67,21 +67,27 @@ class HFTrainer:
         if hp.validation_split > 0:
             callbacks.append(EarlyStoppingCallback(early_stopping_patience=hp.early_stopping_patience))
 
-        # Load dataset and convert to text format
-        raw_dataset = load_dataset("json", data_files=str(training_file_path), split="train")
-        text_dataset = _prepare_dataset(raw_dataset, tokenizer)  # type: ignore[arg-type]
-        args = _make_training_args(job_id, hp, len(text_dataset))
+        # Load dataset and tokenize
+        raw_dataset: Dataset = load_dataset("json", data_files=str(training_file_path), split="train")  # type: ignore[arg-type]
+
+        def tokenize_example(example: Dict[str, Any]) -> "BatchEncoding":
+            text = tokenizer.apply_chat_template(example["messages"], tokenize=False)
+            return tokenizer(str(text), truncation=True, max_length=hp.max_length)
+
+        tokenized_dataset = raw_dataset.map(tokenize_example, remove_columns=raw_dataset.column_names)  # type: ignore[arg-type]
+
+        args = _make_training_args(job_id, hp, len(tokenized_dataset))
 
         # tokenization
         data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8)
 
         # Build train / validation split
         if hp.validation_split > 0:
-            split = text_dataset.train_test_split(hp.validation_split, seed=42)
+            split = tokenized_dataset.train_test_split(hp.validation_split, seed=42)
             train_ds = split["train"]
             eval_ds = split["test"]
         else:
-            train_ds = text_dataset
+            train_ds = tokenized_dataset
             eval_ds = None
 
         trainer = Trainer(
@@ -95,11 +101,11 @@ class HFTrainer:
         )
 
         try:
-            self._log_training_start(event_callback, model_name, text_dataset, args)
+            self._log_training_start(event_callback, model_name, tokenized_dataset, args)
             result = trainer.train(resume_from_checkpoint=_latest_checkpoint(job_id))
             out_dir = self._save_model(trainer, model_name, hp.suffix)
             metrics = result.metrics
-            tokens = int(trainer.state.num_input_tokens_seen) if hasattr(trainer.state, "num_input_tokens_seen") else 0
+            tokens = trainer.state.num_input_tokens_seen
 
             return {
                 "success": True,
@@ -196,16 +202,6 @@ class HFTrainer:
 
     def cleanup(self) -> None:
         cleanup_model_memory()
-
-
-def _prepare_dataset(dataset: Dataset, tokenizer: "PreTrainedTokenizerBase") -> Dataset:
-    """Apply chat template to messages."""
-
-    def format_example(example: Dict[str, Any]) -> Dict[str, str]:
-        text = tokenizer.apply_chat_template(example["messages"], tokenize=False)
-        return {"text": str(text)}
-
-    return dataset.map(format_example, remove_columns=dataset.column_names)
 
 
 def _make_training_args(job_id: str, hp: ResolvedHyperParams, n_samples: int) -> TrainingArguments:
