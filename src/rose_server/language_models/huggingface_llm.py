@@ -178,8 +178,8 @@ class HuggingFaceLLM:
 
     def cleanup(self) -> None:
         """Clean up model resources and memory."""
+        # Clean up GPU/memory with proper PEFT handling
+        cleanup_model_memory(self._model)
         # Clear references to allow garbage collection
         self._model = None
         self._tokenizer = None
-        # Clean up GPU/memory
-        cleanup_model_memory()

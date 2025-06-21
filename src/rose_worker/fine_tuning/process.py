@@ -3,6 +3,8 @@
 import logging
 from typing import Any, Dict
 
+import torch
+
 from rose_core.models import cleanup_model_memory
 from rose_worker.client import update_job_status
 
@@ -46,9 +48,43 @@ def process_training_job(job_id: int, payload: Dict[str, Any]) -> Dict[str, Any]
             logger.error(f"Training job {job_id} failed: {error}")
             return {"job_id": job_id, "status": "failed", "error": error}
 
+    except torch.cuda.OutOfMemoryError as e:
+        logger.exception(f"Training job {job_id} failed: Out of GPU memory")
+        update_job_status(
+            job_id,
+            "failed",
+            {
+                "error": str(e),
+                "error_type": "OutOfMemoryError",
+                "suggestion": "Try reducing batch_size in hyperparameters",
+            },
+        )
+        raise
+    except RuntimeError as e:
+        # GPU/CUDA errors often come as RuntimeError
+        error_msg = str(e)
+        if "out of memory" in error_msg.lower():
+            logger.exception(f"Training job {job_id} failed: Out of memory")
+            update_job_status(
+                job_id,
+                "failed",
+                {
+                    "error": error_msg,
+                    "error_type": "OutOfMemoryError",
+                    "suggestion": "Try reducing batch_size in hyperparameters",
+                },
+            )
+        else:
+            logger.exception(f"Training job {job_id} failed: Runtime error")
+            update_job_status(job_id, "failed", {"error": error_msg, "error_type": "RuntimeError"})
+        raise
+    except (ValueError, FileNotFoundError) as e:
+        logger.exception(f"Training job {job_id} failed: Invalid input or configuration")
+        update_job_status(job_id, "failed", {"error": str(e), "error_type": "ValueError"})
+        raise
     except Exception as e:
-        logger.exception(f"Training job {job_id} failed with exception")
-        update_job_status(job_id, "failed", {"error": str(e)})
+        logger.exception(f"Training job {job_id} failed with unexpected exception")
+        update_job_status(job_id, "failed", {"error": str(e), "error_type": type(e).__name__})
         raise
     finally:
         cleanup_model_memory()

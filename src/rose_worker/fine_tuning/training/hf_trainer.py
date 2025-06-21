@@ -115,7 +115,8 @@ class HFTrainer:
             logger.exception("Training failed")
             raise  # Let the caller handle it
         finally:
-            cleanup_model_memory()
+            # Pass the model to cleanup for proper PEFT handling
+            cleanup_model_memory(trainer.model if "trainer" in locals() else None)
 
     def _log_training_start(
         self,

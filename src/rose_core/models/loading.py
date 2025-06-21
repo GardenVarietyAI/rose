@@ -151,16 +151,3 @@ def load_peft_model(
 
     logger.info(f"Successfully loaded PEFT model: {model_id}")
     return model
-
-
-def cleanup_model_memory() -> None:
-    """Clean up model memory and cache."""
-    import gc
-
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    elif torch.backends.mps.is_available():
-        torch.mps.synchronize()
-        torch.mps.empty_cache()
-        gc.collect()

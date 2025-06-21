@@ -25,6 +25,29 @@ POLL_INTERVAL = 5
 MAX_CONCURRENT_EVAL = 2
 
 
+def _wrap_training_job(job_id: int, payload: Dict[str, Any]) -> None:
+    """Wrapper to handle training job cleanup."""
+    try:
+        process_training_job(job_id, payload)
+    finally:
+        cleanup_model_memory()
+
+
+def _wrap_eval_job(job_id: int, payload: Dict[str, Any]) -> None:
+    """Wrapper to handle eval job cleanup and status updates."""
+    try:
+        # Update job status to running
+        update_job_status(job_id, "running")
+        result = process_eval_job(job_id, payload)
+        # Update job status to completed
+        update_job_status(job_id, "completed", result)
+    except Exception as e:
+        logger.exception(f"Eval job {job_id} failed")
+        update_job_status(job_id, "failed", {"error": str(e)})
+    finally:
+        cleanup_model_memory()
+
+
 class Worker:
     """Worker that handles both training and evaluation jobs."""
 
@@ -81,14 +104,14 @@ class Worker:
             if self.scheduler:
                 if job_type == "training":
                     self.scheduler.add_job(
-                        self._wrap_training_job,
+                        _wrap_training_job,
                         args=[int(job_id), payload],
                         id=prefixed_id,
                         executor="training",
                     )
                 else:  # eval
                     self.scheduler.add_job(
-                        self._wrap_eval_job,
+                        _wrap_eval_job,
                         args=[int(job_id), payload],
                         id=prefixed_id,
                         executor="eval",
@@ -96,37 +119,13 @@ class Worker:
 
             logger.info(f"Scheduled {job_type} job {job_id}")
 
-    def _wrap_training_job(self, job_id: int, payload: Dict[str, Any]) -> None:
-        """Wrapper to handle training job cleanup."""
-        try:
-            process_training_job(job_id, payload)
-        finally:
-            cleanup_model_memory()
-
-    def _wrap_eval_job(self, job_id: int, payload: Dict[str, Any]) -> None:
-        """Wrapper to handle eval job cleanup and status updates."""
-        try:
-            # Update job status to running
-            update_job_status(job_id, "running")
-            result = process_eval_job(job_id, payload)
-            # Update job status to completed
-            update_job_status(job_id, "completed", result)
-        except Exception as e:
-            logger.exception(f"Eval job {job_id} failed")
-            update_job_status(job_id, "failed", {"error": str(e)})
-        finally:
-            cleanup_model_memory()
-
     def handle_signal(self, *_: Any) -> None:
         """Handle shutdown signals."""
         self.stop_flag["quit"] = True
 
     def run(self) -> None:
         """Main worker loop."""
-        logging.basicConfig(
-            level=getattr(logging, LOG_LEVEL),
-            format=LOG_FORMAT,
-        )
+        logging.basicConfig(level=getattr(logging, LOG_LEVEL), format=LOG_FORMAT)
 
         logger.info(
             f"ROSE Worker starting - "
@@ -136,16 +135,17 @@ class Worker:
         )
 
         # Set up scheduler with thread pools
-        executors = {
-            "training": ThreadPoolExecutor(max_workers=MAX_CONCURRENT_TRAINING),
-            "eval": ThreadPoolExecutor(max_workers=MAX_CONCURRENT_EVAL),
-        }
-        self.scheduler = BackgroundScheduler(executors=executors)
+        self.scheduler = BackgroundScheduler(
+            executors={
+                "training": ThreadPoolExecutor(max_workers=MAX_CONCURRENT_TRAINING),
+                "eval": ThreadPoolExecutor(max_workers=MAX_CONCURRENT_EVAL),
+            }
+        )
+
         self.scheduler.start()
 
         # Schedule the poller
         self.scheduler.add_job(self.poll_jobs, "interval", seconds=POLL_INTERVAL, id="poller")
-        self.poll_jobs()
 
         # Set up signal handling
         signal.signal(signal.SIGINT, self.handle_signal)
