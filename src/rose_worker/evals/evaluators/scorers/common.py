@@ -8,6 +8,9 @@ Copyright (c) 2016 Pranav Rajpurkar, Stanford NLP
 import re
 import string
 
+# Precompiled regex patterns
+ARTICLE_RE = re.compile(r"\b(a|an|the)\b")
+
 
 def normalize_answer(s: str) -> str:
     """Normalize answer string for comparison.
@@ -16,7 +19,7 @@ def normalize_answer(s: str) -> str:
     """
 
     def remove_articles(text: str) -> str:
-        return re.sub(r"\b(a|an|the)\b", " ", text)
+        return ARTICLE_RE.sub(" ", text)
 
     def white_space_fix(text: str) -> str:
         return " ".join(text.split())
