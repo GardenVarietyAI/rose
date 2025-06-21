@@ -84,7 +84,7 @@ def train(
 
     def tokenize_example(example: Dict[str, Any]) -> "BatchEncoding":
         text = tokenizer.apply_chat_template(example["messages"], tokenize=False)
-        return tokenizer(str(text), truncation=True, model_max_length=hp.max_length)
+        return tokenizer(str(text), truncation=True, max_length=hp.max_length)
 
     checkpoint_dir = Path(DATA_DIR) / "checkpoints" / job_id
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -152,7 +152,7 @@ def train(
         default=None,
         key=lambda p: int(p.name.split("-")[1]),
     )
-    result = trainer.train(resume_from_checkpoint=str(latest))
+    result = trainer.train(resume_from_checkpoint=str(latest) if latest else None)
 
     ts = int(time.time())
     model_id = f"{model_name}-ft-{ts}"
@@ -176,7 +176,7 @@ def train(
 
     return {
         "success": True,
-        "final_loss": result.metrics.train_loss,
+        "final_loss": result.metrics.get("train_loss"),
         "steps": trainer.state.global_step,
         "tokens_processed": trainer.state.num_input_tokens_seen,
         "model_path": str(out_dir),
