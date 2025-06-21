@@ -48,27 +48,25 @@ def train(
     tokenizer = get_tokenizer(hf_model_name)
     model_config = FINE_TUNING_MODELS.get(model_name, {})
 
-    if hp.use_lora:
-        hp.lora_config = hp.lora_config or {}
-
+    if hp.use_lora and hp.lora_config:
         target_modules = hp.lora_config.get("target_modules")
         if not target_modules:
             target_modules = model_config.get("lora_target_modules", ["q_proj", "k_proj", "v_proj", "o_proj"])
 
-        lora_config = LoraConfig(
-            r=hp.lora_config.get("r", 16),
-            lora_alpha=hp.lora_config.get("lora_alpha", 32),
-            target_modules=target_modules,
-            lora_dropout=hp.lora_config.get("lora_dropout", 0.05),
-            bias="none",
-            task_type=TaskType.CAUSAL_LM,
+        peft_model = get_peft_model(  # type: ignore[arg-type]
+            model,
+            LoraConfig(
+                r=hp.lora_config.get("r", 16),
+                lora_alpha=hp.lora_config.get("lora_alpha", 32),
+                target_modules=target_modules,
+                lora_dropout=hp.lora_config.get("lora_dropout", 0.05),
+                bias="none",
+                task_type=TaskType.CAUSAL_LM,
+            ),
         )
 
-        peft_model = get_peft_model(model, lora_config)  # type: ignore[arg-type]
         if not isinstance(peft_model, PeftModel):
-            raise TypeError(
-                "Expected 'peft_model' to be an instance of 'PeftModel', but got {type(peft_model).__name__}."
-            )
+            raise TypeError("Expected '{type(peft_model).__name__}' to be an instance of 'PeftModel'.")
 
         peft_model.print_trainable_parameters()
 
