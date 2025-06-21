@@ -139,19 +139,19 @@ poetry run rose assistants delete asst_abc123
 
 ```bash
 # List evaluations
-poetry run rose eval list
+poetry run rose evals list
 
 # Create an evaluation
-poetry run rose eval create --name "Color Recognition" --file eval_data.jsonl
+poetry run rose evals create --name "Color Recognition" --file eval_data.jsonl
 
 # Get evaluation details
-poetry run rose eval get eval_abc123
+poetry run rose evals get eval_abc123
 
 # Run an evaluation
-poetry run rose eval run eval_abc123 --model qwen2.5-0.5b
+poetry run rose evals run eval_abc123 --model qwen2.5-0.5b
 
 # Delete an evaluation
-poetry run rose eval delete eval_abc123
+poetry run rose evals delete eval_abc123
 ```
 
 ### Compare Models
