@@ -4,7 +4,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 
-from .scorers import exact_match, f1_score
+from .scorers import exact_match, f1_score, fuzzy_match, includes, numeric
 from .scorers.common import normalize_answer
 
 logger = logging.getLogger(__name__)
@@ -16,6 +16,10 @@ NUMBER_PATTERN = re.compile(r"-?\d+\.?\d*")
 _SCORERS = {
     "exact_match": exact_match.score,
     "f1": f1_score.score,
+    "fuzzy_match": fuzzy_match.score,
+    "includes": includes.score,
+    "numeric_exact": numeric.score_exact,
+    "numeric_tolerance": numeric.score_tolerance,
 }
 
 

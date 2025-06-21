@@ -87,6 +87,8 @@ curl http://localhost:8004/v1/evals/{eval_id}/runs/{run_id}/samples/{sample_id}
 
 Each sample is scored using multiple metrics:
 - **exact_match** - Exact string match (normalized)
-- **f1** - Token-level F1 score
-- **substring_match** - Partial match scoring
-- **number_match** - For math problems (GSM8K)
+- **f1_score** - Token-level F1 score
+- **fuzzy_match** - Sequence similarity with configurable threshold
+- **includes** - Check if expected content appears in output
+
+For detailed information on available scorers and how to use them, see [Evaluation Scorers](./evaluation-scorers.md).
