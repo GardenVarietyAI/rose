@@ -158,7 +158,9 @@ class HFTrainer:
 
         peft_model = get_peft_model(model, lora_config)  # type: ignore[arg-type]
         if not isinstance(peft_model, PeftModel):
-            raise TypeError(f"Expected 'peft_model' to be an instance of 'PeftModel', but got {type(peft_model).__name__}.")
+            raise TypeError(
+                "Expected 'peft_model' to be an instance of 'PeftModel', but got {type(peft_model).__name__}."
+            )
         peft_model.print_trainable_parameters()
 
         return peft_model
