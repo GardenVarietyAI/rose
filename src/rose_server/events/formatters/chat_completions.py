@@ -104,7 +104,13 @@ class ChatCompletionsFormatter:
                 object="chat.completion.chunk",
                 created=self.created or int(time.time()),
                 model=self.model_name or event.model_name,
-                choices=[Choice(index=0, delta=ChoiceDelta(), finish_reason=event.finish_reason)],
+                choices=[
+                    Choice(
+                        index=0,
+                        delta=ChoiceDelta(),
+                        finish_reason=event.finish_reason,
+                    )
+                ],
             )
         return None
 

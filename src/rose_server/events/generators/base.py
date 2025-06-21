@@ -87,7 +87,7 @@ class BaseEventGenerator:
                 model_name=self.model_name,
                 response_id=f"resp_error_{uuid.uuid4().hex[:8]}",
                 total_tokens=0,
-                finish_reason="error",
+                finish_reason="stop",
                 output_tokens=0,
                 completion_time=0.0,
             )
