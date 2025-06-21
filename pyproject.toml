@@ -7,6 +7,7 @@ readme = "README.md"
 packages = [
     {include = "rose_core", from = "src"},
     {include = "rose_server", from = "src"},
+    {include = "rose_worker", from = "src"},
     {include = "rose_cli", from = "src"},
     {include = "rose_evals", from = "src"},
     {include = "rose_ft", from = "src"}
@@ -15,8 +16,7 @@ packages = [
 [tool.poetry.scripts]
 rose = "rose_cli.main:main"
 rose-server = "rose_server.main:main"
-rose-eval-worker = "rose_evals.worker:main"
-rose-ft-worker = "rose_ft.worker:main"
+rose-worker = "rose_worker.worker:main"
 
 [tool.poetry.dependencies]
 python = ">=3.13,<4.0"
@@ -108,6 +108,9 @@ files = [
     "src/rose_ft/training/hf_trainer.py",
     "src/rose_core/models/loading.py",
     "src/rose_server/language_models/huggingface_llm.py",
+    "src/rose_worker/worker.py",
+    "src/rose_ft/process.py",
+    "src/rose_evals/process.py",
 ]
 # Strict mode for checked files
 strict = true

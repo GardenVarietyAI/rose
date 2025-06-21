@@ -1,5 +1,5 @@
 #!/bin/bash
-# Start API server, training worker, and eval worker
+# Start API server and worker
 
 set -e
 
@@ -27,14 +27,9 @@ cleanup() {
         kill -TERM $SERVICE_PID
     fi
 
-    if kill -0 $TRAINING_WORKER_PID 2>/dev/null; then
-        echo "   Stopping fine-tuning service..."
-        kill -TERM $TRAINING_WORKER_PID
-    fi
-
-    if kill -0 $EVAL_WORKER_PID 2>/dev/null; then
-        echo "   Stopping eval worker..."
-        kill -TERM $EVAL_WORKER_PID
+    if kill -0 $WORKER_PID 2>/dev/null; then
+        echo "   Stopping worker..."
+        kill -TERM $WORKER_PID
     fi
 
     # Wait a bit for graceful shutdown
@@ -45,12 +40,8 @@ cleanup() {
         kill -9 $SERVICE_PID 2>/dev/null || true
     fi
 
-    if kill -0 $TRAINING_WORKER_PID 2>/dev/null; then
-        kill -9 $TRAINING_WORKER_PID 2>/dev/null || true
-    fi
-
-    if kill -0 $EVAL_WORKER_PID 2>/dev/null; then
-        kill -9 $EVAL_WORKER_PID 2>/dev/null || true
+    if kill -0 $WORKER_PID 2>/dev/null; then
+        kill -9 $WORKER_PID 2>/dev/null || true
     fi
 
     echo "Shutdown complete"
@@ -67,23 +58,17 @@ SERVICE_PID=$!
 # Wait a bit for service to start
 sleep 2
 
-# Start the fine-tuning service
-echo "Starting fine-tuning service..."
-poetry run rose-ft-worker &
-TRAINING_WORKER_PID=$!
-
-# Start the eval worker
-echo "Starting eval worker..."
-poetry run rose-eval-worker &
-EVAL_WORKER_PID=$!
+# Start the worker
+echo "Starting worker..."
+poetry run rose-worker &
+WORKER_PID=$!
 
 echo "ROSE Server is running!"
 echo "   API: http://localhost:8004"
 echo "   Docs: http://localhost:8004/docs"
-echo "   Fine-tuning Service: PID $TRAINING_WORKER_PID"
-echo "   Eval Worker: PID $EVAL_WORKER_PID"
+echo "   Worker: PID $WORKER_PID"
 echo ""
 echo "Press Ctrl+C to stop"
 
 # Wait for all processes
-wait $SERVICE_PID $TRAINING_WORKER_PID $EVAL_WORKER_PID
+wait $SERVICE_PID $WORKER_PID
