@@ -88,9 +88,48 @@ class ServiceClient:
         """Check if a fine-tuning job has been cancelled."""
         response = self._request("GET", f"/v1/fine_tuning/jobs/{ft_job_id}")
         data = response.json()
-        if data.get("status") in ["cancelled", "failed"]:
-            return data["status"]  # type: ignore[no-any-return]
+        status: str = data.get("status")
+        if status in ["cancelled", "failed"]:
+            return status
         return "running"
+
+    def create_chat_completion(
+        self,
+        model: str,
+        messages: List[Dict[str, str]],
+        temperature: float = 1.0,
+        max_tokens: int = 2048,
+        top_p: float = 1.0,
+        seed: Optional[int] = None,
+        timeout: float = 300.0,
+    ) -> Dict[str, Any]:
+        """Create a chat completion via the API."""
+        request_data = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "top_p": top_p,
+        }
+
+        if seed is not None:
+            request_data["seed"] = seed
+
+        # Use custom timeout for long generations
+        old_timeout = self._client.timeout
+        self._client.timeout = timeout
+        try:
+            response = self._request("POST", "/v1/chat/completions", json=request_data)
+            return response.json()
+        finally:
+            self._client.timeout = old_timeout
+
+    def get_file_content(self, file_id: str) -> bytes:
+        """Download file content via the API."""
+        response = self._request("GET", f"/v1/files/{file_id}/content")
+        if response.status_code == 404:
+            raise FileNotFoundError(f"File '{file_id}' not found")
+        return response.content
 
 
 # Global client instance

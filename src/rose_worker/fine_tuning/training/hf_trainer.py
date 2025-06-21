@@ -1,265 +1,110 @@
-import json
 import logging
-import os
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Union
-
-if TYPE_CHECKING:
-    from transformers.modeling_utils import PreTrainedModel
-    from transformers.tokenization_utils_base import BatchEncoding, PreTrainedTokenizerBase
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 import torch
-from datasets import Dataset, IterableDataset, load_dataset
+from datasets import Dataset, load_dataset
 from peft import LoraConfig, TaskType, get_peft_model
 from peft.peft_model import PeftModel
 from transformers.data.data_collator import DataCollatorForLanguageModeling
+from transformers.tokenization_utils_base import BatchEncoding
 from transformers.trainer import Trainer
 from transformers.trainer_callback import EarlyStoppingCallback, TrainerCallback
 from transformers.training_args import TrainingArguments
 
-from rose_core.config.service import DATA_DIR, FINE_TUNING_EVAL_BATCH_SIZE, FINE_TUNING_MODELS, LLM_MODELS
-from rose_core.models import cleanup_model_memory, get_tokenizer, load_hf_model
+from rose_core.config.service import DATA_DIR, FINE_TUNING_EVAL_BATCH_SIZE, FINE_TUNING_MODELS
+from rose_core.models import get_tokenizer, load_hf_model
 from rose_core.models.loading import get_optimal_device
 
 from .callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
-from .hyperparams import HyperParams, ResolvedHyperParams
+from .hyperparams import HyperParams
 
 logger = logging.getLogger(__name__)
 
 
-class HFTrainer:
-    """Wraps HF Trainer with checkpoint management and resource monitoring."""
+def train(
+    job_id: str,
+    model_name: str,
+    training_file_path: Path,
+    hyperparameters: Dict[str, Any],
+    check_cancel_callback: Optional[Callable[[], str]] = None,
+    event_callback: Optional[Callable[[str, str, Dict[str, Any]], None]] = None,
+) -> Dict[str, Any]:
+    """Run a fine-tuning job and return a result dict."""
 
-    def __init__(self) -> None:
-        self.fine_tuning_models = FINE_TUNING_MODELS.copy()
+    if model_name not in FINE_TUNING_MODELS:
+        raise ValueError(f"Model {model_name} not supported for fine-tuning")
 
-    def train(
-        self,
-        job_id: str,
-        model_name: str,
-        training_file_path: Path,
-        hyperparameters: Dict[str, Any],
-        check_cancel_callback: Optional[Callable[[], str]] = None,
-        event_callback: Optional[Callable[[str, str, Dict[str, Any]], None]] = None,
-    ) -> Dict[str, Any]:
-        """Run a fine-tuning job and return a result dict."""
-        os.environ["TRANSFORMERS_VERBOSITY"] = "warning"
+    hp = HyperParams.resolve(hyperparameters)
+    torch.manual_seed(hp.seed)
+    np.random.seed(hp.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(hp.seed)
 
-        # Load and prepare data
-        raw_data = _load_jsonl(training_file_path)
-        hp = HyperParams.resolve(hyperparameters)
+    hf_model_name = FINE_TUNING_MODELS[model_name]
+    model = load_hf_model(model_id=hf_model_name)
+    tokenizer = get_tokenizer(hf_model_name)
+    model_config = FINE_TUNING_MODELS.get(model_name, {})
 
-        # Set up training state
-        torch.manual_seed(hp.seed)
-        np.random.seed(hp.seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed(hp.seed)
-
-        if model_name not in self.fine_tuning_models:
-            raise ValueError(f"Model {model_name} not supported for fine-tuning")
-
-        hf_model_name = self.fine_tuning_models[model_name]
-        model = load_hf_model(model_id=hf_model_name)
-        tokenizer = get_tokenizer(hf_model_name)
-
-        if hp.use_lora:
-            model = self._apply_lora(model, model_name, hp)
-
-        # Build training components
-        callbacks: List[TrainerCallback] = [EventCallback(event_callback), HardwareMonitorCallback(event_callback)]
-        if check_cancel_callback:
-            callbacks.append(CancellationCallback(check_cancel_callback, job_id))
-        if hp.validation_split > 0:
-            callbacks.append(EarlyStoppingCallback(early_stopping_patience=hp.early_stopping_patience))
-
-        ds = _prepare_dataset(raw_data, tokenizer, hp.max_length)
-        args = _make_training_args(job_id, hp, len(ds))
-
-        data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8)
-
-        # Build proper train / validation split
-        if hp.validation_split > 0:
-            split = ds.train_test_split(hp.validation_split, seed=42)
-            train_ds, eval_ds = split["train"], split["test"]
-        else:
-            train_ds, eval_ds = ds, None
-
-        trainer = Trainer(
-            model=model,
-            args=args,
-            train_dataset=train_ds,
-            eval_dataset=eval_ds,
-            processing_class=tokenizer,
-            data_collator=data_collator,
-            callbacks=callbacks,
-        )
-
-        try:
-            self._log_training_start(event_callback, model_name, ds, args)
-            result = trainer.train(resume_from_checkpoint=_latest_checkpoint(job_id))
-            out_dir = self._save_model(trainer, model_name, hp.suffix)
-            metrics = result.metrics
-            tokens = int(trainer.state.num_input_tokens_seen) if hasattr(trainer.state, "num_input_tokens_seen") else 0
-
-            return {
-                "success": True,
-                "final_loss": metrics.get("train_loss", 0),
-                "steps": trainer.state.global_step,
-                "tokens_processed": tokens,
-                "model_path": str(out_dir),
-                "model_name": out_dir.name,
-            }
-        except Exception:
-            logger.exception("Training failed")
-            raise  # Let the caller handle it
-        finally:
-            cleanup_model_memory()
-
-    def _log_training_start(
-        self,
-        event_callback: Optional[Callable[[str, str, Dict[str, Any]], None]],
-        model_name: str,
-        dataset: Dataset,
-        args: TrainingArguments,
-    ) -> None:
-        if event_callback:
-            event_callback(
-                "info",
-                "Training started",
-                {
-                    "model": model_name,
-                    "num_examples": len(dataset),
-                    "batch_size": args.per_device_train_batch_size,
-                    "epochs": args.num_train_epochs,
-                    "device": get_optimal_device(),
-                },
-            )
-
-    def _apply_lora(self, model: "PreTrainedModel", model_name: str, hp: ResolvedHyperParams) -> PeftModel:
-        """Apply LoRA adaptation to the model."""
-        lora_cfg = hp.lora_config or {}
-
-        # Get target modules from config or model registry
-        target_modules = lora_cfg.get("target_modules")
+    if hp.use_lora and hp.lora_config:
+        target_modules = hp.lora_config.get("target_modules")
         if not target_modules:
-            model_config = LLM_MODELS.get(model_name, {})
             target_modules = model_config.get("lora_target_modules", ["q_proj", "k_proj", "v_proj", "o_proj"])
 
-        lora_config = LoraConfig(
-            r=lora_cfg.get("r", 16),
-            lora_alpha=lora_cfg.get("lora_alpha", 32),
-            target_modules=target_modules,
-            lora_dropout=lora_cfg.get("lora_dropout", 0.05),
-            bias="none",
-            task_type=TaskType.CAUSAL_LM,
+        peft_model = get_peft_model(  # type: ignore[arg-type]
+            model,
+            LoraConfig(
+                r=hp.lora_config.get("r", 16),
+                lora_alpha=hp.lora_config.get("lora_alpha", 32),
+                target_modules=target_modules,
+                lora_dropout=hp.lora_config.get("lora_dropout", 0.05),
+                bias="none",
+                task_type=TaskType.CAUSAL_LM,
+            ),
         )
 
-        peft_model = get_peft_model(model, lora_config)  # type: ignore[arg-type]
         if not isinstance(peft_model, PeftModel):
-            raise TypeError(
-                "Expected 'peft_model' to be an instance of 'PeftModel', but got {type(peft_model).__name__}."
-            )
+            raise TypeError(f"Expected {type(peft_model).__name__} to be an instance of 'PeftModel'.")
+
         peft_model.print_trainable_parameters()
 
-        return peft_model
+        model = peft_model
 
-    def _save_model(self, trainer: Trainer, base_name: str, suffix: str) -> Path:
-        ts = int(time.time())
+    # Build training components
+    callbacks: List[TrainerCallback] = [EventCallback(event_callback), HardwareMonitorCallback(event_callback)]
+    if check_cancel_callback:
+        callbacks.append(CancellationCallback(check_cancel_callback, job_id))
+    if hp.validation_split > 0:
+        callbacks.append(EarlyStoppingCallback(early_stopping_patience=hp.early_stopping_patience))
 
-        if suffix:
-            model_id = f"{base_name}-ft-{ts}-{suffix}"
-        else:
-            model_id = f"{base_name}-ft-{ts}"
+    # Load dataset and tokenize
+    raw_dataset: Dataset = load_dataset("json", data_files=str(training_file_path), split="train")
 
-        out = Path(DATA_DIR) / "models" / model_id
-        out.mkdir(parents=True, exist_ok=True)
+    def tokenize_example(example: Dict[str, Any]) -> "BatchEncoding":
+        text = tokenizer.apply_chat_template(example["messages"], tokenize=False)
+        return tokenizer(str(text), truncation=True, max_length=hp.max_length)
 
-        trainer.save_model(str(out))
+    checkpoint_dir = Path(DATA_DIR) / "checkpoints" / job_id
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-        # Check if this is a PEFT model
-        if hasattr(trainer.model, "peft_config"):
-            if torch.backends.mps.is_available():
-                logger.warning(
-                    "Skipping merge_and_unload on Apple Silicon due to potential hanging issues. "
-                    "The model is saved with separate adapter weights."
-                )
-            else:
-                try:
-                    logger.info("Merging LoRA adapters into base model...")
-                    merged_model = trainer.model.merge_and_unload()  # type: ignore[union-attr,operator]
-                    merged_model.save_pretrained(str(out))
-                    logger.info("Successfully merged and saved model")
-                except Exception as e:
-                    logger.error(f"Failed to merge_and_unload model: {e}")
+    tokenized_dataset = raw_dataset.map(tokenize_example, remove_columns=raw_dataset.column_names)
 
-        return out
-
-    def cleanup(self) -> None:
-        cleanup_model_memory()
-
-
-def _load_jsonl(fp: Path) -> Union[Dataset, IterableDataset, Iterable[Dict[str, Any]]]:
-    """Stream JSONL file to avoid loading everything into memory."""
-    try:
-        return load_dataset("json", data_files=str(fp), split="train", streaming=True)
-    except Exception:  # Fallback for environments without dataset streaming
-
-        def gen() -> Iterable[Dict[str, Any]]:
-            with fp.open("r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line:
-                        yield json.loads(line)
-
-        return gen()
-
-
-def _prepare_dataset(
-    raw: Union[Dataset, IterableDataset, Iterable[Dict[str, Any]]], tokenizer: "PreTrainedTokenizerBase", max_len: int
-) -> Dataset:
-    def to_text(item: Dict[str, Any]) -> str:
-        if "messages" in item and hasattr(tokenizer, "apply_chat_template"):
-            return str(tokenizer.apply_chat_template(item["messages"], tokenize=False, add_generation_prompt=False))
-
-        if "prompt" in item and "completion" in item:
-            return str(item["prompt"]) + str(item["completion"])
-
-        return str(item.get("text", ""))
-
-    def gen() -> Iterable[Dict[str, str]]:
-        for ex in raw:
-            yield {"text": to_text(ex)}
-
-    ds = Dataset.from_generator(gen)
-
-    def tokenize(batch: Dict[str, List[str]]) -> "BatchEncoding":
-        result = tokenizer(batch["text"], truncation=True, padding=True, max_length=max_len)
-        return result  # type: ignore[no-any-return]
-
-    return ds.map(tokenize, batched=True, remove_columns=["text"])
-
-
-def _make_training_args(job_id: str, hp: ResolvedHyperParams, n_samples: int) -> TrainingArguments:
-    out_dir = Path(DATA_DIR) / "checkpoints" / job_id
-    out_dir.mkdir(parents=True, exist_ok=True)
+    n_samples = len(tokenized_dataset)
     per_device = hp.batch_size
     steps_per_epoch = max(n_samples // per_device, 1)
-    actual_gas = hp.gradient_accumulation_steps
-    total_steps = steps_per_epoch // actual_gas * hp.n_epochs
-    warmup = int(total_steps * hp.warmup_ratio)
+    total_steps = steps_per_epoch // hp.gradient_accumulation_steps * hp.n_epochs
     device = get_optimal_device()
 
-    return TrainingArguments(
-        output_dir=str(out_dir),
-        overwrite_output_dir=True,
+    args = TrainingArguments(
+        output_dir=str(checkpoint_dir),
         num_train_epochs=hp.n_epochs,
         per_device_train_batch_size=per_device,
         per_device_eval_batch_size=FINE_TUNING_EVAL_BATCH_SIZE,
-        gradient_accumulation_steps=actual_gas,
+        gradient_accumulation_steps=hp.gradient_accumulation_steps,
         learning_rate=hp.learning_rate,
-        warmup_steps=warmup,
+        warmup_steps=int(total_steps * hp.warmup_ratio),
         lr_scheduler_type=hp.scheduler_type,
         eval_strategy="epoch" if hp.validation_split else "no",
         save_strategy="epoch",
@@ -267,7 +112,7 @@ def _make_training_args(job_id: str, hp: ResolvedHyperParams, n_samples: int) ->
         load_best_model_at_end=bool(hp.validation_split),
         metric_for_best_model="loss",
         optim="adamw_torch",
-        logging_dir=str(out_dir / "logs"),
+        logging_dir=str(checkpoint_dir / "logs"),
         logging_steps=10,
         log_level="info",
         disable_tqdm=True,
@@ -280,12 +125,60 @@ def _make_training_args(job_id: str, hp: ResolvedHyperParams, n_samples: int) ->
         include_num_input_tokens_seen=True,
     )
 
+    # tokenization
+    data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8)
 
-def _latest_checkpoint(job_id: str) -> Optional[str]:
-    base = Path(DATA_DIR) / "checkpoints" / job_id
-    if not base.exists():
-        return None
-    ckpts = sorted(base.glob("checkpoint-*"), key=lambda p: int(p.name.split("-")[1]))
-    if ckpts:
-        return str(ckpts[-1])
-    return None
+    # Build train / validation split
+    if hp.validation_split > 0:
+        split = tokenized_dataset.train_test_split(hp.validation_split, seed=42)
+        train_ds = split["train"]
+        eval_ds = split["test"]
+    else:
+        train_ds = tokenized_dataset
+        eval_ds = None
+
+    trainer = Trainer(
+        model=model,
+        args=args,
+        train_dataset=train_ds,
+        eval_dataset=eval_ds,
+        processing_class=tokenizer,
+        data_collator=data_collator,
+        callbacks=callbacks,
+    )
+
+    latest = max(
+        (p for p in checkpoint_dir.glob("checkpoint-*") if p.is_dir()),
+        default=None,
+        key=lambda p: int(p.name.split("-")[1]),
+    )
+    result = trainer.train(resume_from_checkpoint=str(latest) if latest else None)
+
+    ts = int(time.time())
+    model_id = f"{model_name}-ft-{ts}"
+    if hp.suffix:
+        model_id = f"{model_id}-{hp.suffix}"
+
+    out_dir = Path(DATA_DIR) / "models" / model_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    trainer.save_model(str(out_dir))
+
+    # Check if this is a PEFT model
+    if hasattr(trainer.model, "peft_config"):
+        if torch.backends.mps.is_available():
+            logger.warning("Skipping merge_and_unload on Apple Silicon")
+        else:
+            logger.info("Merging LoRA adapters into base model...")
+            merged_model = trainer.model.merge_and_unload()  # type: ignore[union-attr,operator]
+            merged_model.save_pretrained(str(out_dir))
+            logger.info("Successfully merged and saved model")
+
+    return {
+        "success": True,
+        "final_loss": result.metrics.get("train_loss"),
+        "steps": trainer.state.global_step,
+        "tokens_processed": trainer.state.num_input_tokens_seen,
+        "model_path": str(out_dir),
+        "model_name": out_dir.name,
+    }

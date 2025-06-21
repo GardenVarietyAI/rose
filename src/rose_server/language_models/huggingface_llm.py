@@ -2,6 +2,7 @@
 import logging
 import os
 import traceback
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from peft import PeftModel
@@ -51,22 +52,22 @@ class HuggingFaceLLM:
             # torch_dtype "auto" means let the model decide
             torch_dtype = None if self.config.get("torch_dtype") == "auto" else self.config.get("torch_dtype")
 
-            # Decide which loader to use based on whether we have a local model_path
             if self.model_path:
-                # This is a fine-tuned model (potentially PEFT/LoRA)
-                self._model = load_peft_model(
-                    model_id=self.model_name,
-                    model_path=self.model_path,
-                    torch_dtype=torch_dtype,
-                )
+                # Check if it's a PEFT adapter or a full model
+                adapter_config_path = Path(self.model_path) / "adapter_config.json"
+                if adapter_config_path.exists():
+                    # This is a PEFT/LoRA adapter
+                    self._model = load_peft_model(
+                        model_id=self.model_name, model_path=self.model_path, torch_dtype=torch_dtype
+                    )
+                else:
+                    # This is a full model saved locally
+                    self._model = load_hf_model(model_id=self.model_path, torch_dtype=torch_dtype)
                 # Load tokenizer from the local path
                 self._tokenizer = get_tokenizer(self.model_path)
             else:
                 # This is a base model from HuggingFace hub
-                self._model = load_hf_model(
-                    model_id=self.model_name,
-                    torch_dtype=torch_dtype,
-                )
+                self._model = load_hf_model(model_id=self.model_name, torch_dtype=torch_dtype)
                 # Load tokenizer from HuggingFace hub
                 self._tokenizer = get_tokenizer(self.model_name)
             return True
@@ -178,8 +179,8 @@ class HuggingFaceLLM:
 
     def cleanup(self) -> None:
         """Clean up model resources and memory."""
+        # Clean up GPU/memory with proper PEFT handling
+        cleanup_model_memory(self._model)
         # Clear references to allow garbage collection
         self._model = None
         self._tokenizer = None
-        # Clean up GPU/memory
-        cleanup_model_memory()
