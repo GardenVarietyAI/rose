@@ -12,7 +12,10 @@ def create_eval(
     name: str = typer.Option(..., "--name", "-n", help="Evaluation name"),
     file_id: str = typer.Option(..., "--file", "-f", help="Dataset file ID"),
     grader_type: str = typer.Option(
-        "text_similarity", "--grader", "-g", help="Grader type: text_similarity, string_check, numeric_check"
+        "text_similarity",
+        "--grader",
+        "-g",
+        help="Grader type: text_similarity (flexible), string_check (exact), numeric_check (extracts numbers)",
     ),
     metric: str = typer.Option(
         "f1", "--metric", "-m", help="Evaluation metric: exact_match, f1, fuzzy_match, includes, numeric_exact"
@@ -40,6 +43,8 @@ def create_eval(
                 }
             ]
         elif grader_type == "numeric_check":
+            # Use text_similarity type with numeric_exact metric
+            # The grader will use the numeric scorer for evaluation
             criteria = [
                 {
                     "type": "text_similarity",
@@ -47,7 +52,7 @@ def create_eval(
                     "input": "{{sample.output_text}}",
                     "reference": "{{item.expected}}",
                     "evaluation_metric": "numeric_exact",
-                    "pass_threshold": 0.5,
+                    "pass_threshold": 1.0,  # Numeric exact match is binary (0 or 1)
                 }
             ]
         else:
