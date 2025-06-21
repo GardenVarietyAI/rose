@@ -3,7 +3,7 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Union
 
 if TYPE_CHECKING:
     from transformers.modeling_utils import PreTrainedModel
@@ -11,15 +11,17 @@ if TYPE_CHECKING:
 
 import numpy as np
 import torch
-from datasets import Dataset, load_dataset
+from datasets import Dataset, IterableDataset, load_dataset
 from peft import LoraConfig, TaskType, get_peft_model
+from peft.peft_model import PeftModel
 from transformers.data.data_collator import DataCollatorForLanguageModeling
 from transformers.trainer import Trainer
 from transformers.trainer_callback import EarlyStoppingCallback, TrainerCallback
 from transformers.training_args import TrainingArguments
 
 from rose_core.config.service import DATA_DIR, FINE_TUNING_EVAL_BATCH_SIZE, FINE_TUNING_MODELS, LLM_MODELS
-from rose_core.models import cleanup_model_memory, load_model_and_tokenizer
+from rose_core.models import cleanup_model_memory, get_tokenizer, load_hf_model
+from rose_core.models.loading import get_optimal_device
 
 from .callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
 from .hyperparams import HyperParams, ResolvedHyperParams
@@ -50,16 +52,49 @@ class HFTrainer:
         hp = HyperParams.resolve(hyperparameters)
 
         # Set up training state
-        self._prepare_training_state(hp)
+        torch.manual_seed(hp.seed)
+        np.random.seed(hp.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(hp.seed)
 
-        # Load model and prepare dataset
-        model, tokenizer = self._load_model_and_tok(model_name, hp)
-        ds = _prepare_dataset(raw_data, tokenizer, hp.max_length)
+        if model_name not in self.fine_tuning_models:
+            raise ValueError(f"Model {model_name} not supported for fine-tuning")
+
+        hf_model_name = self.fine_tuning_models[model_name]
+        model = load_hf_model(model_id=hf_model_name)
+        tokenizer = get_tokenizer(hf_model_name)
+
+        if hp.use_lora:
+            model = self._apply_lora(model, model_name, hp)
 
         # Build training components
+        callbacks: List[TrainerCallback] = [EventCallback(event_callback), HardwareMonitorCallback(event_callback)]
+        if check_cancel_callback:
+            callbacks.append(CancellationCallback(check_cancel_callback, job_id))
+        if hp.validation_split > 0:
+            callbacks.append(EarlyStoppingCallback(early_stopping_patience=hp.early_stopping_patience))
+
+        ds = _prepare_dataset(raw_data, tokenizer, hp.max_length)
         args = _make_training_args(job_id, hp, len(ds))
-        callbacks = self._build_callbacks(event_callback, check_cancel_callback, job_id, hp)
-        trainer = self._build_trainer(model, tokenizer, ds, args, callbacks, hp)
+
+        data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8)
+
+        # Build proper train / validation split
+        if hp.validation_split > 0:
+            split = ds.train_test_split(hp.validation_split, seed=42)
+            train_ds, eval_ds = split["train"], split["test"]
+        else:
+            train_ds, eval_ds = ds, None
+
+        trainer = Trainer(
+            model=model,
+            args=args,
+            train_dataset=train_ds,
+            eval_dataset=eval_ds,
+            processing_class=tokenizer,
+            data_collator=data_collator,
+            callbacks=callbacks,
+        )
 
         try:
             self._log_training_start(event_callback, model_name, ds, args)
@@ -80,54 +115,7 @@ class HFTrainer:
             logger.exception("Training failed")
             raise  # Let the caller handle it
         finally:
-            self.cleanup()
-
-    def _prepare_training_state(self, hp: ResolvedHyperParams) -> None:
-        torch.manual_seed(hp.seed)
-        np.random.seed(hp.seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed(hp.seed)
-
-    def _build_callbacks(
-        self,
-        event_callback: Optional[Callable[[str, str, Dict[str, Any]], None]],
-        check_cancel_callback: Optional[Callable[[], str]],
-        job_id: str,
-        hp: ResolvedHyperParams,
-    ) -> List[TrainerCallback]:
-        callbacks: List[TrainerCallback] = [
-            EventCallback(event_callback),
-            HardwareMonitorCallback(event_callback),
-        ]
-
-        if check_cancel_callback:
-            callbacks.append(CancellationCallback(check_cancel_callback, job_id))
-
-        if hp.validation_split > 0:
-            callbacks.append(EarlyStoppingCallback(early_stopping_patience=hp.early_stopping_patience))
-
-        return callbacks
-
-    def _build_trainer(
-        self,
-        model: "PreTrainedModel",
-        tokenizer: "PreTrainedTokenizerBase",
-        dataset: Dataset,
-        args: TrainingArguments,
-        callbacks: List[TrainerCallback],
-        hp: ResolvedHyperParams,
-    ) -> Trainer:
-        data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8)
-
-        return Trainer(
-            model=model,
-            args=args,
-            train_dataset=dataset,
-            eval_dataset=_maybe_split(dataset, hp.validation_split),
-            processing_class=tokenizer,
-            data_collator=data_collator,
-            callbacks=callbacks,
-        )
+            cleanup_model_memory()
 
     def _log_training_start(
         self,
@@ -149,28 +137,7 @@ class HFTrainer:
                 },
             )
 
-    def _load_model_and_tok(
-        self, model_name: str, hp: ResolvedHyperParams
-    ) -> Tuple["PreTrainedModel", "PreTrainedTokenizerBase"]:
-        """Load model with hyperparameters applied."""
-        if model_name not in self.fine_tuning_models:
-            raise ValueError(f"Model {model_name} not supported for fine-tuning")
-
-        hf_model_name = self.fine_tuning_models[model_name]
-        device = get_optimal_device()
-        model, tokenizer = load_model_and_tokenizer(
-            model_id=hf_model_name,
-            device=device,
-            device_map=None,
-            offload_dir=None,
-        )
-
-        if hp.use_lora:
-            model = self._apply_lora(model, model_name, hp)
-
-        return model, tokenizer
-
-    def _apply_lora(self, model: "PreTrainedModel", model_name: str, hp: ResolvedHyperParams) -> Any:
+    def _apply_lora(self, model: "PreTrainedModel", model_name: str, hp: ResolvedHyperParams) -> PeftModel:
         """Apply LoRA adaptation to the model."""
         lora_cfg = hp.lora_config or {}
 
@@ -189,17 +156,19 @@ class HFTrainer:
             task_type=TaskType.CAUSAL_LM,
         )
 
-        model = get_peft_model(model, lora_config)  # type: ignore[arg-type,assignment]
+        peft_model = get_peft_model(model, lora_config)  # type: ignore[arg-type]
+        if not isinstance(peft_model, PeftModel):
+            raise TypeError(
+                "Expected 'peft_model' to be an instance of 'PeftModel', but got {type(peft_model).__name__}."
+            )
+        peft_model.print_trainable_parameters()
 
-        if hasattr(model, "print_trainable_parameters"):
-            model.print_trainable_parameters()  # type: ignore[operator]
-
-        return model
+        return peft_model
 
     def _save_model(self, trainer: Trainer, base_name: str, suffix: str) -> Path:
         ts = int(time.time())
 
-        if suffix and suffix != "None":
+        if suffix:
             model_id = f"{base_name}-ft-{ts}-{suffix}"
         else:
             model_id = f"{base_name}-ft-{ts}"
@@ -219,7 +188,7 @@ class HFTrainer:
             else:
                 try:
                     logger.info("Merging LoRA adapters into base model...")
-                    merged_model = trainer.model.merge_and_unload()  # type: ignore[attr-defined,operator,union-attr]
+                    merged_model = trainer.model.merge_and_unload()  # type: ignore[union-attr,operator]
                     merged_model.save_pretrained(str(out))
                     logger.info("Successfully merged and saved model")
                 except Exception as e:
@@ -227,23 +196,11 @@ class HFTrainer:
 
         return out
 
-    def cleanup(self):
-        """Clean up all resources held by HFTrainer."""
-
+    def cleanup(self) -> None:
         cleanup_model_memory()
 
 
-def get_optimal_device() -> str:
-    """Get the optimal device for model inference/training."""
-    if torch.cuda.is_available():
-        return "cuda"
-    elif torch.backends.mps.is_available():
-        return "mps"
-    else:
-        return "cpu"
-
-
-def _load_jsonl(fp: Path):
+def _load_jsonl(fp: Path) -> Union[Dataset, IterableDataset, Iterable[Dict[str, Any]]]:
     """Stream JSONL file to avoid loading everything into memory."""
     try:
         return load_dataset("json", data_files=str(fp), split="train", streaming=True)
@@ -259,15 +216,17 @@ def _load_jsonl(fp: Path):
         return gen()
 
 
-def _prepare_dataset(raw: Iterable[Dict[str, Any]], tokenizer: "PreTrainedTokenizerBase", max_len: int) -> Dataset:
+def _prepare_dataset(
+    raw: Union[Dataset, IterableDataset, Iterable[Dict[str, Any]]], tokenizer: "PreTrainedTokenizerBase", max_len: int
+) -> Dataset:
     def to_text(item: Dict[str, Any]) -> str:
         if "messages" in item and hasattr(tokenizer, "apply_chat_template"):
             return str(tokenizer.apply_chat_template(item["messages"], tokenize=False, add_generation_prompt=False))
 
         if "prompt" in item and "completion" in item:
-            return item["prompt"] + item["completion"]
+            return str(item["prompt"]) + str(item["completion"])
 
-        return item.get("text", "")
+        return str(item.get("text", ""))
 
     def gen() -> Iterable[Dict[str, str]]:
         for ex in raw:
@@ -276,7 +235,8 @@ def _prepare_dataset(raw: Iterable[Dict[str, Any]], tokenizer: "PreTrainedTokeni
     ds = Dataset.from_generator(gen)
 
     def tokenize(batch: Dict[str, List[str]]) -> "BatchEncoding":
-        return tokenizer(batch["text"], truncation=True, padding=True, max_length=max_len)
+        result = tokenizer(batch["text"], truncation=True, padding=True, max_length=max_len)
+        return result  # type: ignore[no-any-return]
 
     return ds.map(tokenize, batched=True, remove_columns=["text"])
 
@@ -321,13 +281,11 @@ def _make_training_args(job_id: str, hp: ResolvedHyperParams, n_samples: int) ->
     )
 
 
-def _maybe_split(ds: Dataset, val_ratio: float) -> Optional[Dataset]:
-    return None if val_ratio == 0 else ds.train_test_split(val_ratio, seed=42)["test"]
-
-
 def _latest_checkpoint(job_id: str) -> Optional[str]:
     base = Path(DATA_DIR) / "checkpoints" / job_id
     if not base.exists():
         return None
     ckpts = sorted(base.glob("checkpoint-*"), key=lambda p: int(p.name.split("-")[1]))
-    return str(ckpts[-1]) if ckpts else None
+    if ckpts:
+        return str(ckpts[-1])
+    return None

@@ -103,6 +103,26 @@ combine-as-imports = true
 [tool.mypy]
 plugins = ["sqlalchemy.ext.mypy.plugin"]
 ignore_missing_imports = true
+# Gradual type checking - only check files we've converted
+files = [
+    "src/rose_ft/training/hf_trainer.py",
+    "src/rose_core/models/loading.py",
+    "src/rose_server/language_models/huggingface_llm.py",
+]
+# Strict mode for checked files
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

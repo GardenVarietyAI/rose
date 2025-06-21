@@ -4,11 +4,11 @@ import os
 import traceback
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from peft import PeftModel
 from transformers.modeling_utils import PreTrainedModel
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
-from rose_core.config.service import MODEL_OFFLOAD_DIR
-from rose_core.models import cleanup_model_memory, load_model_and_tokenizer
+from rose_core.models import cleanup_model_memory, get_tokenizer, load_hf_model, load_peft_model
 from rose_server.schemas.chat import ChatMessage
 from rose_server.services import get_model_registry
 
@@ -32,33 +32,43 @@ class HuggingFaceLLM:
         # ensure model_name is always present in config (needed by off-load dir)
         self.config.setdefault("model_name", self.model_name)
 
-        self._model: Optional[PreTrainedModel] = None
+        self._model: Optional[Union[PreTrainedModel, PeftModel]] = None
         self._tokenizer: Optional[PreTrainedTokenizerBase] = None
 
         self._load_model()
 
     @property
-    def model(self):
+    def model(self) -> Optional[Union[PreTrainedModel, PeftModel]]:
         return self._model
 
     @property
-    def tokenizer(self):
+    def tokenizer(self) -> Optional[PreTrainedTokenizerBase]:
         return self._tokenizer
 
     def _load_model(self) -> bool:
         """Load model/tokenizer once and cache them."""
         try:
-            offload_dir = os.path.join(MODEL_OFFLOAD_DIR, self.model_name)
             # torch_dtype "auto" means let the model decide
             torch_dtype = None if self.config.get("torch_dtype") == "auto" else self.config.get("torch_dtype")
-            self._model, self._tokenizer = load_model_and_tokenizer(
-                model_id=self.model_name,
-                model_path=self.model_path,
-                device="auto",
-                torch_dtype=torch_dtype,
-                offload_dir=offload_dir,
-                device_map=self.device_map if isinstance(self.device_map, str) else None,
-            )
+
+            # Decide which loader to use based on whether we have a local model_path
+            if self.model_path:
+                # This is a fine-tuned model (potentially PEFT/LoRA)
+                self._model = load_peft_model(
+                    model_id=self.model_name,
+                    model_path=self.model_path,
+                    torch_dtype=torch_dtype,
+                )
+                # Load tokenizer from the local path
+                self._tokenizer = get_tokenizer(self.model_path)
+            else:
+                # This is a base model from HuggingFace hub
+                self._model = load_hf_model(
+                    model_id=self.model_name,
+                    torch_dtype=torch_dtype,
+                )
+                # Load tokenizer from HuggingFace hub
+                self._tokenizer = get_tokenizer(self.model_name)
             return True
         except Exception as e:
             logger.error("Error loading %s: %s", self.model_name, e)
@@ -135,7 +145,7 @@ class HuggingFaceLLM:
             if isinstance(item, dict):
                 item_type = item.get("type")
                 if item_type in ("text", "input_text") and "text" in item:
-                    return item["text"]
+                    return str(item["text"])
                 else:
                     logger.debug(f"Skipping non-text content part: type={item_type}")
         return None
@@ -166,7 +176,7 @@ class HuggingFaceLLM:
         except Exception as e:
             raise RuntimeError(f"Failed to load model '{model_name}': {e}") from e
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Clean up model resources and memory."""
         # Clear references to allow garbage collection
         self._model = None

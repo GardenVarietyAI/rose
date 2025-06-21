@@ -11,7 +11,9 @@ def create_job(
     suffix: Optional[str] = typer.Option(None, "--suffix", help="Model suffix"),
     epochs: int = typer.Option(3, "--epochs", "-e", help="Number of epochs"),
     batch_size: Optional[int] = typer.Option(None, "--batch-size", "-b", help="Batch size"),
-    learning_rate: float = typer.Option(1.0, "--learning-rate", "-lr", help="Learning rate multiplier"),
+    learning_rate_multiplier: float = typer.Option(
+        1.0, "--learning-rate-multiplier", "-lrm", help="Learning rate multiplier (e.g., 1.0, 2.0, 4.0)"
+    ),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Only output the job ID"),
 ):
     """Create a fine-tuning job."""
@@ -22,7 +24,7 @@ def create_job(
 
         hyperparameters: dict[str, Any] = {
             "n_epochs": epochs,
-            "learning_rate_multiplier": learning_rate,
+            "learning_rate_multiplier": learning_rate_multiplier,
         }
         if batch_size is not None:
             hyperparameters["batch_size"] = batch_size
