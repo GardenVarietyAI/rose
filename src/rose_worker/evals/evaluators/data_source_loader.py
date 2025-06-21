@@ -5,10 +5,9 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from typing import Any, Dict, List, Optional, Sequence
 
-import httpx
+from rose_worker.client import get_client
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +42,11 @@ class DataSourceLoader:
 
     @staticmethod
     def _extract_item(raw: Dict[str, Any]) -> _SAMPLE:
-        """Normalise one raw JSON object to the canonical schema."""
-        item = raw.get("item", raw)  # allow nested `item`
+        """Extract item from ROSE's standard format."""
+        item = raw["item"]
         return {
-            "input": item.get("input", ""),
-            "expected": item.get("expected", item.get("ground_truth", "")),
+            "input": item["input"],
+            "expected": item["expected"],
         }
 
     def _from_content(
@@ -55,21 +54,17 @@ class DataSourceLoader:
         content: Sequence[Dict[str, Any]],
         max_samples: Optional[int],
     ) -> List[_SAMPLE]:
-        samples = [_DataSourceLoader._extract_item(obj) for obj in content]
+        samples = [self._extract_item(obj) for obj in content]
         out = _take(samples, max_samples)
         logger.info("Loaded %d sample(s) from inline content", len(out))
         return out
 
     def _from_file(self, file_id: str, max_samples: Optional[int]) -> List[_SAMPLE]:
         """Download file via API, then parse JSONL or JSON-array."""
-        base_url = os.getenv("ROSE_BASE_URL", "http://localhost:8004")
-
-        with httpx.Client() as client:
-            response = client.get(f"{base_url}/v1/files/{file_id}/content")
-            if response.status_code == 404:
-                raise FileNotFoundError(f"File '{file_id}' not found")
-            response.raise_for_status()
-            raw_bytes = response.content
+        try:
+            raw_bytes = get_client().get_file_content(file_id)
+        except FileNotFoundError:
+            raise
 
         if not raw_bytes:
             raise FileNotFoundError(f"File '{file_id}' returned empty content")
@@ -77,29 +72,16 @@ class DataSourceLoader:
         text = raw_bytes.decode("utf-8").strip()
         samples: List[_SAMPLE] = []
 
-        # Heuristic: JSONL → contains newlines not wrapped by [] / JSON array otherwise
-        if text.startswith("["):
+        for ln, line in enumerate(text.splitlines(), 1):
+            if not line.strip():
+                continue
             try:
-                data_list = json.loads(text)
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"File {file_id} is not valid JSON") from exc
-            samples = [self._extract_item(obj) for obj in data_list]
-
-        else:  # JSONL
-            for ln, line in enumerate(text.splitlines(), 1):
-                if not line.strip():
-                    continue
-                try:
-                    samples.append(self._extract_item(json.loads(line)))
-                except json.JSONDecodeError as exc:
-                    logger.warning("Skipping line %d in %s: %s", ln, file_id, exc)
-                if max_samples and len(samples) >= max_samples:
-                    break
+                samples.append(self._extract_item(json.loads(line)))
+            except json.JSONDecodeError:
+                raise
+            if max_samples and len(samples) >= max_samples:
+                break
 
         out = _take(samples, max_samples)
         logger.info("Loaded %d sample(s) from file '%s'", len(out), file_id)
         return out
-
-
-# make helper accessible for unit tests without exporting the whole class
-_DataSourceLoader = DataSourceLoader
