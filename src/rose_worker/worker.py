@@ -8,11 +8,11 @@ from typing import Any, Dict, Optional
 import httpx
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
+from fine_tuning.process import process_training_job
 
 from rose_core.config.service import HOST, LOG_FORMAT, LOG_LEVEL, MAX_CONCURRENT_TRAINING, PORT
 from rose_core.models import cleanup_model_memory
 from rose_evals.process import process_eval_job
-from rose_ft.process import process_training_job
 
 from .client import update_job_status
 
