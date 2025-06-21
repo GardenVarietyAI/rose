@@ -2,7 +2,7 @@
 
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 
@@ -94,6 +94,45 @@ class ServiceClient:
             logger.warning(f"Webhook '{event}' failed with status {e.response.status_code}: {e.response.text}")
         except Exception as e:
             logger.warning(f"Webhook '{event}' failed: {e}")
+
+    def get_queued_jobs(self, job_type: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get queued jobs of a specific type."""
+        try:
+            response = self._request_with_retry(
+                "GET",
+                "/v1/jobs",
+                params={
+                    "type": job_type,
+                    "status": "queued",
+                    "limit": limit,
+                },
+            )
+            data = response.json()
+            return data.get("data", [])
+        except Exception as e:
+            logger.error(f"Failed to get queued {job_type} jobs: {e}")
+            return []
+
+    def get_job_details(self, job_id: str) -> Optional[Dict[str, Any]]:
+        """Get detailed information about a specific job."""
+        try:
+            response = self._request_with_retry("GET", f"/v1/jobs/{job_id}")
+            return response.json()
+        except Exception as e:
+            logger.error(f"Failed to get job {job_id} details: {e}")
+            return None
+
+    def check_fine_tuning_job_status(self, ft_job_id: str) -> str:
+        """Check if a fine-tuning job has been cancelled."""
+        try:
+            response = self._request_with_retry("GET", f"/v1/fine_tuning/jobs/{ft_job_id}")
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") in ["cancelled", "failed"]:
+                    return data["status"]  # type: ignore[no-any-return]
+        except Exception as e:
+            logger.warning(f"Failed to check job status: {e}")
+        return "running"
 
 
 # Global client instance

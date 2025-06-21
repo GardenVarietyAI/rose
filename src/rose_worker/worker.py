@@ -5,22 +5,19 @@ import signal
 import time
 from typing import Any, Dict, Optional
 
-import httpx
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from rose_core.config.service import HOST, LOG_FORMAT, LOG_LEVEL, MAX_CONCURRENT_TRAINING, PORT
+from rose_core.config.service import LOG_FORMAT, LOG_LEVEL, MAX_CONCURRENT_TRAINING
 from rose_core.models import cleanup_model_memory
 
-from .client import update_job_status
+from .client import ServiceClient, update_job_status
 from .evals.process import process_eval_job
 from .fine_tuning.process import process_training_job
 
 logger = logging.getLogger(__name__)
 
-BASE_URL = f"http://{HOST}:{PORT}"
 POLL_INTERVAL = 5
-HTTP_TIMEOUT = 30
 MAX_CONCURRENT_EVAL = 2
 
 
@@ -30,6 +27,7 @@ class Worker:
     def __init__(self) -> None:
         self.scheduler: Optional[BackgroundScheduler] = None
         self.stop_flag = {"quit": False}
+        self.client = ServiceClient()
 
     def poll_jobs(self) -> None:
         """Poll for both training and evaluation jobs."""
@@ -40,32 +38,20 @@ class Worker:
             running_training = len([job for job in self.scheduler.get_jobs() if job.id.startswith("train_")])
             running_evals = len([job for job in self.scheduler.get_jobs() if job.id.startswith("eval_")])
 
-            with httpx.Client(timeout=HTTP_TIMEOUT) as client:
-                # Poll for training jobs if we have capacity
-                if running_training < MAX_CONCURRENT_TRAINING:
-                    self._poll_job_type(client, "training", "train_", MAX_CONCURRENT_TRAINING - running_training)
+            # Poll for training jobs if we have capacity
+            if running_training < MAX_CONCURRENT_TRAINING:
+                self._poll_job_type("training", "train_", MAX_CONCURRENT_TRAINING - running_training)
 
-                # Poll for eval jobs if we have capacity
-                if running_evals < MAX_CONCURRENT_EVAL:
-                    self._poll_job_type(client, "eval", "eval_", MAX_CONCURRENT_EVAL - running_evals)
+            # Poll for eval jobs if we have capacity
+            if running_evals < MAX_CONCURRENT_EVAL:
+                self._poll_job_type("eval", "eval_", MAX_CONCURRENT_EVAL - running_evals)
 
         except Exception as exc:
             logger.error(f"Polling error: {exc}")
 
-    def _poll_job_type(self, client: httpx.Client, job_type: str, prefix: str, limit: int) -> None:
+    def _poll_job_type(self, job_type: str, prefix: str, limit: int) -> None:
         """Poll for jobs of a specific type."""
-        response = client.get(
-            f"{BASE_URL}/v1/jobs",
-            params={
-                "type": job_type,
-                "status": "queued",
-                "limit": limit,
-            },
-        )
-        response.raise_for_status()
-
-        data = response.json()
-        jobs = data.get("data", [])
+        jobs = self.client.get_queued_jobs(job_type, limit)
 
         for job in jobs:
             job_id = str(job["id"])
@@ -78,9 +64,9 @@ class Worker:
 
             # Get full job details for eval jobs
             if job_type == "eval":
-                detail_response = client.get(f"{BASE_URL}/v1/jobs/{job_id}")
-                detail_response.raise_for_status()
-                job_detail = detail_response.json()
+                job_detail = self.client.get_job_details(job_id)
+                if not job_detail:
+                    continue
                 payload = job_detail["payload"]
             else:
                 payload = job["payload"]
@@ -168,6 +154,7 @@ class Worker:
         finally:
             logger.info("Shutting down...")
             self.scheduler.shutdown(wait=True)
+            self.client.close()
             logger.info("ROSE Worker stopped")
 
 

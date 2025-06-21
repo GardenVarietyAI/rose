@@ -2,30 +2,19 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import httpx
-
-from rose_core.config.service import DATA_DIR, HOST, PORT
-from rose_worker.client import post_webhook
+from rose_core.config.service import DATA_DIR
+from rose_worker.client import ServiceClient, post_webhook
 
 from . import HFTrainer
 
 logger = logging.getLogger(__name__)
 
-BASE_URL = f"http://{HOST}:{PORT}"
+_client = ServiceClient()
 
 
 def _check_cancelled(job_id: int, ft_job_id: str) -> str:
     """Check if a job has been cancelled."""
-    try:
-        with httpx.Client() as client:
-            response = client.get(f"{BASE_URL}/v1/fine_tuning/jobs/{ft_job_id}")
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("status") in ["cancelled", "failed"]:
-                    return data["status"]  # type: ignore[no-any-return]
-    except Exception as e:
-        logger.warning("Failed to check job status: %s", e)
-    return "running"
+    return _client.check_fine_tuning_job_status(ft_job_id)
 
 
 def run_training_job(
