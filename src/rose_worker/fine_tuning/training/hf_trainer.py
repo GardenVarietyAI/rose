@@ -22,9 +22,29 @@ from rose_core.models import cleanup_model_memory, get_tokenizer, load_hf_model
 from rose_core.models.loading import get_optimal_device
 
 from .callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
-from .hyperparams import HyperParams, ResolvedHyperParams
+from .hyperparams import HyperParams
 
 logger = logging.getLogger(__name__)
+
+
+def resolve_hyperparams(raw: Dict[str, Any]) -> Dict[str, Any]:
+    """Resolve auto values to concrete numbers."""
+    return {
+        "batch_size": int(raw.get("batch_size", 1)),
+        "max_length": int(raw.get("max_length", 512)),
+        "n_epochs": int(raw.get("n_epochs", 3)),
+        "learning_rate": float(raw.get("learning_rate", 5e-5)),
+        "gradient_accumulation_steps": int(raw.get("gradient_accumulation_steps", 1)),
+        "validation_split": float(raw.get("validation_split", 0.1)),
+        "early_stopping_patience": int(raw.get("early_stopping_patience", 3)),
+        "warmup_ratio": float(raw.get("warmup_ratio", 0.1)),
+        "scheduler_type": raw.get("scheduler_type", "cosine"),
+        "min_lr_ratio": float(raw.get("min_lr_ratio", 0.1)),
+        "use_lora": bool(raw.get("use_lora", True)),
+        "lora_config": raw.get("lora_config"),
+        "seed": int(raw.get("seed", 42)),
+        "suffix": raw.get("suffix", "custom"),
+    }
 
 
 class HFTrainer:
@@ -72,7 +92,7 @@ class HFTrainer:
 
         def tokenize_example(example: Dict[str, Any]) -> "BatchEncoding":
             text = tokenizer.apply_chat_template(example["messages"], tokenize=False)
-            return tokenizer(str(text), truncation=True, max_length=hp.max_length)
+            return tokenizer(str(text), truncation=True, model_max_length=hp.max_length)  # type: ignore[arg-type]
 
         tokenized_dataset = raw_dataset.map(tokenize_example, remove_columns=raw_dataset.column_names)  # type: ignore[arg-type]
 
@@ -141,7 +161,7 @@ class HFTrainer:
                 },
             )
 
-    def _apply_lora(self, model: "PreTrainedModel", model_name: str, hp: ResolvedHyperParams) -> PeftModel:
+    def _apply_lora(self, model: "PreTrainedModel", model_name: str, hp: HyperParams) -> PeftModel:
         """Apply LoRA adaptation to the model."""
         lora_cfg = hp.lora_config or {}
 
@@ -204,7 +224,7 @@ class HFTrainer:
         cleanup_model_memory()
 
 
-def _make_training_args(job_id: str, hp: ResolvedHyperParams, n_samples: int) -> TrainingArguments:
+def _make_training_args(job_id: str, hp: HyperParams, n_samples: int) -> TrainingArguments:
     out_dir = Path(DATA_DIR) / "checkpoints" / job_id
     out_dir.mkdir(parents=True, exist_ok=True)
     per_device = hp.batch_size
