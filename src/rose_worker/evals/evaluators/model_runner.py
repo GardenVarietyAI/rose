@@ -56,4 +56,4 @@ class ModelRunner:
             response.raise_for_status()
 
             result = response.json()
-            return result["choices"][0]["message"]["content"]
+            return result["choices"][0]["message"]["content"]  # type: ignore[no-any-return]

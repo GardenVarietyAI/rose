@@ -103,12 +103,9 @@ plugins = ["sqlalchemy.ext.mypy.plugin"]
 ignore_missing_imports = true
 # Gradual type checking - only check files we've converted
 files = [
-    "src/rose_ft/training/hf_trainer.py",
     "src/rose_core/models/loading.py",
     "src/rose_server/language_models/huggingface_llm.py",
-    "src/rose_worker/worker.py",
-    "src/rose_ft/process.py",
-    "src/rose_evals/process.py",
+    "src/rose_worker/**/*.py",
 ]
 # Strict mode for checked files
 strict = true

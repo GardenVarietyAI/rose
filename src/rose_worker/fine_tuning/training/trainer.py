@@ -22,7 +22,7 @@ def _check_cancelled(job_id: int, ft_job_id: str) -> str:
             if response.status_code == 200:
                 data = response.json()
                 if data.get("status") in ["cancelled", "failed"]:
-                    return data["status"]
+                    return data["status"]  # type: ignore[no-any-return]
     except Exception as e:
         logger.warning("Failed to check job status: %s", e)
     return "running"
@@ -39,7 +39,7 @@ def run_training_job(
     """Run a single training job."""
 
     # Create event callback for progress reporting
-    def event_callback(level: str, msg: str, data: Dict | None = None):
+    def event_callback(level: str, msg: str, data: Dict[str, Any] | None = None) -> None:
         if level in ["info", "warning", "error"]:
             post_webhook(
                 "job.progress", "training", job_id, ft_job_id, {"level": level, "message": msg, **(data or {})}

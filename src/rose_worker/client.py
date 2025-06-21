@@ -23,19 +23,19 @@ class ServiceClient:
         self.timeout = timeout
         self._client = httpx.Client(base_url=self.base_url, timeout=timeout)
 
-    def __enter__(self):
+    def __enter__(self) -> "ServiceClient":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore[no-untyped-def]
         self._client.close()
 
-    def close(self):
+    def close(self) -> None:
         """Close the underlying HTTP client."""
         self._client.close()
 
-    def _request_with_retry(self, method: str, url: str, **kwargs) -> httpx.Response:
+    def _request_with_retry(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         """Make an HTTP request with retry logic."""
-        last_error = None
+        last_error: Optional[Exception] = None
         for attempt in range(MAX_RETRIES):
             try:
                 response = self._client.request(method, url, **kwargs)
@@ -55,7 +55,9 @@ class ServiceClient:
                     last_error = e
                     continue
                 raise
-        raise last_error
+        if last_error:
+            raise last_error
+        raise RuntimeError("Unexpected state in retry logic")
 
     def update_job_status(self, job_id: int, status: str, result: Optional[Dict[str, Any]] = None) -> None:
         """Update job status in the API."""
