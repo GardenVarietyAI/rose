@@ -1,3 +1,7 @@
-from .calculator_actor import CalculatorActor
+import typer
 
-__all__ = ["CalculatorActor"]
+from .calculator_actor import calculator
+
+app = typer.Typer()
+
+app.command(name="calculator-actor")(calculator)

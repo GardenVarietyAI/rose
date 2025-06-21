@@ -2,26 +2,14 @@
 
 import typer
 
-from .commands import (
-    actors,
-    assistants,
-    chat,
-    completions,
-    evals,
-    files,
-    finetune,
-    models,
-    responses,
-    runs,
-    threads,
-)
+from rose_cli import actors, assistants, chat, completions, evals, files, finetune, models, responses, runs, threads
 
 app = typer.Typer(
     help="ROSE - Run your own LLM server",
     no_args_is_help=True,
 )
 
-app.add_typer(actors.app, name="actors", help="Actor operations")
+app.add_typer(actors.app, name="actors", help="Explore actors")
 app.add_typer(chat.app, name="chat", help="Chat with models")
 app.add_typer(completions.app, name="completions", help="Generate completions")
 app.add_typer(models.app, name="models", help="Model management")
