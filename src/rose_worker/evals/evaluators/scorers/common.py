@@ -8,24 +8,27 @@ Copyright (c) 2016 Pranav Rajpurkar, Stanford NLP
 import re
 import string
 
+# Precompiled regex patterns
+ARTICLE_RE = re.compile(r"\b(a|an|the)\b")
 
-def normalize_answer(s):
+
+def normalize_answer(s: str) -> str:
     """Normalize answer string for comparison.
 
     Adapted from the official SQuAD evaluation script.
     """
 
-    def remove_articles(text):
-        return re.sub(r"\b(a|an|the)\b", " ", text)
+    def remove_articles(text: str) -> str:
+        return ARTICLE_RE.sub(" ", text)
 
-    def white_space_fix(text):
+    def white_space_fix(text: str) -> str:
         return " ".join(text.split())
 
-    def remove_punc(text):
+    def remove_punc(text: str) -> str:
         exclude = set(string.punctuation)
         return "".join(ch for ch in text if ch not in exclude)
 
-    def lower(text):
+    def lower(text: str) -> str:
         return text.lower()
 
     return white_space_fix(remove_articles(remove_punc(lower(s))))

@@ -5,6 +5,12 @@ from typing import Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
+# Precompiled regex patterns
+CODE_BLOCK_PATTERN = re.compile(r"```(?:xml)?\s*(.*?)\s*```", re.DOTALL)
+XML_PATTERN_FULL = re.compile(r"<tool_call>(.*?)</tool_call>", re.DOTALL)
+TOOL_PATTERN = re.compile(r"<tool>(.*?)</tool>", re.DOTALL)
+ARGS_PATTERN = re.compile(r"<args>(.*?)</args>", re.DOTALL)
+
 
 def parse_xml_tool_call(reply: str, available_tools: Optional[list] = None) -> Tuple[Optional[Dict], str]:
     """Parse XML tool call from LLM response and return (tool_call, cleaned_reply).
@@ -21,15 +27,11 @@ def parse_xml_tool_call(reply: str, available_tools: Optional[list] = None) -> T
     """
     working_reply = reply
     if "```" in working_reply:
-        code_block_pattern = r"```(?:xml)?\s*(.*?)\s*```"
-        match = re.search(code_block_pattern, working_reply, re.DOTALL)
+        match = CODE_BLOCK_PATTERN.search(working_reply)
         if match:
             working_reply = match.group(1)
             logger.info("Stripped markdown code blocks from tool call")
-    xml_pattern_full = r"<tool_call>(.*?)</tool_call>"
-    tool_pattern = r"<tool>(.*?)</tool>"
-    args_pattern = r"<args>(.*?)</args>"
-    match = re.search(xml_pattern_full, working_reply, re.DOTALL)
+    match = XML_PATTERN_FULL.search(working_reply)
     xml_content = None
     original_xml = None
     if match:
@@ -37,11 +39,11 @@ def parse_xml_tool_call(reply: str, available_tools: Optional[list] = None) -> T
         original_xml = xml_content
         logger.info("Found standard <tool_call> format")
     else:
-        tool_match = re.search(tool_pattern, working_reply, re.DOTALL)
+        tool_match = TOOL_PATTERN.search(working_reply)
         if tool_match:
             tool_end = tool_match.end()
             remaining = working_reply[tool_end:]
-            args_match = re.search(args_pattern, remaining, re.DOTALL)
+            args_match = ARGS_PATTERN.search(remaining)
             if args_match and args_match.start() < 50:
                 tool_name = tool_match.group(1).strip()
                 args_content = args_match.group(1).strip()
@@ -56,8 +58,8 @@ def parse_xml_tool_call(reply: str, available_tools: Optional[list] = None) -> T
             return None, reply
     if not xml_content:
         return None, reply
-    all_matches_full = re.findall(xml_pattern_full, working_reply, re.DOTALL)
-    all_matches_partial = len(re.findall(tool_pattern, working_reply, re.DOTALL))
+    all_matches_full = XML_PATTERN_FULL.findall(working_reply)
+    all_matches_partial = len(TOOL_PATTERN.findall(working_reply))
     total_matches = len(all_matches_full) + all_matches_partial
     if total_matches > 1:
         logger.warning(f"Found {total_matches} tool calls in response - only processing the first one for safety")

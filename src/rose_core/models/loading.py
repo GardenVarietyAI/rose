@@ -68,6 +68,7 @@ def load_hf_model(
     offload_dir = os.path.join(MODEL_OFFLOAD_DIR, model_id.replace("/", "_"))
     os.makedirs(offload_dir, exist_ok=True)
 
+    device = get_optimal_device()
     model = AutoModelForCausalLM.from_pretrained(  # type: ignore[no-untyped-call]
         model_id,
         torch_dtype=get_torch_dtype(torch_dtype),
@@ -75,8 +76,8 @@ def load_hf_model(
         offload_state_dict=True,
         low_cpu_mem_usage=True,
         trust_remote_code=True,
-        device=get_optimal_device(),
     )
+    model = model.to(device)
 
     logger.info(f"Successfully loaded model: {model_id}")
     return model  # type: ignore[no-any-return]
@@ -130,6 +131,7 @@ def load_peft_model(
 
     # Load base model first
     logger.info(f"Loading base model: {base_model_name}")
+    device = get_optimal_device()
     base_model = AutoModelForCausalLM.from_pretrained(  # type: ignore[no-untyped-call]
         base_model_name,
         torch_dtype=get_torch_dtype(torch_dtype),
@@ -137,8 +139,8 @@ def load_peft_model(
         offload_folder=offload_dir,
         offload_state_dict=True,
         low_cpu_mem_usage=True,
-        device=get_optimal_device(),
     )
+    base_model = base_model.to(device)
 
     # Load and apply LoRA adapter
     logger.info(f"Loading LoRA adapter from {source_path}")

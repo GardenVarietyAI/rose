@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from transformers.trainer_callback import TrainerCallback, TrainerControl, TrainerState
 from transformers.training_args import TrainingArguments
@@ -24,7 +24,9 @@ class CancellationCallback(TrainerCallback):
         self.cancelled = False
         self.paused = False
 
-    def on_step_end(self, args, state, control, **_) -> "TrainerControl":
+    def on_step_end(
+        self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs: Any
+    ) -> TrainerControl:
         match self._status_fn():
             case "cancelling":
                 self.cancelled, control.should_training_stop = True, True
@@ -32,7 +34,9 @@ class CancellationCallback(TrainerCallback):
                 self.paused, control.should_save, control.should_training_stop = True, True, True
         return control
 
-    def on_save(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+    def on_save(
+        self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs: Any
+    ) -> TrainerControl:
         if self.paused:
             meta = {
                 "is_paused": True,

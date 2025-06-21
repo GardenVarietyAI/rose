@@ -9,6 +9,9 @@ from .scorers.common import normalize_answer
 
 logger = logging.getLogger(__name__)
 
+# Precompiled regex patterns
+NUMBER_PATTERN = re.compile(r"-?\d+\.?\d*")
+
 
 _SCORERS = {
     "exact_match": exact_match.score,
@@ -101,8 +104,8 @@ class Grader:
             return 0.8
         else:
             # Check for number matches
-            actual_nums = set(re.findall(r"-?\d+\.?\d*", actual))
-            expected_nums = set(re.findall(r"-?\d+\.?\d*", expected))
+            actual_nums = set(NUMBER_PATTERN.findall(actual))
+            expected_nums = set(NUMBER_PATTERN.findall(expected))
 
             if expected_nums and actual_nums & expected_nums:
                 return 0.6
@@ -115,8 +118,8 @@ class Grader:
 
         if eval_name == "gsm8k":
             # Check for number matches
-            expected_nums = re.findall(r"-?\d+\.?\d*", expected)
-            actual_nums = re.findall(r"-?\d+\.?\d*", actual)
+            expected_nums = NUMBER_PATTERN.findall(expected)
+            actual_nums = NUMBER_PATTERN.findall(actual)
 
             if expected_nums and actual_nums:
                 extra_scores["number_match"] = 1.0 if any(n in actual_nums for n in expected_nums) else 0.0

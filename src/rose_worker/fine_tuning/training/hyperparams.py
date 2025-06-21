@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass, field
-from typing import Dict
+from typing import Any, Dict
 
 from rose_core.config.service import FINE_TUNING_DEFAULT_LEARNING_RATE, FINE_TUNING_DEFAULT_MAX_LENGTH
 
@@ -22,7 +22,7 @@ class ResolvedHyperParams:
     scheduler_type: str
     min_lr_ratio: float
     use_lora: bool
-    lora_config: dict | None
+    lora_config: Dict[str, Any] | None
     seed: int
     suffix: str
     learning_rate: float
@@ -43,13 +43,13 @@ class HyperParams:
     scheduler_type: str = "cosine"
     min_lr_ratio: float = 0.1
     use_lora: bool = True
-    lora_config: dict | None = None
+    lora_config: Dict[str, Any] | None = None
     seed: int = 42
     suffix: str = "custom"
     learning_rate: float = field(init=False)
 
     @classmethod
-    def resolve(cls, raw: Dict) -> ResolvedHyperParams:
+    def resolve(cls, raw: Dict[str, Any]) -> ResolvedHyperParams:
         """Coerce raw dict & 'auto' values into concrete numbers."""
         hp = cls(**raw)
 
