@@ -6,6 +6,9 @@ import os
 from contextlib import asynccontextmanager
 from typing import Dict
 
+# Disable PostHog analytics
+os.environ["POSTHOG_DISABLED"] = "1"
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
