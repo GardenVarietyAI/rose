@@ -73,12 +73,12 @@ EVAL_FILE_ID=$(poetry run rose files upload /tmp/eval_data.jsonl --purpose batch
 echo "Eval file ID: $EVAL_FILE_ID"
 
 # Create evaluation
-EVAL_ID=$(poetry run rose eval create --name "Support Bot Eval" --file $EVAL_FILE_ID -q)
+EVAL_ID=$(poetry run rose evals create --name "Support Bot Eval" --file $EVAL_FILE_ID -q)
 echo "Evaluation ID: $EVAL_ID"
 
 # Run the evaluation
 echo "Running evaluation..."
-RUN_ID=$(poetry run rose eval run $EVAL_ID --model "$MODEL" -q)
+RUN_ID=$(poetry run rose evals run $EVAL_ID --model "$MODEL" -q)
 echo "Evaluation run ID: $RUN_ID"
 
 # Wait a moment for eval to process
@@ -86,7 +86,7 @@ sleep 5
 
 # Check evaluation results
 echo "Checking evaluation results..."
-poetry run rose eval status --run-id $RUN_ID --eval-id $EVAL_ID
+poetry run rose evals status --run-id $RUN_ID --eval-id $EVAL_ID
 
 # Cleanup
 rm -f /tmp/support_data.jsonl /tmp/eval_data.jsonl

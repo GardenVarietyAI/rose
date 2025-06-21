@@ -31,7 +31,7 @@ app.add_typer(threads.app, name="threads", help="Thread management")
 app.add_typer(assistants.app, name="assistants", help="Assistant management")
 app.add_typer(runs.app, name="runs", help="Run management")
 app.add_typer(responses.app, name="responses", help="Responses API operations")
-app.add_typer(evals.app, name="eval", help="Evaluation operations")
+app.add_typer(evals.app, name="evals", help="Evaluation operations")
 
 
 def main():
