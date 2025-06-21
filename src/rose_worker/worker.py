@@ -64,10 +64,12 @@ class Worker:
 
             # Get full job details for eval jobs
             if job_type == "eval":
-                job_detail = self.client.get_job_details(job_id)
-                if not job_detail:
+                try:
+                    job_detail = self.client.get_job_details(job_id)
+                    payload = job_detail["payload"]
+                except Exception as e:
+                    logger.error(f"Failed to get job details for {job_id}: {e}")
                     continue
-                payload = job_detail["payload"]
             else:
                 payload = job["payload"]
 

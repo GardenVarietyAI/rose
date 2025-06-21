@@ -11,8 +11,6 @@ from rose_core.config.service import HOST, PORT
 logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 30.0
-MAX_RETRIES = 3
-RETRY_DELAY = 1.0
 
 
 class ServiceClient:
@@ -33,42 +31,19 @@ class ServiceClient:
         """Close the underlying HTTP client."""
         self._client.close()
 
-    def _request_with_retry(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
-        """Make an HTTP request with retry logic."""
-        last_error: Optional[Exception] = None
-        for attempt in range(MAX_RETRIES):
-            try:
-                response = self._client.request(method, url, **kwargs)
-                response.raise_for_status()
-                return response
-            except httpx.HTTPStatusError as e:
-                if e.response.status_code >= 500 and attempt < MAX_RETRIES - 1:
-                    logger.warning(f"Request failed with {e.response.status_code}, retrying in {RETRY_DELAY}s...")
-                    time.sleep(RETRY_DELAY)
-                    last_error = e
-                    continue
-                raise
-            except (httpx.ConnectError, httpx.TimeoutException) as e:
-                if attempt < MAX_RETRIES - 1:
-                    logger.warning(f"Connection error: {e}, retrying in {RETRY_DELAY}s...")
-                    time.sleep(RETRY_DELAY)
-                    last_error = e
-                    continue
-                raise
-        if last_error:
-            raise last_error
-        raise RuntimeError("Unexpected state in retry logic")
+    def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+        """Make an HTTP request."""
+        response = self._client.request(method, url, **kwargs)
+        response.raise_for_status()
+        return response
 
     def update_job_status(self, job_id: int, status: str, result: Optional[Dict[str, Any]] = None) -> None:
         """Update job status in the API."""
-        try:
-            self._request_with_retry(
-                "PATCH",
-                f"/v1/jobs/{job_id}",
-                json={"status": status, "result": result},
-            )
-        except Exception as e:
-            logger.error(f"Failed to update job {job_id} status: {e}")
+        self._request(
+            "PATCH",
+            f"/v1/jobs/{job_id}",
+            json={"status": status, "result": result},
+        )
 
     def post_webhook(
         self,
@@ -88,50 +63,33 @@ class ServiceClient:
             "data": data or {},
         }
 
-        try:
-            self._request_with_retry("POST", "/v1/webhooks/jobs", json=payload)
-        except httpx.HTTPStatusError as e:
-            logger.warning(f"Webhook '{event}' failed with status {e.response.status_code}: {e.response.text}")
-        except Exception as e:
-            logger.warning(f"Webhook '{event}' failed: {e}")
+        self._request("POST", "/v1/webhooks/jobs", json=payload)
 
     def get_queued_jobs(self, job_type: str, limit: int = 10) -> List[Dict[str, Any]]:
         """Get queued jobs of a specific type."""
-        try:
-            response = self._request_with_retry(
-                "GET",
-                "/v1/jobs",
-                params={
-                    "type": job_type,
-                    "status": "queued",
-                    "limit": limit,
-                },
-            )
-            data = response.json()
-            return data.get("data", [])
-        except Exception as e:
-            logger.error(f"Failed to get queued {job_type} jobs: {e}")
-            return []
+        response = self._request(
+            "GET",
+            "/v1/jobs",
+            params={
+                "type": job_type,
+                "status": "queued",
+                "limit": limit,
+            },
+        )
+        data = response.json()
+        return data.get("data", [])
 
-    def get_job_details(self, job_id: str) -> Optional[Dict[str, Any]]:
+    def get_job_details(self, job_id: str) -> Dict[str, Any]:
         """Get detailed information about a specific job."""
-        try:
-            response = self._request_with_retry("GET", f"/v1/jobs/{job_id}")
-            return response.json()
-        except Exception as e:
-            logger.error(f"Failed to get job {job_id} details: {e}")
-            return None
+        response = self._request("GET", f"/v1/jobs/{job_id}")
+        return response.json()
 
     def check_fine_tuning_job_status(self, ft_job_id: str) -> str:
         """Check if a fine-tuning job has been cancelled."""
-        try:
-            response = self._request_with_retry("GET", f"/v1/fine_tuning/jobs/{ft_job_id}")
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("status") in ["cancelled", "failed"]:
-                    return data["status"]  # type: ignore[no-any-return]
-        except Exception as e:
-            logger.warning(f"Failed to check job status: {e}")
+        response = self._request("GET", f"/v1/fine_tuning/jobs/{ft_job_id}")
+        data = response.json()
+        if data.get("status") in ["cancelled", "failed"]:
+            return data["status"]  # type: ignore[no-any-return]
         return "running"
 
 
