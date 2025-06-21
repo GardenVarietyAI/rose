@@ -66,7 +66,7 @@ def train(
         )
 
         if not isinstance(peft_model, PeftModel):
-            raise TypeError("Expected '{type(peft_model).__name__}' to be an instance of 'PeftModel'.")
+            raise TypeError(f"Expected {type(peft_model).__name__} to be an instance of 'PeftModel'.")
 
         peft_model.print_trainable_parameters()
 
