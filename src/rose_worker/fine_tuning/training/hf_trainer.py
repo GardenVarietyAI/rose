@@ -82,9 +82,11 @@ class HFTrainer:
         # Build proper train / validation split
         if hp.validation_split > 0:
             split = ds.train_test_split(hp.validation_split, seed=42)
-            train_ds, eval_ds = split["train"], split["test"]
+            train_ds = split["train"]
+            eval_ds = split["test"]
         else:
-            train_ds, eval_ds = ds, None
+            train_ds = ds
+            eval_ds = None
 
         trainer = Trainer(
             model=model,
