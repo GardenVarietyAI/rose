@@ -88,8 +88,9 @@ class ServiceClient:
         """Check if a fine-tuning job has been cancelled."""
         response = self._request("GET", f"/v1/fine_tuning/jobs/{ft_job_id}")
         data = response.json()
-        if data.get("status") in ["cancelled", "failed"]:
-            return data["status"]  # type: ignore[no-any-return]
+        status: str = data.get("status")
+        if status in ["cancelled", "failed"]:
+            return status
         return "running"
 
     def create_chat_completion(

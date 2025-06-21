@@ -1,90 +1,83 @@
 """Training job processor."""
 
 import logging
-from typing import Any, Dict
+from pathlib import Path
+from typing import Any, Dict, Optional
 
-import torch
-
+from rose_core.config.service import DATA_DIR
 from rose_core.models import cleanup_model_memory
-from rose_worker.client import update_job_status
+from rose_worker.client import get_client, post_webhook
 
-from .training.trainer import run_training_job
+from .training.hf_trainer import train
 
 logger = logging.getLogger(__name__)
 
 
-def process_training_job(job_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
+def process_training_job(job_id: int, payload: Dict[str, Any]) -> None:
     """Process a single training job."""
-    ft_job_id = payload["job_id"]
-    model_name = payload["model"]
-    training_file = payload["training_file"]
-    hyperparameters = payload.get("hyperparameters", {})
-    suffix = payload.get("suffix")
-
+    ft_job_id: str = payload["ft_job_id"]
+    model_name: str = payload["model_name"]
+    training_file: str = payload["training_file"]
+    hyperparameters: Dict[str, Any] = payload.get("hyperparameters", {})
+    suffix: Optional[str] = payload["suffix"]
     logger.info(f"Starting training job {job_id} for fine-tuning {ft_job_id}")
 
+    # Create event callback for progress reporting
+    def event_callback(level: str, msg: str, data: Dict[str, Any] | None = None) -> None:
+        if level in ["info", "warning", "error"]:
+            post_webhook(
+                "job.progress", "training", job_id, ft_job_id, {"level": level, "message": msg, **(data or {})}
+            )
+
+    def check_cancel_callback() -> str:
+        return get_client().check_fine_tuning_job_status(ft_job_id)
+
     try:
-        update_job_status(job_id, "running")
-        result = run_training_job(
-            job_id=job_id,
-            ft_job_id=ft_job_id,
+        # Send job running webhook
+        post_webhook("job.running", "training", job_id, ft_job_id)
+
+        # Add suffix to hyperparameters if provided
+        if suffix:
+            hyperparameters = hyperparameters.copy()
+            hyperparameters["suffix"] = suffix
+
+        training_file_path = Path(DATA_DIR) / "uploads" / training_file
+
+        result = train(
+            job_id=ft_job_id,
             model_name=model_name,
-            training_file=training_file,
+            training_file_path=training_file_path,
             hyperparameters=hyperparameters,
-            suffix=suffix,
+            check_cancel_callback=check_cancel_callback,
+            event_callback=event_callback,
         )
 
-        if result.get("success"):
-            update_job_status(job_id, "completed", result)
-            logger.info(f"Training job {job_id} completed successfully")
-            return {"job_id": job_id, "status": "completed", **result}
-        elif result.get("cancelled"):
-            update_job_status(job_id, "cancelled")
-            logger.info(f"Training job {job_id} cancelled")
-            return {"job_id": job_id, "status": "cancelled"}
-        else:
-            error = result.get("error", "Unknown error")
-            update_job_status(job_id, "failed", {"error": error})
-            logger.error(f"Training job {job_id} failed: {error}")
-            return {"job_id": job_id, "status": "failed", "error": error}
-
-    except torch.cuda.OutOfMemoryError as e:
-        logger.exception(f"Training job {job_id} failed: Out of GPU memory")
-        update_job_status(
+        post_webhook(
+            "job.completed",
+            "training",
             job_id,
-            "failed",
+            ft_job_id,
             {
-                "error": str(e),
-                "error_type": "OutOfMemoryError",
-                "suggestion": "Try reducing batch_size in hyperparameters",
+                "fine_tuned_model": result["model_name"],
+                "trained_tokens": int(result.get("tokens_processed", 0)),
+                "final_loss": result.get("final_loss"),
+                "steps": result.get("steps"),
             },
         )
-        raise
-    except RuntimeError as e:
-        # GPU/CUDA errors often come as RuntimeError
-        error_msg = str(e)
-        if "out of memory" in error_msg.lower():
-            logger.exception(f"Training job {job_id} failed: Out of memory")
-            update_job_status(
-                job_id,
-                "failed",
-                {
-                    "error": error_msg,
-                    "error_type": "OutOfMemoryError",
-                    "suggestion": "Try reducing batch_size in hyperparameters",
-                },
-            )
-        else:
-            logger.exception(f"Training job {job_id} failed: Runtime error")
-            update_job_status(job_id, "failed", {"error": error_msg, "error_type": "RuntimeError"})
-        raise
-    except (ValueError, FileNotFoundError) as e:
-        logger.exception(f"Training job {job_id} failed: Invalid input or configuration")
-        update_job_status(job_id, "failed", {"error": str(e), "error_type": "ValueError"})
-        raise
+
+        # Handle cancellation
+        if result.get("cancelled"):
+            post_webhook("job.cancelled", "training", job_id, ft_job_id)
+
     except Exception as e:
         logger.exception(f"Training job {job_id} failed with unexpected exception")
-        update_job_status(job_id, "failed", {"error": str(e), "error_type": type(e).__name__})
+        post_webhook(
+            "job.failed",
+            "training",
+            job_id,
+            ft_job_id,
+            {"error": {"message": str(e), "code": "job_error"}},
+        )
         raise
     finally:
         cleanup_model_memory()
