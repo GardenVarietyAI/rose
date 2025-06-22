@@ -39,7 +39,12 @@ async def _handle_eval_completed(event: WebhookEvent) -> None:
 async def _handle_eval_failed(event: WebhookEvent) -> None:
     """Handle failed evaluation job."""
     run_store = EvalRunStore()
-    error_msg = event.data.get("error", "Unknown error")
+    error_data = event.data.get("error", "Unknown error")
+    # Extract message if error is a dict
+    if isinstance(error_data, dict):
+        error_msg = error_data.get("message", str(error_data))
+    else:
+        error_msg = str(error_data)
     await run_store.update_error(event.object_id, error_msg)
     await _update_queue_job_failed(event, error_msg)
 

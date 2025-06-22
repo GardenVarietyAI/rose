@@ -13,6 +13,7 @@ from sqlmodel import SQLModel
 from rose_core.config.service import DATA_DIR
 
 from .entities.assistants import Assistant, AssistantTool
+from .entities.files import UploadedFile
 from .entities.fine_tuning import FineTuningEvent, FineTuningJob
 from .entities.jobs import Job
 from .entities.language_models import LanguageModel
@@ -81,6 +82,7 @@ __all__ = [
     "run_in_session",
     "create_all_tables",
     "current_timestamp",
+    "UploadedFile",
     "FineTuningJob",
     "FineTuningEvent",
     "Job",

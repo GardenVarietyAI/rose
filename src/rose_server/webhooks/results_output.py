@@ -4,8 +4,8 @@ from dataclasses import asdict, dataclass
 from io import BytesIO
 from typing import Any, Dict, List, Optional
 
+from ..files import store as file_store
 from ..fine_tuning.store import get_events, get_job, update_job_result_files
-from ..services import get_file_store
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,6 @@ async def create_result_file(job_id: str, final_loss: float, steps: int) -> Opti
     Returns the file ID or *None* on failure.
     """
 
-    file_store = get_file_store()
     job = await get_job(job_id)
     if job is None:
         logger.error("Job %s not found - aborting result-file creation", job_id)

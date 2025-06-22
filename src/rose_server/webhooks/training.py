@@ -6,7 +6,7 @@ from pathlib import Path
 from ..database import run_in_session
 from ..entities.jobs import Job
 from ..fine_tuning.store import add_event, get_job, mark_job_failed, update_job_result_files, update_job_status
-from ..language_models.store import LanguageModelStore
+from ..language_models.store import create as create_language_model
 from ..schemas.webhooks import WebhookEvent
 from ..services import get_model_registry
 from .results_output import create_result_file
@@ -66,9 +66,7 @@ async def _handle_training_completed(event: WebhookEvent) -> None:
         base_config = registry.get_model_config(ft_job.model)
         hf_model_name = base_config.get("hf_model_name") if base_config else None
 
-        lm_store = LanguageModelStore()
-
-        await lm_store.create(
+        await create_language_model(
             id=fine_tuned_model,
             name=fine_tuned_model,
             path=str(model_path),

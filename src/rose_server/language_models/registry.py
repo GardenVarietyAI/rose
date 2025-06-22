@@ -6,7 +6,11 @@ from typing import Any, Dict, Optional
 
 from rose_core.config.service import DATA_DIR, LLM_MODELS
 
-from .store import LanguageModelStore
+from .store import (
+    create as create_language_model,
+    delete as delete_language_model,
+    list_fine_tuned,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +20,6 @@ class ModelRegistry:
 
     def __init__(self):
         self.models: Dict[str, Dict[str, Any]] = {}
-        self.store = LanguageModelStore()
         self._load_base_models()
 
     def _load_base_models(self):
@@ -31,7 +34,7 @@ class ModelRegistry:
     async def _load_fine_tuned_models(self):
         """Load fine-tuned models from database."""
         try:
-            fine_tuned_models = await self.store.list_fine_tuned()
+            fine_tuned_models = await list_fine_tuned()
             loaded = 0
             for model in fine_tuned_models:
                 if model.path:
@@ -87,7 +90,7 @@ class ModelRegistry:
                     relative_path = Path(model_path).relative_to(DATA_DIR)
                     hf_model_name = self.models.get(base_model, {}).get("hf_model_name") if base_model else None
 
-                    await self.store.create(
+                    await create_language_model(
                         id=model_id,
                         path=str(relative_path),
                         base_model=base_model,
@@ -127,7 +130,7 @@ class ModelRegistry:
 
         # Delete from database if it's a fine-tuned model
         if is_fine_tuned:
-            await self.store.delete(model_id)
+            await delete_language_model(model_id)
 
         # Remove from in-memory registry
         del self.models[model_id]
