@@ -21,17 +21,7 @@ async def create_file(
 ) -> FileObject:
     """Upload a file that can be used across various endpoints."""
     try:
-        if file.size and file.size > 1_000_000_000:
-            raise HTTPException(status_code=413, detail="File size exceeds 1GB limit")
-        file_obj = await store.create_file(file=file.file, purpose=purpose, filename=file.filename)
-        if purpose in ["fine-tune", "fine-tune-results"]:
-            valid, error = await store.validate_jsonl(file_obj.id)
-            if not valid:
-                await store.delete_file(file_obj.id)
-                raise HTTPException(status_code=400, detail=f"Invalid JSONL file: {error}")
-        return file_obj
-    except HTTPException:
-        raise
+        return await store.create_file(file=file.file, purpose=purpose, filename=file.filename)
     except Exception as e:
         logger.error(f"File upload error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

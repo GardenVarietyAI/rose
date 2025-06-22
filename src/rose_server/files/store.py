@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import time
 import uuid
@@ -9,9 +8,6 @@ from typing import BinaryIO, List, Optional
 import aiofiles
 import aiofiles.os
 from openai.types import FileDeleted, FileObject, FilePurpose
-from pydantic import ValidationError
-
-from rose_server.schemas.files import TrainingData
 
 logger = logging.getLogger(__name__)
 
@@ -81,32 +77,3 @@ async def delete_file(file_id: str) -> Optional[FileDeleted]:
         logger.info(f"Deleted file {file_id}")
         return FileDeleted(id=file_id, object="file", deleted=True)
     return None
-
-
-# Status tracking removed - not needed with simplified approach
-
-
-async def validate_jsonl(file_id: str) -> tuple[bool, Optional[str]]:
-    """Validate that a file contains valid JSONL for fine-tuning."""
-    content = await get_file_content(file_id)
-    if not content:
-        return False, "File not found"
-    try:
-        lines = content.decode("utf-8").strip().split("\n")
-        valid_lines = 0
-        for i, line in enumerate(lines):
-            if not line.strip():
-                continue
-            try:
-                data = json.loads(line)
-                TrainingData(**data)
-                valid_lines += 1
-            except json.JSONDecodeError as e:
-                return False, f"Line {i + 1}: Invalid JSON - {str(e)}"
-            except ValidationError as e:
-                return False, f"Line {i + 1}: {str(e)}"
-        if valid_lines == 0:
-            return False, "File contains no valid training examples"
-        return True, None
-    except Exception as e:
-        return False, f"Validation error: {str(e)}"
