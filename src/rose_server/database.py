@@ -64,7 +64,7 @@ async def run_in_session(operation: Callable[[AsyncSession], Any], read_only: bo
         return await operation(session)
 
 
-async def create_all_tables():
+async def create_all_tables() -> None:
     """Create all database tables."""
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
