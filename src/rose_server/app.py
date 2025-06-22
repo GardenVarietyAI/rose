@@ -26,7 +26,6 @@ from rose_server.database import create_all_tables
 from rose_server.embeddings.manager import EmbeddingManager
 from rose_server.files.store import FileStore
 from rose_server.language_models.registry import ModelRegistry
-from rose_server.queues.store import JobStore
 from rose_server.router import router
 from rose_server.services import Services, get_vector_store_store
 from rose_server.threads.store import ThreadStore
@@ -88,9 +87,6 @@ async def lifespan(app: FastAPI):
     await file_store._load_existing_files()
     Services.register("file_store", file_store)
     Services.register("vector_store_store", VectorStoreStore())
-    job_store = JobStore()
-    await job_store.initialize()
-    Services.register("job_store", job_store)
     model_registry = ModelRegistry()
     await model_registry.initialize()
     Services.register("model_registry", model_registry)

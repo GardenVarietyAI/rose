@@ -55,11 +55,6 @@ def get_vector_store_store():
     return Services.get("vector_store_store")
 
 
-def get_job_store():
-    """Get the job store service."""
-    return Services.get("job_store")
-
-
 def get_chromadb_manager():
     """Get the ChromaDB manager service."""
     return Services.get("chromadb_manager")

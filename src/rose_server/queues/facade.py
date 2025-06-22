@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, Type
 
-from ..services import get_job_store
+from .store import enqueue, request_cancel
 
 
 class Queueable:
@@ -14,9 +14,8 @@ class Queueable:
     @classmethod
     async def dispatch(cls, *args, **kwargs) -> int:
         """Dispatch job to queue."""
-        job_store = get_job_store()
         payload = cls.prepare_payload(*args, **kwargs)
-        job = await job_store.enqueue(job_type=cls.get_job_type(), payload=payload, max_attempts=cls.max_attempts)
+        job = await enqueue(job_type=cls.get_job_type(), payload=payload, max_attempts=cls.max_attempts)
         return job.id
 
     @classmethod
@@ -77,12 +76,10 @@ class Queue:
     @staticmethod
     async def push(job_type: str, payload: dict, max_attempts: int = 3) -> int:
         """Push a raw job to queue."""
-        job_store = get_job_store()
-        job = await job_store.enqueue(job_type=job_type, payload=payload, max_attempts=max_attempts)
+        job = await enqueue(job_type=job_type, payload=payload, max_attempts=max_attempts)
         return job.id
 
     @staticmethod
     async def cancel(job_id: int) -> bool:
         """Cancel a job."""
-        job_store = get_job_store()
-        return await job_store.request_cancel(job_id)
+        return await request_cancel(job_id)

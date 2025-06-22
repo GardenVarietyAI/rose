@@ -16,7 +16,7 @@ from rose_core.config.service import (
 from ..database import run_in_session
 from ..entities.jobs import Job as QueueJob
 from ..queues.facade import TrainingJob
-from ..services import get_job_store
+from ..queues.store import request_cancel, request_pause
 from .store import create_job, get_events, get_job, get_job_status, list_jobs, update_job_status
 
 router = APIRouter()
@@ -124,7 +124,7 @@ async def cancel_fine_tuning_job(job_id: str) -> FineTuningJob:
 
     queue_job = await run_in_session(find_job)
     if queue_job:
-        success = await get_job_store().request_cancel(queue_job.id)
+        success = await request_cancel(queue_job.id)
         if not success:
             raise HTTPException(status_code=400, detail=f"Cannot cancel job {job_id}")
         if job.status in ["queued", "running"]:
@@ -177,7 +177,7 @@ async def pause_fine_tuning_job(job_id: str) -> FineTuningJob:
 
     queue_job = await run_in_session(find_job)
     if queue_job:
-        success = await get_job_store().request_pause(queue_job.id)
+        success = await request_pause(queue_job.id)
         if not success:
             raise HTTPException(status_code=400, detail=f"Cannot pause job {job_id}")
     else:
