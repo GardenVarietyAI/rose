@@ -4,7 +4,7 @@ import logging
 import time
 import uuid
 from pathlib import Path
-from typing import BinaryIO, Dict, List, Optional
+from typing import BinaryIO, List, Optional
 
 import aiofiles
 import aiofiles.os
@@ -15,155 +15,181 @@ from rose_server.schemas.files import TrainingData
 
 logger = logging.getLogger(__name__)
 
+BASE_PATH = Path("data/uploads")
 
-class FileStore:
-    def __init__(self, base_path: str = "data/uploads"):
-        self.base_path = Path(base_path)
-        self._files: Dict[str, FileObject] = {}
 
-    async def _load_existing_files(self):
-        await aiofiles.os.makedirs(self.base_path, exist_ok=True)
-        metadata_path = self.base_path / "metadata.json"
-        if await aiofiles.os.path.exists(metadata_path):
-            try:
-                async with aiofiles.open(metadata_path, "r") as f:
-                    content = await f.read()
-                    data = json.loads(content)
-                    for file_id, file_data in data.items():
-                        self._files[file_id] = FileObject(**file_data)
-                logger.info(f"Loaded {len(self._files)} existing files")
-            except Exception as e:
-                logger.error(f"Failed to load file metadata: {e}")
+def _generate_file_id() -> str:
+    return f"file-{uuid.uuid4().hex[:6]}"
 
-    async def _save_metadata(self):
-        metadata_path = self.base_path / "metadata.json"
-        try:
-            data = {file_id: file_obj.model_dump() for file_id, file_obj in self._files.items()}
-            content = json.dumps(data, indent=2)
-            async with aiofiles.open(metadata_path, "w") as f:
-                await f.write(content)
-        except Exception as e:
-            logger.error(f"Failed to save file metadata: {e}")
 
-    def _generate_file_id(self, purpose: str) -> str:
-        prefix_map = {
-            "fine-tune": "fine",
-            "fine-tune-results": "fine",
-            "assistants": "asst",
-            "assistants_output": "asst",
-            "batch": "batch",
-            "batch_output": "batch",
-            "vision": "vis",
-        }
-        prefix = prefix_map.get(purpose, "file")
-        return f"{prefix}_{uuid.uuid4().hex[:12]}"
+async def create_file(file: BinaryIO, purpose: FilePurpose, filename: Optional[str] = None) -> FileObject:
+    file_id = _generate_file_id()
+    content = await asyncio.to_thread(file.read)
+    file_size = len(content)
+    if not filename:
+        filename = f"{file_id}.txt"
 
-    async def create_file(self, file: BinaryIO, purpose: FilePurpose, filename: Optional[str] = None) -> FileObject:
-        file_id = self._generate_file_id(purpose)
-        content = await asyncio.to_thread(file.read)
-        file_size = len(content)
-        if not filename:
-            filename = f"{file_id}.txt"
-        file_path = self.base_path / file_id
-        async with aiofiles.open(file_path, "wb") as f:
-            await f.write(content)
-        file_obj = FileObject(
-            id=file_id,
-            object="file",
-            bytes=file_size,
-            created_at=int(time.time()),
-            filename=filename,
-            purpose=purpose,
-            status="uploaded",
-            status_details=None,
-            expires_at=None,
-        )
-        self._files[file_id] = file_obj
-        await self._save_metadata()
-        logger.info(f"Created file {file_id} with purpose {purpose}")
-        return file_obj
+    # Create purpose directory
+    purpose_dir = BASE_PATH / purpose
+    await aiofiles.os.makedirs(purpose_dir, exist_ok=True)
 
-    def get_file(self, file_id: str) -> Optional[FileObject]:
-        return self._files.get(file_id)
+    # Save file as purpose/filename
+    file_path = purpose_dir / filename
+    async with aiofiles.open(file_path, "wb") as f:
+        await f.write(content)
 
-    async def get_file_content(self, file_id: str) -> Optional[bytes]:
-        file_path = self.base_path / file_id
-        if file_path.exists():
-            async with aiofiles.open(file_path, "rb") as f:
-                return await f.read()
+    file_obj = FileObject(
+        id=file_id,
+        object="file",
+        bytes=file_size,
+        created_at=int(time.time()),
+        filename=filename,
+        purpose=purpose,
+        status="processed",
+    )
+
+    # Store id->path mapping
+    mapping_file = BASE_PATH / "mappings.json"
+    mappings = {}
+    if await aiofiles.os.path.exists(mapping_file):
+        async with aiofiles.open(mapping_file, "r") as f:
+            mappings = json.loads(await f.read())
+
+    mappings[file_id] = f"{purpose}/{filename}"
+    async with aiofiles.open(mapping_file, "w") as f:
+        await f.write(json.dumps(mappings, indent=2))
+
+    logger.info(f"Created file {file_id} at {purpose}/{filename}")
+    return file_obj
+
+
+async def get_file(file_id: str) -> Optional[FileObject]:
+    mapping_file = BASE_PATH / "mappings.json"
+    if not await aiofiles.os.path.exists(mapping_file):
         return None
 
-    def list_files(
-        self,
-        purpose: Optional[str] = None,
-        limit: int = 20,
-        after: Optional[str] = None,
-    ) -> List[FileObject]:
-        """List files with optional filtering."""
-        files = list(self._files.values())
-        if purpose:
-            files = [f for f in files if f.purpose == purpose]
-        files.sort(key=lambda f: f.created_at, reverse=True)
-        if after:
-            try:
-                after_idx = next(i for i, f in enumerate(files) if f.id == after)
-                files = files[after_idx + 1 :]
-            except StopIteration:
-                files = []
-        return files[:limit]
+    async with aiofiles.open(mapping_file, "r") as f:
+        mappings = json.loads(await f.read())
 
-    async def delete_file(self, file_id: str) -> Optional[FileDeleted]:
-        if file_id not in self._files:
-            return None
-        file_path = self.base_path / file_id
-        if file_path.exists():
-            await aiofiles.os.remove(file_path)
-        del self._files[file_id]
-        await self._save_metadata()
-        logger.info(f"Deleted file {file_id}")
-        return FileDeleted(id=file_id, object="file", deleted=True)
+    if file_id not in mappings:
+        return None
 
-    async def update_file_status(self, file_id: str, status: str, status_details: Optional[str] = None):
-        if file_id not in self._files:
-            return False
-        old_file = self._files[file_id]
-        updated_file = FileObject(
-            id=old_file.id,
-            object=old_file.object,
-            bytes=old_file.bytes,
-            created_at=old_file.created_at,
-            filename=old_file.filename,
-            purpose=old_file.purpose,
-            status=status,
-            status_details=status_details,
-            expires_at=old_file.expires_at,
-        )
-        self._files[file_id] = updated_file
-        await self._save_metadata()
-        logger.info(f"Updated file {file_id} status to {status}")
-        return True
+    path_parts = mappings[file_id].split("/", 1)
+    purpose = path_parts[0]
+    filename = path_parts[1] if len(path_parts) > 1 else "unknown"
+    file_path = BASE_PATH / mappings[file_id]
 
-    async def validate_jsonl(self, file_id: str) -> tuple[bool, Optional[str]]:
-        """Validate that a file contains valid JSONL for fine-tuning."""
-        content = await self.get_file_content(file_id)
-        if not content:
-            return False, "File not found"
+    if not await aiofiles.os.path.exists(file_path):
+        return None
+
+    stat = await aiofiles.os.stat(file_path)
+    return FileObject(
+        id=file_id,
+        object="file",
+        bytes=stat.st_size,
+        created_at=int(stat.st_ctime),
+        filename=filename,
+        purpose=purpose,
+        status="processed",
+    )
+
+
+async def get_file_content(file_id: str) -> Optional[bytes]:
+    mapping_file = BASE_PATH / "mappings.json"
+    if not await aiofiles.os.path.exists(mapping_file):
+        return None
+
+    async with aiofiles.open(mapping_file, "r") as f:
+        mappings = json.loads(await f.read())
+
+    if file_id not in mappings:
+        return None
+
+    file_path = BASE_PATH / mappings[file_id]
+    if await aiofiles.os.path.exists(file_path):
+        async with aiofiles.open(file_path, "rb") as f:
+            return await f.read()
+    return None
+
+
+async def list_files(
+    purpose: Optional[str] = None,
+    limit: int = 20,
+    after: Optional[str] = None,
+) -> List[FileObject]:
+    """List files with optional filtering."""
+    mapping_file = BASE_PATH / "mappings.json"
+    if not await aiofiles.os.path.exists(mapping_file):
+        return []
+
+    async with aiofiles.open(mapping_file, "r") as f:
+        mappings = json.loads(await f.read())
+
+    files = []
+    for file_id, path in mappings.items():
+        file_obj = await get_file(file_id)
+        if file_obj and (not purpose or file_obj.purpose == purpose):
+            files.append(file_obj)
+
+    files.sort(key=lambda f: f.created_at, reverse=True)
+
+    if after:
         try:
-            lines = content.decode("utf-8").strip().split("\n")
-            valid_lines = 0
-            for i, line in enumerate(lines):
-                if not line.strip():
-                    continue
-                try:
-                    data = json.loads(line)
-                    TrainingData(**data)
-                    valid_lines += 1
-                except json.JSONDecodeError as e:
-                    return False, f"Line {i + 1}: Invalid JSON - {str(e)}"
-                except ValidationError as e:
-                    return False, f"Line {i + 1}: {str(e)}"
-            if valid_lines == 0:
-                return False, "File contains no valid training examples"
-            return True, None
-        except Exception as e:
-            return False, f"Validation error: {str(e)}"
+            after_idx = next(i for i, f in enumerate(files) if f.id == after)
+            files = files[after_idx + 1 :]
+        except StopIteration:
+            files = []
+
+    return files[:limit]
+
+
+async def delete_file(file_id: str) -> Optional[FileDeleted]:
+    mapping_file = BASE_PATH / "mappings.json"
+    if not await aiofiles.os.path.exists(mapping_file):
+        return None
+
+    async with aiofiles.open(mapping_file, "r") as f:
+        mappings = json.loads(await f.read())
+
+    if file_id not in mappings:
+        return None
+
+    file_path = BASE_PATH / mappings[file_id]
+    if await aiofiles.os.path.exists(file_path):
+        await aiofiles.os.remove(file_path)
+
+    del mappings[file_id]
+    async with aiofiles.open(mapping_file, "w") as f:
+        await f.write(json.dumps(mappings, indent=2))
+
+    logger.info(f"Deleted file {file_id}")
+    return FileDeleted(id=file_id, object="file", deleted=True)
+
+
+# Status tracking removed - not needed with simplified approach
+
+
+async def validate_jsonl(file_id: str) -> tuple[bool, Optional[str]]:
+    """Validate that a file contains valid JSONL for fine-tuning."""
+    content = await get_file_content(file_id)
+    if not content:
+        return False, "File not found"
+    try:
+        lines = content.decode("utf-8").strip().split("\n")
+        valid_lines = 0
+        for i, line in enumerate(lines):
+            if not line.strip():
+                continue
+            try:
+                data = json.loads(line)
+                TrainingData(**data)
+                valid_lines += 1
+            except json.JSONDecodeError as e:
+                return False, f"Line {i + 1}: Invalid JSON - {str(e)}"
+            except ValidationError as e:
+                return False, f"Line {i + 1}: {str(e)}"
+        if valid_lines == 0:
+            return False, "File contains no valid training examples"
+        return True, None
+    except Exception as e:
+        return False, f"Validation error: {str(e)}"

@@ -24,7 +24,6 @@ from rose_core.config.service import (
 )
 from rose_server.database import create_all_tables
 from rose_server.embeddings.manager import EmbeddingManager
-from rose_server.files.store import FileStore
 from rose_server.language_models.registry import ModelRegistry
 from rose_server.router import router
 from rose_server.services import Services, get_vector_store_store
@@ -83,9 +82,6 @@ async def lifespan(app: FastAPI):
         persist_dir=CHROMA_PERSIST_DIR,
     )
     Services.register("chromadb_manager", chromadb_manager)
-    file_store = FileStore()
-    await file_store._load_existing_files()
-    Services.register("file_store", file_store)
     Services.register("vector_store_store", VectorStoreStore())
     model_registry = ModelRegistry()
     await model_registry.initialize()
