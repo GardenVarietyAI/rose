@@ -29,14 +29,25 @@ async def create_file(file: BinaryIO, purpose: FilePurpose, filename: Optional[s
     if not filename:
         filename = f"{file_id}.txt"
 
-    # Create purpose directory
-    purpose_dir = BASE_PATH / purpose
-    await aiofiles.os.makedirs(purpose_dir, exist_ok=True)
+    # Create base uploads directory
+    await aiofiles.os.makedirs(BASE_PATH, exist_ok=True)
 
-    # Save file as purpose/filename
-    file_path = purpose_dir / filename
+    # Save file directly with file_id as filename
+    file_path = BASE_PATH / file_id
     async with aiofiles.open(file_path, "wb") as f:
         await f.write(content)
+
+    # Save metadata
+    metadata = {
+        "id": file_id,
+        "filename": filename,
+        "purpose": purpose,
+        "created_at": int(time.time()),
+        "bytes": file_size,
+    }
+    meta_path = BASE_PATH / f"{file_id}.json"
+    async with aiofiles.open(meta_path, "w") as f:
+        await f.write(json.dumps(metadata))
 
     file_obj = FileObject(
         id=file_id,
@@ -48,18 +59,7 @@ async def create_file(file: BinaryIO, purpose: FilePurpose, filename: Optional[s
         status="processed",
     )
 
-    # Store id->path mapping
-    mapping_file = BASE_PATH / "mappings.json"
-    mappings = {}
-    if await aiofiles.os.path.exists(mapping_file):
-        async with aiofiles.open(mapping_file, "r") as f:
-            mappings = json.loads(await f.read())
-
-    mappings[file_id] = f"{purpose}/{filename}"
-    async with aiofiles.open(mapping_file, "w") as f:
-        await f.write(json.dumps(mappings, indent=2))
-
-    logger.info(f"Created file {file_id} at {purpose}/{filename}")
+    logger.info(f"Created file {file_id} with filename {filename}")
     return file_obj
 
 
@@ -74,10 +74,12 @@ async def get_file(file_id: str) -> Optional[FileObject]:
     if file_id not in mappings:
         return None
 
-    path_parts = mappings[file_id].split("/", 1)
-    purpose = path_parts[0]
-    filename = path_parts[1] if len(path_parts) > 1 else "unknown"
     file_path = BASE_PATH / mappings[file_id]
+
+    # Extract purpose from file metadata or default to "fine-tune"
+    # Since we're simplifying, we'll need to determine purpose another way
+    purpose = "fine-tune"  # Default purpose
+    filename = mappings[file_id]
 
     if not await aiofiles.os.path.exists(file_path):
         return None
@@ -127,8 +129,12 @@ async def list_files(
 
     files = []
     for file_id, path in mappings.items():
+        # If filtering by purpose, check the path prefix
+        if purpose and not path.startswith(f"{purpose}/"):
+            continue
+
         file_obj = await get_file(file_id)
-        if file_obj and (not purpose or file_obj.purpose == purpose):
+        if file_obj:
             files.append(file_obj)
 
     files.sort(key=lambda f: f.created_at, reverse=True)

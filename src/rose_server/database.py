@@ -17,6 +17,7 @@ from .entities.fine_tuning import FineTuningEvent, FineTuningJob
 from .entities.jobs import Job
 from .entities.language_models import LanguageModel
 from .entities.threads import Message, MessageMetadata, Thread
+from .entities.uploads import Upload
 
 DB_PATH = Path(DATA_DIR) / "rose_server.db"
 engine = create_async_engine(
@@ -81,6 +82,7 @@ __all__ = [
     "run_in_session",
     "create_all_tables",
     "current_timestamp",
+    "Upload",
     "FineTuningJob",
     "FineTuningEvent",
     "Job",
