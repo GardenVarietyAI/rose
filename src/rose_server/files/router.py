@@ -17,9 +17,7 @@ router = APIRouter()
 @router.post("/v1/files")
 async def create_file(
     file: UploadFile = File(...),
-    purpose: Literal[
-        "assistants", "assistants_output", "batch", "batch_output", "fine-tune", "fine-tune-results", "vision"
-    ] = Form(...),
+    purpose: Literal["assistants", "batch", "fine-tune", "vision", "user_data", "evals"] = Form(...),
 ) -> FileObject:
     """Upload a file that can be used across various endpoints."""
     try:
@@ -58,7 +56,7 @@ async def retrieve_file(file_id: str) -> FileObject:
 
 
 @router.get("/v1/files/{file_id}/content")
-async def retrieve_file_content(file_id: str):
+async def retrieve_file_content(file_id: str) -> Response:
     """Get file content."""
     content = await store.get_file_content(file_id)
     if content is None:
