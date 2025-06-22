@@ -92,6 +92,8 @@ async def list_jobs(
     if metadata_filters:
         for key, value in metadata_filters.items():
             statement = statement.where(FineTuningJob.meta.op("JSON_EXTRACT")(f"$.{key}") == value)
+    if after:
+        statement = statement.where(FineTuningJob.id > after)
     statement = statement.limit(limit)
 
     async with get_session(read_only=True) as session:

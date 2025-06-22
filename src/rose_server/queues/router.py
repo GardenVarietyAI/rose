@@ -37,6 +37,8 @@ async def update_job(job_id: int, request: JobUpdateRequest) -> JobResponse:
         success = await request_cancel(job_id)
         if not success:
             raise HTTPException(status_code=400, detail="Job cannot be cancelled in its current state")
+        # Re-fetch to get updated state
+        job = await fetch_job(job_id)
     else:
         # Normal status update
         job = await update_job_status(job_id, request.status, request.result)
@@ -44,7 +46,7 @@ async def update_job(job_id: int, request: JobUpdateRequest) -> JobResponse:
     return JobResponse(
         id=job.id,
         type=job.type,
-        status=request.status,
+        status=job.status,
         payload=job.payload,
         created_at=job.created_at,
         started_at=job.started_at,
