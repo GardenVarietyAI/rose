@@ -40,11 +40,6 @@ def get_file_store():
     return Services.get("file_store")
 
 
-def get_fine_tuning_store():
-    """Get the fine-tuning store service."""
-    return Services.get("fine_tuning_store")
-
-
 def get_tokenizer_service():
     """Get the tokenizer service."""
     return Services.get("tokenizer_service")

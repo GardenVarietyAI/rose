@@ -4,7 +4,8 @@ from dataclasses import asdict, dataclass
 from io import BytesIO
 from typing import Any, Dict, List, Optional
 
-from ..services import get_file_store, get_fine_tuning_store
+from ..fine_tuning.store import get_events, get_job, update_job_result_files
+from ..services import get_file_store
 
 logger = logging.getLogger(__name__)
 
@@ -44,17 +45,19 @@ async def create_result_file(job_id: str, final_loss: float, steps: int) -> Opti
     Build an OpenAI-compatible training-results artifact and upload it to the file store.
     Returns the file ID or *None* on failure.
     """
-    store = get_fine_tuning_store()
+
     file_store = get_file_store()
-    job = await store.get_job(job_id)
+    job = await get_job(job_id)
     if job is None:
         logger.error("Job %s not found - aborting result-file creation", job_id)
         return None
-    events = await store.get_events(job_id, limit=1000)
+
     step_metrics: List[StepMetrics] = []
     train_loss_values: List[float] = []
     training_start: Optional[int] = None
     training_end: Optional[int] = None
+
+    events = await get_events(job_id, limit=1000)
     for event in events:
         if "Training started" in event.message:
             training_start = event.created_at
@@ -64,7 +67,9 @@ async def create_result_file(job_id: str, final_loss: float, steps: int) -> Opti
             metric = StepMetrics.from_event(event.data)
             step_metrics.append(metric)
             train_loss_values.append(metric.train_loss)
+
     epochs_completed = max((m.epoch for m in step_metrics), default=1)
+
     training_summary = {
         "final_loss": final_loss,
         "final_train_loss": train_loss_values[-1] if train_loss_values else final_loss,
@@ -75,6 +80,7 @@ async def create_result_file(job_id: str, final_loss: float, steps: int) -> Opti
         "convergence_achieved": final_loss < 1.0,
         "training_time_seconds": (training_end - training_start) if training_start and training_end else None,
     }
+
     training_results = {
         "object": "fine_tuning.job.training_results",
         "data": [asdict(m) for m in step_metrics],
@@ -94,6 +100,7 @@ async def create_result_file(job_id: str, final_loss: float, steps: int) -> Opti
             "trained_tokens": getattr(job, "trained_tokens", None),
         },
     }
+
     try:
         payload = json.dumps(training_results, indent=2, ensure_ascii=False)
         result_bytes = BytesIO(payload.encode())
@@ -102,7 +109,7 @@ async def create_result_file(job_id: str, final_loss: float, steps: int) -> Opti
             purpose="fine-tune-results",
             filename=f"ft-{job_id}-training-results.jsonl",
         )
-        await store.update_job_result_files(job_id, [file_obj.id])
+        await update_job_result_files(job_id, [file_obj.id])
         logger.info("Result-file %s created for job %s (%d steps)", file_obj.id, job_id, len(step_metrics))
         return file_obj.id
     except (OSError, json.JSONDecodeError, TypeError) as exc:
