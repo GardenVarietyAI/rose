@@ -37,7 +37,7 @@ async def get(model_id: str) -> Optional[LanguageModel]:
         return result.scalar_one_or_none()
 
 
-async def list(base_model: Optional[str] = None) -> List[LanguageModel]:
+async def list_models(base_model: Optional[str] = None) -> List[LanguageModel]:
     async with get_session() as session:
         query = select(LanguageModel)
 
