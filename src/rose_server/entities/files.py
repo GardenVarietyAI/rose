@@ -5,10 +5,10 @@ from typing import Optional
 from sqlmodel import Field, SQLModel
 
 
-class Upload(SQLModel, table=True):
+class UploadedFile(SQLModel, table=True):
     """Upload entity for storing file metadata."""
 
-    __tablename__ = "uploads"
+    __tablename__ = "files"
 
     id: str = Field(primary_key=True, description="File identifier")
     object: str = Field(default="file", description="Object type, always 'file'")

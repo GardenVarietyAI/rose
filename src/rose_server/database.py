@@ -13,11 +13,11 @@ from sqlmodel import SQLModel
 from rose_core.config.service import DATA_DIR
 
 from .entities.assistants import Assistant, AssistantTool
+from .entities.files import Upload
 from .entities.fine_tuning import FineTuningEvent, FineTuningJob
 from .entities.jobs import Job
 from .entities.language_models import LanguageModel
 from .entities.threads import Message, MessageMetadata, Thread
-from .entities.uploads import Upload
 
 DB_PATH = Path(DATA_DIR) / "rose_server.db"
 engine = create_async_engine(
