@@ -40,11 +40,6 @@ def get_file_store():
     return Services.get("file_store")
 
 
-def get_fine_tuning_store():
-    """Get the fine-tuning store service."""
-    return Services.get("fine_tuning_store")
-
-
 def get_tokenizer_service():
     """Get the tokenizer service."""
     return Services.get("tokenizer_service")
@@ -58,11 +53,6 @@ def get_embedding_manager():
 def get_vector_store_store():
     """Get the vector store manager service."""
     return Services.get("vector_store_store")
-
-
-def get_job_store():
-    """Get the job store service."""
-    return Services.get("job_store")
 
 
 def get_chromadb_manager():

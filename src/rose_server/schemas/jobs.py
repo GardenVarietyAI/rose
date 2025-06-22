@@ -1,7 +1,7 @@
 """Job queue schemas."""
 
 from enum import Enum
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel
 
@@ -31,4 +31,17 @@ class JobUpdateRequest(BaseModel):
     """Job update request."""
 
     status: str
-    result: Optional[Dict] = None
+    result: Optional[Dict[str, Any]] = None
+
+
+class JobResponse(BaseModel):
+    """Job response model."""
+
+    id: int
+    type: str
+    status: str
+    payload: Dict
+    created_at: int
+    started_at: Optional[int] = None
+    completed_at: Optional[int] = None
+    error: Optional[str] = None

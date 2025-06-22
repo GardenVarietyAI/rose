@@ -1,6 +1,6 @@
 """Fine-tuning models - reusing OpenAI SDK types."""
 
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Literal, Optional, Union
 
 from openai.types.fine_tuning import (
     FineTuningJob,
@@ -13,7 +13,6 @@ __all__ = [
     "FineTuningJob",
     "FineTuningJobEvent",
     "JobCreateParams",
-    "FineTuningJobStore",
     "FineTuningJobEventStore",
     "SupervisedHyperparameters",
     "DpoHyperparameters",
@@ -75,19 +74,6 @@ class DpoMethod(BaseModel):
 
 
 Method = Union[SupervisedMethod, DpoMethod]
-
-
-class FineTuningJobStore(BaseModel):
-    """Internal storage for fine-tuning job with extra fields."""
-
-    job: FineTuningJob
-    internal_state: Dict[str, Any] = Field(default_factory=dict)
-    checkpoint_dir: Optional[str] = None
-    process_id: Optional[int] = None
-    current_step: int = 0
-    total_steps: Optional[int] = None
-    current_epoch: int = 0
-    best_loss: Optional[float] = None
 
 
 class FineTuningJobEventStore(BaseModel):

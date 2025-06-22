@@ -5,7 +5,7 @@ from pathlib import Path
 
 from ..database import run_in_session
 from ..entities.jobs import Job
-from ..fine_tuning.store import FineTuningStore
+from ..fine_tuning.store import add_event, get_job, mark_job_failed, update_job_result_files, update_job_status
 from ..language_models.store import LanguageModelStore
 from ..schemas.webhooks import WebhookEvent
 from ..services import get_model_registry
@@ -33,18 +33,17 @@ async def handle_training_webhook(event: WebhookEvent) -> dict:
 
 async def _handle_training_completed(event: WebhookEvent) -> None:
     """Handle successful training job completion."""
-    store = FineTuningStore()
     result_file_id = await _create_training_result_file(event)
 
     # Get the fine-tuning job to access base model info
-    ft_job = await store.get_job(event.object_id)
+    ft_job = await get_job(event.object_id)
     if not ft_job:
         logger.error(f"Fine-tuning job {event.object_id} not found")
         return
 
     fine_tuned_model = event.data.get("fine_tuned_model")
 
-    await store.update_job_status(
+    await update_job_status(
         event.object_id,
         status="succeeded",
         fine_tuned_model=fine_tuned_model,
@@ -52,7 +51,7 @@ async def _handle_training_completed(event: WebhookEvent) -> None:
     )
 
     if result_file_id:
-        await store.update_job_result_files(event.object_id, [result_file_id])
+        await update_job_result_files(event.object_id, [result_file_id])
 
     await _update_queue_job_completed(event)
 
@@ -88,9 +87,8 @@ async def _handle_training_completed(event: WebhookEvent) -> None:
 
 async def _handle_training_failed(event: WebhookEvent) -> None:
     """Handle failed training job."""
-    store = FineTuningStore()
     error_msg = event.data.get("error", {}).get("message", "Unknown error")
-    await store.mark_job_failed(event.object_id, error_msg)
+    await mark_job_failed(event.object_id, error_msg)
     await _update_queue_job_failed(event, error_msg)
 
 
@@ -144,17 +142,15 @@ async def _update_queue_job_failed(event: WebhookEvent, error_msg: str) -> None:
 
 async def _handle_training_progress(event: WebhookEvent) -> None:
     """Handle training progress events."""
-    store = FineTuningStore()
     message = event.data.get("message", "Training progress")
     level = event.data.get("level", "info")
-    await store.add_event(job_id=event.object_id, level=level, message=message, data=event.data)
+    await add_event(job_id=event.object_id, level=level, message=message, data=event.data)
     logger.debug(f"Added progress event for job {event.object_id}: {message}")
 
 
 async def _handle_training_running(event: WebhookEvent) -> None:
     """Handle training job starting to run."""
-    store = FineTuningStore()
-    await store.update_job_status(event.object_id, status="running")
+    await update_job_status(event.object_id, status="running")
 
     async def update_job(session):
         job = await session.get(Job, event.job_id)
@@ -169,8 +165,7 @@ async def _handle_training_running(event: WebhookEvent) -> None:
 
 async def _handle_training_cancelled(event: WebhookEvent) -> None:
     """Handle training job cancellation."""
-    store = FineTuningStore()
-    await store.update_job_status(event.object_id, status="cancelled")
+    await update_job_status(event.object_id, status="cancelled")
 
     async def update_job(session):
         job = await session.get(Job, event.job_id)
