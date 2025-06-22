@@ -37,18 +37,6 @@ async def create_file(file: BinaryIO, purpose: FilePurpose, filename: Optional[s
     async with aiofiles.open(file_path, "wb") as f:
         await f.write(content)
 
-    # Save metadata
-    metadata = {
-        "id": file_id,
-        "filename": filename,
-        "purpose": purpose,
-        "created_at": int(time.time()),
-        "bytes": file_size,
-    }
-    meta_path = BASE_PATH / f"{file_id}.json"
-    async with aiofiles.open(meta_path, "w") as f:
-        await f.write(json.dumps(metadata))
-
     file_obj = FileObject(
         id=file_id,
         object="file",
@@ -64,50 +52,12 @@ async def create_file(file: BinaryIO, purpose: FilePurpose, filename: Optional[s
 
 
 async def get_file(file_id: str) -> Optional[FileObject]:
-    mapping_file = BASE_PATH / "mappings.json"
-    if not await aiofiles.os.path.exists(mapping_file):
-        return None
-
-    async with aiofiles.open(mapping_file, "r") as f:
-        mappings = json.loads(await f.read())
-
-    if file_id not in mappings:
-        return None
-
-    file_path = BASE_PATH / mappings[file_id]
-
-    # Extract purpose from file metadata or default to "fine-tune"
-    # Since we're simplifying, we'll need to determine purpose another way
-    purpose = "fine-tune"  # Default purpose
-    filename = mappings[file_id]
-
-    if not await aiofiles.os.path.exists(file_path):
-        return None
-
-    stat = await aiofiles.os.stat(file_path)
-    return FileObject(
-        id=file_id,
-        object="file",
-        bytes=stat.st_size,
-        created_at=int(stat.st_ctime),
-        filename=filename,
-        purpose=purpose,
-        status="processed",
-    )
+    # TODO: Implement database lookup
+    return None
 
 
 async def get_file_content(file_id: str) -> Optional[bytes]:
-    mapping_file = BASE_PATH / "mappings.json"
-    if not await aiofiles.os.path.exists(mapping_file):
-        return None
-
-    async with aiofiles.open(mapping_file, "r") as f:
-        mappings = json.loads(await f.read())
-
-    if file_id not in mappings:
-        return None
-
-    file_path = BASE_PATH / mappings[file_id]
+    file_path = BASE_PATH / file_id
     if await aiofiles.os.path.exists(file_path):
         async with aiofiles.open(file_path, "rb") as f:
             return await f.read()
@@ -120,56 +70,17 @@ async def list_files(
     after: Optional[str] = None,
 ) -> List[FileObject]:
     """List files with optional filtering."""
-    mapping_file = BASE_PATH / "mappings.json"
-    if not await aiofiles.os.path.exists(mapping_file):
-        return []
-
-    async with aiofiles.open(mapping_file, "r") as f:
-        mappings = json.loads(await f.read())
-
-    files = []
-    for file_id, path in mappings.items():
-        # If filtering by purpose, check the path prefix
-        if purpose and not path.startswith(f"{purpose}/"):
-            continue
-
-        file_obj = await get_file(file_id)
-        if file_obj:
-            files.append(file_obj)
-
-    files.sort(key=lambda f: f.created_at, reverse=True)
-
-    if after:
-        try:
-            after_idx = next(i for i, f in enumerate(files) if f.id == after)
-            files = files[after_idx + 1 :]
-        except StopIteration:
-            files = []
-
-    return files[:limit]
+    # TODO: Implement database lookup
+    return []
 
 
 async def delete_file(file_id: str) -> Optional[FileDeleted]:
-    mapping_file = BASE_PATH / "mappings.json"
-    if not await aiofiles.os.path.exists(mapping_file):
-        return None
-
-    async with aiofiles.open(mapping_file, "r") as f:
-        mappings = json.loads(await f.read())
-
-    if file_id not in mappings:
-        return None
-
-    file_path = BASE_PATH / mappings[file_id]
+    file_path = BASE_PATH / file_id
     if await aiofiles.os.path.exists(file_path):
         await aiofiles.os.remove(file_path)
-
-    del mappings[file_id]
-    async with aiofiles.open(mapping_file, "w") as f:
-        await f.write(json.dumps(mappings, indent=2))
-
-    logger.info(f"Deleted file {file_id}")
-    return FileDeleted(id=file_id, object="file", deleted=True)
+        logger.info(f"Deleted file {file_id}")
+        return FileDeleted(id=file_id, object="file", deleted=True)
+    return None
 
 
 # Status tracking removed - not needed with simplified approach
