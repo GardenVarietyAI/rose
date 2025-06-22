@@ -71,6 +71,7 @@ pre-commit = "^4.2.0"
 mypy = "^1.13.0"
 types-aiofiles = "^24.1.0.20250606"
 types-psutil = "^7.0.0.20250601"
+sqlalchemy = {extras = ["mypy"], version = "^2.0.0"}
 
 
 [tool.pytest.ini_options]
