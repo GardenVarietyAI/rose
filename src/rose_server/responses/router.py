@@ -17,7 +17,7 @@ from rose_server.schemas.responses import (
 )
 from rose_server.services import get_model_registry
 
-from .store import ResponsesStore
+from .store import get_response, store_response_messages
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["responses"])
@@ -89,7 +89,7 @@ async def _store_response(complete_response: dict, messages: list[ChatMessage], 
                     reply_text = content_item.get("text", "")
                     break
 
-    await ResponsesStore.store_response_messages(
+    await store_response_messages(
         response_id=complete_response["id"],
         messages=messages,
         reply_text=reply_text,
@@ -103,7 +103,7 @@ async def _store_response(complete_response: dict, messages: list[ChatMessage], 
 @router.get("/v1/responses/{response_id}", response_model=ResponsesResponse)
 async def retrieve_response(response_id: str):
     try:
-        response_msg = await ResponsesStore.get_response(response_id)
+        response_msg = await get_response(response_id)
         if not response_msg:
             raise HTTPException(status_code=404, detail=f"Response {response_id} not found")
 
@@ -153,9 +153,7 @@ async def retrieve_response(response_id: str):
 
 
 @router.post("/v1/responses", response_model=None)
-async def create_response(
-    request: ResponsesRequest = Body(...),
-):
+async def create_response(request: ResponsesRequest = Body(...)):
     try:
         logger.info(f"RESPONSES API - Input type: {type(request.input)}, Input: {request.input}")
         logger.info(f"RESPONSES API - Instructions: {request.instructions}")

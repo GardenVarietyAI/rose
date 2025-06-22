@@ -3,16 +3,16 @@
 import logging
 from typing import Any, Dict, List
 
-from rose_server.assistants.store import get_assistant_store
+from rose_server.assistants.store import get_assistant
 from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.events.generators import RunsGenerator
 from rose_server.language_models import model_cache
+from rose_server.messages.store import create_message
 from rose_server.runs.store import RunsStore
 from rose_server.schemas.assistants import Run
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.runs import RunStepType
 from rose_server.services import get_model_registry
-from rose_server.threads.store import ThreadStore
 
 logger = logging.getLogger(__name__)
 
@@ -41,9 +41,7 @@ async def process_tool_outputs(run: Run, tool_outputs: List[Dict[str, Any]], run
         step_type=RunStepType.MESSAGE_CREATION,
         step_details={"message_creation": {"message_id": None}},
     )
-    thread_store = ThreadStore()
-    assistant_store = get_assistant_store()
-    await assistant_store.get_assistant(run.assistant_id)
+    await get_assistant(run.assistant_id)
     tool_results = []
     for output in tool_outputs:
         tool_results.append(f"Tool {output.get('tool_call_id', 'unknown')} result: {output.get('output', '')}")
@@ -79,7 +77,7 @@ async def process_tool_outputs(run: Run, tool_outputs: List[Dict[str, Any]], run
             }
     except Exception as e:
         logger.error(f"Error generating continuation response: {str(e)}")
-    message = await thread_store.create_message(
+    message = await create_message(
         thread_id=run.thread_id,
         role="assistant",
         content=[{"type": "text", "text": response_text}],

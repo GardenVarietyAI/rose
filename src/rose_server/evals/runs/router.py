@@ -3,57 +3,49 @@
 import uuid
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 
+from rose_server.evals.runs.store import create_eval_run, get_eval_run, list_eval_runs
+from rose_server.evals.store import get_eval
 from rose_server.queues.facade import EvalJob
 from rose_server.schemas.evals import (
     DataSourceConfig,
-    EvalRunCreateRequest,
     EvalRunResponse,
 )
-
-from ..samples.store import EvalSampleStore
-from ..store import EvalStore
-from .store import EvalRunStore
 
 router = APIRouter(prefix="/v1/evals/{eval_id}/runs", tags=["evals"])
 
 
 @router.post("", response_model=EvalRunResponse)
-async def create_eval_run(
-    eval_id: str,
-    request: EvalRunCreateRequest,
-) -> EvalRunResponse:
+async def create(eval_id: str, name: str, data_source: DataSourceConfig) -> EvalRunResponse:
     """Create an evaluation run"""
 
-    eval_store = EvalStore()
-    eval_def = await eval_store.get(eval_id)
+    eval_def = await get_eval(eval_id)
 
     if not eval_def:
         raise HTTPException(status_code=404, detail="Evaluation not found")
 
     run_id = f"evalrun_{uuid.uuid4().hex}"
-    model = request.data_source.model
+    model = data_source.model
 
-    run_store = EvalRunStore()
-    eval_run = await run_store.create(
+    eval_run = await create_eval_run(
         id=run_id,
         eval_id=eval_id,
-        name=request.name,
+        name=name,
         model=model,
-        data_source=request.data_source.dict(),
+        data_source=data_source.model_dump(),
     )
 
     metadata: Dict[str, Any] = {
-        "data_source": request.data_source.dict(),
+        "data_source": data_source.model_dump(),
         "eval_def_id": eval_id,
-        "run_name": request.name,
+        "run_name": name,
         "eval_data_source_config": eval_def.data_source_config,
         "eval_testing_criteria": eval_def.testing_criteria,
     }
 
-    if request.data_source.max_samples is not None:
-        metadata["max_samples"] = request.data_source.max_samples
+    if data_source.max_samples is not None:
+        metadata["max_samples"] = data_source.max_samples
 
     await EvalJob.dispatch(
         eval_id=run_id,
@@ -66,28 +58,26 @@ async def create_eval_run(
         id=run_id,
         object="eval.run",
         eval_id=eval_id,
-        name=request.name,
+        name=name,
         model=model,
         status="queued",
         created_at=eval_run.created_at,
-        data_source=request.data_source,
+        data_source=data_source,
     )
 
 
 @router.get("", response_model=List[EvalRunResponse])
-async def list_eval_runs(
+async def runs(
     eval_id: str,
     limit: int = 20,
 ) -> List[EvalRunResponse]:
     """List runs for a specific evaluation."""
-    eval_store = EvalStore()
-    eval_def = await eval_store.get(eval_id)
+    eval_def = await get_eval(eval_id)
 
     if not eval_def:
         raise HTTPException(status_code=404, detail="Evaluation not found")
 
-    run_store = EvalRunStore()
-    runs = await run_store.list(eval_id=eval_id, limit=limit)
+    runs = await list_eval_runs(eval_id=eval_id, limit=limit)
 
     return [
         EvalRunResponse(
@@ -112,15 +102,15 @@ async def list_eval_runs(
 
 
 @router.get("/{run_id}", response_model=EvalRunResponse)
-async def get_eval_run(
+async def get(
     eval_id: str,
     run_id: str,
 ) -> EvalRunResponse:
     """Get a specific evaluation run."""
-    run_store = EvalRunStore()
-    run = await run_store.get(run_id)
+    run = await get_eval_run(run_id)
     if not run or run.eval_id != eval_id:
         raise HTTPException(status_code=404, detail="Evaluation run not found")
+
     return EvalRunResponse(
         id=run.id,
         object="eval.run",
@@ -138,77 +128,3 @@ async def get_eval_run(
         error=run.error_message,
         metadata=run.meta,
     )
-
-
-@router.get("/{run_id}/samples")
-async def list_eval_samples(
-    eval_id: str,
-    run_id: str,
-    limit: int = Query(100, ge=1, le=1000),
-    offset: int = Query(0, ge=0),
-    only_failed: bool = Query(False, description="Only return failed samples"),
-) -> Dict[str, Any]:
-    """Get evaluation samples for a specific run."""
-    run_store = EvalRunStore()
-    run = await run_store.get(run_id)
-    if not run or run.eval_id != eval_id:
-        raise HTTPException(status_code=404, detail="Evaluation run not found")
-    sample_store = EvalSampleStore()
-    samples = await sample_store.list(eval_run_id=run_id, limit=limit, offset=offset, only_failed=only_failed)
-    counts = await sample_store.count(run_id)
-    return {
-        "object": "list",
-        "data": [
-            {
-                "id": sample.id,
-                "object": "eval.sample",
-                "eval_run_id": sample.eval_run_id,
-                "sample_index": sample.sample_index,
-                "input": sample.input,
-                "expected_output": sample.ideal,
-                "actual_output": sample.completion,
-                "score": sample.score,
-                "passed": sample.passed,
-                "response_time": sample.response_time,
-                "tokens_used": sample.tokens_used,
-                "metadata": sample.meta,
-                "created_at": sample.created_at,
-            }
-            for sample in samples
-        ],
-        "total": counts["total"],
-        "has_more": offset + limit < counts["total"],
-        "counts": counts,
-    }
-
-
-@router.get("/{run_id}/samples/{sample_id}")
-async def get_eval_sample(
-    eval_id: str,
-    run_id: str,
-    sample_id: str,
-) -> Dict[str, Any]:
-    """Get a specific evaluation sample."""
-    run_store = EvalRunStore()
-    run = await run_store.get(run_id)
-    if not run or run.eval_id != eval_id:
-        raise HTTPException(status_code=404, detail="Evaluation run not found")
-    sample_store = EvalSampleStore()
-    sample = await sample_store.get(sample_id)
-    if not sample or sample.eval_run_id != run_id:
-        raise HTTPException(status_code=404, detail="Evaluation sample not found")
-    return {
-        "id": sample.id,
-        "object": "eval.sample",
-        "eval_run_id": sample.eval_run_id,
-        "sample_index": sample.sample_index,
-        "input": sample.input,
-        "expected_output": sample.ideal,
-        "actual_output": sample.completion,
-        "score": sample.score,
-        "passed": sample.passed,
-        "response_time": sample.response_time,
-        "tokens_used": sample.tokens_used,
-        "metadata": sample.meta,
-        "created_at": sample.created_at,
-    }
