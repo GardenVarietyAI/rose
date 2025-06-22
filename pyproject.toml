@@ -68,6 +68,9 @@ httpx = "^0.28.1"
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.11.11"
 pre-commit = "^4.2.0"
+mypy = "^1.13.0"
+types-aiofiles = "^24.1.0.20250606"
+types-psutil = "^7.0.0.20250601"
 
 
 [tool.pytest.ini_options]
@@ -79,7 +82,7 @@ addopts = "-v --cov=src/rose_server --cov-report=term-missing"
 
 [tool.ruff]
 line-length = 120
-target-version = "py312"
+target-version = "py313"
 fix = true
 
 [tool.ruff.format]
@@ -99,14 +102,9 @@ force-wrap-aliases = true
 combine-as-imports = true
 
 [tool.mypy]
+python_version = "3.13"
 plugins = ["sqlalchemy.ext.mypy.plugin"]
 ignore_missing_imports = true
-# Gradual type checking - only check files we've converted
-files = [
-    "src/rose_core/models/loading.py",
-    "src/rose_server/language_models/huggingface_llm.py",
-    "src/rose_worker/**/*.py",
-]
 # Strict mode for checked files
 strict = true
 warn_return_any = true
@@ -121,6 +119,21 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "transformers.*",
+    "chromadb.*",
+    "sentencepiece.*",
+    "peft.*",
+    "accelerate.*",
+    "datasets.*",
+    "sse_starlette.*",
+    "apscheduler.*",
+    "sentence_transformers.*",
+    "nvidia_ml_py.*",
+]
+ignore_errors = true
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
