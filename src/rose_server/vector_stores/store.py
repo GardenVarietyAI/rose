@@ -122,17 +122,7 @@ async def delete_vectors(vid: str, ids: List[str]) -> Dict[str, Any]:
     vector.client.get_collection(vid).delete(ids=ids)
     logger.info("Deleted %d vectors from %s", len(ids), vid)
 
-    return {
-        "object": "list",
-        "data": [
-            {
-                "id": i,
-                "object": "vector.deleted",
-                "deleted": True,
-            }
-            for i in ids
-        ],
-    }
+    return {"object": "list", "data": [{"id": i, "object": "vector.deleted", "deleted": True} for i in ids]}
 
 
 async def search_vectors(vid: str, s: VectorSearch) -> VectorSearchResult:
