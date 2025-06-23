@@ -6,6 +6,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 from typing import (
     AsyncGenerator,
     Dict,
@@ -15,9 +16,11 @@ from typing import (
     Tuple,
 )
 
+from rose_core.config.service import DATA_DIR
 from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.events.generators import RunsGenerator
 from rose_server.language_models import model_cache
+from rose_server.language_models.store import get as get_language_model
 from rose_server.messages.store import create_message, get_messages
 from rose_server.runs.store import RunsStore
 from rose_server.runs.streaming import (
@@ -31,7 +34,6 @@ from rose_server.runs.streaming import (
 from rose_server.schemas.assistants import AssistantResponse
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.runs import RunResponse, RunStep, RunStepType
-from rose_server.services import get_model_registry
 from rose_server.tools import format_tools_for_prompt, parse_xml_tool_call
 
 logger = logging.getLogger(__name__)
@@ -235,9 +237,9 @@ async def execute_assistant_run_streaming(
     full_prompt = await _build_prompt(run, assistant, messages, latest_user_msg)
 
     # locate model
-    registry = get_model_registry()
     requested_model = run.model or assistant.model
-    if requested_model not in registry.list_models():
+    model = await get_language_model(requested_model)
+    if not model:
         for evt in await _fail_run(
             run_id=run.id,
             step=step,
@@ -248,8 +250,24 @@ async def execute_assistant_run_streaming(
             yield evt
         return
 
-    config = registry.get_model_config(requested_model)
-    if not config:
+    # Build config from model
+    config = {
+        "model_name": model.model_name,
+        "model_type": model.model_type,
+        "temperature": model.temperature,
+        "top_p": model.top_p,
+        "memory_gb": model.memory_gb,
+    }
+
+    if model.is_fine_tuned and model.path:
+        config["model_path"] = str(Path(DATA_DIR) / model.path)
+        config["base_model"] = model.parent
+        config["is_fine_tuned"] = True
+
+    if model.get_lora_modules():
+        config["lora_target_modules"] = model.get_lora_modules()
+
+    if not config.get("model_name"):
         for evt in await _fail_run(
             run_id=run.id,
             step=step,

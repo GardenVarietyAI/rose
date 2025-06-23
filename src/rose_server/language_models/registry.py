@@ -1,161 +1,122 @@
 """Model registry for managing base and fine-tuned models."""
 
 import logging
+from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
-from rose_core.config.service import DATA_DIR, LLM_MODELS
+from transformers import AutoTokenizer
+
+from rose_core.config.service import DATA_DIR
+from rose_server.schemas.chat import ChatMessage
 
 from .store import (
-    create as create_language_model,
-    delete as delete_language_model,
-    list_fine_tuned,
+    get as get_language_model,
+    list_all,
 )
 
 logger = logging.getLogger(__name__)
 
 
 class ModelRegistry:
-    """Central registry for all LLM models."""
+    """Simple registry that wraps database operations for models."""
 
     def __init__(self) -> None:
-        self.models: Dict[str, Dict[str, Any]] = {}
-        self._load_base_models()
-
-    def _load_base_models(self) -> None:
-        """Load base model configurations from settings."""
-        self.models.update(LLM_MODELS.copy())
-        logger.info(f"Loaded {len(self.models)} base model configurations")
+        self._tokenizer_cache: Dict[str, AutoTokenizer] = {}
 
     async def initialize(self) -> None:
-        """Initialize the registry with fine-tuned models from database."""
-        await self._load_fine_tuned_models()
+        """Initialize the registry (no-op since we use database directly)."""
+        logger.info("Model registry initialized")
 
-    async def _load_fine_tuned_models(self) -> None:
-        """Load fine-tuned models from database."""
-        try:
-            fine_tuned_models = await list_fine_tuned()
-            loaded = 0
-            for model in fine_tuned_models:
-                if model.path:
-                    model_path = Path(DATA_DIR) / model.path
-                    if model_path.exists():
-                        # Get base model config and update it
-                        base_config = self.models.get(model.base_model, {}).copy()
-                        base_config.update(
-                            {
-                                "model_name": model.id,
-                                "name": model.name,
-                                "model_path": str(model_path),
-                                "base_model": model.base_model,
-                                "is_fine_tuned": True,
-                                "created_at": model.created_at,
-                            }
-                        )
-                        self.models[model.id] = base_config
-                        loaded += 1
-                    else:
-                        logger.warning(f"Model path not found for {model.id}: {model_path}")
-            logger.info(f"Loaded {loaded} fine-tuned models from database")
-        except Exception as e:
-            logger.error(f"Error loading fine-tuned models from database: {e}")
+    async def get_model_config(self, model_id: str) -> Optional[Dict[str, Any]]:
+        """Get configuration for a model from the database."""
+        model = await get_language_model(model_id)
+        if not model:
+            return None
 
-    async def register_model(
-        self,
-        model_id: str,
-        model_path: Optional[str] = None,
-        base_model: Optional[str] = None,
-        config: Optional[Dict[str, Any]] = None,
-        persist: bool = True,
-    ) -> bool:
-        """Register a model in the registry.
-        Args:
-            model_id: Unique identifier for the model
-            model_path: Path to fine-tuned model directory (for fine-tuned models)
-            base_model: Base model name (for fine-tuned models)
-            config: Full configuration (for base models or overrides)
-            persist: Whether to save fine-tuned models to database
-        Returns:
-            True if registration successful
-        """
-        try:
-            if model_path:
-                if not Path(model_path).exists():
-                    logger.error(f"Model path does not exist: {model_path}")
-                    return False
+        # Start with model fields
+        config: dict[str, Any] = model.model_dump(
+            include={
+                "model_name",
+                "model_type",
+                "temperature",
+                "top_p",
+                "memory_gb",
+                "timeout",
+            }
+        )
 
-                # Store in database if persist is True
-                if persist:
-                    # Get relative path for storage
-                    relative_path = Path(model_path).relative_to(DATA_DIR)
-                    hf_model_name = self.models.get(base_model, {}).get("hf_model_name") if base_model else None
+        # Remove None values
+        config = {k: v for k, v in config.items() if v is not None}
 
-                    await create_language_model(
-                        id=model_id,
-                        path=str(relative_path),
-                        base_model=base_model,
-                        hf_model_name=hf_model_name,
-                    )
+        # Add computed fields
+        if model.is_fine_tuned and model.path:
+            config["model_path"] = str(Path(DATA_DIR) / model.path)
+            config["base_model"] = model.parent
+            config["is_fine_tuned"] = True
 
-                # Update in-memory registry
-                base_config = self.models.get(base_model, {}).copy() if base_model else {}
-                base_config.update(
-                    {
-                        "model_name": model_id,
-                        "model_path": model_path,
-                        "base_model": base_model,
-                        "is_fine_tuned": True,
-                        "created_at": None,  # Will be set from database
-                    }
-                )
-                if config:
-                    base_config.update(config)
-                self.models[model_id] = base_config
+        if model.get_lora_modules():
+            config["lora_target_modules"] = model.get_lora_modules()
+
+        return config
+
+    async def list_models(self) -> List[str]:
+        """List all model IDs from database."""
+        models = await list_all()
+        return [m.id for m in models]
+
+    # Tokenizer methods
+    async def get_tokenizer(self, model_id: str) -> AutoTokenizer:
+        """Get or load tokenizer for a model."""
+        if model_id not in self._tokenizer_cache:
+            # Get model config to find the actual model name
+            config = await self.get_model_config(model_id)
+            if config:
+                model_name = config.get("model_name", model_id)
             else:
-                if not config:
-                    logger.error(f"No config provided for base model {model_id}")
-                    return False
-                self.models[model_id] = config
-            logger.info(f"Registered model: {model_id}")
-            return True
-        except Exception as e:
-            logger.error(f"Error registering model {model_id}: {e}")
-            return False
+                model_name = model_id
 
-    async def unregister_model(self, model_id: str) -> bool:
-        """Remove a model from the registry."""
-        if model_id not in self.models:
-            return False
-        is_fine_tuned = self.models[model_id].get("is_fine_tuned", False)
+            try:
+                self._tokenizer_cache[model_id] = AutoTokenizer.from_pretrained(
+                    model_name,
+                    trust_remote_code=True,
+                    use_fast=True,
+                )
+                logger.debug(f"Loaded tokenizer for {model_id}")
+            except Exception as e:
+                logger.error(f"Failed to load tokenizer for {model_id}: {e}")
+                raise
+        return self._tokenizer_cache[model_id]
 
-        # Delete from database if it's a fine-tuned model
-        if is_fine_tuned:
-            await delete_language_model(model_id)
+    @lru_cache(maxsize=10000)
+    def _count_tokens_cached(self, text: str, model_id: str) -> int:
+        """Cached token counting (sync for performance)."""
+        if not text:
+            return 0
+        # This is a limitation - we can't use async in cached method
+        # For now, assume tokenizer is already loaded
+        if model_id in self._tokenizer_cache:
+            tokenizer = self._tokenizer_cache[model_id]
+            tokens = tokenizer.encode(text, add_special_tokens=False)
+            return len(tokens)
+        return 0
 
-        # Remove from in-memory registry
-        del self.models[model_id]
-        logger.info(f"Unregistered model: {model_id}")
-        return True
+    async def count_tokens(self, text: str, model_id: str = "qwen-coder") -> int:
+        """Count tokens in text."""
+        tokenizer = await self.get_tokenizer(model_id)
+        tokens = tokenizer.encode(text, add_special_tokens=False)
+        return len(tokens)
 
-    def get_model_config(self, model_id: str) -> Optional[Dict[str, Any]]:
-        """Get configuration for a model."""
-        return self.models.get(model_id)
+    async def count_messages(self, messages: List[ChatMessage], model_id: str = "qwen-coder") -> Dict[str, int]:
+        """Count tokens in chat messages."""
+        if not messages:
+            return {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
-    def list_models(self) -> list[str]:
-        """List all registered model IDs."""
-        return list(self.models.keys())
+        tokenizer = await self.get_tokenizer(model_id)
+        if not (hasattr(tokenizer, "apply_chat_template") and tokenizer.chat_template):
+            raise ValueError(f"Model {model_id} does not have a chat template")
 
-    def list_fine_tuned_models(self) -> list[str]:
-        """List only fine-tuned model IDs."""
-        return [model_id for model_id, config in self.models.items() if config.get("is_fine_tuned", False)]
-
-    async def reload_fine_tuned_models(self) -> None:
-        """Reload fine-tuned models from database."""
-        # Remove existing fine-tuned models from memory
-        fine_tuned_ids = [model_id for model_id, config in self.models.items() if config.get("is_fine_tuned", False)]
-        for model_id in fine_tuned_ids:
-            del self.models[model_id]
-
-        # Reload from database
-        await self._load_fine_tuned_models()
-        logger.info("Reloaded fine-tuned models from database")
+        hf_messages = [{"role": msg.role, "content": msg.content} for msg in messages]
+        formatted = tokenizer.apply_chat_template(hf_messages, tokenize=True, add_generation_prompt=False)
+        total_tokens = len(formatted)
+        return {"prompt_tokens": total_tokens, "completion_tokens": 0, "total_tokens": total_tokens}

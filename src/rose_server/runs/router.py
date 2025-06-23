@@ -7,6 +7,7 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from rose_server.assistants.store import get_assistant
+from rose_server.language_models.deps import ModelRegistryDep
 from rose_server.runs.executor import execute_assistant_run_streaming
 from rose_server.runs.store import RunsStore
 from rose_server.runs.tool_outputs import process_tool_outputs
@@ -158,7 +159,9 @@ async def get_run_step(thread_id: str, run_id: str, step_id: str) -> JSONRespons
 
 
 @router.post("/threads/{thread_id}/runs/{run_id}/submit_tool_outputs")
-async def submit_tool_outputs(thread_id: str, run_id: str, request: Dict[str, Any] = Body(...)) -> JSONResponse:
+async def submit_tool_outputs(
+    thread_id: str, run_id: str, request: Dict[str, Any] = Body(...), registry: ModelRegistryDep = None
+) -> JSONResponse:
     """Submit tool outputs for a run that requires action."""
     try:
         tool_outputs = request.get("tool_outputs", [])
@@ -174,7 +177,7 @@ async def submit_tool_outputs(thread_id: str, run_id: str, request: Dict[str, An
                 content={"error": f"Run is not waiting for tool outputs (status: {run.status})"},
             )
         try:
-            await process_tool_outputs(run, tool_outputs, runs_store)
+            await process_tool_outputs(run, tool_outputs, runs_store, registry)
             return JSONResponse(content=run.dict())
         except Exception as e:
             logger.error(f"Error processing tool outputs: {str(e)}")

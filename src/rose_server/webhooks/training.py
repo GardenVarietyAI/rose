@@ -8,16 +8,15 @@ from ..entities.jobs import Job
 from ..fine_tuning.store import add_event, get_job, mark_job_failed, update_job_result_files, update_job_status
 from ..language_models.store import create as create_language_model
 from ..schemas.webhooks import WebhookEvent
-from ..services import get_model_registry
 from .results_output import create_result_file
 
 logger = logging.getLogger(__name__)
 
 
-async def handle_training_webhook(event: WebhookEvent) -> dict:
+async def handle_training_webhook(event: WebhookEvent, registry) -> dict:
     """Handle training job webhooks."""
     if event.event == "job.completed":
-        await _handle_training_completed(event)
+        await _handle_training_completed(event, registry)
     elif event.event == "job.failed":
         await _handle_training_failed(event)
     elif event.event == "job.progress":
@@ -31,7 +30,7 @@ async def handle_training_webhook(event: WebhookEvent) -> dict:
     return {"status": "ok", "message": "Training webhook processed"}
 
 
-async def _handle_training_completed(event: WebhookEvent) -> None:
+async def _handle_training_completed(event: WebhookEvent, registry) -> None:
     """Handle successful training job completion."""
     result_file_id = await _create_training_result_file(event)
 
@@ -62,23 +61,18 @@ async def _handle_training_completed(event: WebhookEvent) -> None:
 
     try:
         model_path = Path("models") / fine_tuned_model
-        registry = get_model_registry()
-        base_config = registry.get_model_config(ft_job.model)
+        base_config = await registry.get_model_config(ft_job.model)
         hf_model_name = base_config.get("hf_model_name") if base_config else None
 
         await create_language_model(
             id=fine_tuned_model,
+            model_name=hf_model_name or ft_job.model,
             name=fine_tuned_model,
             path=str(model_path),
-            base_model=ft_job.model,
-            hf_model_name=hf_model_name,
+            parent=ft_job.model,
         )
 
         logger.info(f"Registered fine-tuned model {fine_tuned_model} in database")
-
-        # Reload model registry to include the new fine-tuned model
-        await registry.reload_fine_tuned_models()
-        logger.info(f"Reloaded model registry after training job {event.object_id} completed")
     except Exception as e:
         logger.error(f"Failed to register fine-tuned model: {e}")
 

@@ -10,19 +10,34 @@ from rose_server.entities.language_models import LanguageModel
 
 async def create(
     id: str,
+    model_name: str,
     path: Optional[str] = None,
-    base_model: Optional[str] = None,
-    hf_model_name: Optional[str] = None,
+    parent: Optional[str] = None,
     name: Optional[str] = None,
+    temperature: float = 0.7,
+    top_p: float = 0.9,
+    memory_gb: float = 2.0,
+    timeout: Optional[int] = None,
+    lora_modules: Optional[List[str]] = None,
 ) -> LanguageModel:
     """Register a new language model."""
     model = LanguageModel(
         id=id,
-        name=name,
+        name=name or id,
+        model_name=model_name,
         path=path,
-        base_model=base_model,
-        hf_model_name=hf_model_name,
+        is_fine_tuned=parent is not None,
+        temperature=temperature,
+        top_p=top_p,
+        memory_gb=memory_gb,
+        timeout=timeout,
+        owned_by="user" if parent else "organization-owner",
+        root=parent or id,  # Fine-tuned models point to base, base models to themselves
+        parent=parent,  # None for base models, parent model for fine-tuned
     )
+
+    if lora_modules:
+        model.set_lora_modules(lora_modules)
 
     async with get_session() as session:
         session.add(model)
@@ -37,12 +52,12 @@ async def get(model_id: str) -> Optional[LanguageModel]:
         return result.scalar_one_or_none()
 
 
-async def list_models(base_model: Optional[str] = None) -> List[LanguageModel]:
+async def list_models(parent: Optional[str] = None) -> List[LanguageModel]:
     async with get_session() as session:
         query = select(LanguageModel)
 
-        if base_model:
-            query = query.where(LanguageModel.base_model == base_model)
+        if parent:
+            query = query.where(LanguageModel.parent == parent)
 
         query = query.order_by(LanguageModel.created_at.desc())
         result = await session.execute(query)
@@ -50,10 +65,17 @@ async def list_models(base_model: Optional[str] = None) -> List[LanguageModel]:
         return list(result.scalars().all())
 
 
+async def list_all() -> List[LanguageModel]:
+    """List all models (base + fine-tuned)."""
+    async with get_session(read_only=True) as session:
+        result = await session.execute(select(LanguageModel).order_by(LanguageModel.created_at.desc()))
+        return list(result.scalars().all())
+
+
 async def list_fine_tuned() -> List[LanguageModel]:
     async with get_session(read_only=True) as session:
         result = await session.execute(
-            select(LanguageModel).where(LanguageModel.base_model is not None).order_by(LanguageModel.created_at.desc())
+            select(LanguageModel).where(LanguageModel.is_fine_tuned is True).order_by(LanguageModel.created_at.desc())
         )
         return list(result.scalars().all())
 

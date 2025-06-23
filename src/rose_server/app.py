@@ -24,8 +24,6 @@ from rose_core.config.service import (
 from rose_server.database import create_all_tables
 from rose_server.language_models.registry import ModelRegistry
 from rose_server.router import router
-from rose_server.services import Services
-from rose_server.tokens import TokenizerService
 from rose_server.vector import ChromaDBManager
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -60,15 +58,12 @@ async def lifespan(app: FastAPI) -> Any:
         persist_dir=CHROMA_PERSIST_DIR,
     )
 
-    model_registry = ModelRegistry()
-    await model_registry.initialize()
-    Services.register("model_registry", model_registry)
-    Services.register("tokenizer_service", TokenizerService(model_registry))
-    logger.info(f"Services initialized: {Services.list_services()}")
+    app.state.model_registry = ModelRegistry()
+    await app.state.model_registry.initialize()
+    logger.info("Model registry initialized")
 
     yield
 
-    await Services.shutdown()
     logger.info("Application shutdown completed")
 
 

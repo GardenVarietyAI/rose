@@ -154,10 +154,3 @@ EMBEDDING_MODELS = {
         "format": "HuggingFace",
     },
 }
-
-# Fine-tuning models (derived from LLM_MODELS)
-FINE_TUNING_MODELS = {
-    model_id: config["model_name"]
-    for model_id, config in LLM_MODELS.items()
-    if config.get("model_type") == "huggingface"
-}

@@ -14,7 +14,7 @@ from transformers.trainer import Trainer
 from transformers.trainer_callback import EarlyStoppingCallback, TrainerCallback
 from transformers.training_args import TrainingArguments
 
-from rose_core.config.service import DATA_DIR, FINE_TUNING_EVAL_BATCH_SIZE, FINE_TUNING_MODELS
+from rose_core.config.service import DATA_DIR, FINE_TUNING_EVAL_BATCH_SIZE, LLM_MODELS
 from rose_core.models import get_tokenizer, load_hf_model
 from rose_core.models.loading import get_optimal_device
 
@@ -34,7 +34,7 @@ def train(
 ) -> Dict[str, Any]:
     """Run a fine-tuning job and return a result dict."""
 
-    if model_name not in FINE_TUNING_MODELS:
+    if model_name not in LLM_MODELS:
         raise ValueError(f"Model {model_name} not supported for fine-tuning")
 
     hp = HyperParams.resolve(hyperparameters)
@@ -43,23 +43,26 @@ def train(
     if torch.cuda.is_available():
         torch.cuda.manual_seed(hp.seed)
 
-    hf_model_name = FINE_TUNING_MODELS[model_name]
+    model_config = LLM_MODELS.get(model_name, {})
+    hf_model_name = model_config.get("model_name", model_name)
     model = load_hf_model(model_id=hf_model_name)
     tokenizer = get_tokenizer(hf_model_name)
-    model_config = FINE_TUNING_MODELS.get(model_name, {})
+    model_config = LLM_MODELS.get(model_name, {})
+    is_peft_model = False
 
-    if hp.use_lora and hp.lora_config:
-        target_modules = hp.lora_config.get("target_modules")
+    if hp.use_lora:
+        lora_cfg = hp.lora_config or {}
+        target_modules = lora_cfg.get("target_modules")
         if not target_modules:
             target_modules = model_config.get("lora_target_modules", ["q_proj", "k_proj", "v_proj", "o_proj"])
 
-        peft_model = get_peft_model(  # type: ignore[arg-type]
+        peft_model = get_peft_model(
             model,
             LoraConfig(
-                r=hp.lora_config.get("r", 16),
-                lora_alpha=hp.lora_config.get("lora_alpha", 32),
+                r=lora_cfg.get("r", 16),
+                lora_alpha=lora_cfg.get("lora_alpha", 32),
                 target_modules=target_modules,
-                lora_dropout=hp.lora_config.get("lora_dropout", 0.05),
+                lora_dropout=lora_cfg.get("lora_dropout", 0.05),
                 bias="none",
                 task_type=TaskType.CAUSAL_LM,
             ),
@@ -71,6 +74,7 @@ def train(
         peft_model.print_trainable_parameters()
 
         model = peft_model
+        is_peft_model = True
 
     # Build training components
     callbacks: List[TrainerCallback] = [EventCallback(event_callback), HardwareMonitorCallback(event_callback)]
@@ -162,17 +166,25 @@ def train(
     out_dir = Path(DATA_DIR) / "models" / model_id
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    trainer.save_model(str(out_dir))
-
     # Check if this is a PEFT model
-    if hasattr(trainer.model, "peft_config"):
+    if is_peft_model:
         if torch.backends.mps.is_available():
-            logger.warning("Skipping merge_and_unload on Apple Silicon")
+            logger.info("Saving LoRA adapter separately on Apple Silicon...")
+            # Save only the PEFT adapter, not the full model
+            trainer.model.save_pretrained(str(out_dir))
+            # Also save the tokenizer so it can be loaded with the adapter
+            tokenizer.save_pretrained(str(out_dir))
+            logger.info("Successfully saved LoRA adapter")
         else:
             logger.info("Merging LoRA adapters into base model...")
-            merged_model = trainer.model.merge_and_unload()  # type: ignore[union-attr,operator]
+            merged_model = trainer.model.merge_and_unload()
             merged_model.save_pretrained(str(out_dir))
+            # Save tokenizer with the merged model
+            tokenizer.save_pretrained(str(out_dir))
             logger.info("Successfully merged and saved model")
+    else:
+        # Not a PEFT model, save normally
+        trainer.save_model(str(out_dir))
 
     return {
         "success": True,

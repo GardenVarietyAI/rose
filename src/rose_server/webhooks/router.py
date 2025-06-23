@@ -4,6 +4,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
+from ..language_models.deps import ModelRegistryDep
 from ..schemas.webhooks import WebhookEvent
 from .evaluation import handle_eval_webhook
 from .training import handle_training_webhook
@@ -13,12 +14,12 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/jobs")
-async def receive_job_webhook(event: WebhookEvent):
+async def receive_job_webhook(event: WebhookEvent, registry: ModelRegistryDep = None):
     """Receive webhook notifications from worker processes."""
     logger.info(f"Received webhook: {event.event} for {event.object} job {event.job_id}")
     try:
         if event.object == "training":
-            return await handle_training_webhook(event)
+            return await handle_training_webhook(event, registry)
         elif event.object == "eval":
             return await handle_eval_webhook(event)
         else:

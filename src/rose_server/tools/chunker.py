@@ -4,7 +4,6 @@ import logging
 from typing import Tuple
 
 from rose_core.config.service import LARGE_OUTPUT_CHARS, MAX_OUTPUT_CHARS, MAX_TOOL_OUTPUT_TOKENS
-from rose_server.services import get_tokenizer_service
 
 logger = logging.getLogger(__name__)
 MAX_TOOL_OUTPUT_TOKENS = MAX_TOOL_OUTPUT_TOKENS
@@ -25,8 +24,11 @@ def chunk_tool_output(output: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS, mod
     """
     output_len = len(output)
     if output_len < MAX_OUTPUT_CHARS:
-        tokenizer_service = get_tokenizer_service()
-        token_count = tokenizer_service.count_tokens(output, model)
+        # tokenizer_service = get_tokenizer_service()
+        # token_count = tokenizer_service.count_tokens(output, model)
+        token_count = None
+        if token_count is None:
+            raise NotImplementedError("Token counting is not implemented - this code path should not be reached")
         logger.debug(f"Tool output: {output_len} chars, {token_count} tokens")
         if token_count <= max_tokens:
             return output, False
@@ -46,12 +48,15 @@ def chunk_tool_output(output: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS, mod
     else:
         truncated_output = ""
         current_tokens = 0
-        for line in lines:
-            line_tokens = tokenizer_service.count_tokens(line + "\n", model)
-            if current_tokens + line_tokens > max_tokens - TRUNCATION_NOTICE_TOKENS:
-                break
-            truncated_output += line + "\n"
-            current_tokens += line_tokens
+        # for line in lines:
+        #     line_tokens = tokenizer_service.count_tokens(line + "\n", model)
+        #     if current_tokens + line_tokens > max_tokens - TRUNCATION_NOTICE_TOKENS:
+        #         break
+        #     truncated_output += line + "\n"
+        #     current_tokens += line_tokens
+        line_tokens = None
+        if line_tokens is None:
+            raise NotImplementedError("Token counting is not implemented - this code path should not be reached")
         remaining_lines = len(lines) - len(truncated_output.split("\n"))
         truncation_notice = f"\n\n[NOTE: Output truncated at {current_tokens} tokens. {remaining_lines} lines omitted.]"
     return truncated_output + truncation_notice, True

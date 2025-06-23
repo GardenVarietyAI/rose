@@ -10,6 +10,7 @@ from rose_server.evals.store import get_eval
 from rose_server.queues.facade import EvalJob
 from rose_server.schemas.evals import (
     DataSourceConfig,
+    EvalRunCreateRequest,
     EvalRunResponse,
 )
 
@@ -17,7 +18,7 @@ router = APIRouter(prefix="/v1/evals/{eval_id}/runs", tags=["evals"])
 
 
 @router.post("", response_model=EvalRunResponse)
-async def create(eval_id: str, name: str, data_source: DataSourceConfig) -> EvalRunResponse:
+async def create(eval_id: str, request: EvalRunCreateRequest) -> EvalRunResponse:
     """Create an evaluation run"""
 
     eval_def = await get_eval(eval_id)
@@ -26,26 +27,26 @@ async def create(eval_id: str, name: str, data_source: DataSourceConfig) -> Eval
         raise HTTPException(status_code=404, detail="Evaluation not found")
 
     run_id = f"evalrun_{uuid.uuid4().hex}"
-    model = data_source.model
+    model = request.data_source.model
 
     eval_run = await create_eval_run(
         id=run_id,
         eval_id=eval_id,
-        name=name,
+        name=request.name,
         model=model,
-        data_source=data_source.model_dump(),
+        data_source=request.data_source.model_dump(),
     )
 
     metadata: Dict[str, Any] = {
-        "data_source": data_source.model_dump(),
+        "data_source": request.data_source.model_dump(),
         "eval_def_id": eval_id,
-        "run_name": name,
+        "run_name": request.name,
         "eval_data_source_config": eval_def.data_source_config,
         "eval_testing_criteria": eval_def.testing_criteria,
     }
 
-    if data_source.max_samples is not None:
-        metadata["max_samples"] = data_source.max_samples
+    if request.data_source.max_samples is not None:
+        metadata["max_samples"] = request.data_source.max_samples
 
     await EvalJob.dispatch(
         eval_id=run_id,
@@ -58,11 +59,11 @@ async def create(eval_id: str, name: str, data_source: DataSourceConfig) -> Eval
         id=run_id,
         object="eval.run",
         eval_id=eval_id,
-        name=name,
+        name=request.name,
         model=model,
         status="queued",
         created_at=eval_run.created_at,
-        data_source=data_source,
+        data_source=request.data_source,
     )
 
 

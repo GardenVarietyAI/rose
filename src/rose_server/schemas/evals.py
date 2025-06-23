@@ -63,6 +63,13 @@ class DataSourceConfig(BaseModel):
     max_samples: Optional[int] = Field(None, description="Maximum number of samples to evaluate")
 
 
+class EvalRunCreateRequest(BaseModel):
+    """Request to create an evaluation run."""
+
+    name: str
+    data_source: DataSourceConfig
+
+
 class EvalRunResponse(BaseModel):
     """Eval run response - OpenAI compatible."""
 
