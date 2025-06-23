@@ -12,6 +12,7 @@ from sse_starlette.sse import EventSourceResponse
 from rose_server.events import TokenGenerated
 from rose_server.events.generators import CompletionsGenerator
 from rose_server.language_models import model_cache
+from rose_server.language_models.deps import ModelRegistryDep
 from rose_server.schemas.completions import (
     CompletionChoice,
     CompletionChunk,
@@ -19,7 +20,6 @@ from rose_server.schemas.completions import (
     CompletionResponse,
     CompletionUsage,
 )
-from rose_server.services import get_model_registry
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -36,13 +36,14 @@ def ensure_list(prompt: Union[str, List[str]]) -> List[str]:
 async def create_completion(
     request: CompletionRequest = Body(...),
     http_request: Request = None,
+    registry: ModelRegistryDep = None,
 ) -> Union[JSONResponse, EventSourceResponse]:
     """OpenAI-compatible endpoint for text completions.
     This endpoint is designed for base models that complete prompts
     rather than following chat/instruction formats.
     """
-    registry = get_model_registry()
-    if request.model not in registry.list_models():
+    available_models = await registry.list_models()
+    if request.model not in available_models:
         return JSONResponse(
             status_code=400,
             content={
@@ -55,7 +56,7 @@ async def create_completion(
             },
         )
     logger.info(f"Completion request for model: {request.model}")
-    config = registry.get_model_config(request.model)
+    config = await registry.get_model_config(request.model)
     if not config:
         return JSONResponse(status_code=400, content={"error": f"Model {request.model} not available"})
     try:

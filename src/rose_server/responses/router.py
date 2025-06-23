@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 from rose_server.events.formatters import ResponsesFormatter
 from rose_server.events.generators import ResponsesGenerator
 from rose_server.language_models import model_cache
+from rose_server.language_models.deps import ModelRegistryDep
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.responses import (
     ResponsesContentItem,
@@ -15,7 +16,6 @@ from rose_server.schemas.responses import (
     ResponsesResponse,
     ResponsesUsage,
 )
-from rose_server.services import get_model_registry
 
 from .store import get_response, store_response_messages
 
@@ -153,7 +153,7 @@ async def retrieve_response(response_id: str):
 
 
 @router.post("/v1/responses", response_model=None)
-async def create_response(request: ResponsesRequest = Body(...)):
+async def create_response(request: ResponsesRequest = Body(...), registry: ModelRegistryDep = None):
     try:
         logger.info(f"RESPONSES API - Input type: {type(request.input)}, Input: {request.input}")
         logger.info(f"RESPONSES API - Instructions: {request.instructions}")
@@ -169,8 +169,8 @@ async def create_response(request: ResponsesRequest = Body(...)):
                     "code": None,
                 }
             }
-        registry = get_model_registry()
-        if request.model not in registry.list_models():
+        available_models = await registry.list_models()
+        if request.model not in available_models:
             return {
                 "error": {
                     "message": f"Model '{request.model}' not found",
@@ -179,7 +179,7 @@ async def create_response(request: ResponsesRequest = Body(...)):
                 }
             }
 
-        config = registry.get_model_config(request.model)
+        config = await registry.get_model_config(request.model)
         if not config:
             return {
                 "error": {

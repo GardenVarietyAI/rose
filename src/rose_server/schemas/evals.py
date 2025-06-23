@@ -5,14 +5,6 @@ from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class DataSourceSchema(BaseModel):
-    """JSON schema for data source."""
-
-    type: str = "object"
-    properties: Dict[str, Any]
-    required: List[str] = []
-
-
 class EvalCreateRequest(BaseModel):
     """Request to create an evaluation - OpenAI compatible."""
 
@@ -69,6 +61,13 @@ class DataSourceConfig(BaseModel):
     sampling_params: Optional[Union[Dict, SamplingParams]] = None
     source: Optional[Dict] = None
     max_samples: Optional[int] = Field(None, description="Maximum number of samples to evaluate")
+
+
+class EvalRunCreateRequest(BaseModel):
+    """Request to create an evaluation run."""
+
+    name: str
+    data_source: DataSourceConfig
 
 
 class EvalRunResponse(BaseModel):

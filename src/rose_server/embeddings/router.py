@@ -1,17 +1,21 @@
 """Router module for embeddings API endpoints."""
 
-from fastapi import APIRouter, Body
+from typing import List, Union
+
+from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from rose_server.embeddings import generate_embeddings
-from rose_server.schemas.embeddings import EmbeddingsRequest
 
 router = APIRouter()
 
 
 @router.post("/v1/embeddings")
-async def openai_api_embeddings(request: EmbeddingsRequest = Body(...)) -> JSONResponse:
-    """OpenAI API-compatible endpoint for generating embeddings.
+async def openai_api_embeddings(
+    input: Union[str, List[str]],
+    model: str = "text-embedding-ada-002",
+) -> JSONResponse:
+    """Generate embeddings.
 
     Args:
         request: The embeddings request containing input texts and model
@@ -19,7 +23,7 @@ async def openai_api_embeddings(request: EmbeddingsRequest = Body(...)) -> JSONR
         JSON response in OpenAI format with embeddings
     """
     try:
-        response = generate_embeddings(texts=request.input, model_name=request.model)
+        response = generate_embeddings(texts=input, model_name=model)
         return JSONResponse(content=response)
     except ValueError as e:
         return JSONResponse(status_code=400, content={"error": {"message": str(e), "type": "invalid_request_error"}})

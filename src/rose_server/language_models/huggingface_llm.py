@@ -11,7 +11,6 @@ from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
 from rose_core.models import cleanup_model_memory, get_tokenizer, load_hf_model, load_peft_model
 from rose_server.schemas.chat import ChatMessage
-from rose_server.services import get_model_registry
 
 logger = logging.getLogger(__name__)
 
@@ -158,17 +157,16 @@ class HuggingFaceLLM:
         return ctx_window - max_response, max_response
 
     @classmethod
-    async def load_model(cls, model_name: str) -> "HuggingFaceLLM":
+    async def load_model(cls, model_name: str, registry) -> "HuggingFaceLLM":
         """
         Factory that resolves model_name through the model registry,
         loads the model, and returns a ready-to-use instance.
         """
-        registry = get_model_registry()
-
-        if model_name not in registry.list_models():
+        available_models = await registry.list_models()
+        if model_name not in available_models:
             raise ValueError(f"Model '{model_name}' not found in registry")
 
-        config = registry.get_model_config(model_name)
+        config = await registry.get_model_config(model_name)
         if not config:
             raise ValueError(f"No config entry for model '{model_name}'")
 

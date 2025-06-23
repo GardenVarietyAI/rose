@@ -7,17 +7,19 @@ import json
 import logging
 import time
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, Body
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
+from rose_core.config.service import DATA_DIR
 from rose_server.events import LLMEvent
 from rose_server.events.formatters import ChatCompletionsFormatter
 from rose_server.events.generators import ChatCompletionsGenerator
 from rose_server.language_models import model_cache
+from rose_server.language_models.store import get as get_language_model
 from rose_server.schemas.chat import ChatMessage, ChatRequest
-from rose_server.services import get_model_registry
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -34,8 +36,8 @@ async def event_based_chat_completions(
     request: ChatRequest = Body(...),
 ) -> JSONResponse | EventSourceResponse:
     """Event-based endpoint for chat completions."""
-    registry = get_model_registry()
-    if request.model not in registry.list_models():
+    model = await get_language_model(request.model)
+    if not model:
         return JSONResponse(
             status_code=400,
             content={
@@ -51,10 +53,22 @@ async def event_based_chat_completions(
     messages = request.messages
     logger.info(f"[EVENT] Message count: {len(messages)}")
     try:
-        registry = get_model_registry()
-        config = registry.get_model_config(request.model)
-        if not config:
-            return JSONResponse(status_code=400, content={"error": f"Model {request.model} not available"})
+        # Build config from model
+        config = {
+            "model_name": model.model_name,
+            "model_type": model.model_type,
+            "temperature": model.temperature,
+            "top_p": model.top_p,
+            "memory_gb": model.memory_gb,
+        }
+
+        if model.is_fine_tuned and model.path:
+            config["model_path"] = str(Path(DATA_DIR) / model.path)
+            config["base_model"] = model.parent
+            config["is_fine_tuned"] = True
+
+        if model.get_lora_modules():
+            config["lora_target_modules"] = model.get_lora_modules()
         try:
             base_llm = await model_cache.get_model(request.model, config)
         except Exception as e:

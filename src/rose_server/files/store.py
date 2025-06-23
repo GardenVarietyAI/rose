@@ -2,40 +2,31 @@ import asyncio
 import logging
 import time
 import uuid
-from pathlib import Path
 from typing import BinaryIO, List, Optional
 
-import aiofiles
-import aiofiles.os
 from openai.types import FileDeleted, FileObject, FilePurpose
 from sqlalchemy import select
 
-from ..database import get_session
-from ..entities.files import UploadedFile
+from rose_server.database import get_session
+from rose_server.entities.files import UploadedFile
+from rose_server.fs import (
+    delete_file as delete_file_from_disk,
+    read_file,
+    save_file,
+)
 
 logger = logging.getLogger(__name__)
 
-BASE_PATH = Path("data/uploads")
-
-
-def _generate_file_id() -> str:
-    return f"file-{uuid.uuid4().hex[:6]}"
-
 
 async def create_file(file: BinaryIO, purpose: FilePurpose, filename: Optional[str] = None) -> FileObject:
-    file_id = _generate_file_id()
+    file_id = f"file-{uuid.uuid4().hex[:6]}"
     content = await asyncio.to_thread(file.read)
     file_size = len(content)
     if not filename:
         filename = f"{file_id}.txt"
 
-    # Create base uploads directory
-    await aiofiles.os.makedirs(BASE_PATH, exist_ok=True)
-
-    # Save file directly with file_id as filename
-    file_path = BASE_PATH / file_id
-    async with aiofiles.open(file_path, "wb") as f:
-        await f.write(content)
+    # Save file to disk
+    await save_file(file_id, content)
 
     # Save to database
     uploaded_file = UploadedFile(
@@ -46,25 +37,25 @@ async def create_file(file: BinaryIO, purpose: FilePurpose, filename: Optional[s
         filename=filename,
         purpose=purpose,
         status="processed",
-        storage_path=file_id,  # Just the file_id since we store directly
+        storage_path=file_id,
     )
 
     async with get_session() as session:
         session.add(uploaded_file)
         await session.commit()
 
-    file_obj = FileObject(
-        id=file_id,
-        object="file",
-        bytes=file_size,
-        created_at=uploaded_file.created_at,
-        filename=filename,
-        purpose=purpose,
-        status="processed",
-    )
+        file_obj = FileObject(
+            id=file_id,
+            object="file",
+            bytes=file_size,
+            created_at=uploaded_file.created_at,
+            filename=filename,
+            purpose=purpose,  # type: ignore
+            status="processed",
+        )
 
-    logger.info(f"Created file {file_id} with filename {filename}")
-    return file_obj
+        logger.info(f"Created file {file_id} with filename {filename}")
+        return file_obj
 
 
 async def get_file(file_id: str) -> Optional[FileObject]:
@@ -81,7 +72,7 @@ async def get_file(file_id: str) -> Optional[FileObject]:
             bytes=uploaded_file.bytes,
             created_at=uploaded_file.created_at,
             filename=uploaded_file.filename,
-            purpose=uploaded_file.purpose,
+            purpose=uploaded_file.purpose,  # type: ignore
             status=uploaded_file.status or "processed",
         )
 
@@ -92,11 +83,7 @@ async def get_file_content(file_id: str) -> Optional[bytes]:
     if not file_obj:
         return None
 
-    file_path = BASE_PATH / file_id
-    if await aiofiles.os.path.exists(file_path):
-        async with aiofiles.open(file_path, "rb") as f:
-            return await f.read()
-    return None
+    return await read_file(file_id)
 
 
 async def list_files(
@@ -131,7 +118,7 @@ async def list_files(
                 bytes=f.bytes,
                 created_at=f.created_at,
                 filename=f.filename,
-                purpose=f.purpose,
+                purpose=f.purpose,  # type: ignore
                 status=f.status or "processed",
             )
             for f in files
@@ -147,9 +134,7 @@ async def delete_file(file_id: str) -> Optional[FileDeleted]:
             return None
 
         # Delete from filesystem
-        file_path = BASE_PATH / file_id
-        if await aiofiles.os.path.exists(file_path):
-            await aiofiles.os.remove(file_path)
+        await delete_file_from_disk(file_id)
 
         # Delete from database
         await session.delete(uploaded_file)

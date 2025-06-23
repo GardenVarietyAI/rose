@@ -1,15 +1,22 @@
 """Router for model-related endpoints."""
 
+import asyncio
+import json
 import logging
-import time
+import shutil
+from pathlib import Path
 
-import aiofiles
-import aiofiles.os
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
-from rose_core.config.service import EMBEDDING_MODELS
-from rose_server.services import get_model_registry
+from rose_core.config.service import DATA_DIR
+from rose_server.fs import check_file_path
+
+from .store import (
+    delete as delete_language_model,
+    get as get_language_model,
+    list_all,
+)
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
@@ -22,97 +29,40 @@ async def openai_api_models() -> JSONResponse:
     Returns:
         JSON response in OpenAI format with available models
     """
-    created_timestamp = int(time.time())
-    model_owners = {
-        "llama-3": "meta",
-        "gemma-7b": "google",
-        "zephyr": "stability-ai",
-        "phi-3": "microsoft",
-        "phi3-128k": "microsoft",
-        "qwen2.5-0.5b": "alibaba",
-    }
-    registry = get_model_registry()
-    available_models = registry.list_models()
+    models = await list_all()
     model_data = []
-    for model_id in available_models:
-        if "ft-" not in model_id:
-            model_data.append(
-                {
-                    "id": model_id,
-                    "object": "model",
-                    "created": created_timestamp,
-                    "owned_by": model_owners.get(model_id, "organization-owner"),
-                    "permission": [],
-                    "root": model_id,
-                    "parent": None,
-                }
-            )
-    for model_id in EMBEDDING_MODELS.keys():
+
+    # Add language models from database
+    for model in models:
         model_data.append(
             {
-                "id": model_id,
+                "id": model.id,
                 "object": "model",
-                "created": created_timestamp,
-                "owned_by": "organization-owner",
-                "permission": [],
-                "root": model_id,
-                "parent": None,
+                "created": model.created_at,
+                "owned_by": model.owned_by,
+                "permission": json.loads(model.permissions) if model.permissions else [],
+                "root": model.root or model.id,
+                "parent": model.parent,
             }
         )
-    for model_id in available_models:
-        if "ft-" in model_id:
-            base_model = model_id.split("-ft-")[0] if "-ft-" in model_id else model_id
-            model_data.append(
-                {
-                    "id": model_id,
-                    "object": "model",
-                    "created": created_timestamp,
-                    "owned_by": "user",
-                    "permission": [],
-                    "root": base_model,
-                    "parent": base_model,
-                }
-            )
     openai_response = {"object": "list", "data": model_data}
     return JSONResponse(content=openai_response)
 
 
 @router.get("/models/{model_id}")
 async def get_model_details(model_id: str) -> JSONResponse:
-    """OpenAI API-compatible endpoint to get details about a specific model.
-
-    Args:
-        model_id: The model identifier
-    Returns:
-        JSON response with model details or 404 if not found
-    """
-    created_timestamp = int(time.time())
-    registry = get_model_registry()
-    config = registry.get_model_config(model_id)
-    if config:
-        is_fine_tuned = "ft-" in model_id
-        base_model = model_id.split("-ft-")[0] if is_fine_tuned else model_id
+    """Get details about a specific model."""
+    model = await get_language_model(model_id)
+    if model:
         return JSONResponse(
             content={
-                "id": model_id,
+                "id": model.id,
                 "object": "model",
-                "created": created_timestamp,
-                "owned_by": "user" if is_fine_tuned else "organization-owner",
-                "permission": [],
-                "root": base_model,
-                "parent": base_model if is_fine_tuned else None,
-            }
-        )
-    if model_id in EMBEDDING_MODELS:
-        return JSONResponse(
-            content={
-                "id": model_id,
-                "object": "model",
-                "created": created_timestamp,
-                "owned_by": "organization-owner",
-                "permission": [],
-                "root": model_id,
-                "parent": None,
+                "created": model.created_at,
+                "owned_by": model.owned_by,
+                "permission": json.loads(model.permissions) if model.permissions else [],
+                "root": model.root or model.id,
+                "parent": model.parent,
             }
         )
     raise HTTPException(
@@ -131,9 +81,8 @@ async def get_model_details(model_id: str) -> JSONResponse:
 @router.post("/models/{model_name}/download")
 async def download_model(model_name: str) -> JSONResponse:
     """Pre-download a model to avoid blocking during inference."""
-    registry = get_model_registry()
-    config = registry.get_model_config(model_name)
-    if not config:
+    model = await get_language_model(model_name)
+    if not model:
         raise HTTPException(status_code=404, detail=f"Model '{model_name}' not found")
 
     try:
@@ -151,20 +100,9 @@ async def download_model(model_name: str) -> JSONResponse:
 
 @router.delete("/models/{model}")
 async def delete_model(model: str) -> JSONResponse:
-    """Delete a fine-tuned model.
-
-    You must have the Owner role in your organization to delete a model.
-    Only fine-tuned models can be deleted - base models cannot be deleted.
-    Args:
-        model: The model identifier to delete
-    Returns:
-        JSON response with deletion confirmation or error
-    """
-    import shutil
-
-    registry = get_model_registry()
-    config = registry.get_model_config(model)
-    if not config:
+    """Delete a fine-tuned model."""
+    model_obj = await get_language_model(model)
+    if not model_obj:
         raise HTTPException(
             status_code=404,
             detail={
@@ -176,7 +114,8 @@ async def delete_model(model: str) -> JSONResponse:
                 }
             },
         )
-    if "ft-" not in model:
+
+    if not model_obj.is_fine_tuned:
         raise HTTPException(
             status_code=403,
             detail={
@@ -188,35 +127,16 @@ async def delete_model(model: str) -> JSONResponse:
                 }
             },
         )
-    try:
-        success = await registry.unregister_model(model)
-        if not success:
-            logger.warning(f"Failed to unregister model {model} from registry")
-        model_path = config.get("model_path")
-        if model_path and await aiofiles.os.path.exists(model_path):
-            try:
-                import asyncio
 
-                await asyncio.to_thread(shutil.rmtree, model_path)
-                logger.info(f"Deleted model files at: {model_path}")
-            except Exception as e:
-                logger.warning(f"Failed to delete model files at {model_path}: {e}")
-        else:
-            logger.info(f"No model files to delete for {model}")
-        logger.info(f"Successfully deleted fine-tuned model: {model}")
-        return JSONResponse(content={"id": model, "object": "model", "deleted": True})
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error deleting model {model}: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": {
-                    "message": f"Internal error while deleting model '{model}': {str(e)}",
-                    "type": "internal_server_error",
-                    "param": "model",
-                    "code": "deletion_error",
-                }
-            },
-        )
+    # Delete from database
+    await delete_language_model(model)
+
+    # Delete model files if they exist
+    if model_obj.path:
+        model_path = Path(DATA_DIR) / model_obj.path
+        if await check_file_path(model_path):
+            await asyncio.to_thread(shutil.rmtree, str(model_path))
+            logger.info(f"Deleted model files at: {model_path}")
+
+    logger.info(f"Successfully deleted fine-tuned model: {model}")
+    return JSONResponse(content={"id": model, "object": "model", "deleted": True})

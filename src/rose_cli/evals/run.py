@@ -10,7 +10,7 @@ def run_eval(
     eval_id: str = typer.Argument(..., help="Evaluation ID to run"),
     model: str = typer.Option("qwen-coder", "--model", "-m", help="Model to evaluate"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Only output the run ID"),
-):
+) -> None:
     """Run an evaluation."""
     client = get_client()
     try:
@@ -34,4 +34,6 @@ def run_eval(
             console.print(f"\nUse 'rose eval status {created_run.id}' to check progress")
 
     except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
+        if not quiet:
+            console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)

@@ -1,30 +1,29 @@
 """Vector stores implementation using ChromaDB."""
 
-from rose_server.schemas.embeddings import EmbeddingsRequest, EmbeddingsResponse
-from rose_server.vector_stores.models import (
+from rose_server.schemas.vector_stores import (
     Vector,
-    VectorBatch,
     VectorSearch,
     VectorSearchResult,
-    VectorStore,
     VectorStoreCreate,
     VectorStoreList,
     VectorStoreMetadata,
     VectorStoreUpdate,
 )
-from rose_server.vector_stores.store import VectorStoreStore
+from rose_server.vector_stores.store import (
+    VectorStoreNotFoundError,
+    delete_vectors,
+    search_vectors,
+)
 
 __all__ = [
-    "VectorStoreStore",
     "Vector",
-    "VectorStore",
     "VectorStoreCreate",
     "VectorStoreUpdate",
-    "VectorBatch",
     "VectorSearch",
     "VectorSearchResult",
     "VectorStoreMetadata",
     "VectorStoreList",
-    "EmbeddingsRequest",
-    "EmbeddingsResponse",
+    "VectorStoreNotFoundError",
+    "delete_vectors",
+    "search_vectors",
 ]

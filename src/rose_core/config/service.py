@@ -138,8 +138,8 @@ EMBEDDING_MODELS = {
     "text-embedding-ada-002": {
         "model_name": "BAAI/bge-large-en-v1.5",
         "dimensions": 1536,
-        "description": "OpenAI's ada-002 model - emulated using BGE model with matching dimensions",
-        "format": "OpenAI",
+        "description": "BGE",
+        "format": "HuggingFace",
     },
     "nomic-embed-text": {
         "model_name": "nomic-ai/nomic-embed-text-v1",
@@ -153,11 +153,4 @@ EMBEDDING_MODELS = {
         "description": "Tiny and very RAG-optimized, fast and low-memory",
         "format": "HuggingFace",
     },
-}
-
-# Fine-tuning models (derived from LLM_MODELS)
-FINE_TUNING_MODELS = {
-    model_id: config["model_name"]
-    for model_id, config in LLM_MODELS.items()
-    if config.get("model_type") == "huggingface"
 }

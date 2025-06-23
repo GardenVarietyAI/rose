@@ -1,11 +1,39 @@
 from typing import Any, Dict, List, Union
 
 import numpy as np
+from sentence_transformers import SentenceTransformer
+from transformers import AutoTokenizer
 
-from rose_server.services import get_embedding_manager
+from rose_core.config.service import EMBEDDING_MODELS
+
+# Simple caches for models and tokenizers
+_models: Dict[str, SentenceTransformer] = {}
+_tokenizers: Dict[str, AutoTokenizer] = {}
 
 
-def _encode_batch(model, batch: List[str]) -> List[np.ndarray]:
+def _get_model(model_name: str) -> SentenceTransformer:
+    """Get or load an embedding model."""
+    if model_name not in _models:
+        if model_name in EMBEDDING_MODELS:
+            model_path = EMBEDDING_MODELS[model_name]["model_name"]
+        else:
+            model_path = model_name
+        _models[model_name] = SentenceTransformer(model_path)
+    return _models[model_name]
+
+
+def _get_tokenizer(model_name: str) -> AutoTokenizer:
+    """Get or load a tokenizer."""
+    if model_name not in _tokenizers:
+        if model_name in EMBEDDING_MODELS:
+            model_path = EMBEDDING_MODELS[model_name]["model_name"]
+        else:
+            model_path = model_name
+        _tokenizers[model_name] = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True, use_fast=True)
+    return _tokenizers[model_name]
+
+
+def _encode_batch(model: SentenceTransformer, batch: List[str]) -> np.ndarray:
     return model.encode(batch)
 
 
@@ -14,14 +42,22 @@ def generate_embeddings(
 ) -> Dict[str, Any]:
     if isinstance(texts, str):
         texts = [texts]
-    embedding_manager = get_embedding_manager()
-    model = embedding_manager.get_model(model_name)
-    all_embeddings = []
+
+    model = _get_model(model_name)
+    all_embeddings: List[np.ndarray] = []
+
     for i in range(0, len(texts), batch_size):
         batch = texts[i : i + batch_size]
-        all_embeddings.extend(_encode_batch(model, batch))
-    embedding_tokenizer = embedding_manager.get_tokenizer(model_name)
-    total_tokens = sum(len(embedding_tokenizer.encode(text)) for text in texts)
+        batch_embeddings = _encode_batch(model, batch)
+        # Convert 2D array to list of 1D arrays
+        all_embeddings.extend(list(batch_embeddings))
+
+    embedding_tokenizer = _get_tokenizer(model_name)
+    total_tokens = 0
+    for text in texts:
+        tokens = embedding_tokenizer.encode(text)  # type: ignore
+        total_tokens += len(tokens)
+
     return {
         "object": "list",
         "data": [
@@ -33,5 +69,8 @@ def generate_embeddings(
             for i, embedding in enumerate(all_embeddings)
         ],
         "model": model_name,
-        "usage": {"prompt_tokens": total_tokens, "total_tokens": total_tokens},
+        "usage": {
+            "prompt_tokens": total_tokens,
+            "total_tokens": total_tokens,
+        },
     }
