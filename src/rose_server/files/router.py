@@ -68,7 +68,7 @@ async def get_content(file_id: str) -> Response:
 @router.delete("/v1/files/{file_id}")
 async def remove(file_id: str) -> FileDeleted:
     """Delete a file."""
-    result = await delete_file(file_id)
-    if not result:
+    try:
+        return await delete_file(file_id)
+    except Exception:
         raise HTTPException(status_code=404, detail=f"File {file_id} not found")
-    return result
