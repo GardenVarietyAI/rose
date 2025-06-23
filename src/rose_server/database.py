@@ -12,7 +12,7 @@ from sqlmodel import SQLModel
 
 from rose_core.config.service import DATA_DIR
 
-from .entities.assistants import Assistant, AssistantTool
+from .entities.assistants import Assistant
 from .entities.files import UploadedFile
 from .entities.fine_tuning import FineTuningEvent, FineTuningJob
 from .entities.jobs import Job
@@ -88,7 +88,6 @@ __all__ = [
     "Job",
     "LanguageModel",
     "Assistant",
-    "AssistantTool",
     "Thread",
     "Message",
     "MessageMetadata",

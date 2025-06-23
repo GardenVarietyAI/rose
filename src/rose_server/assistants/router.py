@@ -3,8 +3,8 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Body, Query
-from fastapi.responses import HTTPException, JSONResponse
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import JSONResponse
 
 from rose_server.assistants.store import (
     create_assistant,
@@ -20,13 +20,9 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/assistants", response_model=AssistantResponse)
-async def create(request: AssistantCreateRequest = Body(...)) -> AssistantResponse:
+async def create(request: AssistantCreateRequest):
     """Create a new assistant."""
-    try:
-        return await create_assistant(request)
-    except Exception as e:
-        logger.error(f"Error creating assistant: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error creating assistant: {str(e)}")
+    return await create_assistant(request)
 
 
 @router.get("/assistants")
@@ -54,30 +50,22 @@ async def index(
         return JSONResponse(status_code=500, content={"error": f"Error listing assistants: {str(e)}"})
 
 
-@router.get("/assistants/{assistant_id}")
-async def get(assistant_id: str) -> JSONResponse:
+@router.get("/assistants/{assistant_id}", response_model=AssistantResponse)
+async def get(assistant_id: str) -> AssistantResponse:
     """Retrieve an assistant by ID."""
-    try:
-        assistant = await get_assistant(assistant_id)
-        if not assistant:
-            return JSONResponse(status_code=404, content={"error": "Assistant not found"})
-        return JSONResponse(content=assistant.dict())
-    except Exception as e:
-        logger.error(f"Error retrieving assistant: {str(e)}")
-        return JSONResponse(status_code=500, content={"error": f"Error retrieving assistant: {str(e)}"})
+    assistant = await get_assistant(assistant_id)
+    if not assistant:
+        raise HTTPException(status_code=404, detail="Assistant not found")
+    return assistant
 
 
-@router.post("/assistants/{assistant_id}")
-async def update(assistant_id: str, request: AssistantUpdateRequest = Body(...)) -> JSONResponse:
+@router.post("/assistants/{assistant_id}", response_model=AssistantResponse)
+async def update(assistant_id: str, request: AssistantUpdateRequest) -> AssistantResponse:
     """Update an assistant."""
-    try:
-        assistant = await update_assistant(assistant_id, request)
-        if not assistant:
-            return JSONResponse(status_code=404, content={"error": "Assistant not found"})
-        return JSONResponse(content=assistant.model_dump())
-    except Exception as e:
-        logger.error(f"Error updating assistant: {str(e)}")
-        return JSONResponse(status_code=500, content={"error": f"Error updating assistant: {str(e)}"})
+    assistant = await update_assistant(assistant_id, request)
+    if not assistant:
+        raise HTTPException(status_code=404, detail="Assistant not found")
+    return assistant
 
 
 @router.delete("/assistants/{assistant_id}")

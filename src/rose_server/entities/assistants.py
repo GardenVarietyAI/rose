@@ -28,18 +28,3 @@ class Assistant(SQLModel, table=True):
         Index("idx_assistants_created", "created_at"),
         Index("idx_assistants_model", "model"),
     )
-
-
-class AssistantTool(SQLModel, table=True):
-    """Assistant tool configuration."""
-
-    __tablename__ = "assistant_tools"
-    id: int = Field(primary_key=True)
-    assistant_id: str = Field(foreign_key="assistants.id")
-    tool_type: str
-    tool_config: Dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
-    file_ids: Optional[List[str]] = Field(default=None, sa_type=JSON)
-    __table_args__ = (
-        Index("idx_assistant_tools_assistant", "assistant_id"),
-        Index("idx_assistant_tools_type", "tool_type"),
-    )
