@@ -180,6 +180,3 @@ class ChromaDBManager:
         except Exception as e:
             logger.error(f"Failed to get info for collection {collection_name}: {e}")
             raise
-
-
-vector = ChromaDBManager()

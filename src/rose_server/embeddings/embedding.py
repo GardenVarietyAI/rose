@@ -14,14 +14,18 @@ def generate_embeddings(
 ) -> Dict[str, Any]:
     if isinstance(texts, str):
         texts = [texts]
+
     embedding_manager = get_embedding_manager()
     model = embedding_manager.get_model(model_name)
     all_embeddings = []
+
     for i in range(0, len(texts), batch_size):
         batch = texts[i : i + batch_size]
         all_embeddings.extend(_encode_batch(model, batch))
+
     embedding_tokenizer = embedding_manager.get_tokenizer(model_name)
     total_tokens = sum(len(embedding_tokenizer.encode(text)) for text in texts)
+
     return {
         "object": "list",
         "data": [
@@ -33,5 +37,8 @@ def generate_embeddings(
             for i, embedding in enumerate(all_embeddings)
         ],
         "model": model_name,
-        "usage": {"prompt_tokens": total_tokens, "total_tokens": total_tokens},
+        "usage": {
+            "prompt_tokens": total_tokens,
+            "total_tokens": total_tokens,
+        },
     }

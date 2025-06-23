@@ -46,16 +46,6 @@ def get_embedding_manager():
     return Services.get("embedding_manager")
 
 
-def get_vector_store_store():
-    """Get the vector store manager service."""
-    return Services.get("vector_store_store")
-
-
-def get_chromadb_manager():
-    """Get the ChromaDB manager service."""
-    return Services.get("chromadb_manager")
-
-
 def get_model_registry():
     """Get the model registry service."""
     return Services.get("model_registry")
