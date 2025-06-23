@@ -1,11 +1,9 @@
 """Vector stores implementation using ChromaDB."""
 
-from rose_server.vector_stores.models import (
+from rose_server.schemas.vector_stores import (
     Vector,
-    VectorBatch,
     VectorSearch,
     VectorSearchResult,
-    VectorStore,
     VectorStoreCreate,
     VectorStoreList,
     VectorStoreMetadata,
@@ -16,10 +14,8 @@ from rose_server.vector_stores.store import VectorStoreStore
 __all__ = [
     "VectorStoreStore",
     "Vector",
-    "VectorStore",
     "VectorStoreCreate",
     "VectorStoreUpdate",
-    "VectorBatch",
     "VectorSearch",
     "VectorSearchResult",
     "VectorStoreMetadata",

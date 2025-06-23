@@ -1,13 +1,11 @@
 import logging
 import time
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from chromadb.utils import embedding_functions
 
-from rose_server.services import get_chromadb_manager
-from rose_server.vector import ChromaDBManager
-from rose_server.vector_stores.models import (
+from rose_server.schemas.vector_stores import (
     Vector,
     VectorSearch,
     VectorSearchResult,
@@ -16,6 +14,7 @@ from rose_server.vector_stores.models import (
     VectorStoreMetadata,
     VectorStoreUpdate,
 )
+from rose_server.vector import vector
 
 logger = logging.getLogger(__name__)
 _META_EXCLUDE = {"display_name", "dimensions", "created_at"}
@@ -26,42 +25,13 @@ class VectorStoreNotFoundError(RuntimeError):
 
 
 class VectorStoreStore:
-    """OpenAI-compatible vector-store operations backed by ChromaDB."""
-
-    def __init__(self) -> None:
-        self._client = None
-
-    def _manager(self) -> ChromaDBManager:
-        if self._client:
-            mgr = ChromaDBManager()
-            mgr._client = self._client
-            return mgr
-        return get_chromadb_manager()
-
-    def _collection(self, cid: str):
-        mgr = self._manager()
-        if cid not in mgr.list_collections():
-            raise VectorStoreNotFoundError(cid)
-        return mgr.client.get_collection(cid)
-
-    def _create_embedding_function(self):
-        """Create ChromaDB default embedding function."""
-        return embedding_functions.DefaultEmbeddingFunction()
-
-    def initialize(self, host: Optional[str] = None, port: Optional[int] = None) -> None:
-        self._client = ChromaDBManager(host=host, port=port).client
-        logger.info("Vector-store backend initialised (%s:%s)", host, port)
-
-    def initialize_with_client(self, client) -> None:
-        self._client = client
-        logger.info("Vector-store backend initialised with external client")
+    """Vector-store operations backed by ChromaDB."""
 
     async def list_vector_stores(self) -> VectorStoreList:
-        mgr = self._manager()
         stores = []
-        for name in mgr.list_collections():
+        for name in vector.list_collections():
             try:
-                meta = mgr.get_collection_info(name).get("metadata", {})
+                meta = vector.get_collection_info(name).get("metadata", {})
                 stores.append(
                     VectorStoreMetadata(
                         id=name,
@@ -73,31 +43,37 @@ class VectorStoreStore:
                 )
             except Exception as exc:
                 logger.warning("Skip collection %s: %s", name, exc)
+
         return VectorStoreList(data=stores)
 
     async def create_vector_store(self, p: VectorStoreCreate) -> VectorStoreMetadata:
         vid = f"vs_{uuid.uuid4().hex}"
         meta_in = p.metadata or {}
 
-        # Create default embedding function - ChromaDB will handle model and dimensions
-        embedding_function = self._create_embedding_function()
-
         meta = {
             **meta_in,
             "display_name": p.name,
             "created_at": int(time.time()),
         }
-        self._manager().get_or_create_collection(vid, metadata=meta, embedding_function=embedding_function)
+        # Create collection with ChromaDB's default embedding function
+        vector.get_or_create_collection(
+            vid, metadata=meta, embedding_function=embedding_functions.DefaultEmbeddingFunction()
+        )
         logger.info("Created vector store %s (%s)", p.name, vid)
         public_meta = {k: v for k, v in meta.items() if k not in _META_EXCLUDE}
+
         # ChromaDB's default model uses 384 dimensions
         return VectorStoreMetadata(
             id=vid, name=p.name, dimensions=384, metadata=public_meta, created_at=meta["created_at"]
         )
 
     async def get_vector_store(self, vid: str) -> VectorStoreMetadata:
-        col = self._collection(vid)
+        if vid not in vector.list_collections():
+            raise VectorStoreNotFoundError(vid)
+
+        col = vector.client.get_collection(vid)
         meta = col.metadata or {}
+
         return VectorStoreMetadata(
             id=vid,
             name=meta.get("display_name", vid),
@@ -107,14 +83,21 @@ class VectorStoreStore:
         )
 
     async def update_vector_store(self, vid: str, p: VectorStoreUpdate) -> VectorStoreMetadata:
-        col = self._collection(vid)
+        if vid not in vector.list_collections():
+            raise VectorStoreNotFoundError(vid)
+
+        col = vector.client.get_collection(vid)
         meta = dict(col.metadata or {})
+
         if p.name:
             meta["display_name"] = p.name
+
         if p.metadata:
             meta.update(p.metadata)
+
         col.modify(metadata=meta)
         logger.info("Updated vector store %s", vid)
+
         return VectorStoreMetadata(
             id=vid,
             name=meta.get("display_name", vid),
@@ -124,20 +107,38 @@ class VectorStoreStore:
         )
 
     async def delete_vector_store(self, vid: str) -> Dict[str, Any]:
-        mgr = self._manager()
-        if vid not in mgr.list_collections():
+        if vid not in vector.list_collections():
             raise VectorStoreNotFoundError(vid)
-        mgr.delete_collection(vid)
+
+        vector.delete_collection(vid)
         logger.info("Deleted vector store %s", vid)
+
         return {"id": vid, "object": "vector_store.deleted", "deleted": True}
 
     async def delete_vectors(self, vid: str, ids: List[str]) -> Dict[str, Any]:
-        self._collection(vid).delete(ids=ids)
+        if vid not in vector.list_collections():
+            raise VectorStoreNotFoundError(vid)
+
+        vector.client.get_collection(vid).delete(ids=ids)
         logger.info("Deleted %d vectors from %s", len(ids), vid)
-        return {"object": "list", "data": [{"id": i, "object": "vector.deleted", "deleted": True} for i in ids]}
+
+        return {
+            "object": "list",
+            "data": [
+                {
+                    "id": i,
+                    "object": "vector.deleted",
+                    "deleted": True,
+                }
+                for i in ids
+            ],
+        }
 
     async def search_vectors(self, vid: str, s: VectorSearch) -> VectorSearchResult:
-        col = self._collection(vid)
+        if vid not in vector.list_collections():
+            raise VectorStoreNotFoundError(vid)
+
+        col = vector.client.get_collection(vid)
 
         # Use ChromaDB's built-in embedding for text queries
         if isinstance(s.query, str):
@@ -166,4 +167,5 @@ class VectorStoreStore:
             if s.include_values and "embeddings" in res:
                 vec.values = res["embeddings"][0][i]
             out.append(vec)
+
         return VectorSearchResult(data=out, usage=usage)

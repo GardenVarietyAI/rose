@@ -5,13 +5,12 @@ from typing import List
 
 from fastapi import APIRouter, Body, HTTPException, Path
 
-from rose_server.services import get_vector_store_store
-from rose_server.vector_stores.models import (
-    VectorBatch,
+from rose_server.schemas.vector_stores import (
     VectorSearch,
     VectorStoreCreate,
     VectorStoreUpdate,
 )
+from rose_server.services import get_vector_store_store
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
@@ -87,24 +86,6 @@ async def delete_vector_store(vector_store_id: str = Path(..., description="The 
     except Exception as e:
         logger.error(f"Error deleting vector store: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error deleting vector store: {str(e)}")
-
-
-@router.post("/vector_stores/{vector_store_id}/vectors")
-async def add_vectors(
-    vector_store_id: str = Path(..., description="The ID of the vector store"),
-    request: VectorBatch = Body(...),
-):
-    """Add vectors to a vector store."""
-    try:
-        manager = get_vector_store_store()
-        result = await manager.add_vectors(vector_store_id, request)
-        return result
-    except ValueError as e:
-        logger.error(f"Error adding vectors: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error adding vectors: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error adding vectors: {str(e)}")
 
 
 @router.post("/vector_stores/{vector_store_id}/vectors/delete")
