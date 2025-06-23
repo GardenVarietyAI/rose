@@ -8,33 +8,11 @@ import aiofiles.os
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
-from rose_core.config.service import EMBEDDING_MODELS, LLM_MODELS
+from rose_core.config.service import EMBEDDING_MODELS
 from rose_server.services import get_model_registry
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
-
-
-def _generate_openai_model_mapping():
-    """Generate OpenAI model mapping from app_settings to prevent mismatches."""
-    mapping = {}
-    model_configs = LLM_MODELS.copy()
-    for model_name in model_configs.keys():
-        if model_name == "llama":
-            mapping["llama-3"] = model_name
-        elif model_name == "gemma":
-            mapping["gemma-7b"] = model_name
-        elif model_name == "phi":
-            mapping["phi-3"] = model_name
-        elif model_name == "qwen":
-            mapping["qwen2.5-0.5b"] = model_name
-            mapping["qwen"] = model_name
-        else:
-            mapping[model_name] = model_name
-    return mapping
-
-
-OPENAI_MODEL_MAPPING = _generate_openai_model_mapping()
 
 
 @router.get("/models")
@@ -151,16 +129,14 @@ async def get_model_details(model_id: str) -> JSONResponse:
 
 
 @router.post("/models/{model_name}/download")
-async def download_model(model_name: str):
-    """Pre-download a model to avoid blocking during inference.
+async def download_model(model_name: str) -> JSONResponse:
+    """Pre-download a model to avoid blocking during inference."""
+    registry = get_model_registry()
+    config = registry.get_model_config(model_name)
+    if not config:
+        raise HTTPException(status_code=404, detail=f"Model '{model_name}' not found")
 
-    This endpoint triggers a model download in the background.
-    """
     try:
-        registry = get_model_registry()
-        config = registry.get_model_config(model_name)
-        if not config:
-            raise HTTPException(status_code=404, detail=f"Model '{model_name}' not found")
         return JSONResponse(
             content={
                 "status": "downloading",
@@ -168,8 +144,6 @@ async def download_model(model_name: str):
                 "model": model_name,
             }
         )
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error downloading model: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to download model: {str(e)}")

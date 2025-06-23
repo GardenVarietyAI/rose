@@ -27,7 +27,6 @@ from rose_server.embeddings.manager import EmbeddingManager
 from rose_server.language_models.registry import ModelRegistry
 from rose_server.router import router
 from rose_server.services import Services, get_vector_store_store
-from rose_server.threads.store import ThreadStore
 from rose_server.tokens import TokenizerService
 from rose_server.vector import ChromaDBManager
 from rose_server.vector_stores.store import VectorStoreStore
@@ -93,9 +92,6 @@ async def lifespan(app: FastAPI):
     vector_store_store = get_vector_store_store()
     vector_store_store.initialize_with_client(chromadb_manager.client)
     logger.info("Vector Store Manager initialized with shared ChromaDB client")
-    thread_store = ThreadStore()
-    thread_store.set_chroma_client(chromadb_manager.client)
-    logger.info("Thread Store initialized with shared ChromaDB client")
     yield
     await Services.shutdown()
     logger.info("Application shutdown completed")

@@ -6,12 +6,12 @@ from typing import Any, Dict
 from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from rose_server.assistants.store import get_assistant_store
+from rose_server.assistants.store import get_assistant
 from rose_server.runs.executor import execute_assistant_run_streaming
 from rose_server.runs.store import RunsStore
 from rose_server.runs.tool_outputs import process_tool_outputs
 from rose_server.schemas.assistants import CreateRunRequest
-from rose_server.threads.store import ThreadStore
+from rose_server.threads.store import get_thread
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
@@ -21,11 +21,9 @@ logger = logging.getLogger(__name__)
 async def create_run(thread_id: str, request: CreateRunRequest = Body(...)) -> JSONResponse:
     """Create a run in a thread."""
     try:
-        thread_store = ThreadStore()
-        if not await thread_store.get_thread(thread_id):
+        if not await get_thread(thread_id):
             return JSONResponse(status_code=404, content={"error": "Thread not found"})
-        assistant_store = get_assistant_store()
-        assistant = await assistant_store.get_assistant(request.assistant_id)
+        assistant = await get_assistant(request.assistant_id)
         if not assistant:
             return JSONResponse(status_code=404, content={"error": "Assistant not found"})
         runs_store = RunsStore()
@@ -42,13 +40,13 @@ async def create_run(thread_id: str, request: CreateRunRequest = Body(...)) -> J
             run.top_p = assistant.top_p
         if request.stream:
             return StreamingResponse(
-                execute_assistant_run_streaming(run, thread_store, assistant),
+                execute_assistant_run_streaming(run, assistant),
                 media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
             )
         else:
             events = []
-            async for event in execute_assistant_run_streaming(run, thread_store, assistant):
+            async for event in execute_assistant_run_streaming(run, assistant):
                 events.append(event)
             runs_store = RunsStore()
             final_run = await runs_store.get_run(run.id)
@@ -66,8 +64,7 @@ async def list_runs(
 ) -> JSONResponse:
     """List runs in a thread."""
     try:
-        thread_store = ThreadStore()
-        if not await thread_store.get_thread(thread_id):
+        if not await get_thread(thread_id):
             return JSONResponse(status_code=404, content={"error": "Thread not found"})
         runs_store = RunsStore()
         runs = await runs_store.list_runs(thread_id, limit=limit, order=order)

@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from sqlalchemy import select
 
@@ -11,12 +11,12 @@ from ..schemas.jobs import JobResponse
 logger = logging.getLogger(__name__)
 
 
-async def fetch_job(job_id):
+async def fetch_job(job_id: int) -> Union[Job, None]:
     async with get_session(read_only=True) as session:
         return await session.get(Job, job_id)
 
 
-async def get_jobs(status: Optional[str] = None, type: Optional[str] = None, limit: int = 10):
+async def get_jobs(status: Optional[str] = None, type: Optional[str] = None, limit: int = 10) -> List[JobResponse]:
     async with get_session(read_only=True) as session:
         query = select(Job)
         if status:

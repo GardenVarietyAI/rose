@@ -2,11 +2,11 @@
 
 import logging
 
-from ..database import run_in_session
-from ..entities.jobs import Job
-from ..evals.runs.store import EvalRunStore
-from ..evals.samples.store import EvalSampleStore
-from ..schemas.webhooks import WebhookEvent
+from rose_server.database import run_in_session
+from rose_server.entities.jobs import Job
+from rose_server.evals.runs.store import update_eval_run_error, update_eval_run_results, update_eval_run_status
+from rose_server.evals.samples.store import create_eval_sample
+from rose_server.schemas.webhooks import WebhookEvent
 
 logger = logging.getLogger(__name__)
 
@@ -26,30 +26,27 @@ async def handle_eval_webhook(event: WebhookEvent) -> dict:
 
 async def _handle_eval_completed(event: WebhookEvent) -> None:
     """Handle successful evaluation job completion."""
-    run_store = EvalRunStore()
-    await run_store.update_results(
+    await update_eval_run_results(
         event.object_id,
         results=event.data.get("results", {}),
     )
-    sample_store = EvalSampleStore()
-    await _persist_eval_samples(event, sample_store)
+    await _persist_eval_samples(event)
     await _update_queue_job_completed(event)
 
 
 async def _handle_eval_failed(event: WebhookEvent) -> None:
     """Handle failed evaluation job."""
-    run_store = EvalRunStore()
     error_data = event.data.get("error", "Unknown error")
     # Extract message if error is a dict
     if isinstance(error_data, dict):
         error_msg = error_data.get("message", str(error_data))
     else:
         error_msg = str(error_data)
-    await run_store.update_error(event.object_id, error_msg)
+    await update_eval_run_error(event.object_id, error_msg)
     await _update_queue_job_failed(event, error_msg)
 
 
-async def _persist_eval_samples(event: WebhookEvent, store: EvalSampleStore) -> None:
+async def _persist_eval_samples(event: WebhookEvent) -> None:
     """Persist individual evaluation sample results."""
     samples = event.data.get("samples", [])
     if not samples:
@@ -58,7 +55,7 @@ async def _persist_eval_samples(event: WebhookEvent, store: EvalSampleStore) -> 
     failed_count = 0
     for sample in samples:
         try:
-            await store.create(eval_run_id=event.object_id, **sample)
+            await create_eval_sample(eval_run_id=event.object_id, **sample)
         except Exception as e:
             failed_count += 1
             logger.error(f"Failed to persist sample {sample.get('sample_index')}: {e}")
@@ -102,8 +99,7 @@ async def _update_queue_job_failed(event: WebhookEvent, error_msg: str) -> None:
 
 async def _handle_eval_running(event: WebhookEvent) -> None:
     """Handle evaluation job starting to run."""
-    run_store = EvalRunStore()
-    await run_store.update_status(event.object_id, status="running")
+    await update_eval_run_status(event.object_id, status="running")
 
     async def update_job(session):
         job = await session.get(Job, event.job_id)

@@ -4,8 +4,8 @@ from typing import List, Optional
 
 from sqlalchemy import select
 
-from ..database import get_session
-from ..entities.language_models import LanguageModel
+from rose_server.database import get_session
+from rose_server.entities.language_models import LanguageModel
 
 
 async def create(

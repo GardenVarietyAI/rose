@@ -2,94 +2,82 @@
 
 import time
 import uuid
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import false, func, select, true
 
-from ...database import run_in_session
-from ...entities.evals import EvalSample
+from rose_server.database import get_session
+from rose_server.entities.evals import EvalSample
 
 
-class EvalSampleStore:
-    """Store for evaluation sample operations."""
+async def create_eval_sample(
+    eval_run_id: str,
+    sample_index: int,
+    input: str,
+    ideal: str,
+    completion: str,
+    score: float,
+    passed: bool,
+    response_time: Optional[float] = None,
+    tokens_used: Optional[int] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> EvalSample:
+    """Create a new evaluation sample result."""
+    sample_id = f"sample-{uuid.uuid4().hex[:8]}"
+    eval_sample = EvalSample(
+        id=sample_id,
+        eval_run_id=eval_run_id,
+        sample_index=sample_index,
+        input=input,
+        ideal=ideal,
+        completion=completion,
+        score=score,
+        passed=passed,
+        response_time=response_time,
+        tokens_used=tokens_used,
+        meta=metadata,
+        created_at=int(time.time()),
+    )
 
-    async def create(
-        self,
-        eval_run_id: str,
-        sample_index: int,
-        input: str,
-        ideal: str,
-        completion: str,
-        score: float,
-        passed: bool,
-        response_time: Optional[float] = None,
-        tokens_used: Optional[int] = None,
-        metadata: Optional[Dict] = None,
-    ) -> EvalSample:
-        """Create a new evaluation sample result."""
-        sample_id = f"sample-{uuid.uuid4().hex[:8]}"
-        eval_sample = EvalSample(
-            id=sample_id,
-            eval_run_id=eval_run_id,
-            sample_index=sample_index,
-            input=input,
-            ideal=ideal,
-            completion=completion,
-            score=score,
-            passed=passed,
-            response_time=response_time,
-            tokens_used=tokens_used,
-            meta=metadata,
-            created_at=int(time.time()),
+    async with get_session() as session:
+        session.add(eval_sample)
+        await session.commit()
+        await session.refresh(eval_sample)
+        return eval_sample
+
+
+async def get_eval_sample(sample_id: str) -> Optional[EvalSample]:
+    """Get a specific evaluation sample by ID."""
+    async with get_session(read_only=True) as session:
+        result = await session.execute(select(EvalSample).where(EvalSample.id == sample_id))
+        return result.scalar_one_or_none()
+
+
+async def list_eval_samples(
+    eval_run_id: str, limit: int = 100, offset: int = 0, only_failed: bool = False
+) -> List[EvalSample]:
+    """Get evaluation samples for a specific run."""
+
+    async with get_session(read_only=True) as session:
+        query = select(EvalSample).where(EvalSample.eval_run_id == eval_run_id)
+        if only_failed:
+            query = query.where(EvalSample.passed == false())
+        query = query.order_by(EvalSample.sample_index).offset(offset).limit(limit)
+        result = await session.execute(query)
+        return list(result.scalars().all())
+
+
+async def count_eval_samples(eval_run_id: str) -> Dict[str, int]:
+    """Get sample counts for an evaluation run."""
+    async with get_session(read_only=True) as session:
+        total_result = await session.execute(
+            select(func.count(EvalSample.id)).where(EvalSample.eval_run_id == eval_run_id)
         )
-
-        async def _create(session: AsyncSession) -> EvalSample:
-            session.add(eval_sample)
-            await session.commit()
-            await session.refresh(eval_sample)
-            return eval_sample
-
-        return await run_in_session(_create)
-
-    async def get(self, sample_id: str) -> Optional[EvalSample]:
-        """Get a specific evaluation sample by ID."""
-
-        async def _get(session: AsyncSession) -> Optional[EvalSample]:
-            result = await session.execute(select(EvalSample).where(EvalSample.id == sample_id))  # type: ignore[arg-type]
-            return result.scalar_one_or_none()
-
-        return await run_in_session(_get)
-
-    async def list(
-        self, eval_run_id: str, limit: int = 100, offset: int = 0, only_failed: bool = False
-    ) -> List[EvalSample]:
-        """Get evaluation samples for a specific run."""
-
-        async def _list(session: AsyncSession) -> List[EvalSample]:
-            query = select(EvalSample).where(EvalSample.eval_run_id == eval_run_id)  # type: ignore[arg-type]
-            if only_failed:
-                query = query.where(EvalSample.passed is False)  # type: ignore[arg-type]
-            query = query.order_by(EvalSample.sample_index).offset(offset).limit(limit)  # type: ignore[arg-type]
-            result = await session.execute(query)
-            return list(result.scalars().all())
-
-        return await run_in_session(_list)
-
-    async def count(self, eval_run_id: str) -> Dict[str, int]:
-        """Get sample counts for an evaluation run."""
-
-        async def _count(session: AsyncSession) -> Dict[str, int]:
-            total_result = await session.execute(
-                select(func.count(EvalSample.id)).where(EvalSample.eval_run_id == eval_run_id)  # type: ignore[arg-type]
-            )
-            total = total_result.scalar() or 0
-            passed_result = await session.execute(
-                select(func.count(EvalSample.id))  # type: ignore[arg-type]
-                .where(EvalSample.eval_run_id == eval_run_id)  # type: ignore[arg-type]
-                .where(EvalSample.passed is True)  # type: ignore[arg-type]
-            )
-            passed = passed_result.scalar() or 0
-            return {"total": total, "passed": passed, "failed": total - passed}
-
-        return await run_in_session(_count)
+        total = total_result.scalar() or 0
+        passed_result = await session.execute(
+            select(func.count(EvalSample.id))
+            .where(EvalSample.eval_run_id == eval_run_id)
+            .where(EvalSample.passed == true())
+        )
+        passed = passed_result.scalar() or 0
+        return {"total": total, "passed": passed, "failed": total - passed}

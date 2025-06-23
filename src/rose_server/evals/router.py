@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 
 from ..schemas.evals import EvalCreateRequest, EvalDeleteResponse, EvalListResponse, EvalResponse
-from .store import EvalStore
+from .store import create_eval, delete_eval, get_eval, list_evals
 
 router = APIRouter(prefix="/v1/evals", tags=["evals"])
 
@@ -14,10 +14,9 @@ router = APIRouter(prefix="/v1/evals", tags=["evals"])
 @router.post("", response_model=EvalResponse)
 async def create_evaluation(request: EvalCreateRequest) -> EvalResponse:
     """Create a new evaluation"""
-    store = EvalStore()
     eval_id = f"eval-{uuid.uuid4().hex[:16]}"
 
-    eval = await store.create(
+    eval = await create_eval(
         id=eval_id,
         name=request.name,
         data_source_config=request.data_source_config,
@@ -31,8 +30,7 @@ async def create_evaluation(request: EvalCreateRequest) -> EvalResponse:
 @router.get("/{eval_id}", response_model=EvalResponse)
 async def get_evaluation(eval_id: str) -> EvalResponse:
     """Get evaluation."""
-    store = EvalStore()
-    eval = await store.get(eval_id)
+    eval = await get_eval(eval_id)
 
     if not eval:
         raise HTTPException(status_code=404, detail="Evaluation not found")
@@ -43,8 +41,7 @@ async def get_evaluation(eval_id: str) -> EvalResponse:
 @router.delete("/{eval_id}", response_model=EvalDeleteResponse)
 async def delete_evaluation(eval_id: str) -> EvalDeleteResponse:
     """Delete an evaluation."""
-    store = EvalStore()
-    deleted = await store.delete(eval_id)
+    deleted = await delete_eval(eval_id)
 
     if not deleted:
         raise HTTPException(status_code=404, detail="Evaluation not found")
@@ -58,8 +55,7 @@ async def list_evaluations(
     after: Optional[str] = Query(None, description="Cursor for pagination"),
 ) -> EvalListResponse:
     """List evaluations"""
-    store = EvalStore()
-    evals = await store.list(limit=limit)
+    evals = await list_evals(limit=limit)
 
     return EvalListResponse(
         object="list",

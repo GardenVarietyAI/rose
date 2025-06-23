@@ -6,8 +6,6 @@ from pydantic import BaseModel, Field
 
 
 class CompletionRequest(BaseModel):
-    """OpenAI-compatible completion request."""
-
     model: str = Field(..., description="ID of the model to use")
     prompt: Union[str, List[str]] = Field(..., description="The prompt(s) to generate completions for")
     suffix: Optional[str] = Field(None, description="The suffix that comes after a completion of inserted text")
@@ -33,8 +31,6 @@ class CompletionRequest(BaseModel):
 
 
 class CompletionChoice(BaseModel):
-    """A completion choice."""
-
     text: str = Field(..., description="The generated text")
     index: int = Field(..., description="The index of the choice")
     logprobs: Optional[Dict[str, Any]] = Field(None, description="Log probabilities of the output tokens")
@@ -42,16 +38,12 @@ class CompletionChoice(BaseModel):
 
 
 class CompletionUsage(BaseModel):
-    """Token usage information."""
-
     prompt_tokens: int = Field(..., description="Number of tokens in the prompt")
     completion_tokens: int = Field(..., description="Number of tokens in the completion")
     total_tokens: int = Field(..., description="Total number of tokens used")
 
 
 class CompletionResponse(BaseModel):
-    """OpenAI-compatible completion response."""
-
     id: str = Field(..., description="Unique identifier for the completion")
     object: str = Field("text_completion", description="Object type")
     created: int = Field(..., description="Unix timestamp of when the completion was created")
@@ -62,8 +54,6 @@ class CompletionResponse(BaseModel):
 
 
 class CompletionChunk(BaseModel):
-    """A streaming completion chunk."""
-
     id: str = Field(..., description="Unique identifier for the completion")
     object: str = Field("text_completion", description="Object type")
     created: int = Field(..., description="Unix timestamp of when the completion was created")
