@@ -14,7 +14,7 @@ from rose_server.entities.assistants import (
     Assistant as AssistantDB,
     AssistantTool,
 )
-from rose_server.schemas.assistants import AssistantResponse, CreateAssistantRequest, UpdateAssistantRequest
+from rose_server.schemas.assistants import AssistantCreateRequest, AssistantResponse, AssistantUpdateRequest
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ def _to_openai_assistant(db: AssistantDB, tools: List[AssistantTool]) -> Assista
     )
 
 
-async def create_assistant(request: CreateAssistantRequest) -> AssistantResponse:
+async def create_assistant(request: AssistantCreateRequest) -> AssistantResponse:
     """Create a new assistant."""
     assistant_id = f"asst_{uuid.uuid4().hex}"
     async with get_session() as session:
@@ -148,7 +148,7 @@ async def list_assistants(limit: int = 20, order: str = "desc") -> List[Assistan
         return [_to_openai_assistant(a, tools_by_assistant.get(a.id, [])) for a in db_assistants]
 
 
-async def update_assistant(assistant_id: str, request: UpdateAssistantRequest) -> Optional[AssistantResponse]:
+async def update_assistant(assistant_id: str, request: AssistantUpdateRequest) -> Optional[AssistantResponse]:
     """Update an assistant."""
     async with get_session() as session:
         db_assistant = await session.get(AssistantDB, assistant_id)
