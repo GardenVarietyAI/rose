@@ -18,20 +18,20 @@ logger = logging.getLogger(__name__)
 class ModelRegistry:
     """Central registry for all LLM models."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.models: Dict[str, Dict[str, Any]] = {}
         self._load_base_models()
 
-    def _load_base_models(self):
+    def _load_base_models(self) -> None:
         """Load base model configurations from settings."""
         self.models.update(LLM_MODELS.copy())
         logger.info(f"Loaded {len(self.models)} base model configurations")
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize the registry with fine-tuned models from database."""
         await self._load_fine_tuned_models()
 
-    async def _load_fine_tuned_models(self):
+    async def _load_fine_tuned_models(self) -> None:
         """Load fine-tuned models from database."""
         try:
             fine_tuned_models = await list_fine_tuned()
@@ -149,7 +149,7 @@ class ModelRegistry:
         """List only fine-tuned model IDs."""
         return [model_id for model_id, config in self.models.items() if config.get("is_fine_tuned", False)]
 
-    async def reload_fine_tuned_models(self):
+    async def reload_fine_tuned_models(self) -> None:
         """Reload fine-tuned models from database."""
         # Remove existing fine-tuned models from memory
         fine_tuned_ids = [model_id for model_id, config in self.models.items() if config.get("is_fine_tuned", False)]
