@@ -11,7 +11,7 @@ from rose_server.messages.store import create_message
 from rose_server.runs.executor import execute_assistant_run_streaming
 from rose_server.runs.store import RunsStore
 from rose_server.schemas.runs import CreateRunRequest
-from rose_server.schemas.threads import CreateThreadRequest
+from rose_server.schemas.threads import ThreadCreateRequest
 from rose_server.threads.store import (
     create_thread,
     delete_thread,
@@ -48,7 +48,7 @@ async def list_threads(
 
 
 @router.post("/threads")
-async def create(request: CreateThreadRequest = Body(...)) -> JSONResponse:
+async def create(request: ThreadCreateRequest = Body(...)) -> JSONResponse:
     """Create a new conversation thread."""
     try:
         thread = await create_thread(metadata=request.metadata)

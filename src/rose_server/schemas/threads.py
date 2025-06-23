@@ -19,7 +19,7 @@ class Thread(OpenAIThread):
     pass
 
 
-class CreateThreadRequest(BaseModel):
+class ThreadCreateRequest(BaseModel):
     """Request to create a new thread."""
 
     messages: Optional[List[Dict[str, Any]]] = Field(default=None, description="Initial messages for the thread")
