@@ -3,10 +3,7 @@ This module contains all SQLModel models used for database tables.
 API schemas are in the schemas/ module.
 """
 
-from .assistants import (
-    Assistant,
-    AssistantTool,
-)
+from .assistants import Assistant
 from .evals import (
     Eval,
     EvalRun,
@@ -27,7 +24,6 @@ __all__ = [
     "FineTuningJob",
     "FineTuningEvent",
     "Assistant",
-    "AssistantTool",
     "Thread",
     "Message",
     "MessageMetadata",

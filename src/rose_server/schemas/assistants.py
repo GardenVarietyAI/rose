@@ -14,13 +14,18 @@ class AssistantResponse(BaseModel):
     instructions: Optional[str] = Field(default=None, description="System instructions for the assistant")
     tools: List[AssistantTool] = Field(default_factory=list, description="Tools enabled for the assistant")
     tool_resources: Dict[str, Any] = Field(default_factory=dict, description="Tool resources configuration")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Set of key-value pairs for metadata")
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        validation_alias="meta",
+        serialization_alias="metadata",
+        description="Set of key-value pairs for metadata",
+    )
     temperature: Optional[float] = Field(default=1.0, description="Sampling temperature")
     top_p: Optional[float] = Field(default=1.0, description="Nucleus sampling parameter")
     response_format: Optional[Dict[str, Any]] = Field(default=None, description="Response format specification")
 
 
-class CreateAssistantRequest(BaseModel):
+class AssistantCreateRequest(BaseModel):
     model: str = Field(description="Model to use for the assistant")
     name: Optional[str] = Field(default=None, description="Name of the assistant")
     description: Optional[str] = Field(default=None, description="Description of the assistant")
@@ -33,7 +38,7 @@ class CreateAssistantRequest(BaseModel):
     response_format: Optional[Dict[str, Any]] = Field(default=None, description="Response format specification")
 
 
-class UpdateAssistantRequest(BaseModel):
+class AssistantUpdateRequest(BaseModel):
     model: Optional[str] = Field(default=None, description="Model to use for the assistant")
     name: Optional[str] = Field(default=None, description="Name of the assistant")
     description: Optional[str] = Field(default=None, description="Description of the assistant")
