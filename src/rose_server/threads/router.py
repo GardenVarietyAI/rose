@@ -10,10 +10,8 @@ from rose_server.assistants.store import get_assistant
 from rose_server.messages.store import create_message
 from rose_server.runs.executor import execute_assistant_run_streaming
 from rose_server.runs.store import RunsStore
-from rose_server.schemas.assistants import CreateRunRequest
-from rose_server.schemas.threads import (
-    CreateThreadRequest,
-)
+from rose_server.schemas.runs import CreateRunRequest
+from rose_server.schemas.threads import CreateThreadRequest
 from rose_server.threads.store import (
     create_thread,
     delete_thread,

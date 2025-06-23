@@ -13,38 +13,6 @@ class DataSourceSchema(BaseModel):
     required: List[str] = []
 
 
-class StoredCompletionsDataSourceConfig(BaseModel):
-    """Data source config for stored completions."""
-
-    model_config = ConfigDict(populate_by_name=True)
-    type: Literal["stored_completions"] = "stored_completions"
-    metadata: Optional[Dict[str, str]] = None
-    data_schema: Optional[DataSourceSchema] = Field(None, alias="schema")
-
-
-class StringCheckGrader(BaseModel):
-    """String check grader for exact/fuzzy matching."""
-
-    name: str
-    id: str
-    type: Literal["string_check"] = "string_check"
-    input: str
-    reference: str
-    operation: Literal["eq", "ne", "like", "ilike"] = "eq"
-
-
-class TextSimilarityGrader(BaseModel):
-    """Text similarity grader for BLEU/F1 scoring."""
-
-    name: str
-    id: str
-    type: Literal["text_similarity"] = "text_similarity"
-    input: str
-    reference: str
-    metric: Literal["bleu", "f1", "rouge"] = "f1"
-    pass_threshold: float = 0.8
-
-
 class EvalCreateRequest(BaseModel):
     """Request to create an evaluation - OpenAI compatible."""
 
@@ -85,8 +53,6 @@ class EvalDeleteResponse(BaseModel):
 
 
 class SamplingParams(BaseModel):
-    """OpenAI-compatible sampling parameters."""
-
     model_config = ConfigDict(populate_by_name=True)
     temperature: Optional[float] = Field(default=1.0, ge=0.0, le=2.0)
     max_completion_tokens: Optional[int] = Field(default=None, alias="max_tokens")

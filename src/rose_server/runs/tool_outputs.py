@@ -9,15 +9,16 @@ from rose_server.events.generators import RunsGenerator
 from rose_server.language_models import model_cache
 from rose_server.messages.store import create_message
 from rose_server.runs.store import RunsStore
-from rose_server.schemas.assistants import Run
 from rose_server.schemas.chat import ChatMessage
-from rose_server.schemas.runs import RunStepType
+from rose_server.schemas.runs import RunResponse, RunStepType
 from rose_server.services import get_model_registry
 
 logger = logging.getLogger(__name__)
 
 
-async def process_tool_outputs(run: Run, tool_outputs: List[Dict[str, Any]], runs_store: RunsStore) -> Dict[str, Any]:
+async def process_tool_outputs(
+    run: RunResponse, tool_outputs: List[Dict[str, Any]], runs_store: RunsStore
+) -> Dict[str, Any]:
     """Process tool outputs and generate continuation response."""
     await runs_store.update_run_status(run.id, "in_progress")
     steps = await runs_store.list_run_steps(run.id)

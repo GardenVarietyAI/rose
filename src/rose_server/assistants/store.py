@@ -14,12 +14,12 @@ from rose_server.entities.assistants import (
     Assistant as AssistantDB,
     AssistantTool,
 )
-from rose_server.schemas.assistants import Assistant, CreateAssistantRequest, UpdateAssistantRequest
+from rose_server.schemas.assistants import AssistantResponse, CreateAssistantRequest, UpdateAssistantRequest
 
 logger = logging.getLogger(__name__)
 
 
-def _to_openai_assistant(db: AssistantDB, tools: List[AssistantTool]) -> Assistant:
+def _to_openai_assistant(db: AssistantDB, tools: List[AssistantTool]) -> AssistantResponse:
     assistant_tools: List[Union[CodeInterpreterTool, FileSearchTool, FunctionTool]] = []
     tool_resources = {}
 
@@ -44,7 +44,7 @@ def _to_openai_assistant(db: AssistantDB, tools: List[AssistantTool]) -> Assista
                     )
                 )
 
-    return Assistant(
+    return AssistantResponse(
         id=db.id,
         object="assistant",
         created_at=db.created_at,
@@ -61,7 +61,7 @@ def _to_openai_assistant(db: AssistantDB, tools: List[AssistantTool]) -> Assista
     )
 
 
-async def create_assistant(request: CreateAssistantRequest) -> Assistant:
+async def create_assistant(request: CreateAssistantRequest) -> AssistantResponse:
     """Create a new assistant."""
     assistant_id = f"asst_{uuid.uuid4().hex}"
     async with get_session() as session:
@@ -114,7 +114,7 @@ async def create_assistant(request: CreateAssistantRequest) -> Assistant:
         return _to_openai_assistant(db_assistant, tools)
 
 
-async def get_assistant(assistant_id: str) -> Optional[Assistant]:
+async def get_assistant(assistant_id: str) -> Optional[AssistantResponse]:
     """Get an assistant by ID."""
     async with get_session(read_only=True) as session:
         db_assistant = await session.get(AssistantDB, assistant_id)
@@ -125,7 +125,7 @@ async def get_assistant(assistant_id: str) -> Optional[Assistant]:
         return _to_openai_assistant(db_assistant, tools)
 
 
-async def list_assistants(limit: int = 20, order: str = "desc") -> List[Assistant]:
+async def list_assistants(limit: int = 20, order: str = "desc") -> List[AssistantResponse]:
     """List assistants."""
     async with get_session(read_only=True) as session:
         statement = select(AssistantDB)
@@ -148,7 +148,7 @@ async def list_assistants(limit: int = 20, order: str = "desc") -> List[Assistan
         return [_to_openai_assistant(a, tools_by_assistant.get(a.id, [])) for a in db_assistants]
 
 
-async def update_assistant(assistant_id: str, request: UpdateAssistantRequest) -> Optional[Assistant]:
+async def update_assistant(assistant_id: str, request: UpdateAssistantRequest) -> Optional[AssistantResponse]:
     """Update an assistant."""
     async with get_session() as session:
         db_assistant = await session.get(AssistantDB, assistant_id)
