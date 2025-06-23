@@ -1,10 +1,10 @@
 import logging
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 
-from rose_core.config.service import EMBEDDING_MODELS
-from rose_server.embeddings import generate_embeddings
+from chromadb.utils import embedding_functions
+
 from rose_server.services import get_chromadb_manager
 from rose_server.vector import ChromaDBManager
 from rose_server.vector_stores.models import (
@@ -18,7 +18,6 @@ from rose_server.vector_stores.models import (
 )
 
 logger = logging.getLogger(__name__)
-DEFAULT_EMBEDDING_MODEL = "text-embedding-ada-002"
 _META_EXCLUDE = {"display_name", "dimensions", "created_at"}
 
 
@@ -43,7 +42,11 @@ class VectorStoreStore:
         mgr = self._manager()
         if cid not in mgr.list_collections():
             raise VectorStoreNotFoundError(cid)
-        return mgr.get_collection(cid)
+        return mgr.client.get_collection(cid)
+
+    def _create_embedding_function(self):
+        """Create ChromaDB default embedding function."""
+        return embedding_functions.DefaultEmbeddingFunction()
 
     def initialize(self, host: Optional[str] = None, port: Optional[int] = None) -> None:
         self._client = ChromaDBManager(host=host, port=port).client
@@ -75,24 +78,21 @@ class VectorStoreStore:
     async def create_vector_store(self, p: VectorStoreCreate) -> VectorStoreMetadata:
         vid = f"vs_{uuid.uuid4().hex}"
         meta_in = p.metadata or {}
-        model = meta_in.get("model", DEFAULT_EMBEDDING_MODEL)
-        try:
-            sample_dim = len(generate_embeddings("x", model_name=model)["data"][0]["embedding"])
-        except Exception as exc:
-            registry = EMBEDDING_MODELS
-            sample_dim = registry.get(model, registry[DEFAULT_EMBEDDING_MODEL])["dimensions"]
-            logger.warning("Fallback to registry dimension for %s (reason: %s)", model, exc)
+
+        # Create default embedding function - ChromaDB will handle model and dimensions
+        embedding_function = self._create_embedding_function()
+
         meta = {
             **meta_in,
             "display_name": p.name,
-            "dimensions": sample_dim,
             "created_at": int(time.time()),
         }
-        self._manager().get_or_create_collection(vid, metadata=meta)
+        self._manager().get_or_create_collection(vid, metadata=meta, embedding_function=embedding_function)
         logger.info("Created vector store %s (%s)", p.name, vid)
         public_meta = {k: v for k, v in meta.items() if k not in _META_EXCLUDE}
+        # ChromaDB's default model uses 384 dimensions
         return VectorStoreMetadata(
-            id=vid, name=p.name, dimensions=sample_dim, metadata=public_meta, created_at=meta["created_at"]
+            id=vid, name=p.name, dimensions=384, metadata=public_meta, created_at=meta["created_at"]
         )
 
     async def get_vector_store(self, vid: str) -> VectorStoreMetadata:
@@ -136,22 +136,29 @@ class VectorStoreStore:
         logger.info("Deleted %d vectors from %s", len(ids), vid)
         return {"object": "list", "data": [{"id": i, "object": "vector.deleted", "deleted": True} for i in ids]}
 
-    async def _query_vector(self, q: Union[str, List[float]], model: str) -> Tuple[List[float], Dict]:
-        if isinstance(q, list):
-            return q, {"prompt_tokens": 0, "total_tokens": 0}
-        res = generate_embeddings(q, model_name=model)
-        return res["data"][0]["embedding"], res["usage"]
-
     async def search_vectors(self, vid: str, s: VectorSearch) -> VectorSearchResult:
         col = self._collection(vid)
-        model = getattr(s, "embedding_model", DEFAULT_EMBEDDING_MODEL) or DEFAULT_EMBEDDING_MODEL
-        q_vec, usage = await self._query_vector(s.query, model)
-        res = col.query(
-            query_embeddings=[q_vec],
-            n_results=s.max_num_results,
-            where=s.filters,
-            include=["metadatas", "embeddings", "distances"],
-        )
+
+        # Use ChromaDB's built-in embedding for text queries
+        if isinstance(s.query, str):
+            res = col.query(
+                query_texts=[s.query],
+                n_results=s.max_num_results,
+                where=s.filters,
+                include=["metadatas", "embeddings", "distances"],
+            )
+            # Estimate usage for API compatibility
+            usage = {"prompt_tokens": len(s.query.split()), "total_tokens": len(s.query.split())}
+        else:
+            # Direct vector query
+            res = col.query(
+                query_embeddings=[s.query],
+                n_results=s.max_num_results,
+                where=s.filters,
+                include=["metadatas", "embeddings", "distances"],
+            )
+            usage = {"prompt_tokens": 0, "total_tokens": 0}
+
         out = []
         for i, vec_id in enumerate(res["ids"][0]):
             meta = (res.get("metadatas") or [[]])[0][i] or {}
