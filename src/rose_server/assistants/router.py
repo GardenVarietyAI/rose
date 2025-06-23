@@ -22,7 +22,8 @@ logger = logging.getLogger(__name__)
 @router.post("/assistants", response_model=AssistantResponse)
 async def create(request: AssistantCreateRequest):
     """Create a new assistant."""
-    return await create_assistant(request)
+    assistant = await create_assistant(request)
+    return AssistantResponse(**assistant.model_dump())
 
 
 @router.get("/assistants")
@@ -35,13 +36,13 @@ async def index(
     """List assistants."""
     try:
         assistants = await list_assistants(limit=limit, order=order)
-        assistant_data = [assistant.model_dump() for assistant in assistants]
+        assistant_responses = [AssistantResponse(**assistant.model_dump()) for assistant in assistants]
         return JSONResponse(
             content={
                 "object": "list",
-                "data": assistant_data,
-                "first_id": assistant_data[0]["id"] if assistant_data else None,
-                "last_id": assistant_data[-1]["id"] if assistant_data else None,
+                "data": [resp.model_dump() for resp in assistant_responses],
+                "first_id": assistant_responses[0].id if assistant_responses else None,
+                "last_id": assistant_responses[-1].id if assistant_responses else None,
                 "has_more": False,
             }
         )
@@ -56,7 +57,7 @@ async def get(assistant_id: str) -> AssistantResponse:
     assistant = await get_assistant(assistant_id)
     if not assistant:
         raise HTTPException(status_code=404, detail="Assistant not found")
-    return assistant
+    return AssistantResponse(**assistant.model_dump())
 
 
 @router.post("/assistants/{assistant_id}", response_model=AssistantResponse)
@@ -65,7 +66,7 @@ async def update(assistant_id: str, request: AssistantUpdateRequest) -> Assistan
     assistant = await update_assistant(assistant_id, request)
     if not assistant:
         raise HTTPException(status_code=404, detail="Assistant not found")
-    return assistant
+    return AssistantResponse(**assistant.model_dump())
 
 
 @router.delete("/assistants/{assistant_id}")
