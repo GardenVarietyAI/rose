@@ -9,7 +9,6 @@ from rose_server.services import get_chromadb_manager
 from rose_server.vector import ChromaDBManager
 from rose_server.vector_stores.models import (
     Vector,
-    VectorBatch,
     VectorSearch,
     VectorSearchResult,
     VectorStoreCreate,
@@ -131,18 +130,6 @@ class VectorStoreStore:
         mgr.delete_collection(vid)
         logger.info("Deleted vector store %s", vid)
         return {"id": vid, "object": "vector_store.deleted", "deleted": True}
-
-    async def add_vectors(self, vid: str, batch: VectorBatch) -> Dict[str, Any]:
-        col = self._collection(vid)
-        dim = col.metadata.get("dimensions", 0)
-        if dim:
-            for v in batch.vectors:
-                if len(v) != dim:
-                    raise ValueError(f"Vector dim mismatch: expected {dim}, got {len(v)}")
-        metas = batch.metadata or [{}] * len(batch.vectors)
-        col.add(embeddings=batch.vectors, ids=batch.ids, metadatas=metas)
-        logger.info("Added %d vectors to %s", len(batch.vectors), vid)
-        return {"object": "list", "data": [{"id": i, "object": "vector"} for i in batch.ids]}
 
     async def delete_vectors(self, vid: str, ids: List[str]) -> Dict[str, Any]:
         self._collection(vid).delete(ids=ids)

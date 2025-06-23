@@ -10,8 +10,8 @@ import aiofiles.os
 from openai.types import FileDeleted, FileObject, FilePurpose
 from sqlalchemy import select
 
-from ..database import get_session
-from ..entities.files import UploadedFile
+from rose_server.database import get_session
+from rose_server.entities.files import UploadedFile
 
 logger = logging.getLogger(__name__)
 

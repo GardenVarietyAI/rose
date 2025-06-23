@@ -5,14 +5,6 @@ from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class DataSourceSchema(BaseModel):
-    """JSON schema for data source."""
-
-    type: str = "object"
-    properties: Dict[str, Any]
-    required: List[str] = []
-
-
 class EvalCreateRequest(BaseModel):
     """Request to create an evaluation - OpenAI compatible."""
 
