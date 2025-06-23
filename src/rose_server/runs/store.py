@@ -4,8 +4,7 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
-from rose_server.schemas.assistants import CreateRunRequest, Run
-from rose_server.schemas.runs import RunStep, RunStepType
+from rose_server.schemas.runs import CreateRunRequest, RunResponse, RunStep, RunStepType
 
 
 class RunsStore:
@@ -21,11 +20,11 @@ class RunsStore:
             cls._instance.steps = {}
         return cls._instance
 
-    async def create_run(self, thread_id: str, request: CreateRunRequest) -> Run:
+    async def create_run(self, thread_id: str, request: CreateRunRequest) -> RunResponse:
         """Create a new run."""
         run_id = f"run_{uuid.uuid4().hex}"
         created_at = int(time.time())
-        run = Run(
+        run = RunResponse(
             id=run_id,
             created_at=created_at,
             thread_id=thread_id,
@@ -47,11 +46,11 @@ class RunsStore:
         self.runs[run_id] = run
         return run
 
-    async def get_run(self, run_id: str) -> Optional[Run]:
+    async def get_run(self, run_id: str) -> Optional[RunResponse]:
         """Get a run by ID."""
         return self.runs.get(run_id)
 
-    async def list_runs(self, thread_id: str, limit: int = 20, order: str = "desc") -> List[Run]:
+    async def list_runs(self, thread_id: str, limit: int = 20, order: str = "desc") -> List[RunResponse]:
         """List runs for a thread."""
         thread_runs = [run for run in self.runs.values() if run.thread_id == thread_id]
         if order == "desc":
@@ -60,7 +59,7 @@ class RunsStore:
             thread_runs = sorted(thread_runs, key=lambda r: r.created_at)
         return thread_runs[:limit]
 
-    async def update_run_status(self, run_id: str, status: str, **kwargs) -> Optional[Run]:
+    async def update_run_status(self, run_id: str, status: str, **kwargs) -> Optional[RunResponse]:
         """Update run status and other fields."""
         run = self.runs.get(run_id)
         if not run:
@@ -80,7 +79,7 @@ class RunsStore:
                 setattr(run, key, value)
         return run
 
-    async def cancel_run(self, run_id: str) -> Optional[Run]:
+    async def cancel_run(self, run_id: str) -> Optional[RunResponse]:
         """Cancel a run."""
         return await self.update_run_status(run_id, "cancelled")
 

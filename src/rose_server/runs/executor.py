@@ -28,9 +28,9 @@ from rose_server.runs.streaming import (
     stream_run_status,
     stream_run_step_event,
 )
-from rose_server.schemas.assistants import Assistant, Run
+from rose_server.schemas.assistants import AssistantResponse
 from rose_server.schemas.chat import ChatMessage
-from rose_server.schemas.runs import RunStep, RunStepType
+from rose_server.schemas.runs import RunResponse, RunStep, RunStepType
 from rose_server.services import get_model_registry
 from rose_server.tools import format_tools_for_prompt, parse_xml_tool_call
 
@@ -78,8 +78,8 @@ def _build_conversation_context(messages: Sequence[ChatMessage], *, limit: int =
 
 
 async def _build_prompt(
-    run: Run,
-    assistant: Assistant,
+    run: RunResponse,
+    assistant: AssistantResponse,
     messages: Sequence[ChatMessage],
     latest_user_message: str,
 ) -> str:
@@ -129,8 +129,8 @@ async def _fail_run(  # noqa: D401  (imperative helper)
 
 async def _handle_tool_calls(
     *,
-    run: Run,
-    assistant: Assistant,
+    run: RunResponse,
+    assistant: AssistantResponse,
     response_text: str,
     step: RunStep,
     runs_store: RunsStore,
@@ -190,8 +190,8 @@ async def _handle_tool_calls(
 
 
 async def execute_assistant_run_streaming(
-    run: Run,
-    assistant: Assistant,
+    run: RunResponse,
+    assistant: AssistantResponse,
 ) -> AsyncGenerator[str, None]:
     """
     Execute *run* and stream events as a server-sent event (SSE) compatible
