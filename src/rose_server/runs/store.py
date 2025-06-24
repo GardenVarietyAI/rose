@@ -43,15 +43,18 @@ async def update_run(
         if not run:
             return None
 
-        # Update provided fields
         if status is not None:
             run.status = status
+
         if last_error is not None:
             run.last_error = last_error
+
         if required_action is not None:
             run.required_action = required_action
+
         if usage is not None:
             run.usage = usage
+
         if incomplete_details is not None:
             run.incomplete_details = incomplete_details
 

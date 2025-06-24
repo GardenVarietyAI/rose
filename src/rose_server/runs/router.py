@@ -26,10 +26,12 @@ async def create(thread_id: str, request: CreateRunRequest = Body(...)) -> JSONR
     try:
         if not await get_thread(thread_id):
             return JSONResponse(status_code=404, content={"error": "Thread not found"})
+
         assistant = await get_assistant(request.assistant_id)
+
         if not assistant:
             return JSONResponse(status_code=404, content={"error": "Assistant not found"})
-        # Create Run entity
+
         run = Run(
             id=f"run_{uuid.uuid4().hex}",
             created_at=current_timestamp(),
@@ -49,17 +51,24 @@ async def create(thread_id: str, request: CreateRunRequest = Body(...)) -> JSONR
             parallel_tool_calls=request.parallel_tool_calls if request.parallel_tool_calls is not None else True,
             response_format=request.response_format,
         )
+
         run = await create_run(run)
+
         if not run.model or run.model == "zephyr":
             run.model = assistant.model
+
         if not run.instructions:
             run.instructions = assistant.instructions
+
         if not run.tools:
             run.tools = assistant.tools
+
         if run.temperature is None:
             run.temperature = assistant.temperature
+
         if run.top_p is None:
             run.top_p = assistant.top_p
+
         if request.stream:
             return StreamingResponse(
                 execute_assistant_run_streaming(run, assistant),
@@ -70,7 +79,9 @@ async def create(thread_id: str, request: CreateRunRequest = Body(...)) -> JSONR
             events = []
             async for event in execute_assistant_run_streaming(run, assistant):
                 events.append(event)
+
             final_run = await get_run(run.id)
+
             return JSONResponse(content=RunResponse(**final_run.model_dump()).model_dump())
     except Exception as e:
         logger.error(f"Error creating run: {str(e)}")
@@ -87,8 +98,10 @@ async def index(
     try:
         if not await get_thread(thread_id):
             return JSONResponse(status_code=404, content={"error": "Thread not found"})
+
         runs = await list_runs(thread_id, limit=limit, order=order)
         run_data = [RunResponse(**run.model_dump()).model_dump() for run in runs]
+
         return JSONResponse(
             content={
                 "object": "list",
@@ -108,8 +121,10 @@ async def get(thread_id: str, run_id: str) -> JSONResponse:
     """Retrieve a run."""
     try:
         run = await get_run(run_id)
+
         if not run or run.thread_id != thread_id:
             return JSONResponse(status_code=404, content={"error": "Run not found"})
+
         return JSONResponse(content=RunResponse(**run.model_dump()).model_dump())
     except Exception as e:
         logger.error(f"Error retrieving run: {str(e)}")
@@ -121,8 +136,10 @@ async def cancel(thread_id: str, run_id: str) -> JSONResponse:
     """Cancel a run."""
     try:
         run = await cancel_run(run_id)
+
         if not run or run.thread_id != thread_id:
             return JSONResponse(status_code=404, content={"error": "Run not found"})
+
         return JSONResponse(content=RunResponse(**run.model_dump()).model_dump())
     except Exception as e:
         logger.error(f"Error cancelling run: {str(e)}")
@@ -138,14 +155,17 @@ async def submit_tool_outputs(
         tool_outputs = request.get("tool_outputs", [])
         if not tool_outputs:
             return JSONResponse(status_code=400, content={"error": "tool_outputs required"})
+
         run = await get_run(run_id)
         if not run:
             return JSONResponse(status_code=404, content={"error": "Run not found"})
+
         if run.status != "requires_action":
             return JSONResponse(
                 status_code=400,
                 content={"error": f"Run is not waiting for tool outputs (status: {run.status})"},
             )
+
         try:
             await process_tool_outputs(run, tool_outputs, update_run, registry)
             return JSONResponse(content=RunResponse(**run.model_dump()).model_dump())
@@ -153,6 +173,7 @@ async def submit_tool_outputs(
             logger.error(f"Error processing tool outputs: {str(e)}")
             await update_run(run_id, status="failed", last_error={"code": "tool_output_error", "message": str(e)})
             raise
+
     except HTTPException as e:
         return JSONResponse(status_code=e.status_code, content={"error": e.detail})
     except Exception as e:
