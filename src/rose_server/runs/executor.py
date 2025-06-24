@@ -73,37 +73,6 @@ async def get_model_for_run(model_name: str) -> Any:
     return await model_cache.get_model(model_name, config)
 
 
-async def create_message_creation_step(
-    *,
-    run_id: str,
-    assistant_id: str,
-    thread_id: str,
-) -> RunStepResponse:
-    step_entity = RunStep(
-        id=f"step_{uuid.uuid4().hex}",
-        created_at=current_timestamp(),
-        run_id=run_id,
-        assistant_id=assistant_id,
-        thread_id=thread_id,
-        type="message_creation",
-        step_details={"message_creation": {"message_id": None}},
-        status="in_progress",
-    )
-    await create_run_step(step_entity)
-    return RunStepResponse(**step_entity.model_dump())
-
-
-async def close_and_update_step(
-    step: RunStepResponse, status: str, details: Dict[str, Any], usage: Optional[Dict[str, int]] = None
-) -> None:
-    await update_run_step(
-        step.id,
-        status=status,
-        step_details=details,
-        usage=usage,
-    )
-
-
 async def handle_tool_calls(
     *,
     run_id: str,
@@ -173,11 +142,19 @@ async def execute_assistant_run_streaming(
     # Start run
     await update_run(run.id, status="in_progress")
     yield await stream_run_status(run.id, "in_progress")
-    step = await create_message_creation_step(
+    # Create message creation step inline
+    step_entity = RunStep(
+        id=f"step_{uuid.uuid4().hex}",
+        created_at=current_timestamp(),
         run_id=run.id,
         assistant_id=assistant.id,
         thread_id=run.thread_id,
+        type="message_creation",
+        step_details={"message_creation": {"message_id": None}},
+        status="in_progress",
     )
+    await create_run_step(step_entity)
+    step = RunStepResponse(**step_entity.model_dump())
     yield await stream_run_step_event("created", step)
 
     # Validate thread
@@ -257,7 +234,6 @@ async def execute_assistant_run_streaming(
             yield evt
         return
 
-    # No need to send stream_message_completed - formatter handles it via ResponseCompleted
     message = Message(
         id=f"msg_{uuid.uuid4().hex}",
         created_at=current_timestamp(),
@@ -270,10 +246,11 @@ async def execute_assistant_run_streaming(
     )
     message = await create_message(message)
 
-    await close_and_update_step(
-        step,
-        "completed",
-        {"message_creation": {"message_id": message.id}},
+    # Update step inline
+    await update_run_step(
+        step.id,
+        status="completed",
+        step_details={"message_creation": {"message_id": message.id}},
         usage=usage.to_dict(),
     )
     yield await stream_run_step_event("completed", step)
