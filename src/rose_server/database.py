@@ -18,6 +18,8 @@ from .entities.fine_tuning import FineTuningEvent, FineTuningJob
 from .entities.jobs import Job
 from .entities.language_models import LanguageModel
 from .entities.messages import Message
+from .entities.run_steps import RunStep
+from .entities.runs import Run
 from .entities.threads import MessageMetadata, Thread
 
 DB_PATH = Path(DATA_DIR) / "rose_server.db"
@@ -92,4 +94,6 @@ __all__ = [
     "Thread",
     "Message",
     "MessageMetadata",
+    "Run",
+    "RunStep",
 ]

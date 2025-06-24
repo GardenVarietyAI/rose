@@ -1,20 +1,12 @@
 """Schema definitions for runs and run steps."""
 
-from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Union
 
 from openai.types.beta.assistant_tool import AssistantTool
 from pydantic import BaseModel, Field
 
 
-class RunStepType(str, Enum):
-    """Types of run steps."""
-
-    MESSAGE_CREATION = "message_creation"
-    TOOL_CALLS = "tool_calls"
-
-
-class RunStep(BaseModel):
+class RunStepResponse(BaseModel):
     """Represents a step in a run execution."""
 
     id: str = Field(description="Unique identifier for the step")
@@ -23,7 +15,7 @@ class RunStep(BaseModel):
     run_id: str = Field(description="ID of the run this step belongs to")
     assistant_id: str = Field(description="ID of the assistant")
     thread_id: str = Field(description="ID of the thread")
-    type: RunStepType = Field(description="Type of run step")
+    type: Literal["message_creation", "tool_calls"] = Field(description="Type of run step")
     status: str = Field(description="Status of the step: in_progress, completed, failed, cancelled")
     step_details: Dict[str, Any] = Field(description="Details specific to the step type")
     last_error: Optional[Dict[str, Any]] = Field(default=None, description="Last error if failed")
@@ -62,7 +54,12 @@ class RunResponse(BaseModel):
     model: str = Field(description="Model used for the run")
     instructions: Optional[str] = Field(default=None, description="Instructions used for the run")
     tools: List[AssistantTool] = Field(default_factory=list, description="Tools used for the run")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Set of key-value pairs for metadata")
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        validation_alias="meta",
+        serialization_alias="metadata",
+        description="Set of key-value pairs for metadata",
+    )
     usage: Optional[Dict[str, Any]] = Field(default=None, description="Usage statistics for the run")
     temperature: Optional[float] = Field(default=None, description="Sampling temperature used")
     top_p: Optional[float] = Field(default=None, description="Nucleus sampling parameter used")
@@ -74,7 +71,7 @@ class RunResponse(BaseModel):
     response_format: Optional[Dict[str, Any]] = Field(default=None, description="Response format specification")
 
 
-class CreateRunRequest(BaseModel):
+class RunCreateRequest(BaseModel):
     assistant_id: str = Field(description="ID of the assistant to use")
     model: Optional[str] = Field(default=None, description="Override the model")
     instructions: Optional[str] = Field(default=None, description="Override the instructions")

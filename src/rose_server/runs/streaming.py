@@ -5,7 +5,7 @@ import json
 import time
 from typing import AsyncGenerator
 
-from rose_server.schemas.runs import RunStep
+from rose_server.schemas.runs import RunStepResponse
 
 
 async def stream_run_status(run_id: str, status: str, **kwargs) -> str:
@@ -87,7 +87,7 @@ async def stream_message_completed(
     return f"event: thread.message.completed\ndata: {json.dumps(event_data)}\n\n"
 
 
-async def stream_run_step_event(event_type: str, step: RunStep) -> str:
+async def stream_run_step_event(event_type: str, step: RunStepResponse) -> str:
     """Create a streaming event for run step updates."""
     event_data = step.dict()
     return f"event: thread.run.step.{event_type}\ndata: {json.dumps(event_data)}\n\n"

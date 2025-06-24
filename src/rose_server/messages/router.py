@@ -23,7 +23,6 @@ async def create(
 ) -> JSONResponse:
     """Create a message in a thread with optional vector embedding."""
     try:
-        # Format content to match OpenAI structure exactly
         if isinstance(request.content, str):
             content = [
                 {
@@ -35,10 +34,8 @@ async def create(
                 }
             ]
         else:
-            # Already formatted as list
             content = request.content
 
-        # Create message entity
         message = Message(
             id=f"msg_{uuid.uuid4().hex}",
             thread_id=thread_id,
@@ -53,7 +50,6 @@ async def create(
         if not message:
             return JSONResponse(status_code=500, content={"error": "Failed to create message"})
 
-        # Content is already in correct format for new messages
         return JSONResponse(content=MessageResponse(**message.model_dump()).model_dump())
     except Exception as e:
         logger.error(f"Error creating message: {str(e)}")

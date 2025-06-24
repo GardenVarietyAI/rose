@@ -1,32 +1,37 @@
 """Tool output processing for runs."""
 
 import logging
+import uuid
 from typing import Any, Dict, List
 
 from rose_server.assistants.store import get_assistant
+from rose_server.database import (
+    RunStep as RunStepEntity,
+    current_timestamp,
+)
 from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.events.generators import RunsGenerator
 from rose_server.language_models import model_cache
 from rose_server.messages.store import create_message
-from rose_server.runs.store import RunsStore
+from rose_server.runs.steps.store import create_run_step, list_run_steps, update_run_step
 from rose_server.schemas.chat import ChatMessage
-from rose_server.schemas.runs import RunResponse, RunStepType
+from rose_server.schemas.runs import RunResponse, RunStepResponse
 
 logger = logging.getLogger(__name__)
 
 
 async def process_tool_outputs(
-    run: RunResponse, tool_outputs: List[Dict[str, Any]], runs_store: RunsStore, registry
+    run: RunResponse, tool_outputs: List[Dict[str, Any]], update_run, registry
 ) -> Dict[str, Any]:
     """Process tool outputs and generate continuation response."""
-    await runs_store.update_run_status(run.id, "in_progress")
-    steps = await runs_store.list_run_steps(run.id)
+    await update_run(run.id, status="in_progress")
+    steps = await list_run_steps(run.id)
     tool_step = next(
-        (s for s in steps if s.type == RunStepType.TOOL_CALLS and s.status == "in_progress"),
+        (s for s in steps if s.type == "tool_calls" and s.status == "in_progress"),
         None,
     )
     if tool_step:
-        await runs_store.update_run_step(
+        await update_run_step(
             tool_step.id,
             status="completed",
             step_details={
@@ -34,13 +39,18 @@ async def process_tool_outputs(
                 "tool_outputs": tool_outputs,
             },
         )
-    continuation_step = await runs_store.create_run_step(
+    continuation_step_entity = RunStepEntity(
+        id=f"step_{uuid.uuid4().hex}",
+        created_at=current_timestamp(),
         run_id=run.id,
         assistant_id=run.assistant_id,
         thread_id=run.thread_id,
-        step_type=RunStepType.MESSAGE_CREATION,
+        type="message_creation",
         step_details={"message_creation": {"message_id": None}},
+        status="in_progress",
     )
+    await create_run_step(continuation_step_entity)
+    continuation_step = RunStepResponse(**continuation_step_entity.model_dump())
     await get_assistant(run.assistant_id)
     tool_results = []
     for output in tool_outputs:
@@ -82,13 +92,13 @@ async def process_tool_outputs(
         content=[{"type": "text", "text": response_text}],
         metadata={"run_id": run.id, "assistant_id": run.assistant_id},
     )
-    await runs_store.update_run_step(
+    await update_run_step(
         continuation_step.id,
         status="completed",
         step_details={"message_creation": {"message_id": message.id}},
         usage=usage,
     )
-    await runs_store.update_run_status(run.id, "completed", usage=usage)
+    await update_run(run.id, status="completed", usage=usage)
     return {
         "continuation_step": continuation_step,
         "message": message,
