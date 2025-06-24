@@ -2,7 +2,7 @@
 
 import logging
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -22,8 +22,8 @@ router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
 
 
-@router.post("/threads/{thread_id}/runs")
-async def create(thread_id: str, request: RunCreateRequest = Body(...)) -> JSONResponse:
+@router.post("/threads/{thread_id}/runs", response_model=None)
+async def create(thread_id: str, request: RunCreateRequest = Body(...)) -> Union[JSONResponse, EventSourceResponse]:
     """Create a run in a thread."""
     try:
         if not await get_thread(thread_id):

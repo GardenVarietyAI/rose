@@ -27,13 +27,45 @@ from rose_server.messages.store import create_message, get_messages
 from rose_server.runs.prompt_builder import build_prompt, find_latest_user_message
 from rose_server.runs.steps.store import create_run_step, update_run_step
 from rose_server.runs.store import update_run
-from rose_server.runs.streaming import fail_run, stream_run_status, stream_run_step_event
 from rose_server.schemas.assistants import AssistantResponse
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.runs import RunResponse, RunStepResponse
 from rose_server.tools import parse_xml_tool_call
 
 logger = logging.getLogger(__name__)
+
+
+async def stream_run_step_event(event_type: str, step: RunStepResponse) -> ServerSentEvent:
+    """Create a streaming event for run step updates."""
+    event_data = step.dict()
+    return ServerSentEvent(data=json.dumps(event_data), event=f"thread.run.step.{event_type}")
+
+
+async def stream_run_status(run_id: str, status: str, **kwargs: Dict[str, Any]) -> ServerSentEvent:
+    """Create a streaming event for run status updates."""
+    event_data = {
+        "id": run_id,
+        "object": f"thread.run.{status}",
+        "delta": {"status": status, **kwargs},
+    }
+    return ServerSentEvent(data=json.dumps(event_data), event=f"thread.run.{status}")
+
+
+async def fail_run(
+    run_id: str,
+    step: Optional[RunStepResponse],
+    code: str,
+    message: str,
+) -> AsyncGenerator[ServerSentEvent, None]:
+    err = {"code": code, "message": message}
+    if step:
+        await update_run_step(step.id, status="failed", last_error=err)
+    await update_run(run_id, status="failed", last_error=err)
+    status_evt = await stream_run_status(run_id, "failed", last_error=err)
+    step_evt = await stream_run_step_event("failed", step) if step else ""
+    if step:
+        yield step_evt
+    yield status_evt
 
 
 @dataclass
@@ -136,8 +168,7 @@ async def execute_assistant_run_streaming(
     assistant: AssistantResponse,
 ) -> AsyncGenerator[ServerSentEvent, None]:
     """
-    Execute run events as a server-sent event (SSE) compatible
-    async generator.
+    Execute run events as a server-sent event (SSE) compatible async generator.
     """
     # Start run
     await update_run(run.id, status="in_progress")
