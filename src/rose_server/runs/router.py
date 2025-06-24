@@ -8,12 +8,13 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from rose_server.assistants.store import get_assistant
-from rose_server.database import Run, current_timestamp
+from rose_server.database import current_timestamp
+from rose_server.entities.runs import Run
 from rose_server.language_models.deps import ModelRegistryDep
 from rose_server.runs.executor import execute_assistant_run_streaming
 from rose_server.runs.store import cancel_run, create_run, get_run, list_runs, update_run
 from rose_server.runs.tool_outputs import process_tool_outputs
-from rose_server.schemas.runs import CreateRunRequest, RunResponse
+from rose_server.schemas.runs import RunCreateRequest, RunResponse
 from rose_server.threads.store import get_thread
 
 router = APIRouter(prefix="/v1")
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/threads/{thread_id}/runs")
-async def create(thread_id: str, request: CreateRunRequest = Body(...)) -> JSONResponse:
+async def create(thread_id: str, request: RunCreateRequest = Body(...)) -> JSONResponse:
     """Create a run in a thread."""
     try:
         if not await get_thread(thread_id):

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
 from rose_server.runs.steps.store import get_run_step, list_run_steps
-from rose_server.schemas.runs import RunStep
+from rose_server.schemas.runs import RunStepResponse
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ async def index(
     """List steps for a run."""
     try:
         steps = await list_run_steps(run_id, limit=limit, order=order)
-        step_data = [RunStep(**step.model_dump()).model_dump() for step in steps]
+        step_data = [RunStepResponse(**step.model_dump()).model_dump() for step in steps]
         return JSONResponse(
             content={
                 "object": "list",
@@ -44,7 +44,7 @@ async def get(thread_id: str, run_id: str, step_id: str) -> JSONResponse:
         step = await get_run_step(run_id, step_id)
         if not step or step.run_id != run_id:
             return JSONResponse(status_code=404, content={"error": "Step not found"})
-        return JSONResponse(content=RunStep(**step.model_dump()).model_dump())
+        return JSONResponse(content=RunStepResponse(**step.model_dump()).model_dump())
     except Exception as e:
         logger.error(f"Error retrieving run step: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Error retrieving run step: {str(e)}"})

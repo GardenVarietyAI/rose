@@ -9,10 +9,11 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from rose_server.assistants.store import get_assistant
 from rose_server.database import Message, Thread, current_timestamp
+from rose_server.entities.runs import Run
 from rose_server.messages.store import create_message
 from rose_server.runs.executor import execute_assistant_run_streaming
-from rose_server.runs.store import RunsStore
-from rose_server.schemas.runs import CreateRunRequest
+from rose_server.runs.store import create_run, get_run
+from rose_server.schemas.runs import RunCreateRequest
 from rose_server.schemas.threads import ThreadCreateRequest, ThreadResponse
 from rose_server.threads.store import (
     create_thread,
@@ -145,7 +146,7 @@ async def create_thread_and_run(request: Dict[str, Any] = Body(...)) -> JSONResp
                 )
                 await create_message(message)
 
-        run_request = CreateRunRequest(
+        run_request = RunCreateRequest(
             assistant_id=assistant_id,
             model=request.get("model"),
             instructions=request.get("instructions"),
@@ -155,17 +156,32 @@ async def create_thread_and_run(request: Dict[str, Any] = Body(...)) -> JSONResp
             stream=request.get("stream", False),
         )
 
-        runs_store = RunsStore()
-        run = await runs_store.create_run(thread.id, run_request)
+        run = Run(
+            id=f"run_{uuid.uuid4().hex}",
+            created_at=current_timestamp(),
+            thread_id=thread.id,
+            assistant_id=run_request.assistant_id,
+            status="queued",
+            model=run_request.model if run_request.model is not None else assistant.model,
+            instructions=run_request.instructions or assistant.instructions,
+            tools=[
+                tool.model_dump() if hasattr(tool, "model_dump") else tool
+                for tool in (run_request.tools or assistant.tools or [])
+            ],
+            meta=run_request.metadata or {},
+            temperature=run_request.temperature if run_request.temperature is not None else assistant.temperature,
+            top_p=run_request.top_p if run_request.top_p is not None else assistant.top_p,
+            max_prompt_tokens=run_request.max_prompt_tokens,
+            max_completion_tokens=run_request.max_completion_tokens,
+            truncation_strategy=run_request.truncation_strategy,
+            tool_choice=run_request.tool_choice,
+            parallel_tool_calls=run_request.parallel_tool_calls
+            if run_request.parallel_tool_calls is not None
+            else True,
+            response_format=run_request.response_format,
+        )
 
-        if not run.model or run.model == "zephyr":
-            run.model = assistant.model
-
-        if not run.instructions:
-            run.instructions = assistant.instructions
-
-        if not run.tools:
-            run.tools = assistant.tools
+        run = await create_run(run)
 
         if run_request.stream:
             return StreamingResponse(
@@ -176,8 +192,10 @@ async def create_thread_and_run(request: Dict[str, Any] = Body(...)) -> JSONResp
             events = []
             async for event in execute_assistant_run_streaming(run, assistant):
                 events.append(event)
-            updated_run = await runs_store.get_run(run.id)
-            return JSONResponse(content=updated_run.dict())
+            updated_run = await get_run(run.id)
+            from rose_server.schemas.runs import RunResponse
+
+            return JSONResponse(content=RunResponse(**updated_run.model_dump()).model_dump())
     except Exception as e:
         logger.error(f"Error in create_thread_and_run: {str(e)}")
         return JSONResponse(status_code=500, content={"error": str(e)})

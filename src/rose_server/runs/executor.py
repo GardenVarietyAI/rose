@@ -22,7 +22,8 @@ from rose_server.events.generators import RunsGenerator
 from rose_server.language_models import model_cache
 from rose_server.language_models.store import get as get_language_model
 from rose_server.messages.store import create_message, get_messages
-from rose_server.runs.store import RunsStore
+from rose_server.runs.steps.store import create_run_step, update_run_step
+from rose_server.runs.store import update_run
 from rose_server.runs.streaming import (
     stream_message_chunk,
     stream_message_completed,
@@ -33,7 +34,7 @@ from rose_server.runs.streaming import (
 )
 from rose_server.schemas.assistants import AssistantResponse
 from rose_server.schemas.chat import ChatMessage
-from rose_server.schemas.runs import RunResponse, RunStep, RunStepType
+from rose_server.schemas.runs import RunResponse, RunStepResponse
 from rose_server.tools import format_tools_for_prompt, parse_xml_tool_call
 
 logger = logging.getLogger(__name__)
@@ -108,8 +109,7 @@ async def _build_prompt(
 async def _fail_run(  # noqa: D401  (imperative helper)
     *,
     run_id: str,
-    step: Optional[RunStep],
-    runs_store: RunsStore,
+    step: Optional[RunStepResponse],
     code: str,
     message: str,
 ) -> Tuple[str, ...]:
@@ -121,8 +121,8 @@ async def _fail_run(  # noqa: D401  (imperative helper)
     """
     err = {"code": code, "message": message}
     if step:
-        await runs_store.update_run_step(step.id, status="failed", last_error=err)
-    await runs_store.update_run_status(run_id, "failed", last_error=err)
+        await update_run_step(step.id, status="failed", last_error=err)
+    await update_run(run_id, status="failed", last_error=err)
     status_evt = await stream_run_status(run_id, "failed", last_error=err)
     step_evt = await stream_run_step_event("failed", step) if step else ""
     # Empty strings are ignored by the caller
@@ -134,8 +134,7 @@ async def _handle_tool_calls(
     run: RunResponse,
     assistant: AssistantResponse,
     response_text: str,
-    step: RunStep,
-    runs_store: RunsStore,
+    step: RunStepResponse,
 ) -> Optional[Tuple[str, ...]]:
     """
     Detect an XML tool call in *response_text* and update state/streams.
@@ -163,7 +162,7 @@ async def _handle_tool_calls(
     ]
 
     # Close MESSAGE_CREATION step
-    await runs_store.update_run_step(
+    await update_run_step(
         step.id,
         status="completed",
         step_details={"message_creation": {"message_id": "pending_tools"}},
@@ -171,13 +170,23 @@ async def _handle_tool_calls(
     completed_evt = await stream_run_step_event("completed", step)
 
     # New TOOL_CALLS step
-    tool_step = await runs_store.create_run_step(
+    from rose_server.database import (
+        RunStep as RunStepEntity,
+        current_timestamp,
+    )
+
+    tool_step_entity = RunStepEntity(
+        id=f"step_{uuid.uuid4().hex}",
+        created_at=current_timestamp(),
         run_id=run.id,
         assistant_id=assistant.id,
         thread_id=run.thread_id,
-        step_type=RunStepType.TOOL_CALLS,
+        type="tool_calls",
         step_details={"tool_calls": tool_calls},
+        status="in_progress",
     )
+    await create_run_step(tool_step_entity)
+    tool_step = RunStepResponse(**tool_step_entity.model_dump())
     created_evt = await stream_run_step_event("created", tool_step)
 
     # Transition run to requires_action
@@ -185,7 +194,7 @@ async def _handle_tool_calls(
         "type": "submit_tool_outputs",
         "submit_tool_outputs": {"tool_calls": tool_calls},
     }
-    await runs_store.update_run_status(run.id, "requires_action", required_action=required_action)
+    await update_run(run.id, status="requires_action", required_action=required_action)
     status_evt = await stream_run_status(run.id, "requires_action", required_action=required_action)
 
     return completed_evt, created_evt, status_evt
@@ -202,21 +211,30 @@ async def execute_assistant_run_streaming(
     Behaviour is unchanged from the original implementation; the internals are
     merely decomposed for readability and testability.
     """
-    runs_store = RunsStore()
-    step: Optional[RunStep] = None
+    step: Optional[RunStepResponse] = None
 
     # start run
     yield await stream_run_status(run.id, "in_progress")
-    await runs_store.update_run_status(run.id, "in_progress")
+    await update_run(run.id, status="in_progress")
 
     # create MESSAGE_CREATION step
-    step = await runs_store.create_run_step(
+    from rose_server.database import (
+        RunStep as RunStepEntity,
+        current_timestamp,
+    )
+
+    step_entity = RunStepEntity(
+        id=f"step_{uuid.uuid4().hex}",
+        created_at=current_timestamp(),
         run_id=run.id,
         assistant_id=assistant.id,
         thread_id=run.thread_id,
-        step_type=RunStepType.MESSAGE_CREATION,
+        type="message_creation",
         step_details={"message_creation": {"message_id": None}},
+        status="in_progress",
     )
+    await create_run_step(step_entity)
+    step = RunStepResponse(**step_entity.model_dump())
     yield await stream_run_step_event("created", step)
 
     # validate thread
@@ -226,7 +244,6 @@ async def execute_assistant_run_streaming(
         for evt in await _fail_run(
             run_id=run.id,
             step=step,
-            runs_store=runs_store,
             code="no_user_message",
             message="No user message found",
         ):
@@ -243,7 +260,6 @@ async def execute_assistant_run_streaming(
         for evt in await _fail_run(
             run_id=run.id,
             step=step,
-            runs_store=runs_store,
             code="model_not_found",
             message=f"Model '{requested_model}' not found",
         ):
@@ -271,7 +287,6 @@ async def execute_assistant_run_streaming(
         for evt in await _fail_run(
             run_id=run.id,
             step=step,
-            runs_store=runs_store,
             code="model_error",
             message=f"No configuration found for model: {requested_model}",
         ):
@@ -285,7 +300,6 @@ async def execute_assistant_run_streaming(
         for evt in await _fail_run(
             run_id=run.id,
             step=step,
-            runs_store=runs_store,
             code="model_error",
             message=f"Failed to create model: {exc}",
         ):
@@ -327,7 +341,6 @@ async def execute_assistant_run_streaming(
         for evt in await _fail_run(
             run_id=run.id,
             step=step,
-            runs_store=runs_store,
             code="execution_error",
             message=str(exc),
         ):
@@ -340,7 +353,6 @@ async def execute_assistant_run_streaming(
         assistant=assistant,
         response_text=response_text,
         step=step,
-        runs_store=runs_store,
     )
     if tool_events:
         for evt in tool_events:
@@ -363,7 +375,7 @@ async def execute_assistant_run_streaming(
     )
 
     # close step & run
-    await runs_store.update_run_step(
+    await update_run_step(
         step.id,
         status="completed",
         step_details={"message_creation": {"message_id": message.id}},
@@ -371,5 +383,5 @@ async def execute_assistant_run_streaming(
     )
     yield await stream_run_step_event("completed", step)
 
-    await runs_store.update_run_status(run.id, "completed", usage=usage.to_dict())
+    await update_run(run.id, status="completed", usage=usage.to_dict())
     yield await stream_run_status(run.id, "completed", usage=usage.to_dict())
