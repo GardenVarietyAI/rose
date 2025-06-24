@@ -13,8 +13,8 @@ class ThreadMessage(OpenAIMessage):
     pass
 
 
-class Thread(OpenAIThread):
-    """Extends OpenAI's Thread type for our threads."""
+class ThreadResponse(OpenAIThread):
+    """Response model for thread operations."""
 
     metadata: Dict[str, Any] = Field(
         default_factory=dict,
@@ -24,12 +24,6 @@ class Thread(OpenAIThread):
     )
 
 
-class ThreadResponse(Thread):
-    """Response model for thread operations."""
-
-    pass
-
-
 class ThreadCreateRequest(BaseModel):
     """Request to create a new thread."""
 
@@ -37,7 +31,7 @@ class ThreadCreateRequest(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Set of key-value pairs for metadata")
 
 
-class CreateMessageRequest(BaseModel):
+class MessageCreateRequest(BaseModel):
     """Request to create a new message in a thread."""
 
     role: Literal["user", "assistant"] = Field(description="Role of the message sender")

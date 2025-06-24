@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 
 from rose_server.messages.store import create_message, get_message, get_messages
 from rose_server.schemas.threads import (
-    CreateMessageRequest,
+    MessageCreateRequest,
 )
 from rose_server.threads.store import get_thread
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 @router.post("/threads/{thread_id}/messages")
 async def create(
     thread_id: str,
-    request: CreateMessageRequest = Body(...),
+    request: MessageCreateRequest = Body(...),
     enable_embedding: bool = Query(default=True, description="Whether to embed message to vector store"),
 ) -> JSONResponse:
     """Create a message in a thread with optional vector embedding."""
