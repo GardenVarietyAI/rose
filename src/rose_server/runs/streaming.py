@@ -58,24 +58,6 @@ async def stream_run_status(run_id: str, status: str, **kwargs: Dict[str, Any]) 
     return ServerSentEvent(data=json.dumps(event_data), event=f"thread.run.{status}")
 
 
-async def stream_message_completed(
-    message_id: str,
-    full_content: str = "",
-    thread_id: Optional[str] = None,
-    assistant_id: Optional[str] = None,
-    run_id: Optional[str] = None,
-) -> ServerSentEvent:
-    """Create a streaming event for message completion."""
-    msg = MessageData(
-        id=message_id,
-        thread_id=thread_id,
-        assistant_id=assistant_id,
-        run_id=run_id,
-        content=[{"type": "text", "text": {"value": full_content, "annotations": []}}],
-    )
-    return ServerSentEvent(data=json.dumps(msg.to_dict("thread.message.completed")), event="thread.message.completed")
-
-
 async def fail_run(
     run_id: str,
     step: Optional[RunStepResponse],
