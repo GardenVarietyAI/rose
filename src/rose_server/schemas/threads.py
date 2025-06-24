@@ -16,6 +16,17 @@ class ThreadMessage(OpenAIMessage):
 class Thread(OpenAIThread):
     """Extends OpenAI's Thread type for our threads."""
 
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        validation_alias="meta",
+        serialization_alias="metadata",
+        description="Set of key-value pairs for metadata",
+    )
+
+
+class ThreadResponse(Thread):
+    """Response model for thread operations."""
+
     pass
 
 

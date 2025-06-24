@@ -1,17 +1,19 @@
 """API router for threads endpoints."""
 
 import logging
+import uuid
 from typing import Any, Dict
 
-from fastapi import APIRouter, Body, Query
+from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from rose_server.assistants.store import get_assistant
+from rose_server.database import Thread, current_timestamp
 from rose_server.messages.store import create_message
 from rose_server.runs.executor import execute_assistant_run_streaming
 from rose_server.runs.store import RunsStore
 from rose_server.schemas.runs import CreateRunRequest
-from rose_server.schemas.threads import ThreadCreateRequest
+from rose_server.schemas.threads import ThreadCreateRequest, ThreadResponse
 from rose_server.threads.store import (
     create_thread,
     delete_thread,
@@ -30,44 +32,42 @@ async def list_threads(
     order: str = Query(default="desc", description="Sort order (asc or desc)"),
 ) -> JSONResponse:
     """List all threads."""
-    try:
-        threads = await list_threads_store(limit=limit, order=order)
-        thread_data = [thread.model_dump() for thread in threads]
-        return JSONResponse(
-            content={
-                "object": "list",
-                "data": thread_data,
-                "first_id": thread_data[0]["id"] if thread_data else None,
-                "last_id": thread_data[-1]["id"] if thread_data else None,
-                "has_more": False,
-            }
-        )
-    except Exception as e:
-        logger.error(f"Error listing threads: {str(e)}")
-        return JSONResponse(status_code=500, content={"error": f"Error listing threads: {str(e)}"})
+    threads = await list_threads_store(limit=limit, order=order)
+    thread_data = [ThreadResponse(**thread.model_dump()).model_dump() for thread in threads]
+    return JSONResponse(
+        content={
+            "object": "list",
+            "data": thread_data,
+            "first_id": thread_data[0]["id"] if thread_data else None,
+            "last_id": thread_data[-1]["id"] if thread_data else None,
+            "has_more": False,
+        }
+    )
 
 
-@router.post("/threads")
-async def create(request: ThreadCreateRequest = Body(...)) -> JSONResponse:
+@router.post("/threads", response_model=ThreadResponse)
+async def create(request: ThreadCreateRequest = Body(...)):
     """Create a new conversation thread."""
-    try:
-        thread = await create_thread(metadata=request.metadata)
-        if request.messages:
-            for msg_data in request.messages:
-                role = msg_data.get("role", "user")
-                content = msg_data.get("content", "")
-                if isinstance(content, str):
-                    content = [{"type": "text", "text": content}]
-                await create_message(
-                    thread_id=thread.id,
-                    role=role,
-                    content=content,
-                    metadata=msg_data.get("metadata", {}),
-                )
-        return JSONResponse(content=thread.model_dump())
-    except Exception as e:
-        logger.error(f"Error creating thread: {str(e)}")
-        return JSONResponse(status_code=500, content={"error": f"Error creating thread: {str(e)}"})
+    thread = Thread(
+        id=f"thread_{uuid.uuid4().hex}",
+        created_at=current_timestamp(),
+        meta=request.metadata,
+        tool_resources=None,
+    )
+    thread = await create_thread(thread)
+    if request.messages:
+        for msg_data in request.messages:
+            role = msg_data.get("role", "user")
+            content = msg_data.get("content", "")
+            if isinstance(content, str):
+                content = [{"type": "text", "text": content}]
+            await create_message(
+                thread_id=thread.id,
+                role=role,
+                content=content,
+                metadata=msg_data.get("metadata", {}),
+            )
+    return ThreadResponse(**thread.model_dump())
 
 
 @router.post("/threads/runs")
@@ -85,7 +85,13 @@ async def create_thread_and_run(request: Dict[str, Any] = Body(...)) -> JSONResp
         thread_params = request.get("thread", {})
         messages = thread_params.get("messages", [])
         thread_metadata = thread_params.get("metadata", {})
-        thread = await create_thread(metadata=thread_metadata)
+        thread = Thread(
+            id=f"thread_{uuid.uuid4().hex}",
+            created_at=current_timestamp(),
+            meta=thread_metadata,
+            tool_resources=None,
+        )
+        thread = await create_thread(thread)
 
         if messages:
             for msg_data in messages:
@@ -138,41 +144,29 @@ async def create_thread_and_run(request: Dict[str, Any] = Body(...)) -> JSONResp
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
-@router.get("/threads/{thread_id}")
-async def get(thread_id: str) -> JSONResponse:
+@router.get("/threads/{thread_id}", response_model=ThreadResponse)
+async def get(thread_id: str):
     """Retrieve a thread by ID."""
-    try:
-        thread = await get_thread(thread_id)
-        if not thread:
-            return JSONResponse(status_code=404, content={"error": "Thread not found"})
-        return JSONResponse(content=thread.model_dump())
-    except Exception as e:
-        logger.error(f"Error retrieving thread: {str(e)}")
-        return JSONResponse(status_code=500, content={"error": f"Error retrieving thread: {str(e)}"})
+    thread = await get_thread(thread_id)
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    return ThreadResponse(**thread.model_dump())
 
 
-@router.post("/threads/{thread_id}")
-async def update(thread_id: str, request: Dict[str, Any] = Body(...)) -> JSONResponse:
+@router.post("/threads/{thread_id}", response_model=ThreadResponse)
+async def update(thread_id: str, request: Dict[str, Any] = Body(...)):
     """Update a thread's metadata."""
-    try:
-        metadata = request.get("metadata", {})
-        thread = await update_thread(thread_id, metadata)
-        if not thread:
-            return JSONResponse(status_code=404, content={"error": "Thread not found"})
-        return JSONResponse(content=thread.model_dump())
-    except Exception as e:
-        logger.error(f"Error updating thread: {str(e)}")
-        return JSONResponse(status_code=500, content={"error": f"Error updating thread: {str(e)}"})
+    metadata = request.get("metadata", {})
+    thread = await update_thread(thread_id, metadata)
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    return ThreadResponse(**thread.model_dump())
 
 
 @router.delete("/threads/{thread_id}")
-async def delete(thread_id: str) -> JSONResponse:
+async def delete(thread_id: str):
     """Delete a thread."""
-    try:
-        success = await delete_thread(thread_id)
-        if not success:
-            return JSONResponse(status_code=404, content={"error": "Thread not found"})
-        return JSONResponse(content={"id": thread_id, "object": "thread.deleted", "deleted": True})
-    except Exception as e:
-        logger.error(f"Error deleting thread: {str(e)}")
-        return JSONResponse(status_code=500, content={"error": f"Error deleting thread: {str(e)}"})
+    success = await delete_thread(thread_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    return {"id": thread_id, "object": "thread.deleted", "deleted": True}

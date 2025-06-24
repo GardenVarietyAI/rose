@@ -14,7 +14,7 @@ class Thread(SQLModel, table=True):
     id: str = Field(primary_key=True)
     object: str = Field(default="thread")
     created_at: int = Field(default_factory=lambda: int(time.time()))
-    tool_resources: Dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
+    tool_resources: Optional[Dict[str, Any]] = Field(default=None, sa_type=JSON)
     meta: Dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
     __table_args__ = (Index("idx_threads_created", "created_at"),)
 
