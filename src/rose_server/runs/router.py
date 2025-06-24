@@ -5,7 +5,8 @@ import uuid
 from typing import Any, Dict
 
 from fastapi import APIRouter, Body, HTTPException, Query
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
+from sse_starlette.sse import EventSourceResponse
 
 from rose_server.assistants.store import get_assistant
 from rose_server.database import current_timestamp
@@ -59,9 +60,8 @@ async def create(thread_id: str, request: RunCreateRequest = Body(...)) -> JSONR
         run = await create_run(run)
 
         if request.stream:
-            return StreamingResponse(
+            return EventSourceResponse(
                 execute_assistant_run_streaming(run, assistant),
-                media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
             )
         else:

@@ -6,12 +6,13 @@ from pathlib import Path
 from typing import (
     Any,
     AsyncGenerator,
-    AsyncIterator,
     Dict,
     List,
     Optional,
     Tuple,
 )
+
+from sse_starlette import ServerSentEvent
 
 from rose_core.config.service import DATA_DIR
 from rose_server.database import current_timestamp
@@ -105,30 +106,6 @@ async def build_prompt(
     return "\n\n".join(prompt_parts)
 
 
-async def dispatch_run_status(run_id: str, status: str, **kwargs: Any) -> str:
-    await update_run(run_id, status=status, **kwargs)
-    return await stream_run_status(run_id, status, **kwargs)  # type: ignore
-
-
-async def dispatch_run_step_event(event_type: str, step: Optional[RunStepResponse]) -> str:
-    return await stream_run_step_event(event_type, step)  # type: ignore
-
-
-async def dispatch_message_events(
-    message_id: str, thread_id: str, assistant_id: str, run_id: str
-) -> AsyncIterator[str]:
-    yield await stream_message_created(message_id, thread_id, assistant_id, run_id)
-    yield await stream_message_in_progress(message_id, thread_id, assistant_id, run_id)
-
-
-async def dispatch_message_chunk(run_id: str, message_id: str, token: str) -> str:
-    return await stream_message_chunk(run_id, message_id, token)  # type: ignore
-
-
-async def dispatch_message_completed(message_id: str, text: str, thread_id: str, assistant_id: str, run_id: str) -> str:
-    return await stream_message_completed(message_id, text, thread_id, assistant_id, run_id)  # type: ignore
-
-
 async def get_model_for_run(run: RunResponse, assistant: AssistantResponse) -> Any:
     requested_model = run.model or assistant.model
     model = await get_language_model(requested_model)
@@ -183,15 +160,16 @@ async def fail_run(
     step: Optional[RunStepResponse],
     code: str,
     message: str,
-) -> AsyncGenerator[str, None]:
+) -> AsyncGenerator[ServerSentEvent, None]:
     err = {"code": code, "message": message}
     if step:
         await update_run_step(step.id, status="failed", last_error=err)
     await update_run(run_id, status="failed", last_error=err)
     status_evt = await stream_run_status(run_id, "failed", last_error=err)
     step_evt = await stream_run_step_event("failed", step) if step else ""
-    for evt in filter(bool, (step_evt, status_evt)):
-        yield evt
+    if step:
+        yield step_evt
+    yield status_evt
 
 
 async def handle_tool_calls(
@@ -252,15 +230,16 @@ async def handle_tool_calls(
 async def execute_assistant_run_streaming(
     run: RunResponse,
     assistant: AssistantResponse,
-) -> AsyncGenerator[str, None]:
+) -> AsyncGenerator[ServerSentEvent, None]:
     """
     Execute *run* and stream events as a server-sent event (SSE) compatible
     async generator. Modular, testable, readable.
     """
     # Start run
-    yield await dispatch_run_status(run.id, "in_progress")
+    await update_run(run.id, status="in_progress")
+    yield await stream_run_status(run.id, "in_progress")
     step = await create_message_creation_step(run, assistant)
-    yield await dispatch_run_step_event("created", step)
+    yield await stream_run_step_event("created", step)
 
     # Validate thread
     messages = await get_messages(run.thread_id, order="asc")
@@ -283,8 +262,8 @@ async def execute_assistant_run_streaming(
 
     # Stream message creation events
     message_id = f"msg_{uuid.uuid4().hex}"
-    async for event in dispatch_message_events(message_id, run.thread_id, assistant.id, run.id):
-        yield event
+    yield await stream_message_created(message_id, run.thread_id, assistant.id, run.id)
+    yield await stream_message_in_progress(message_id, run.thread_id, assistant.id, run.id)
 
     # Model inference & streaming
     generator = RunsGenerator(llm)
@@ -305,7 +284,7 @@ async def execute_assistant_run_streaming(
             elif isinstance(event, TokenGenerated):
                 response_text += event.token
                 usage.completion_tokens += 1
-                yield await dispatch_message_chunk(run.id, message_id, event.token)
+                yield await stream_message_chunk(run.id, message_id, event.token)
             elif isinstance(event, ResponseCompleted):
                 if event.output_tokens:
                     usage.completion_tokens = event.output_tokens
@@ -328,7 +307,7 @@ async def execute_assistant_run_streaming(
         return
 
     # Normal assistant text reply
-    yield await dispatch_message_completed(
+    yield await stream_message_completed(
         message_id,
         response_text,
         run.thread_id,
@@ -353,7 +332,7 @@ async def execute_assistant_run_streaming(
         {"message_creation": {"message_id": message.id}},
         usage=usage.to_dict(),
     )
-    yield await dispatch_run_step_event("completed", step)
+    yield await stream_run_step_event("completed", step)
 
     await update_run(run.id, status="completed", usage=usage.to_dict())
-    yield await dispatch_run_status(run.id, "completed", usage=usage.to_dict())
+    yield await stream_run_status(run.id, "completed", usage=usage.to_dict())
