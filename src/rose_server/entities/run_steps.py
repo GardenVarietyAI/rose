@@ -1,7 +1,7 @@
 """Run step database entity."""
 
 import time
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Optional
 
 from sqlalchemy import JSON, Index
 from sqlmodel import Field, SQLModel
@@ -19,7 +19,7 @@ class RunStep(SQLModel, table=True):
     thread_id: str
 
     # Step type and details
-    type: Literal["message_creation", "tool_calls"] = Field(description="Type of run step")
+    type: str = Field(description="Type of run step")  # message_creation or tool_calls
     step_details: Dict[str, Any] = Field(sa_type=JSON)
 
     # Status fields
