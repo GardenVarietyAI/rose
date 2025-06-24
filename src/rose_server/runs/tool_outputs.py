@@ -5,10 +5,9 @@ import uuid
 from typing import Any, Dict, List
 
 from rose_server.assistants.store import get_assistant
-from rose_server.database import (
-    RunStep as RunStepEntity,
-    current_timestamp,
-)
+from rose_server.database import current_timestamp
+from rose_server.entities.messages import Message
+from rose_server.entities.run_steps import RunStep
 from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.events.generators import RunsGenerator
 from rose_server.language_models import model_cache
@@ -39,7 +38,7 @@ async def process_tool_outputs(
                 "tool_outputs": tool_outputs,
             },
         )
-    continuation_step_entity = RunStepEntity(
+    continuation_step_entity = RunStep(
         id=f"step_{uuid.uuid4().hex}",
         created_at=current_timestamp(),
         run_id=run.id,
@@ -86,12 +85,17 @@ async def process_tool_outputs(
             }
     except Exception as e:
         logger.error(f"Error generating continuation response: {str(e)}")
-    message = await create_message(
+    message = Message(
+        id=f"msg_{uuid.uuid4().hex}",
+        created_at=current_timestamp(),
         thread_id=run.thread_id,
         role="assistant",
-        content=[{"type": "text", "text": response_text}],
-        metadata={"run_id": run.id, "assistant_id": run.assistant_id},
+        content=[{"type": "text", "text": {"value": response_text, "annotations": []}}],
+        assistant_id=run.assistant_id,
+        run_id=run.id,
+        meta={},
     )
+    message = await create_message(message)
     await update_run_step(
         continuation_step.id,
         status="completed",

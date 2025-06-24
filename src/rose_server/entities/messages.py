@@ -22,12 +22,6 @@ class Message(SQLModel, table=True):
     attachments: List[Dict[str, Any]] = Field(default_factory=list, sa_type=JSON)
     meta: Dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
 
-    # Additional fields
-    status: str = Field(default="completed")
-    incomplete_details: Optional[Dict[str, Any]] = Field(default=None, sa_type=JSON)
-    incomplete_at: Optional[int] = None
-    completed_at: Optional[int] = Field(default_factory=lambda: int(time.time()))
-
     __table_args__ = (
         Index("idx_messages_thread", "thread_id"),
         Index("idx_messages_created", "created_at"),

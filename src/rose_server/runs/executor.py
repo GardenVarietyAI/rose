@@ -1,6 +1,4 @@
-"""Run execution logic - refactored for clarity and mypy compliance."""
-
-from __future__ import annotations
+"""Run execution logic."""
 
 import json
 import logging
@@ -12,15 +10,13 @@ from typing import (
     Dict,
     List,
     Optional,
-    Sequence,
     Tuple,
 )
 
 from rose_core.config.service import DATA_DIR
-from rose_server.database import (
-    RunStep as RunStepEntity,
-    current_timestamp,
-)
+from rose_server.database import current_timestamp
+from rose_server.entities.messages import Message
+from rose_server.entities.run_steps import RunStep
 from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.events.generators import RunsGenerator
 from rose_server.language_models import model_cache
@@ -63,22 +59,27 @@ class ResponseUsage:
         }
 
 
-def find_latest_user_message(messages: Sequence[ChatMessage]) -> Optional[str]:
+def find_latest_user_message(messages: List[Message]) -> Optional[str]:
     """Return the most-recent user text message (or None)."""
     for msg in reversed(messages):
         if msg.role != "user":
             continue
+        # Message content is List[Dict[str, Any]] in OpenAI format
         for item in msg.content:
-            if item.type == "text" and item.text.value:
-                return str(item.text.value)
+            if item["type"] == "text":
+                return item["text"]["value"]
     return None
 
 
-def _build_conversation_context(messages: Sequence[ChatMessage], *, limit: int = 5) -> str:
+def _build_conversation_context(messages: List[Message], *, limit: int = 5) -> str:
     """Join the last *limit* messages into a compact context string."""
     parts: List[str] = []
     for msg in messages[-limit:]:
-        text = "".join(item.text.value for item in msg.content if item.type == "text" and item.text.value)
+        text_parts = []
+        for item in msg.content:
+            if item["type"] == "text":
+                text_parts.append(item["text"]["value"])
+        text = "".join(text_parts)
         if text:
             parts.append(f"{msg.role}: {text}")
     return "\n".join(parts)
@@ -87,7 +88,7 @@ def _build_conversation_context(messages: Sequence[ChatMessage], *, limit: int =
 async def _build_prompt(
     run: RunResponse,
     assistant: AssistantResponse,
-    messages: Sequence[ChatMessage],
+    messages: List[Message],
     latest_user_message: str,
 ) -> str:
     """Compose the final prompt shown to the language model."""
@@ -174,7 +175,7 @@ async def _handle_tool_calls(
     completed_evt = await stream_run_step_event("completed", step)
 
     # New TOOL_CALLS step
-    tool_step_entity = RunStepEntity(
+    tool_step_entity = RunStep(
         id=f"step_{uuid.uuid4().hex}",
         created_at=current_timestamp(),
         run_id=run.id,
@@ -217,7 +218,7 @@ async def execute_assistant_run_streaming(
     await update_run(run.id, status="in_progress")
 
     # create MESSAGE_CREATION step
-    step_entity = RunStepEntity(
+    step_entity = RunStep(
         id=f"step_{uuid.uuid4().hex}",
         created_at=current_timestamp(),
         run_id=run.id,
@@ -361,12 +362,17 @@ async def execute_assistant_run_streaming(
         assistant.id,
         run.id,
     )
-    message = await create_message(
+    message = Message(
+        id=f"msg_{uuid.uuid4().hex}",
+        created_at=current_timestamp(),
         thread_id=run.thread_id,
         role="assistant",
-        content=[{"type": "text", "text": response_text}],
-        metadata={"run_id": run.id, "assistant_id": assistant.id},
+        content=[{"type": "text", "text": {"value": response_text, "annotations": []}}],
+        assistant_id=assistant.id,
+        run_id=run.id,
+        meta={},
     )
+    message = await create_message(message)
 
     # close step & run
     await update_run_step(
