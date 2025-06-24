@@ -1,10 +1,9 @@
 """Streaming utilities for runs execution."""
 
-import asyncio
 import json
 import time
 from dataclasses import dataclass, field
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from sse_starlette import ServerSentEvent
 
@@ -41,6 +40,12 @@ class MessageData:
         }
 
 
+async def stream_run_step_event(event_type: str, step: RunStepResponse) -> ServerSentEvent:
+    """Create a streaming event for run step updates."""
+    event_data = step.dict()
+    return ServerSentEvent(data=json.dumps(event_data), event=f"thread.run.step.{event_type}")
+
+
 async def stream_run_status(run_id: str, status: str, **kwargs: Dict[str, Any]) -> ServerSentEvent:
     """Create a streaming event for run status updates."""
     event_data = {
@@ -49,34 +54,6 @@ async def stream_run_status(run_id: str, status: str, **kwargs: Dict[str, Any]) 
         "delta": {"status": status, **kwargs},
     }
     return ServerSentEvent(data=json.dumps(event_data), event=f"thread.run.{status}")
-
-
-async def stream_message_created(
-    message_id: str, thread_id: str, assistant_id: Optional[str] = None, run_id: Optional[str] = None
-) -> ServerSentEvent:
-    """Create a streaming event for message creation."""
-    msg = MessageData(id=message_id, thread_id=thread_id, assistant_id=assistant_id, run_id=run_id)
-    return ServerSentEvent(data=json.dumps(msg.to_dict()), event="thread.message.created")
-
-
-async def stream_message_in_progress(
-    message_id: str, thread_id: Optional[str] = None, assistant_id: Optional[str] = None, run_id: Optional[str] = None
-) -> ServerSentEvent:
-    """Create a streaming event for message in progress."""
-    msg = MessageData(id=message_id, thread_id=thread_id, assistant_id=assistant_id, run_id=run_id)
-    return ServerSentEvent(
-        data=json.dumps(msg.to_dict("thread.message.in_progress")), event="thread.message.in_progress"
-    )
-
-
-async def stream_message_chunk(run_id: str, message_id: str, text: str, index: int = 0) -> ServerSentEvent:
-    """Create a streaming event for message content delta."""
-    event_data = {
-        "id": message_id,
-        "object": "thread.message.delta",
-        "delta": {"content": [{"index": index, "type": "text", "text": {"value": text}}]},
-    }
-    return ServerSentEvent(data=json.dumps(event_data), event="thread.message.delta")
 
 
 async def stream_message_completed(
@@ -95,20 +72,3 @@ async def stream_message_completed(
         content=[{"type": "text", "text": {"value": full_content, "annotations": []}}],
     )
     return ServerSentEvent(data=json.dumps(msg.to_dict("thread.message.completed")), event="thread.message.completed")
-
-
-async def stream_run_step_event(event_type: str, step: RunStepResponse) -> ServerSentEvent:
-    """Create a streaming event for run step updates."""
-    event_data = step.dict()
-    return ServerSentEvent(data=json.dumps(event_data), event=f"thread.run.step.{event_type}")
-
-
-async def stream_agent_response(
-    run_id: str, message_id: str, response_text: str
-) -> AsyncGenerator[ServerSentEvent, None]:
-    """Stream agent response word by word."""
-    words = response_text.split()
-    for i, word in enumerate(words):
-        delta_text = word + (" " if i < len(words) - 1 else "")
-        yield await stream_message_chunk(run_id, message_id, delta_text)
-        await asyncio.sleep(0.05)
