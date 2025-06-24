@@ -13,7 +13,7 @@ from rose_server.entities.runs import Run
 from rose_server.messages.store import create_message
 from rose_server.runs.executor import execute_assistant_run_streaming
 from rose_server.runs.store import create_run, get_run
-from rose_server.schemas.runs import RunCreateRequest
+from rose_server.schemas.runs import RunCreateRequest, RunResponse
 from rose_server.schemas.threads import ThreadCreateRequest, ThreadResponse
 from rose_server.threads.store import (
     create_thread,
@@ -193,8 +193,6 @@ async def create_thread_and_run(request: Dict[str, Any] = Body(...)) -> JSONResp
             async for event in execute_assistant_run_streaming(run, assistant):
                 events.append(event)
             updated_run = await get_run(run.id)
-            from rose_server.schemas.runs import RunResponse
-
             return JSONResponse(content=RunResponse(**updated_run.model_dump()).model_dump())
     except Exception as e:
         logger.error(f"Error in create_thread_and_run: {str(e)}")
