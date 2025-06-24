@@ -11,13 +11,7 @@ from rose_server.assistants.store import get_assistant
 from rose_server.database import Run, current_timestamp
 from rose_server.language_models.deps import ModelRegistryDep
 from rose_server.runs.executor import execute_assistant_run_streaming
-from rose_server.runs.store import (
-    cancel_run as cancel_run_store,
-    create_run as create_run_store,
-    get_run as get_run_store,
-    list_runs as list_runs_store,
-    update_run,
-)
+from rose_server.runs.store import cancel_run, create_run, get_run, list_runs, update_run
 from rose_server.runs.tool_outputs import process_tool_outputs
 from rose_server.schemas.runs import CreateRunRequest, RunResponse
 from rose_server.threads.store import get_thread
@@ -55,7 +49,7 @@ async def create(thread_id: str, request: CreateRunRequest = Body(...)) -> JSONR
             parallel_tool_calls=request.parallel_tool_calls if request.parallel_tool_calls is not None else True,
             response_format=request.response_format,
         )
-        run = await create_run_store(run)
+        run = await create_run(run)
         if not run.model or run.model == "zephyr":
             run.model = assistant.model
         if not run.instructions:
@@ -76,7 +70,7 @@ async def create(thread_id: str, request: CreateRunRequest = Body(...)) -> JSONR
             events = []
             async for event in execute_assistant_run_streaming(run, assistant):
                 events.append(event)
-            final_run = await get_run_store(run.id)
+            final_run = await get_run(run.id)
             return JSONResponse(content=RunResponse(**final_run.model_dump()).model_dump())
     except Exception as e:
         logger.error(f"Error creating run: {str(e)}")
@@ -93,7 +87,7 @@ async def index(
     try:
         if not await get_thread(thread_id):
             return JSONResponse(status_code=404, content={"error": "Thread not found"})
-        runs = await list_runs_store(thread_id, limit=limit, order=order)
+        runs = await list_runs(thread_id, limit=limit, order=order)
         run_data = [RunResponse(**run.model_dump()).model_dump() for run in runs]
         return JSONResponse(
             content={
@@ -113,7 +107,7 @@ async def index(
 async def get(thread_id: str, run_id: str) -> JSONResponse:
     """Retrieve a run."""
     try:
-        run = await get_run_store(run_id)
+        run = await get_run(run_id)
         if not run or run.thread_id != thread_id:
             return JSONResponse(status_code=404, content={"error": "Run not found"})
         return JSONResponse(content=RunResponse(**run.model_dump()).model_dump())
@@ -126,7 +120,7 @@ async def get(thread_id: str, run_id: str) -> JSONResponse:
 async def cancel(thread_id: str, run_id: str) -> JSONResponse:
     """Cancel a run."""
     try:
-        run = await cancel_run_store(run_id)
+        run = await cancel_run(run_id)
         if not run or run.thread_id != thread_id:
             return JSONResponse(status_code=404, content={"error": "Run not found"})
         return JSONResponse(content=RunResponse(**run.model_dump()).model_dump())
@@ -144,7 +138,7 @@ async def submit_tool_outputs(
         tool_outputs = request.get("tool_outputs", [])
         if not tool_outputs:
             return JSONResponse(status_code=400, content={"error": "tool_outputs required"})
-        run = await get_run_store(run_id)
+        run = await get_run(run_id)
         if not run:
             return JSONResponse(status_code=404, content={"error": "Run not found"})
         if run.status != "requires_action":

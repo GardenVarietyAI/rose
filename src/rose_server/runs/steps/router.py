@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/threads/{thread_id}/runs/{run_id}/steps")
-async def list_steps(
+async def index(
     thread_id: str,
     run_id: str,
     limit: int = Query(default=20, description="Number of steps to retrieve"),
@@ -38,7 +38,7 @@ async def list_steps(
 
 
 @router.get("/threads/{thread_id}/runs/{run_id}/steps/{step_id}")
-async def get_step(thread_id: str, run_id: str, step_id: str) -> JSONResponse:
+async def get(thread_id: str, run_id: str, step_id: str) -> JSONResponse:
     """Retrieve a specific run step."""
     try:
         step = await get_run_step(run_id, step_id)
