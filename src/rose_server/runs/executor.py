@@ -24,16 +24,14 @@ from rose_server.events.generators import RunsGenerator
 from rose_server.language_models import model_cache
 from rose_server.language_models.store import get as get_language_model
 from rose_server.messages.store import create_message, get_messages
+from rose_server.runs.prompt_builder import build_prompt, find_latest_user_message
 from rose_server.runs.steps.store import create_run_step, update_run_step
 from rose_server.runs.store import update_run
-from rose_server.runs.streaming import (
-    stream_run_status,
-    stream_run_step_event,
-)
+from rose_server.runs.streaming import fail_run, stream_run_status, stream_run_step_event
 from rose_server.schemas.assistants import AssistantResponse
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.runs import RunResponse, RunStepResponse
-from rose_server.tools import format_tools_for_prompt, parse_xml_tool_call
+from rose_server.tools import parse_xml_tool_call
 
 logger = logging.getLogger(__name__)
 
@@ -53,55 +51,6 @@ class ResponseUsage:
             "completion_tokens": self.completion_tokens,
             "total_tokens": self.total_tokens,
         }
-
-
-def find_latest_user_message(messages: List[Message]) -> Optional[str]:
-    for msg in reversed(messages):
-        if msg.role != "user":
-            continue
-        for item in msg.content:
-            if item["type"] == "text":
-                return str(item["text"]["value"])
-    return None
-
-
-def build_conversation_context(messages: List[Message], *, limit: int = 5) -> str:
-    parts: List[str] = []
-    for msg in messages[-limit:]:
-        text_parts = []
-        for item in msg.content:
-            if item["type"] == "text":
-                text_parts.append(item["text"]["value"])
-        text = "".join(text_parts)
-        if text:
-            parts.append(f"{msg.role}: {text}")
-    return "\n".join(parts)
-
-
-async def build_prompt(
-    *,
-    instructions: Optional[str],
-    messages: List[Message],
-    latest_user_message: str,
-    tools: Optional[List] = None,
-    assistant_id: Optional[str] = None,
-) -> str:
-    prompt_parts: List[str] = []
-
-    if instructions:
-        prompt_parts.append(f"Instructions: {instructions}")
-
-    context = build_conversation_context(messages)
-    if context:
-        prompt_parts.append(f"Recent conversation:\n{context}")
-
-    if tools:
-        tool_prompt = format_tools_for_prompt(tools, assistant_id=assistant_id)
-        if tool_prompt:
-            prompt_parts.append(tool_prompt)
-
-    prompt_parts.append(f"\nUser: {latest_user_message}")
-    return "\n\n".join(prompt_parts)
 
 
 async def get_model_for_run(model_name: str) -> Any:
@@ -153,23 +102,6 @@ async def close_and_update_step(
         step_details=details,
         usage=usage,
     )
-
-
-async def fail_run(
-    run_id: str,
-    step: Optional[RunStepResponse],
-    code: str,
-    message: str,
-) -> AsyncGenerator[ServerSentEvent, None]:
-    err = {"code": code, "message": message}
-    if step:
-        await update_run_step(step.id, status="failed", last_error=err)
-    await update_run(run_id, status="failed", last_error=err)
-    status_evt = await stream_run_status(run_id, "failed", last_error=err)
-    step_evt = await stream_run_step_event("failed", step) if step else ""
-    if step:
-        yield step_evt
-    yield status_evt
 
 
 async def handle_tool_calls(

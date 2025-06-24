@@ -3,10 +3,12 @@
 import json
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from sse_starlette import ServerSentEvent
 
+from rose_server.runs.steps.store import update_run_step
+from rose_server.runs.store import update_run
 from rose_server.schemas.runs import RunStepResponse
 
 
@@ -72,3 +74,20 @@ async def stream_message_completed(
         content=[{"type": "text", "text": {"value": full_content, "annotations": []}}],
     )
     return ServerSentEvent(data=json.dumps(msg.to_dict("thread.message.completed")), event="thread.message.completed")
+
+
+async def fail_run(
+    run_id: str,
+    step: Optional[RunStepResponse],
+    code: str,
+    message: str,
+) -> AsyncGenerator[ServerSentEvent, None]:
+    err = {"code": code, "message": message}
+    if step:
+        await update_run_step(step.id, status="failed", last_error=err)
+    await update_run(run_id, status="failed", last_error=err)
+    status_evt = await stream_run_status(run_id, "failed", last_error=err)
+    step_evt = await stream_run_step_event("failed", step) if step else ""
+    if step:
+        yield step_evt
+    yield status_evt
