@@ -1,6 +1,7 @@
 """API router for assistants endpoints."""
 
 import logging
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -13,6 +14,8 @@ from rose_server.assistants.store import (
     list_assistants,
     update_assistant,
 )
+from rose_server.database import current_timestamp
+from rose_server.entities.assistants import Assistant
 from rose_server.schemas.assistants import AssistantCreateRequest, AssistantResponse, AssistantUpdateRequest
 
 router = APIRouter(prefix="/v1")
@@ -22,7 +25,24 @@ logger = logging.getLogger(__name__)
 @router.post("/assistants", response_model=AssistantResponse)
 async def create(request: AssistantCreateRequest):
     """Create a new assistant."""
-    assistant = await create_assistant(request)
+    # Convert tools to dicts for JSON storage
+    tools = [tool.model_dump() for tool in request.tools] if request.tools else []
+
+    assistant = Assistant(
+        id=f"asst_{uuid.uuid4().hex}",
+        created_at=current_timestamp(),
+        name=request.name,
+        description=request.description,
+        model=request.model,
+        instructions=request.instructions,
+        tools=tools,
+        tool_resources=request.tool_resources or {},
+        meta=request.metadata or {},
+        temperature=request.temperature or 0.7,
+        top_p=request.top_p or 1.0,
+        response_format=request.response_format,
+    )
+    assistant = await create_assistant(assistant)
     return AssistantResponse(**assistant.model_dump())
 
 
@@ -63,7 +83,14 @@ async def get(assistant_id: str) -> AssistantResponse:
 @router.post("/assistants/{assistant_id}", response_model=AssistantResponse)
 async def update(assistant_id: str, request: AssistantUpdateRequest) -> AssistantResponse:
     """Update an assistant."""
-    assistant = await update_assistant(assistant_id, request)
+    # Build updates dict
+    updates = request.model_dump(exclude_unset=True)
+    if "metadata" in updates:
+        updates["meta"] = updates.pop("metadata")
+    if "tools" in updates:
+        updates["tools"] = [tool.model_dump() for tool in updates["tools"]]
+
+    assistant = await update_assistant(assistant_id, updates)
     if not assistant:
         raise HTTPException(status_code=404, detail="Assistant not found")
     return AssistantResponse(**assistant.model_dump())

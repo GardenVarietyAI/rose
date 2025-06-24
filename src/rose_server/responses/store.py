@@ -3,7 +3,7 @@ import uuid
 from typing import Optional
 
 from rose_server.database import get_session
-from rose_server.entities.threads import Message
+from rose_server.entities.messages import Message
 from rose_server.schemas.chat import ChatMessage
 
 

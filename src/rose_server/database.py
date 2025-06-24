@@ -17,7 +17,8 @@ from .entities.files import UploadedFile
 from .entities.fine_tuning import FineTuningEvent, FineTuningJob
 from .entities.jobs import Job
 from .entities.language_models import LanguageModel
-from .entities.threads import Message, MessageMetadata, Thread
+from .entities.messages import Message
+from .entities.threads import MessageMetadata, Thread
 
 DB_PATH = Path(DATA_DIR) / "rose_server.db"
 engine = create_async_engine(

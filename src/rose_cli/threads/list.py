@@ -14,7 +14,7 @@ def list_threads(
     """List threads."""
     try:
         with httpx.Client() as client:
-            response = client.get(f"{BASE_URL}/v1/threads", params={"limit": limit})
+            response = client.get(f"{BASE_URL}/threads", params={"limit": limit})
             response.raise_for_status()
             data = response.json()
 
@@ -37,7 +37,7 @@ def list_threads(
 
             table.add_row(
                 thread["id"],
-                thread["created_at"],
+                str(thread["created_at"]),
                 str(thread.get("message_count", 0)),
                 metadata_str or "-",
             )
