@@ -3,11 +3,42 @@
 import asyncio
 import json
 import time
-from typing import AsyncGenerator
+from dataclasses import dataclass, field
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from sse_starlette import ServerSentEvent
 
 from rose_server.schemas.runs import RunStepResponse
+
+
+@dataclass
+class MessageData:
+    """Common structure for message events."""
+
+    id: str
+    thread_id: str
+    role: str = "assistant"
+    assistant_id: Optional[str] = None
+    run_id: Optional[str] = None
+    content: List[Dict[str, Any]] = field(
+        default_factory=lambda: [{"type": "text", "text": {"value": "", "annotations": []}}]
+    )
+    file_ids: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self, object_type: str = "thread.message") -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "object": object_type,
+            "created_at": int(time.time()),
+            "thread_id": self.thread_id,
+            "role": self.role,
+            "content": self.content,
+            "assistant_id": self.assistant_id,
+            "run_id": self.run_id,
+            "file_ids": self.file_ids,
+            "metadata": self.metadata,
+        }
 
 
 async def stream_run_status(run_id: str, status: str, **kwargs) -> ServerSentEvent:
@@ -24,38 +55,18 @@ async def stream_message_created(
     message_id: str, thread_id: str, assistant_id: str = None, run_id: str = None
 ) -> ServerSentEvent:
     """Create a streaming event for message creation."""
-    event_data = {
-        "id": message_id,
-        "object": "thread.message",
-        "created_at": int(time.time()),
-        "thread_id": thread_id,
-        "role": "assistant",
-        "content": [{"type": "text", "text": {"value": "", "annotations": []}}],
-        "assistant_id": assistant_id,
-        "run_id": run_id,
-        "file_ids": [],
-        "metadata": {},
-    }
-    return ServerSentEvent(data=json.dumps(event_data), event="thread.message.created")
+    msg = MessageData(id=message_id, thread_id=thread_id, assistant_id=assistant_id, run_id=run_id)
+    return ServerSentEvent(data=json.dumps(msg.to_dict()), event="thread.message.created")
 
 
 async def stream_message_in_progress(
     message_id: str, thread_id: str = None, assistant_id: str = None, run_id: str = None
 ) -> ServerSentEvent:
     """Create a streaming event for message in progress."""
-    event_data = {
-        "id": message_id,
-        "object": "thread.message.in_progress",
-        "created_at": int(time.time()),
-        "thread_id": thread_id,
-        "role": "assistant",
-        "content": [{"type": "text", "text": {"value": "", "annotations": []}}],
-        "assistant_id": assistant_id,
-        "run_id": run_id,
-        "file_ids": [],
-        "metadata": {},
-    }
-    return ServerSentEvent(data=json.dumps(event_data), event="thread.message.in_progress")
+    msg = MessageData(id=message_id, thread_id=thread_id, assistant_id=assistant_id, run_id=run_id)
+    return ServerSentEvent(
+        data=json.dumps(msg.to_dict("thread.message.in_progress")), event="thread.message.in_progress"
+    )
 
 
 async def stream_message_chunk(run_id: str, message_id: str, text: str, index: int = 0) -> ServerSentEvent:
@@ -76,19 +87,14 @@ async def stream_message_completed(
     run_id: str = None,
 ) -> ServerSentEvent:
     """Create a streaming event for message completion."""
-    event_data = {
-        "id": message_id,
-        "object": "thread.message.completed",
-        "created_at": int(time.time()),
-        "thread_id": thread_id,
-        "role": "assistant",
-        "content": [{"type": "text", "text": {"value": full_content, "annotations": []}}],
-        "assistant_id": assistant_id,
-        "run_id": run_id,
-        "file_ids": [],
-        "metadata": {},
-    }
-    return ServerSentEvent(data=json.dumps(event_data), event="thread.message.completed")
+    msg = MessageData(
+        id=message_id,
+        thread_id=thread_id,
+        assistant_id=assistant_id,
+        run_id=run_id,
+        content=[{"type": "text", "text": {"value": full_content, "annotations": []}}],
+    )
+    return ServerSentEvent(data=json.dumps(msg.to_dict("thread.message.completed")), event="thread.message.completed")
 
 
 async def stream_run_step_event(event_type: str, step: RunStepResponse) -> ServerSentEvent:
