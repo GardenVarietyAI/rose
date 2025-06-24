@@ -79,14 +79,15 @@ def build_conversation_context(messages: List[Message], *, limit: int = 5) -> st
 
 
 async def build_prompt(
-    run: RunResponse,
-    assistant: AssistantResponse,
+    *,
+    instructions: Optional[str],
     messages: List[Message],
     latest_user_message: str,
+    tools: Optional[List] = None,
+    assistant_id: Optional[str] = None,
 ) -> str:
     prompt_parts: List[str] = []
 
-    instructions = run.instructions or assistant.instructions
     if instructions:
         prompt_parts.append(f"Instructions: {instructions}")
 
@@ -94,8 +95,8 @@ async def build_prompt(
     if context:
         prompt_parts.append(f"Recent conversation:\n{context}")
 
-    if assistant.tools:
-        tool_prompt = format_tools_for_prompt(assistant.tools, assistant_id=assistant.id)
+    if tools:
+        tool_prompt = format_tools_for_prompt(tools, assistant_id=assistant_id)
         if tool_prompt:
             prompt_parts.append(tool_prompt)
 
@@ -103,8 +104,8 @@ async def build_prompt(
     return "\n\n".join(prompt_parts)
 
 
-async def get_model_for_run(run: RunResponse, assistant: AssistantResponse) -> Any:
-    requested_model = run.model or assistant.model
+async def get_model_for_run(model_name: str) -> Any:
+    requested_model = model_name
     model = await get_language_model(requested_model)
     if not model:
         raise ValueError(f"Model '{requested_model}' not found")
@@ -126,13 +127,18 @@ async def get_model_for_run(run: RunResponse, assistant: AssistantResponse) -> A
     return await model_cache.get_model(requested_model, config)
 
 
-async def create_message_creation_step(run: RunResponse, assistant: AssistantResponse) -> RunStepResponse:
+async def create_message_creation_step(
+    *,
+    run_id: str,
+    assistant_id: str,
+    thread_id: str,
+) -> RunStepResponse:
     step_entity = RunStep(
         id=f"step_{uuid.uuid4().hex}",
         created_at=current_timestamp(),
-        run_id=run.id,
-        assistant_id=assistant.id,
-        thread_id=run.thread_id,
+        run_id=run_id,
+        assistant_id=assistant_id,
+        thread_id=thread_id,
         type="message_creation",
         step_details={"message_creation": {"message_id": None}},
         status="in_progress",
@@ -170,12 +176,15 @@ async def fail_run(
 
 
 async def handle_tool_calls(
-    run: RunResponse,
-    assistant: AssistantResponse,
+    *,
+    run_id: str,
+    assistant_id: str,
+    thread_id: str,
     response_text: str,
     step: RunStepResponse,
-) -> Optional[Tuple[str, ...]]:
-    if not assistant.tools:
+    tools: Optional[List] = None,
+) -> Optional[Tuple[ServerSentEvent, ...]]:
+    if not tools:
         return None
     parsed_call, _ = parse_xml_tool_call(response_text)
     if not parsed_call:
@@ -203,9 +212,9 @@ async def handle_tool_calls(
     tool_step_entity = RunStep(
         id=f"step_{uuid.uuid4().hex}",
         created_at=current_timestamp(),
-        run_id=run.id,
-        assistant_id=assistant.id,
-        thread_id=run.thread_id,
+        run_id=run_id,
+        assistant_id=assistant_id,
+        thread_id=thread_id,
         type="tool_calls",
         step_details={"tool_calls": tool_calls},
         status="in_progress",
@@ -218,8 +227,8 @@ async def handle_tool_calls(
         "type": "submit_tool_outputs",
         "submit_tool_outputs": {"tool_calls": tool_calls},
     }
-    await update_run(run.id, status="requires_action", required_action=required_action)
-    status_evt = await stream_run_status(run.id, "requires_action", required_action=required_action)
+    await update_run(run_id, status="requires_action", required_action=required_action)
+    status_evt = await stream_run_status(run_id, "requires_action", required_action=required_action)
 
     return completed_evt, created_evt, status_evt
 
@@ -235,7 +244,11 @@ async def execute_assistant_run_streaming(
     # Start run
     await update_run(run.id, status="in_progress")
     yield await stream_run_status(run.id, "in_progress")
-    step = await create_message_creation_step(run, assistant)
+    step = await create_message_creation_step(
+        run_id=run.id,
+        assistant_id=assistant.id,
+        thread_id=run.thread_id,
+    )
     yield await stream_run_step_event("created", step)
 
     # Validate thread
@@ -247,11 +260,17 @@ async def execute_assistant_run_streaming(
         return
 
     # Build prompt
-    full_prompt = await build_prompt(run, assistant, messages, latest_user_msg)
+    full_prompt = await build_prompt(
+        instructions=run.instructions or assistant.instructions,
+        messages=messages,
+        latest_user_message=latest_user_msg,
+        tools=assistant.tools,
+        assistant_id=assistant.id,
+    )
 
     # Get model
     try:
-        llm = await get_model_for_run(run, assistant)
+        llm = await get_model_for_run(run.model or assistant.model)
     except Exception as exc:
         async for evt in fail_run(run.id, step, "model_error", str(exc)):
             yield evt
@@ -297,10 +316,12 @@ async def execute_assistant_run_streaming(
 
     # Tool call detection/handling
     tool_events = await handle_tool_calls(
-        run=run,
-        assistant=assistant,
+        run_id=run.id,
+        assistant_id=assistant.id,
+        thread_id=run.thread_id,
         response_text=response_text,
         step=step,
+        tools=assistant.tools,
     )
     if tool_events:
         for evt in tool_events:
