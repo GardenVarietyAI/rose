@@ -232,8 +232,8 @@ async def execute_assistant_run_streaming(
     assistant: AssistantResponse,
 ) -> AsyncGenerator[ServerSentEvent, None]:
     """
-    Execute *run* and stream events as a server-sent event (SSE) compatible
-    async generator. Modular, testable, readable.
+    Execute run events as a server-sent event (SSE) compatible
+    async generator.
     """
     # Start run
     await update_run(run.id, status="in_progress")
