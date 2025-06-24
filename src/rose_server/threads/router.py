@@ -8,7 +8,7 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from rose_server.assistants.store import get_assistant
-from rose_server.database import Thread, current_timestamp
+from rose_server.database import Message, Thread, current_timestamp
 from rose_server.messages.store import create_message
 from rose_server.runs.executor import execute_assistant_run_streaming
 from rose_server.runs.store import RunsStore
@@ -46,7 +46,7 @@ async def list_threads(
 
 
 @router.post("/threads", response_model=ThreadResponse)
-async def create(request: ThreadCreateRequest = Body(...)):
+async def create(request: ThreadCreateRequest = Body(...)) -> ThreadResponse:
     """Create a new conversation thread."""
     thread = Thread(
         id=f"thread_{uuid.uuid4().hex}",
@@ -54,19 +54,40 @@ async def create(request: ThreadCreateRequest = Body(...)):
         meta=request.metadata,
         tool_resources=None,
     )
+
     thread = await create_thread(thread)
+
     if request.messages:
         for msg_data in request.messages:
             role = msg_data.get("role", "user")
             content = msg_data.get("content", "")
+
+            # Format content to match OpenAI structure
             if isinstance(content, str):
-                content = [{"type": "text", "text": content}]
-            await create_message(
+                formatted_content = [
+                    {
+                        "type": "text",
+                        "text": {
+                            "value": content,
+                            "annotations": [],
+                        },
+                    }
+                ]
+            else:
+                formatted_content = content
+
+            # Create message entity
+            message = Message(
+                id=f"msg_{uuid.uuid4().hex}",
                 thread_id=thread.id,
                 role=role,
-                content=content,
-                metadata=msg_data.get("metadata", {}),
+                content=formatted_content,
+                created_at=current_timestamp(),
+                meta=msg_data.get("metadata", {}),
+                completed_at=current_timestamp(),
             )
+            await create_message(message)
+
     return ThreadResponse(**thread.model_dump())
 
 
@@ -97,14 +118,32 @@ async def create_thread_and_run(request: Dict[str, Any] = Body(...)) -> JSONResp
             for msg_data in messages:
                 role = msg_data.get("role", "user")
                 content = msg_data.get("content", "")
+
+                # Format content to match OpenAI structure
                 if isinstance(content, str):
-                    content = [{"type": "text", "text": content}]
-                await create_message(
+                    formatted_content = [
+                        {
+                            "type": "text",
+                            "text": {
+                                "value": content,
+                                "annotations": [],
+                            },
+                        }
+                    ]
+                else:
+                    formatted_content = content
+
+                # Create message entity
+                message = Message(
+                    id=f"msg_{uuid.uuid4().hex}",
                     thread_id=thread.id,
                     role=role,
-                    content=content,
-                    metadata=msg_data.get("metadata", {}),
+                    content=formatted_content,
+                    created_at=current_timestamp(),
+                    meta=msg_data.get("metadata", {}),
+                    completed_at=current_timestamp(),
                 )
+                await create_message(message)
 
         run_request = CreateRunRequest(
             assistant_id=assistant_id,
@@ -145,7 +184,7 @@ async def create_thread_and_run(request: Dict[str, Any] = Body(...)) -> JSONResp
 
 
 @router.get("/threads/{thread_id}", response_model=ThreadResponse)
-async def get(thread_id: str):
+async def get(thread_id: str) -> ThreadResponse:
     """Retrieve a thread by ID."""
     thread = await get_thread(thread_id)
     if not thread:
@@ -154,7 +193,7 @@ async def get(thread_id: str):
 
 
 @router.post("/threads/{thread_id}", response_model=ThreadResponse)
-async def update(thread_id: str, request: Dict[str, Any] = Body(...)):
+async def update(thread_id: str, request: Dict[str, Any] = Body(...)) -> ThreadResponse:
     """Update a thread's metadata."""
     metadata = request.get("metadata", {})
     thread = await update_thread(thread_id, metadata)
@@ -164,9 +203,13 @@ async def update(thread_id: str, request: Dict[str, Any] = Body(...)):
 
 
 @router.delete("/threads/{thread_id}")
-async def delete(thread_id: str):
+async def delete(thread_id: str) -> Dict[str, Any]:
     """Delete a thread."""
     success = await delete_thread(thread_id)
     if not success:
         raise HTTPException(status_code=404, detail="Thread not found")
-    return {"id": thread_id, "object": "thread.deleted", "deleted": True}
+    return {
+        "id": thread_id,
+        "object": "thread.deleted",
+        "deleted": True,
+    }

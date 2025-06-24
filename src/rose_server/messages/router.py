@@ -1,16 +1,15 @@
 """API router for threads endpoints."""
 
 import logging
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Body, Query
 from fastapi.responses import JSONResponse
 
+from rose_server.database import Message, current_timestamp
 from rose_server.messages.store import create_message, get_message, get_messages
-from rose_server.schemas.threads import (
-    MessageCreateRequest,
-)
-from rose_server.threads.store import get_thread
+from rose_server.schemas.messages import MessageCreateRequest, MessageResponse
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
@@ -24,18 +23,38 @@ async def create(
 ) -> JSONResponse:
     """Create a message in a thread with optional vector embedding."""
     try:
-        if not await get_thread(thread_id):
-            return JSONResponse(status_code=404, content={"error": "Thread not found"})
-        content = request.content
-        if isinstance(content, str):
-            content = [{"type": "text", "text": content}]
-        message = await create_message(
+        # Format content to match OpenAI structure exactly
+        if isinstance(request.content, str):
+            content = [
+                {
+                    "type": "text",
+                    "text": {
+                        "value": request.content,
+                        "annotations": [],
+                    },
+                }
+            ]
+        else:
+            # Already formatted as list
+            content = request.content
+
+        # Create message entity
+        message = Message(
+            id=f"msg_{uuid.uuid4().hex}",
             thread_id=thread_id,
             role=request.role,
             content=content,
-            metadata=request.metadata,
+            created_at=current_timestamp(),
+            meta=request.metadata,
+            completed_at=current_timestamp(),
         )
-        return JSONResponse(content=message.model_dump())
+
+        message = await create_message(message)
+        if not message:
+            return JSONResponse(status_code=500, content={"error": "Failed to create message"})
+
+        # Content is already in correct format for new messages
+        return JSONResponse(content=MessageResponse(**message.model_dump()).model_dump())
     except Exception as e:
         logger.error(f"Error creating message: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Error creating message: {str(e)}"})
@@ -51,10 +70,8 @@ async def list_messages(
 ) -> JSONResponse:
     """List messages in a thread."""
     try:
-        if not await get_thread(thread_id):
-            return JSONResponse(status_code=404, content={"error": "Thread not found"})
         messages = await get_messages(thread_id, limit=limit, order=order)
-        message_data = [msg.model_dump() for msg in messages]
+        message_data = [MessageResponse(**msg.model_dump()).model_dump() for msg in messages]
         return JSONResponse(
             content={
                 "object": "list",
@@ -73,12 +90,10 @@ async def list_messages(
 async def get_message_for_thread(thread_id: str, message_id: str) -> JSONResponse:
     """Retrieve a specific message from a thread."""
     try:
-        if not await get_thread(thread_id):
-            return JSONResponse(status_code=404, content={"error": "Thread not found"})
         message = await get_message(thread_id, message_id)
         if not message:
             return JSONResponse(status_code=404, content={"error": "Message not found"})
-        return JSONResponse(content=message.model_dump())
+        return JSONResponse(content=MessageResponse(**message.model_dump()).model_dump())
     except Exception as e:
         logger.error(f"Error retrieving message: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Error retrieving message: {str(e)}"})

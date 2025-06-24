@@ -14,8 +14,8 @@ from .fine_tuning import (
     FineTuningJob,
 )
 from .language_models import LanguageModel
+from .messages import Message
 from .threads import (
-    Message,
     MessageMetadata,
     Thread,
 )
