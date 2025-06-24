@@ -16,11 +16,17 @@ class Message(SQLModel, table=True):
     created_at: int = Field(default_factory=lambda: int(time.time()))
     thread_id: str = Field(foreign_key="threads.id")
     role: str
-    content: List[Dict[str, Any]] = Field(sa_type=JSON)  # Stores the full content structure
+    content: List[Dict[str, Any]] = Field(sa_type=JSON)
     assistant_id: Optional[str] = None
     run_id: Optional[str] = None
     attachments: List[Dict[str, Any]] = Field(default_factory=list, sa_type=JSON)
     meta: Dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
+
+    # OpenAI compatibility fields
+    status: str = Field(default="completed")
+    incomplete_details: Optional[Dict[str, Any]] = Field(default=None, sa_type=JSON)
+    incomplete_at: Optional[int] = None
+    completed_at: Optional[int] = Field(default_factory=lambda: int(time.time()))
 
     __table_args__ = (
         Index("idx_messages_thread", "thread_id"),
