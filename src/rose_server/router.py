@@ -15,6 +15,7 @@ from rose_server.messages.router import router as messages_router
 from rose_server.queues.router import router as jobs_router
 from rose_server.responses.router import router as responses_router
 from rose_server.runs.router import router as runs_router
+from rose_server.runs.steps.router import router as run_steps_router
 from rose_server.threads.router import router as threads_router
 from rose_server.vector_stores.router import router as vector_stores_router
 from rose_server.webhooks.router import router as webhooks_router
@@ -26,6 +27,7 @@ router.include_router(assistants_router)
 router.include_router(messages_router)
 router.include_router(threads_router)
 router.include_router(runs_router)
+router.include_router(run_steps_router)
 router.include_router(embeddings_router)
 router.include_router(llms_router)
 router.include_router(responses_router)

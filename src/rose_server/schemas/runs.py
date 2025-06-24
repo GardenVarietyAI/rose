@@ -62,7 +62,12 @@ class RunResponse(BaseModel):
     model: str = Field(description="Model used for the run")
     instructions: Optional[str] = Field(default=None, description="Instructions used for the run")
     tools: List[AssistantTool] = Field(default_factory=list, description="Tools used for the run")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Set of key-value pairs for metadata")
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        validation_alias="meta",
+        serialization_alias="metadata",
+        description="Set of key-value pairs for metadata",
+    )
     usage: Optional[Dict[str, Any]] = Field(default=None, description="Usage statistics for the run")
     temperature: Optional[float] = Field(default=None, description="Sampling temperature used")
     top_p: Optional[float] = Field(default=None, description="Nucleus sampling parameter used")

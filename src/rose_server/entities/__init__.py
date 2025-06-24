@@ -15,6 +15,8 @@ from .fine_tuning import (
 )
 from .language_models import LanguageModel
 from .messages import Message
+from .run_steps import RunStep
+from .runs import Run
 from .threads import (
     MessageMetadata,
     Thread,
@@ -27,6 +29,8 @@ __all__ = [
     "Thread",
     "Message",
     "MessageMetadata",
+    "Run",
+    "RunStep",
     "Eval",
     "EvalRun",
     "EvalSample",
