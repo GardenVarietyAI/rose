@@ -39,12 +39,15 @@ async def create(thread_id: str, request: RunCreateRequest = Body(...)) -> JSONR
             thread_id=thread_id,
             assistant_id=request.assistant_id,
             status="queued",
-            model=request.model if request.model is not None else "qwen2.5-0.5b",  # Default model
-            instructions=request.instructions,
-            tools=[tool.model_dump() if hasattr(tool, "model_dump") else tool for tool in (request.tools or [])],
+            model=request.model if request.model is not None else assistant.model,
+            instructions=request.instructions or assistant.instructions,
+            tools=[
+                tool.model_dump() if hasattr(tool, "model_dump") else tool
+                for tool in (request.tools or assistant.tools or [])
+            ],
             meta=request.metadata or {},
-            temperature=request.temperature,
-            top_p=request.top_p,
+            temperature=request.temperature if request.temperature is not None else assistant.temperature,
+            top_p=request.top_p if request.top_p is not None else assistant.top_p,
             max_prompt_tokens=request.max_prompt_tokens,
             max_completion_tokens=request.max_completion_tokens,
             truncation_strategy=request.truncation_strategy,
@@ -54,21 +57,6 @@ async def create(thread_id: str, request: RunCreateRequest = Body(...)) -> JSONR
         )
 
         run = await create_run(run)
-
-        if request.model is None:
-            run.model = assistant.model
-
-        if not run.instructions:
-            run.instructions = assistant.instructions
-
-        if not run.tools:
-            run.tools = assistant.tools
-
-        if run.temperature is None:
-            run.temperature = assistant.temperature
-
-        if run.top_p is None:
-            run.top_p = assistant.top_p
 
         if request.stream:
             return StreamingResponse(

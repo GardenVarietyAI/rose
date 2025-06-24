@@ -17,6 +17,10 @@ from typing import (
 )
 
 from rose_core.config.service import DATA_DIR
+from rose_server.database import (
+    RunStep as RunStepEntity,
+    current_timestamp,
+)
 from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.events.generators import RunsGenerator
 from rose_server.language_models import model_cache
@@ -170,11 +174,6 @@ async def _handle_tool_calls(
     completed_evt = await stream_run_step_event("completed", step)
 
     # New TOOL_CALLS step
-    from rose_server.database import (
-        RunStep as RunStepEntity,
-        current_timestamp,
-    )
-
     tool_step_entity = RunStepEntity(
         id=f"step_{uuid.uuid4().hex}",
         created_at=current_timestamp(),
@@ -218,11 +217,6 @@ async def execute_assistant_run_streaming(
     await update_run(run.id, status="in_progress")
 
     # create MESSAGE_CREATION step
-    from rose_server.database import (
-        RunStep as RunStepEntity,
-        current_timestamp,
-    )
-
     step_entity = RunStepEntity(
         id=f"step_{uuid.uuid4().hex}",
         created_at=current_timestamp(),

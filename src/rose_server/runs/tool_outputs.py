@@ -1,23 +1,27 @@
 """Tool output processing for runs."""
 
 import logging
+import uuid
 from typing import Any, Dict, List
 
 from rose_server.assistants.store import get_assistant
+from rose_server.database import (
+    RunStep as RunStepEntity,
+    current_timestamp,
+)
 from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.events.generators import RunsGenerator
 from rose_server.language_models import model_cache
 from rose_server.messages.store import create_message
 from rose_server.runs.steps.store import create_run_step, list_run_steps, update_run_step
-from rose_server.runs.store import update_run
 from rose_server.schemas.chat import ChatMessage
-from rose_server.schemas.runs import RunResponse
+from rose_server.schemas.runs import RunResponse, RunStepResponse
 
 logger = logging.getLogger(__name__)
 
 
 async def process_tool_outputs(
-    run: RunResponse, tool_outputs: List[Dict[str, Any]], update_run_func, registry
+    run: RunResponse, tool_outputs: List[Dict[str, Any]], update_run, registry
 ) -> Dict[str, Any]:
     """Process tool outputs and generate continuation response."""
     await update_run(run.id, status="in_progress")
@@ -35,13 +39,6 @@ async def process_tool_outputs(
                 "tool_outputs": tool_outputs,
             },
         )
-    import uuid
-
-    from rose_server.database import (
-        RunStep as RunStepEntity,
-        current_timestamp,
-    )
-
     continuation_step_entity = RunStepEntity(
         id=f"step_{uuid.uuid4().hex}",
         created_at=current_timestamp(),
@@ -53,8 +50,6 @@ async def process_tool_outputs(
         status="in_progress",
     )
     await create_run_step(continuation_step_entity)
-    from rose_server.schemas.runs import RunStepResponse
-
     continuation_step = RunStepResponse(**continuation_step_entity.model_dump())
     await get_assistant(run.assistant_id)
     tool_results = []
