@@ -62,11 +62,11 @@ async def update_run(
         current_time = int(time.time())
         if status == "in_progress" and not run.started_at:
             run.started_at = current_time
-        elif status == "completed":
+        elif status == "completed" and not run.completed_at:
             run.completed_at = current_time
-        elif status == "failed":
+        elif status == "failed" and not run.failed_at:
             run.failed_at = current_time
-        elif status == "cancelled":
+        elif status == "cancelled" and not run.cancelled_at:
             run.cancelled_at = current_time
 
         session.add(run)

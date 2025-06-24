@@ -38,7 +38,7 @@ async def create(thread_id: str, request: CreateRunRequest = Body(...)) -> JSONR
             thread_id=thread_id,
             assistant_id=request.assistant_id,
             status="queued",
-            model=request.model or "qwen2.5-0.5b",  # Default model
+            model=request.model if request.model is not None else "qwen2.5-0.5b",  # Default model
             instructions=request.instructions,
             tools=[tool.model_dump() if hasattr(tool, "model_dump") else tool for tool in (request.tools or [])],
             meta=request.metadata or {},
@@ -54,7 +54,7 @@ async def create(thread_id: str, request: CreateRunRequest = Body(...)) -> JSONR
 
         run = await create_run(run)
 
-        if not run.model or run.model == "zephyr":
+        if request.model is None:
             run.model = assistant.model
 
         if not run.instructions:
@@ -172,7 +172,7 @@ async def submit_tool_outputs(
         except Exception as e:
             logger.error(f"Error processing tool outputs: {str(e)}")
             await update_run(run_id, status="failed", last_error={"code": "tool_output_error", "message": str(e)})
-            raise
+            return JSONResponse(status_code=500, content={"error": f"Error processing tool outputs: {str(e)}"})
 
     except HTTPException as e:
         return JSONResponse(status_code=e.status_code, content={"error": e.detail})
