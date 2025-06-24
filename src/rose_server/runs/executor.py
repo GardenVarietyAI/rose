@@ -105,26 +105,23 @@ async def build_prompt(
 
 
 async def get_model_for_run(model_name: str) -> Any:
-    requested_model = model_name
-    model = await get_language_model(requested_model)
+    model = await get_language_model(model_name)
     if not model:
-        raise ValueError(f"Model '{requested_model}' not found")
-    config = {
-        "model_name": model.model_name,
-        "model_type": model.model_type,
-        "temperature": model.temperature,
-        "top_p": model.top_p,
-        "memory_gb": model.memory_gb,
-    }
+        raise ValueError(f"Model '{model_name}' not found")
+
+    config = model.model_dump()
+
     if model.is_fine_tuned and model.path:
         config["model_path"] = str(Path(DATA_DIR) / model.path)
         config["base_model"] = model.parent
-        config["is_fine_tuned"] = True
+
     if model.get_lora_modules():
         config["lora_target_modules"] = model.get_lora_modules()
+
     if not config.get("model_name"):
-        raise ValueError(f"No configuration found for model: {requested_model}")
-    return await model_cache.get_model(requested_model, config)
+        raise ValueError(f"No configuration found for model: {model_name}")
+
+    return await model_cache.get_model(model_name, config)
 
 
 async def create_message_creation_step(
