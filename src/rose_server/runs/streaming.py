@@ -16,7 +16,7 @@ class MessageData:
     """Common structure for message events."""
 
     id: str
-    thread_id: str
+    thread_id: Optional[str]
     role: str = "assistant"
     assistant_id: Optional[str] = None
     run_id: Optional[str] = None
@@ -41,7 +41,7 @@ class MessageData:
         }
 
 
-async def stream_run_status(run_id: str, status: str, **kwargs) -> ServerSentEvent:
+async def stream_run_status(run_id: str, status: str, **kwargs: Dict[str, Any]) -> ServerSentEvent:
     """Create a streaming event for run status updates."""
     event_data = {
         "id": run_id,
@@ -52,7 +52,7 @@ async def stream_run_status(run_id: str, status: str, **kwargs) -> ServerSentEve
 
 
 async def stream_message_created(
-    message_id: str, thread_id: str, assistant_id: str = None, run_id: str = None
+    message_id: str, thread_id: str, assistant_id: Optional[str] = None, run_id: Optional[str] = None
 ) -> ServerSentEvent:
     """Create a streaming event for message creation."""
     msg = MessageData(id=message_id, thread_id=thread_id, assistant_id=assistant_id, run_id=run_id)
@@ -60,7 +60,7 @@ async def stream_message_created(
 
 
 async def stream_message_in_progress(
-    message_id: str, thread_id: str = None, assistant_id: str = None, run_id: str = None
+    message_id: str, thread_id: Optional[str] = None, assistant_id: Optional[str] = None, run_id: Optional[str] = None
 ) -> ServerSentEvent:
     """Create a streaming event for message in progress."""
     msg = MessageData(id=message_id, thread_id=thread_id, assistant_id=assistant_id, run_id=run_id)
@@ -82,9 +82,9 @@ async def stream_message_chunk(run_id: str, message_id: str, text: str, index: i
 async def stream_message_completed(
     message_id: str,
     full_content: str = "",
-    thread_id: str = None,
-    assistant_id: str = None,
-    run_id: str = None,
+    thread_id: Optional[str] = None,
+    assistant_id: Optional[str] = None,
+    run_id: Optional[str] = None,
 ) -> ServerSentEvent:
     """Create a streaming event for message completion."""
     msg = MessageData(
