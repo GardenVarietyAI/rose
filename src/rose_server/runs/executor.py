@@ -19,6 +19,7 @@ from rose_server.database import current_timestamp
 from rose_server.entities.messages import Message
 from rose_server.entities.run_steps import RunStep
 from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
+from rose_server.events.formatters.runs import RunsFormatter
 from rose_server.events.generators import RunsGenerator
 from rose_server.language_models import model_cache
 from rose_server.language_models.store import get as get_language_model
@@ -26,10 +27,6 @@ from rose_server.messages.store import create_message, get_messages
 from rose_server.runs.steps.store import create_run_step, update_run_step
 from rose_server.runs.store import update_run
 from rose_server.runs.streaming import (
-    stream_message_chunk,
-    stream_message_completed,
-    stream_message_created,
-    stream_message_in_progress,
     stream_run_status,
     stream_run_step_event,
 )
@@ -260,14 +257,13 @@ async def execute_assistant_run_streaming(
             yield evt
         return
 
-    # Stream message creation events
-    message_id = f"msg_{uuid.uuid4().hex}"
-    yield await stream_message_created(message_id, run.thread_id, assistant.id, run.id)
-    yield await stream_message_in_progress(message_id, run.thread_id, assistant.id, run.id)
-
-    # Model inference & streaming
+    # Model inference & streaming with RunsFormatter
     generator = RunsGenerator(llm)
     chat_prompt = [ChatMessage(role="user", content=full_prompt)]
+    message_id = f"msg_{uuid.uuid4().hex}"
+    formatter = RunsFormatter(run.id, run.thread_id, assistant.id, message_id)
+
+    # Track usage for final update
     usage = ResponseUsage()
     response_text = ""
 
@@ -279,15 +275,20 @@ async def execute_assistant_run_streaming(
             enable_tools=bool(assistant.tools),
             tools=assistant.tools if assistant.tools else None,
         ):
+            # Track usage and response text
             if isinstance(event, ResponseStarted):
                 usage.prompt_tokens = getattr(event, "prompt_tokens", 0)
             elif isinstance(event, TokenGenerated):
                 response_text += event.token
                 usage.completion_tokens += 1
-                yield await stream_message_chunk(run.id, message_id, event.token)
             elif isinstance(event, ResponseCompleted):
                 if event.output_tokens:
                     usage.completion_tokens = event.output_tokens
+
+            # Format and yield message events
+            formatted_event = formatter.format_event(event)
+            if formatted_event:
+                yield formatted_event
     except Exception as exc:
         logger.exception("Inference error")
         async for evt in fail_run(run.id, step, "execution_error", str(exc)):
@@ -306,14 +307,7 @@ async def execute_assistant_run_streaming(
             yield evt
         return
 
-    # Normal assistant text reply
-    yield await stream_message_completed(
-        message_id,
-        response_text,
-        run.thread_id,
-        assistant.id,
-        run.id,
-    )
+    # No need to send stream_message_completed - formatter handles it via ResponseCompleted
     message = Message(
         id=f"msg_{uuid.uuid4().hex}",
         created_at=current_timestamp(),
