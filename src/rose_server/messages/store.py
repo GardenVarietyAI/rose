@@ -5,7 +5,6 @@ from sqlmodel import select
 
 from ..database import (
     Message,
-    Thread,
     get_session,
 )
 
@@ -15,12 +14,6 @@ logger = logging.getLogger(__name__)
 async def create_message(message: Message) -> Message:
     """Create a new message in a thread."""
     async with get_session() as session:
-        # Verify thread exists
-        thread = await session.get(Thread, message.thread_id)
-        if not thread:
-            return None
-
-        # Save to database
         session.add(message)
         await session.commit()
         await session.refresh(message)

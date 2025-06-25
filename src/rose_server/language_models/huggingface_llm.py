@@ -3,7 +3,7 @@ import logging
 import os
 import traceback
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
 from peft import PeftModel
 from transformers.modeling_utils import PreTrainedModel
@@ -148,32 +148,8 @@ class HuggingFaceLLM:
                     return str(item["text"])
                 else:
                     logger.debug(f"Skipping non-text content part: type={item_type}")
+
         return None
-
-    def get_max_tokens(self) -> Tuple[int, int]:
-        """Compute how many tokens are left for the prompt vs. the completion."""
-        max_response = self.config.get("max_response_tokens", 512)
-        ctx_window = self.config.get("n_ctx", 2048)
-        return ctx_window - max_response, max_response
-
-    @classmethod
-    async def load_model(cls, model_name: str, registry) -> "HuggingFaceLLM":
-        """
-        Factory that resolves model_name through the model registry,
-        loads the model, and returns a ready-to-use instance.
-        """
-        available_models = await registry.list_models()
-        if model_name not in available_models:
-            raise ValueError(f"Model '{model_name}' not found in registry")
-
-        config = await registry.get_model_config(model_name)
-        if not config:
-            raise ValueError(f"No config entry for model '{model_name}'")
-
-        try:
-            return cls(config)
-        except Exception as e:
-            raise RuntimeError(f"Failed to load model '{model_name}': {e}") from e
 
     def cleanup(self) -> None:
         """Clean up model resources and memory."""

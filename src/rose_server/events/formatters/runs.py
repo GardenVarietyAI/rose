@@ -3,7 +3,9 @@
 import json
 import time
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Optional
+
+from sse_starlette import ServerSentEvent
 
 from ..event_types.generation import (
     ResponseCompleted,
@@ -37,36 +39,40 @@ class RunsFormatter:
         self.accumulated_content = ""
         self.tool_calls = []
 
-    def format_event(self, event: Any) -> Optional[str]:
-        """Format a single event into SSE format.
+    def format_event(self, event: Any) -> Optional[ServerSentEvent]:
+        """Format a single event into ServerSentEvent.
 
         Returns None if the event shouldn't be sent to the client.
         """
         if isinstance(event, ResponseStarted):
-            return self._format_sse(
-                "thread.message.created",
-                {
-                    "id": self.message_id,
-                    "object": "thread.message",
-                    "created_at": int(time.time()),
-                    "thread_id": self.thread_id,
-                    "role": "assistant",
-                    "content": [{"type": "text", "text": {"value": "", "annotations": []}}],
-                    "assistant_id": self.assistant_id,
-                    "run_id": self.run_id,
-                    "file_ids": [],
-                    "metadata": {},
-                },
+            return ServerSentEvent(
+                event="thread.message.created",
+                data=json.dumps(
+                    {
+                        "id": self.message_id,
+                        "object": "thread.message",
+                        "created_at": int(time.time()),
+                        "thread_id": self.thread_id,
+                        "role": "assistant",
+                        "content": [{"type": "text", "text": {"value": "", "annotations": []}}],
+                        "assistant_id": self.assistant_id,
+                        "run_id": self.run_id,
+                        "file_ids": [],
+                        "metadata": {},
+                    }
+                ),
             )
         elif isinstance(event, TokenGenerated):
             self.accumulated_content += event.token
-            return self._format_sse(
-                "thread.message.delta",
-                {
-                    "id": self.message_id,
-                    "object": "thread.message.delta",
-                    "delta": {"content": [{"index": 0, "type": "text", "text": {"value": event.token}}]},
-                },
+            return ServerSentEvent(
+                event="thread.message.delta",
+                data=json.dumps(
+                    {
+                        "id": self.message_id,
+                        "object": "thread.message.delta",
+                        "delta": {"content": [{"index": 0, "type": "text", "text": {"value": event.token}}]},
+                    }
+                ),
             )
         elif isinstance(event, ToolCallStarted):
             self.tool_calls.append(
@@ -83,23 +89,21 @@ class RunsFormatter:
             content = [{"type": "text", "text": {"value": self.accumulated_content, "annotations": []}}]
             if self.tool_calls:
                 content.append({"type": "tool_calls", "tool_calls": self.tool_calls})
-            return self._format_sse(
-                "thread.message.completed",
-                {
-                    "id": self.message_id,
-                    "object": "thread.message.completed",
-                    "created_at": int(time.time()),
-                    "thread_id": self.thread_id,
-                    "role": "assistant",
-                    "content": content,
-                    "assistant_id": self.assistant_id,
-                    "run_id": self.run_id,
-                    "file_ids": [],
-                    "metadata": {},
-                },
+            return ServerSentEvent(
+                event="thread.message.completed",
+                data=json.dumps(
+                    {
+                        "id": self.message_id,
+                        "object": "thread.message.completed",
+                        "created_at": int(time.time()),
+                        "thread_id": self.thread_id,
+                        "role": "assistant",
+                        "content": content,
+                        "assistant_id": self.assistant_id,
+                        "run_id": self.run_id,
+                        "file_ids": [],
+                        "metadata": {},
+                    }
+                ),
             )
         return None
-
-    def _format_sse(self, event_type: str, data: Dict[str, Any]) -> str:
-        """Format data as Server-Sent Event."""
-        return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"

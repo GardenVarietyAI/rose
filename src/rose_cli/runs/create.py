@@ -19,16 +19,47 @@ def create_run(
     """Create a run in a thread."""
     client = get_client()
     try:
-        if stream and not quiet:
-            # Streaming not yet implemented in SDK
-            console.print("[yellow]Note: Streaming runs not yet implemented in CLI[/yellow]")
+        if stream:
+            # Handle streaming response
+            stream_response = client.beta.threads.runs.create(
+                thread_id=thread_id,
+                assistant_id=assistant_id,
+                model=model,
+                instructions=instructions,
+                stream=True,
+            )
 
+            if quiet:
+                # Just print run ID from first event
+                for event in stream_response:
+                    if hasattr(event, "data") and hasattr(event.data, "id"):
+                        print(event.data.id)
+                        break
+            else:
+                # Display streaming events
+                for event in stream_response:
+                    if event.event == "thread.run.created":
+                        console.print(f"[green]Created run: {event.data.id}[/green]")
+                    elif event.event == "thread.run.in_progress":
+                        console.print("[yellow]Run in progress...[/yellow]")
+                    elif event.event == "thread.message.delta":
+                        if hasattr(event.data, "delta") and hasattr(event.data.delta, "content"):
+                            for content in event.data.delta.content:
+                                if hasattr(content, "text") and hasattr(content.text, "value"):
+                                    console.print(content.text.value, end="")
+                    elif event.event == "thread.run.completed":
+                        console.print("\n[green]Run completed[/green]")
+                    elif event.event == "thread.run.failed":
+                        console.print(f"\n[red]Run failed: {event.data.last_error}[/red]")
+            return
+
+        # Non-streaming path
         run = client.beta.threads.runs.create(
             thread_id=thread_id,
             assistant_id=assistant_id,
             model=model,
             instructions=instructions,
-            stream=False,  # Always false for now
+            stream=False,
         )
 
         if quiet:
