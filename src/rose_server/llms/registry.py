@@ -8,12 +8,11 @@ from typing import Any, Dict, List, Optional
 from transformers import AutoTokenizer
 
 from rose_core.config.service import DATA_DIR
-from rose_server.schemas.chat import ChatMessage
-
-from .store import (
+from rose_server.language_models.store import (
     get as get_language_model,
     list_all,
 )
+from rose_server.schemas.chat import ChatMessage
 
 logger = logging.getLogger(__name__)
 

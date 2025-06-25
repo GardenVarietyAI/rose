@@ -6,8 +6,7 @@ from fastapi.responses import StreamingResponse
 
 from rose_server.events.formatters import ResponsesFormatter
 from rose_server.events.generators import ResponsesGenerator
-from rose_server.language_models import model_cache
-from rose_server.language_models.deps import ModelRegistryDep
+from rose_server.llms.deps import ModelRegistryDep
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.responses import (
     ResponsesContentItem,
@@ -17,6 +16,7 @@ from rose_server.schemas.responses import (
     ResponsesUsage,
 )
 
+from ..llms import model_cache
 from .store import get_response, store_response_messages
 
 logger = logging.getLogger(__name__)

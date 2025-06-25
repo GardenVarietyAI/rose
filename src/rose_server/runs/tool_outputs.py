@@ -10,7 +10,7 @@ from rose_server.entities.messages import Message
 from rose_server.entities.run_steps import RunStep
 from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.events.generators import RunsGenerator
-from rose_server.language_models import model_cache
+from rose_server.llms import model_cache
 from rose_server.messages.store import create_message
 from rose_server.runs.steps.store import create_run_step, list_run_steps, update_run_step
 from rose_server.schemas.chat import ChatMessage
