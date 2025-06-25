@@ -55,7 +55,6 @@ def background_generation(model, **gen_kwargs):
     try:
         yield
     finally:
-        # Give the thread more time to finish gracefully
         t.join(timeout=5.0)
         if t.is_alive():
             logger.warning("Generation thread still alive after 5s, continuing anyway...")
@@ -63,7 +62,6 @@ def background_generation(model, **gen_kwargs):
 
 class BaseEventGenerator:
     def __init__(self, llm: HuggingFaceLLM):
-        """Initialize with a HuggingFaceLLM instance."""
         self.llm = llm
         self.model_name = llm.model_name
         self.config = llm.config
@@ -82,24 +80,17 @@ class BaseEventGenerator:
         ResponseStarted | TokenGenerated | ToolCallStarted | ToolCallCompleted | ResponseCompleted,
         None,
     ]:
-        """Generate events from messages. Main entry point."""
+        """Main entrypoint: yield events for an LLM run."""
         if not self.llm.model or not self.llm.tokenizer:
-            yield ResponseCompleted(
-                model_name=self.model_name,
-                response_id=f"resp_error_{uuid.uuid4().hex[:8]}",
-                total_tokens=0,
-                finish_reason="stop",
-                output_tokens=0,
-                completion_time=0.0,
-            )
+            yield self._response_completed_zero()
             return
+
         prompt = await self.prepare_prompt(messages, enable_tools=enable_tools, tools=tools)
-        inputs = self.llm.tokenizer(prompt, return_tensors="pt", truncation=True)
-        if hasattr(self.llm.model, "device"):
-            inputs = {k: v.to(self.llm.model.device) for k, v in inputs.items()}
+        inputs = self._encode_prompt(prompt)
         response_id = f"resp_{uuid.uuid4().hex[:16]}"
         max_new = max_tokens or self.config.get("max_response_tokens", 512)
         temp = temperature or self.config.get("temperature", 0.7)
+
         yield ResponseStarted(
             model_name=self.model_name,
             response_id=response_id,
@@ -107,14 +98,21 @@ class BaseEventGenerator:
             max_tokens=max_new,
             temperature=temp,
         )
+
         async for event in self._stream_generation(inputs, response_id, max_new, temp, enable_tools):
             yield event
 
     async def prepare_prompt(
         self, messages: List[ChatMessage], enable_tools: bool = False, tools: Optional[List] = None
     ) -> str:
-        """Prepare prompt from messages. Override in subclasses."""
+        """Override to customize prompt construction."""
         return self.llm.format_messages(messages)
+
+    def _encode_prompt(self, prompt: str):
+        inputs = self.llm.tokenizer(prompt, return_tensors="pt", truncation=True)
+        if hasattr(self.llm.model, "device"):
+            inputs = {k: v.to(self.llm.model.device) for k, v in inputs.items()}
+        return inputs
 
     async def _stream_generation(
         self,
@@ -124,7 +122,6 @@ class BaseEventGenerator:
         temperature: float,
         enable_tools: bool,
     ) -> AsyncGenerator:
-        """Common streaming logic."""
         start_time = time.time()
         streamer = TextIteratorStreamer(self.llm.tokenizer, skip_prompt=True, skip_special_tokens=True)
         stop_list = StoppingCriteriaList(
@@ -133,7 +130,14 @@ class BaseEventGenerator:
                 StopOnSpecialTokens(self.llm.tokenizer),
             ]
         )
-        gen_kwargs = dict(
+        gen_kwargs = self._make_gen_kwargs(inputs, max_new, temperature, streamer, stop_list)
+        detector = StreamingXMLDetector() if enable_tools else None
+
+        async for event in self._yield_tokens(streamer, gen_kwargs, detector, response_id, start_time):
+            yield event
+
+    def _make_gen_kwargs(self, inputs, max_new, temperature, streamer, stop_list):
+        return dict(
             inputs=inputs["input_ids"],
             attention_mask=inputs.get("attention_mask"),
             max_new_tokens=max_new,
@@ -147,30 +151,19 @@ class BaseEventGenerator:
             streamer=streamer,
             stopping_criteria=stop_list,
         )
-        detector = StreamingXMLDetector() if enable_tools else None
+
+    async def _yield_tokens(self, streamer, gen_kwargs, detector, response_id, start_time) -> AsyncGenerator:
         accumulated = ""
         position = 0
         total_tokens = 0
+
         with background_generation(self.llm.model, **gen_kwargs):
             for token in streamer:
                 total_tokens += 1
                 if detector:
-                    plain, call = detector.process_token(token)
-                    if call:
-                        call_id = f"call_{uuid.uuid4().hex[:16]}"
-                        yield ToolCallStarted(
-                            model_name=self.model_name,
-                            function_name=call["tool"],
-                            call_id=call_id,
-                            arguments_so_far="",
-                        )
-                        yield ToolCallCompleted(
-                            model_name=self.model_name,
-                            function_name=call["tool"],
-                            call_id=call_id,
-                            arguments=json.dumps(call["arguments"]),
-                        )
-                    if plain:
+                    yield from self._handle_tool_streaming(token, detector, response_id, total_tokens, position)
+                    if detector.last_plain is not None:
+                        plain = detector.last_plain
                         accumulated += plain
                         yield TokenGenerated(
                             model_name=self.model_name,
@@ -191,6 +184,7 @@ class BaseEventGenerator:
                     )
                     position += 1
                 await asyncio.sleep(0)
+
         if detector:
             leftover = detector.flush()
             if leftover:
@@ -203,6 +197,7 @@ class BaseEventGenerator:
                     position=position,
                     logprob=None,
                 )
+
         completion_time = time.time() - start_time
         yield ResponseCompleted(
             model_name=self.model_name,
@@ -211,4 +206,32 @@ class BaseEventGenerator:
             finish_reason="stop",
             output_tokens=total_tokens,
             completion_time=completion_time,
+        )
+
+    def _handle_tool_streaming(self, token, detector, response_id, total_tokens, position):
+        plain, call = detector.process_token(token)
+        if call:
+            call_id = f"call_{uuid.uuid4().hex[:16]}"
+            yield ToolCallStarted(
+                model_name=self.model_name,
+                function_name=call["tool"],
+                call_id=call_id,
+                arguments_so_far="",
+            )
+            yield ToolCallCompleted(
+                model_name=self.model_name,
+                function_name=call["tool"],
+                call_id=call_id,
+                arguments=json.dumps(call["arguments"]),
+            )
+        detector.last_plain = plain if plain else None
+
+    def _response_completed_zero(self):
+        return ResponseCompleted(
+            model_name=self.model_name,
+            response_id=f"resp_error_{uuid.uuid4().hex[:8]}",
+            total_tokens=0,
+            finish_reason="stop",
+            output_tokens=0,
+            completion_time=0.0,
         )
