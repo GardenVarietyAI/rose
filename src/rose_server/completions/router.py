@@ -11,8 +11,8 @@ from sse_starlette.sse import EventSourceResponse
 
 from rose_server.events import TokenGenerated
 from rose_server.events.generators import CompletionsGenerator
-from rose_server.language_models import model_cache
-from rose_server.language_models.deps import ModelRegistryDep
+from rose_server.llms import model_cache
+from rose_server.llms.deps import ModelRegistryDep
 from rose_server.schemas.completions import (
     CompletionChoice,
     CompletionChunk,

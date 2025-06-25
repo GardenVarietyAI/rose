@@ -10,7 +10,8 @@ from typing import AsyncGenerator, List, Optional
 from transformers.generation.stopping_criteria import StoppingCriteria, StoppingCriteriaList
 from transformers.generation.streamers import TextIteratorStreamer
 
-from ...language_models.huggingface_llm import HuggingFaceLLM
+from rose_server.llms.huggingface_llm import HuggingFaceLLM
+
 from ...schemas.chat import ChatMessage
 from ...tools import StreamingXMLDetector
 from .. import (

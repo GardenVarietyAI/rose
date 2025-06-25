@@ -22,7 +22,7 @@ from rose_core.config.service import (
     MODEL_OFFLOAD_DIR,
 )
 from rose_server.database import create_all_tables
-from rose_server.language_models.registry import ModelRegistry
+from rose_server.llms.registry import ModelRegistry
 from rose_server.router import router
 from rose_server.vector import ChromaDBManager
 

@@ -4,7 +4,8 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from ..language_models.deps import ModelRegistryDep
+from rose_server.llms.deps import ModelRegistryDep
+
 from ..schemas.webhooks import WebhookEvent
 from .evaluation import handle_eval_webhook
 from .training import handle_training_webhook
