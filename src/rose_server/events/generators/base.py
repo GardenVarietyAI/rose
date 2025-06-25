@@ -73,10 +73,10 @@ class BaseEventGenerator:
         max_tokens: Optional[int] = None,
         enable_tools: bool = False,
         tools: Optional[List[Any]] = None,
-        tool_choice: str | None = "auto",
+        tool_choice: Optional[str] = "auto",
         **kwargs: Any,
     ) -> AsyncGenerator[
-        ResponseStarted | TokenGenerated | ToolCallStarted | ToolCallCompleted | ResponseCompleted,
+        Union[ResponseStarted, TokenGenerated, ToolCallStarted, ToolCallCompleted, ResponseCompleted],
         None,
     ]:
         """Main entrypoint: yield events for an LLM run."""
