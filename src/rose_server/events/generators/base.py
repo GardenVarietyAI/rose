@@ -5,22 +5,21 @@ import threading
 import time
 import uuid
 from contextlib import contextmanager
-from typing import AsyncGenerator, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
 
 from transformers.generation.stopping_criteria import StoppingCriteria, StoppingCriteriaList
 from transformers.generation.streamers import TextIteratorStreamer
 
-from rose_server.llms.huggingface_llm import HuggingFaceLLM
-
-from ...schemas.chat import ChatMessage
-from ...tools import StreamingXMLDetector
-from .. import (
+from rose_server.events import (
     ResponseCompleted,
     ResponseStarted,
     TokenGenerated,
     ToolCallCompleted,
     ToolCallStarted,
 )
+from rose_server.llms.huggingface_llm import HuggingFaceLLM
+from rose_server.schemas.chat import ChatMessage
+from rose_server.tools import StreamingXMLDetector
 
 logger = logging.getLogger(__name__)
 
@@ -32,23 +31,23 @@ class ForceStopAfterN(StoppingCriteria):
         self._max_new = max_new
         self._prompt_len = prompt_len
 
-    def __call__(self, input_ids, scores, **_) -> bool:
+    def __call__(self, input_ids: Any, scores: Any, **_: Any) -> bool:
         return len(input_ids[0]) - self._prompt_len >= self._max_new
 
 
 class StopOnSpecialTokens(StoppingCriteria):
     """Abort when *any* special stop-token is seen."""
 
-    def __init__(self, tokenizer) -> None:
+    def __init__(self, tokenizer: Any) -> None:
         self._stop_ids = {tid for tid in (tokenizer.eos_token_id, tokenizer.pad_token_id) if tid is not None}
         logger.info("Stop-token IDs: %s", sorted(self._stop_ids))
 
-    def __call__(self, input_ids, scores, **_) -> bool:
+    def __call__(self, input_ids: Any, scores: Any, **_: Any) -> bool:
         return input_ids[0][-1].item() in self._stop_ids
 
 
 @contextmanager
-def background_generation(model, **gen_kwargs):
+def background_generation(model: Any, **gen_kwargs: Any) -> Any:
     """Run model.generate in a daemon thread and ensure cleanup."""
     t = threading.Thread(target=model.generate, kwargs=gen_kwargs, daemon=True)
     t.start()
@@ -61,10 +60,10 @@ def background_generation(model, **gen_kwargs):
 
 
 class BaseEventGenerator:
-    def __init__(self, llm: HuggingFaceLLM):
+    def __init__(self, llm: HuggingFaceLLM) -> None:
         self.llm = llm
-        self.model_name = llm.model_name
-        self.config = llm.config
+        self.model_name: str = llm.model_name
+        self.config: Dict[str, Any] = llm.config
 
     async def generate_events(
         self,
@@ -73,9 +72,9 @@ class BaseEventGenerator:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         enable_tools: bool = False,
-        tools: Optional[List] = None,
+        tools: Optional[List[Any]] = None,
         tool_choice: str | None = "auto",
-        **kwargs,
+        **kwargs: Any,
     ) -> AsyncGenerator[
         ResponseStarted | TokenGenerated | ToolCallStarted | ToolCallCompleted | ResponseCompleted,
         None,
@@ -103,25 +102,29 @@ class BaseEventGenerator:
             yield event
 
     async def prepare_prompt(
-        self, messages: List[ChatMessage], enable_tools: bool = False, tools: Optional[List] = None
+        self, messages: List[ChatMessage], enable_tools: bool = False, tools: Optional[List[Any]] = None
     ) -> str:
         """Override to customize prompt construction."""
-        return self.llm.format_messages(messages)
+        formatted: Any = self.llm.format_messages(messages)
+        return str(formatted)
 
-    def _encode_prompt(self, prompt: str):
-        inputs = self.llm.tokenizer(prompt, return_tensors="pt", truncation=True)
+    def _encode_prompt(self, prompt: str) -> Dict[str, Any]:
+        inputs: Dict[str, Any] = self.llm.tokenizer(prompt, return_tensors="pt", truncation=True)
         if hasattr(self.llm.model, "device"):
-            inputs = {k: v.to(self.llm.model.device) for k, v in inputs.items()}
+            device = self.llm.model.device
+            inputs = {k: v.to(device) for k, v in inputs.items()}
         return inputs
 
     async def _stream_generation(
         self,
-        inputs: dict,
+        inputs: Dict[str, Any],
         response_id: str,
         max_new: int,
         temperature: float,
         enable_tools: bool,
-    ) -> AsyncGenerator:
+    ) -> AsyncGenerator[
+        Union[ResponseStarted, TokenGenerated, ToolCallStarted, ToolCallCompleted, ResponseCompleted], None
+    ]:
         start_time = time.time()
         streamer = TextIteratorStreamer(self.llm.tokenizer, skip_prompt=True, skip_special_tokens=True)
         stop_list = StoppingCriteriaList(
@@ -136,7 +139,9 @@ class BaseEventGenerator:
         async for event in self._yield_tokens(streamer, gen_kwargs, detector, response_id, start_time):
             yield event
 
-    def _make_gen_kwargs(self, inputs, max_new, temperature, streamer, stop_list):
+    def _make_gen_kwargs(
+        self, inputs: Dict[str, Any], max_new: int, temperature: float, streamer: Any, stop_list: Any
+    ) -> Dict[str, Any]:
         return dict(
             inputs=inputs["input_ids"],
             attention_mask=inputs.get("attention_mask"),
@@ -152,7 +157,9 @@ class BaseEventGenerator:
             stopping_criteria=stop_list,
         )
 
-    async def _yield_tokens(self, streamer, gen_kwargs, detector, response_id, start_time) -> AsyncGenerator:
+    async def _yield_tokens(
+        self, streamer: Any, gen_kwargs: Dict[str, Any], detector: Any, response_id: str, start_time: float
+    ) -> AsyncGenerator[Union[TokenGenerated, ToolCallStarted, ToolCallCompleted, ResponseCompleted], None]:
         accumulated = ""
         position = 0
         total_tokens = 0
@@ -209,9 +216,11 @@ class BaseEventGenerator:
             completion_time=completion_time,
         )
 
-    def _handle_tool_streaming(self, token, detector, total_tokens):
+    def _handle_tool_streaming(
+        self, token: str, detector: Any, total_tokens: int
+    ) -> Tuple[List[Union[ToolCallStarted, ToolCallCompleted]], Optional[str]]:
         """Process token for tool calls, returns (events_list, plain_text)"""
-        events = []
+        events: List[Union[ToolCallStarted, ToolCallCompleted]] = []
         plain, call = detector.process_token(token)
         if call:
             call_id = f"call_{uuid.uuid4().hex[:16]}"
@@ -233,7 +242,7 @@ class BaseEventGenerator:
             )
         return events, plain
 
-    def _response_completed_zero(self):
+    def _response_completed_zero(self) -> ResponseCompleted:
         return ResponseCompleted(
             model_name=self.model_name,
             response_id=f"resp_error_{uuid.uuid4().hex[:8]}",
