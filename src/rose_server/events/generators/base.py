@@ -146,8 +146,8 @@ class BaseEventGenerator:
             do_sample=True,
             pad_token_id=self.llm.tokenizer.pad_token_id or self.llm.tokenizer.eos_token_id,
             eos_token_id=self.llm.tokenizer.eos_token_id,
-            repetition_penalty=1.1,
-            length_penalty=1.0,
+            repetition_penalty=self.config.get("repetition_penalty", 1.1),
+            length_penalty=self.config.get("length_penalty", 1.0),
             streamer=streamer,
             stopping_criteria=stop_list,
         )
@@ -161,9 +161,10 @@ class BaseEventGenerator:
             for token in streamer:
                 total_tokens += 1
                 if detector:
-                    yield from self._handle_tool_streaming(token, detector, response_id, total_tokens, position)
-                    if detector.last_plain is not None:
-                        plain = detector.last_plain
+                    tool_events, plain = self._handle_tool_streaming(token, detector, total_tokens)
+                    for event in tool_events:
+                        yield event
+                    if plain:
                         accumulated += plain
                         yield TokenGenerated(
                             model_name=self.model_name,
@@ -208,23 +209,29 @@ class BaseEventGenerator:
             completion_time=completion_time,
         )
 
-    def _handle_tool_streaming(self, token, detector, response_id, total_tokens, position):
+    def _handle_tool_streaming(self, token, detector, total_tokens):
+        """Process token for tool calls, returns (events_list, plain_text)"""
+        events = []
         plain, call = detector.process_token(token)
         if call:
             call_id = f"call_{uuid.uuid4().hex[:16]}"
-            yield ToolCallStarted(
-                model_name=self.model_name,
-                function_name=call["tool"],
-                call_id=call_id,
-                arguments_so_far="",
+            events.append(
+                ToolCallStarted(
+                    model_name=self.model_name,
+                    function_name=call["tool"],
+                    call_id=call_id,
+                    arguments_so_far="",
+                )
             )
-            yield ToolCallCompleted(
-                model_name=self.model_name,
-                function_name=call["tool"],
-                call_id=call_id,
-                arguments=json.dumps(call["arguments"]),
+            events.append(
+                ToolCallCompleted(
+                    model_name=self.model_name,
+                    function_name=call["tool"],
+                    call_id=call_id,
+                    arguments=json.dumps(call["arguments"]),
+                )
             )
-        detector.last_plain = plain if plain else None
+        return events, plain
 
     def _response_completed_zero(self):
         return ResponseCompleted(
