@@ -24,6 +24,13 @@ TOOL CALL FORMAT:
   </args>
 </tool_call>
 
+IMPORTANT: In XML, escape special characters:
+- < becomes &lt;
+- > becomes &gt;
+- & becomes &amp;
+- " becomes &quot;
+- ' becomes &apos;
+
 EXAMPLE:
 {% if tools %}
 {% for tool in tools %}

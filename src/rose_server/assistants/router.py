@@ -87,8 +87,7 @@ async def update(assistant_id: str, request: AssistantUpdateRequest) -> Assistan
     updates = request.model_dump(exclude_unset=True)
     if "metadata" in updates:
         updates["meta"] = updates.pop("metadata")
-    if "tools" in updates:
-        updates["tools"] = [tool.model_dump() for tool in updates["tools"]]
+    # tools are already dicts after model_dump()
 
     assistant = await update_assistant(assistant_id, updates)
     if not assistant:

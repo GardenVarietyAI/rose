@@ -1,7 +1,7 @@
 """Streaming XML tool call detector."""
 
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from .parser import parse_xml_tool_call
 
@@ -17,10 +17,9 @@ class StreamingXMLDetector:
 
     def __init__(self):
         self.buffer = ""
-        self.in_tool_call = False
-        self.partial_tag = ""
+        # Remove unused state variables
 
-    def process_token(self, token: str) -> Tuple[Optional[str], Optional[Dict]]:
+    def process_token(self, token: str) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
         """Process a streaming token and return (text_to_emit, tool_call_if_complete).
 
         Args:
@@ -30,74 +29,41 @@ class StreamingXMLDetector:
             that should be shown to the user and tool_call is a parsed tool call
             if one was completed
         """
-        if token is None:
+        if not token:
             return None, None
         self.buffer += token
-        if "<tool_call>" in self.buffer and "</tool_call>" in self.buffer:
-            logger.info("XML detector found complete tool call!")
-            start_idx = self.buffer.find("<tool_call>")
-            end_idx = self.buffer.find("</tool_call>") + 12
-            text_before = self.buffer[:start_idx]
-            tool_xml = self.buffer[start_idx:end_idx]
-            self.buffer = self.buffer[end_idx:]
-            if text_before.strip() in ["```xml", "```", "```xml\n", "```\n"]:
-                text_before = ""
-                logger.debug("Stripped markdown wrapper before tool call")
-            logger.info(f"Parsing tool XML: {repr(tool_xml)}")
-            tool_call, _ = parse_xml_tool_call(tool_xml)
-            if text_before:
-                return text_before, tool_call
-            else:
-                return None, tool_call
-        if (
-            "<tool>" in self.buffer
-            and "</tool>" in self.buffer
-            and "<args>" in self.buffer
-            and "</args>" in self.buffer
-        ):
-            tool_start = self.buffer.find("<tool>")
-            tool_end = self.buffer.find("</tool>") + 7
-            args_start = self.buffer.find("<args>", tool_end)
-            args_end = self.buffer.find("</args>", args_start) + 7 if args_start >= 0 else -1
-            if args_end > 0 and args_start - tool_end < 50:
-                text_before = self.buffer[:tool_start]
-                tool_xml = self.buffer[tool_start:args_end]
-                self.buffer = self.buffer[args_end:]
-                if text_before.strip() in ["```xml", "```", "```xml\n", "```\n"]:
+        # Check for complete tool call
+        start_idx = self.buffer.find("<tool_call>")
+        if start_idx != -1:
+            end_idx = self.buffer.find("</tool_call>", start_idx)
+            if end_idx != -1:
+                logger.info("XML detector found complete tool call!")
+                end_idx += 12  # Include closing tag
+                text_before = self.buffer[:start_idx]
+                tool_xml = self.buffer[start_idx:end_idx]
+                self.buffer = self.buffer[end_idx:]
+                # Strip common markdown wrappers
+                stripped = text_before.strip()
+                if stripped in ("```xml", "```") or stripped.startswith("```xml\n") or stripped == "```\n":
                     text_before = ""
-                    logger.debug("Stripped markdown wrapper before Qwen tool call")
+                    logger.debug("Stripped markdown wrapper before tool call")
+                logger.info(f"Parsing tool XML: {repr(tool_xml)}")
                 tool_call, _ = parse_xml_tool_call(tool_xml)
-                if text_before:
-                    return text_before, tool_call
-                else:
-                    return None, tool_call
+                return (text_before if text_before else None), tool_call
+        # Check if we're building up a potential tool call tag
+        # More efficient to check once for '<' and then check prefixes
         if self.buffer.endswith("<"):
             return None, None
-        for partial in [
-            "<t",
-            "<to",
-            "<too",
-            "<tool",
-            "<tool>",
-            "<tool_",
-            "<tool_c",
-            "<tool_ca",
-            "<tool_cal",
-            "<tool_call",
-        ]:
-            if self.buffer.endswith(partial):
-                return None, None
-        if "<tool>" in self.buffer:
-            tool_idx = self.buffer.find("<tool>")
-            if tool_idx > 0:
-                text_before = self.buffer[:tool_idx]
-                self.buffer = self.buffer[tool_idx:]
-                return text_before, None
-            else:
-                return None, None
-        text = self.buffer
-        self.buffer = ""
-        return text, None
+        if self.buffer.endswith(
+            ("<t", "<to", "<too", "<tool", "<tool_", "<tool_c", "<tool_ca", "<tool_cal", "<tool_call")
+        ):
+            return None, None
+        # No tool call pattern detected, emit buffer content
+        if self.buffer:
+            text = self.buffer
+            self.buffer = ""
+            return text, None
+        return None, None
 
     def flush(self) -> Optional[str]:
         """Flush any remaining buffer content.
