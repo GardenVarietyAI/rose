@@ -10,7 +10,8 @@ ToolOutput = OpenAIToolOutput
 BUILTIN_TOOLS = {
     "code_interpreter": {
         "type": "code_interpreter",
-        "description": "Code interpreter tool (not implemented - use function calling instead)",
+        "description": "Executes Python code in a subprocess",
+        "supported": True,
     },
     "retrieval": {
         "type": "retrieval",
@@ -19,7 +20,7 @@ BUILTIN_TOOLS = {
     },
     "file_search": {
         "type": "file_search",
-        "description": "Enhanced version of retrieval for OpenAI v2 API",
+        "description": "Searches through attached documents using vector similarity",
         "supported": True,
     },
 }

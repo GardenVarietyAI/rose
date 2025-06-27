@@ -61,7 +61,7 @@ async def intercept_retrieval_tool_call(tool_call: Dict[str, any], assistant_id:
         None if it should be passed through to the client
     """
     tool_name = tool_call.get("tool", "")
-    if tool_name != "search_documents":
+    if tool_name not in ["search_documents", "file_search"]:
         return None
     try:
         args = tool_call.get("arguments", {})
@@ -72,7 +72,7 @@ async def intercept_retrieval_tool_call(tool_call: Dict[str, any], assistant_id:
             return ("search_documents", "Error: No query provided for document search")
         result = await handle_retrieval_tool_call(assistant_id=assistant_id, query=query)
         logger.info(f"Retrieval search for assistant {assistant_id} with query: {query}")
-        return ("search_documents", result)
+        return (tool_name, result)
     except Exception as e:
         logger.error(f"Error handling retrieval tool call: {str(e)}")
-        return ("search_documents", f"Error searching documents: {str(e)}")
+        return (tool_name, f"Error searching documents: {str(e)}")

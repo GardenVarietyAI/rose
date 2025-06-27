@@ -24,6 +24,7 @@ from rose_server.events.generators import RunsGenerator
 from rose_server.language_models.store import get as get_language_model
 from rose_server.llms import model_cache
 from rose_server.messages.store import create_message, get_messages
+from rose_server.runs.builtin_tools import execute_builtin_tool
 from rose_server.runs.prompt_builder import build_prompt, find_latest_user_message
 from rose_server.runs.steps.store import create_run_step, update_run_step
 from rose_server.runs.store import update_run
@@ -120,6 +121,52 @@ async def handle_tool_calls(
     if not parsed_call:
         return None
 
+    # First check if this is a built-in tool
+    builtin_result = await execute_builtin_tool(
+        tool_call=parsed_call,
+        run_id=run_id,
+        assistant_id=assistant_id,
+        thread_id=thread_id,
+    )
+
+    if builtin_result:
+        # Built-in tool was executed
+        tool_step, output = builtin_result
+
+        # Update the message creation step
+        await update_run_step(
+            step.id,
+            status="completed",
+            step_details={"message_creation": {"message_id": "tool_executed"}},
+        )
+        completed_evt = await stream_run_step_event("completed", step)
+
+        # Stream the tool step events
+        created_evt = await stream_run_step_event("created", tool_step)
+        completed_tool_evt = await stream_run_step_event("completed", tool_step)
+
+        # Create a message with the tool output
+        message = Message(
+            id=f"msg_{uuid.uuid4().hex}",
+            created_at=current_timestamp(),
+            thread_id=thread_id,
+            role="assistant",
+            content=[{"type": "text", "text": {"value": output, "annotations": []}}],
+            assistant_id=assistant_id,
+            run_id=run_id,
+            meta={"tool_output": True},
+        )
+        from rose_server.messages.store import create_message
+
+        await create_message(message)
+
+        # Complete the run
+        await update_run(run_id, status="completed")
+        status_evt = await stream_run_status(run_id, "completed")
+
+        return completed_evt, created_evt, completed_tool_evt, status_evt
+
+    # Not a built-in tool, require client to submit outputs
     call_id = f"call_{uuid.uuid4().hex[:8]}"
     tool_calls = [
         {
