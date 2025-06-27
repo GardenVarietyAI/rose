@@ -68,9 +68,25 @@ def format_tools_for_prompt(tools: List, assistant_id: Optional[str] = None, use
             has_retrieval = True
             tool_list.append(
                 {
-                    "name": "search_documents",
+                    "name": "file_search",
                     "description": "Search through attached documents",
-                    "parameters": {"query": "search query string"},
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"query": {"type": "string", "description": "search query string"}},
+                        "required": ["query"],
+                    },
+                }
+            )
+        elif tool_type == "code_interpreter":
+            tool_list.append(
+                {
+                    "name": "code_interpreter",
+                    "description": "Execute Python code to solve problems",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"code": {"type": "string", "description": "Python code to execute"}},
+                        "required": ["code"],
+                    },
                 }
             )
     if not tool_list:
@@ -92,7 +108,11 @@ def format_tools_for_prompt(tools: List, assistant_id: Optional[str] = None, use
     if template_name in ["tool_instructions.jinja2", "agent_tool_instructions.jinja2"]:
         render_args["example_tool"] = "shell"
         render_args["example_command"] = "cat README.md"
-    return template.render(**render_args)
+
+    rendered = template.render(**render_args)
+    logger.info(f"Using template: {template_name}")
+    logger.debug(f"Rendered tool prompt:\n{rendered[:500]}...")  # Log first 500 chars
+    return rendered
 
 
 def format_function_output(output: str, exit_code: int = 0, model: str = "gpt-4") -> str:

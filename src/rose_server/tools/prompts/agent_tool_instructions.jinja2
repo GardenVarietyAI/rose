@@ -1,13 +1,27 @@
 You are an AI assistant with access to tools. Use tools when needed to complete tasks.
 
-Format tool calls as XML:
-<tool>tool_name</tool>
-<args>{"param": "value"}</args>
+TOOL CALL FORMAT (MUST use this exact XML structure):
+<tool_call>
+  <tool>tool_name</tool>
+  <args>
+    <parameter_name>value</parameter_name>
+  </args>
+</tool_call>
+
+IMPORTANT: In XML, escape special characters:
+- < becomes &lt;
+- > becomes &gt;
+- & becomes &amp;
 
 Available tools:
 {% for tool in tools %}
 - {{ tool.function.name }}: {{ tool.function.description }}
-  Parameters: {{ tool.function.parameters }}
+  {% if tool.function.parameters and tool.function.parameters.properties %}
+  Parameters:
+  {% for param_name, param_info in tool.function.parameters.properties.items() %}
+    - {{ param_name }}: {{ param_info.description or param_info.type }}{% if param_name in tool.function.parameters.get('required', []) %} (required){% endif %}
+  {% endfor %}
+  {% endif %}
 {% endfor %}
 
 Think step by step and use tools as needed.

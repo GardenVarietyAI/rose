@@ -31,24 +31,48 @@ IMPORTANT: In XML, escape special characters:
 - " becomes &quot;
 - ' becomes &apos;
 
-EXAMPLE:
-{% if tools %}
+EXAMPLES - YOU MUST FOLLOW THIS FORMAT:
 {% for tool in tools %}
-User: "Example using {{ tool.name }}"
+{% if tool.name == "code_interpreter" %}
+User: "Calculate 5 + 3"
+Assistant: <tool_call>
+  <tool>code_interpreter</tool>
+  <args>
+    <code>result = 5 + 3
+print(result)</code>
+  </args>
+</tool_call>
+
+User: "What is the square root of 144?"
+Assistant: <tool_call>
+  <tool>code_interpreter</tool>
+  <args>
+    <code>import math
+result = math.sqrt(144)
+print(result)</code>
+  </args>
+</tool_call>
+{% elif tool.name == "file_search" %}
+User: "Find information about Python"
+Assistant: <tool_call>
+  <tool>file_search</tool>
+  <args>
+    <query>Python programming language</query>
+  </args>
+</tool_call>
+{% else %}
+User: "Use {{ tool.name }}"
 Assistant: <tool_call>
   <tool>{{ tool.name }}</tool>
   <args>
     {% if tool.parameters and tool.parameters.properties %}
     {% for param_name in tool.parameters.properties.keys() %}
-    <{{ param_name }}>example_value</{{ param_name }}>
+    <{{ param_name }}>value</{{ param_name }}>
     {% endfor %}
-    {% else %}
-    <!-- no parameters -->
     {% endif %}
   </args>
 </tool_call>
-
-[Tool returns result]
-Assistant: Based on the tool result, here's your answer...
-{% endfor %}
 {% endif %}
+{% endfor %}
+
+REMEMBER: When asked to calculate, compute, or solve problems, you MUST use the code_interpreter tool!
