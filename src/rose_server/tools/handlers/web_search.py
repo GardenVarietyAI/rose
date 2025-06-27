@@ -26,8 +26,8 @@ async def handle_web_search(query: str, max_results: int = MAX_SEARCH_RESULTS) -
     """
     try:
 
-        def _search():
-            results = []
+        def _search() -> List[Dict[str, Any]]:
+            results: List[Dict[str, Any]] = []
             with DDGS() as ddgs:
                 for r in ddgs.text(query, max_results=max_results):
                     result = {
