@@ -30,6 +30,7 @@ class ResponsesFormatter:
         self.created_at: Optional[int] = None
         self.model_name: Optional[str] = None
         self.accumulated_content: str = ""  # Track content for streaming
+        self.tool_calls: list[Dict[str, Any]] = []  # Track tool calls
 
     def format_event(self, event: LLMEvent) -> Optional[Dict[str, Any]]:
         """Convert an LLM event to Responses API streaming format."""
@@ -41,6 +42,8 @@ class ResponsesFormatter:
         elif isinstance(event, ToolCallStarted):
             return None
         elif isinstance(event, ToolCallCompleted):
+            # Store tool call for later
+            self.tool_calls.append({"id": event.call_id, "name": event.function_name, "arguments": event.arguments})
             return None
         elif isinstance(event, ResponseCompleted):
             return self._handle_response_completed(event)
@@ -71,8 +74,32 @@ class ResponsesFormatter:
 
     def _handle_response_completed(self, event: ResponseCompleted) -> Dict[str, Any]:
         """Handle ResponseCompleted event."""
-        # Use accumulated content from streaming
-        output_items = self._build_output_items_from_content(self.accumulated_content)
+        # Build output items from tool calls and content
+        output_items = []
+
+        # Add tool calls first
+        for tool_call in self.tool_calls:
+            function_item = ResponsesOutputItem(
+                id=tool_call["id"],
+                type="function_call",
+                status="completed",
+                role="assistant",
+                name=tool_call["name"],
+                arguments=tool_call["arguments"],
+            )
+            output_items.append(function_item)
+
+        # Add any remaining text content
+        if self.accumulated_content and self.accumulated_content.strip():
+            content_item = ResponsesContentItem(type="output_text", text=self.accumulated_content)
+            output_item = ResponsesOutputItem(
+                id=f"msg_{uuid.uuid4().hex}",
+                type="message",
+                status="completed",
+                role="assistant",
+                content=[content_item],
+            )
+            output_items.append(output_item)
 
         # Convert to dicts for JSON serialization in streaming
         output_dicts = [item.model_dump() for item in output_items]
@@ -140,10 +167,35 @@ class ResponsesFormatter:
         """Format a complete (non-streaming) response from all events."""
         start_event = next((e for e in events if isinstance(e, ResponseStarted)), None)
         token_events = [e for e in events if isinstance(e, TokenGenerated)]
+        tool_events = [e for e in events if isinstance(e, ToolCallCompleted)]
         end_event = next((e for e in events if isinstance(e, ResponseCompleted)), None)
         content = "".join(e.token for e in token_events)
 
-        output_items = self._build_output_items_from_content(content)
+        output_items = []
+
+        # Add tool calls
+        for tool_event in tool_events:
+            function_item = ResponsesOutputItem(
+                id=tool_event.call_id,
+                type="function_call",
+                status="completed",
+                role="assistant",
+                name=tool_event.function_name,
+                arguments=tool_event.arguments,
+            )
+            output_items.append(function_item)
+
+        # Add text content if any
+        if content and content.strip():
+            content_item = ResponsesContentItem(type="output_text", text=content)
+            output_item = ResponsesOutputItem(
+                id=f"msg_{uuid.uuid4().hex}",
+                type="message",
+                status="completed",
+                role="assistant",
+                content=[content_item],
+            )
+            output_items.append(output_item)
 
         usage = ResponsesUsage(
             input_tokens=start_event.input_tokens if start_event else 0,

@@ -30,13 +30,33 @@ def parse_xml_tool_call(
         if match:
             working_reply = match.group(1)
             logger.info("Stripped markdown code blocks from tool call")
-    match = XML_PATTERN_FULL.search(working_reply)
-    if not match:
-        return None, reply
+    # Look for tool calls in the simplified format: <tool>name</tool><args>...</args>
+    tool_pattern = re.compile(r"<tool>(.*?)</tool>\s*<args>(.*?)</args>", re.DOTALL)
+    match = tool_pattern.search(working_reply)
 
-    xml_content = f"<tool_call>{match.group(1)}</tool_call>"
-    original_xml = xml_content
-    logger.info("Found tool call in response")
+    if not match:
+        # Also check for wrapped format for backwards compatibility
+        wrapped_match = XML_PATTERN_FULL.search(working_reply)
+        if wrapped_match:
+            # Extract and re-parse the wrapped content
+            inner_content = wrapped_match.group(1)
+            inner_match = tool_pattern.search(inner_content)
+            if inner_match:
+                match = inner_match
+                original_xml = wrapped_match.group(0)
+            else:
+                return None, reply
+        else:
+            return None, reply
+    else:
+        original_xml = match.group(0)
+
+    tool_name = match.group(1).strip()
+    args_content = match.group(2).strip()
+
+    # Wrap in standard format for parsing
+    xml_content = f"<tool_call><tool>{tool_name}</tool><args>{args_content}</args></tool_call>"
+    logger.info(f"Found tool call: {tool_name}")
 
     # Check if there are multiple tool calls
     all_matches = XML_PATTERN_FULL.findall(working_reply)

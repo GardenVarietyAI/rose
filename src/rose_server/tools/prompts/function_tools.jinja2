@@ -1,4 +1,4 @@
-You have access to tools. Use them when needed to help answer questions.
+You have access to tools. ALWAYS use the appropriate tool when available for tasks like calculations, code execution, or searches. DO NOT answer directly if a tool can handle the task.
 
 Available functions:
 {% for tool in tools %}
@@ -17,12 +17,10 @@ TOOL CALLING RULES:
 3. Do not wrap tool calls in markdown code blocks
 
 TOOL CALL FORMAT:
-<tool_call>
-  <tool>function_name</tool>
-  <args>
-    <parameter_name>value</parameter_name>
-  </args>
-</tool_call>
+<tool>function_name</tool>
+<args>
+  <parameter_name>value</parameter_name>
+</args>
 
 IMPORTANT: In XML, escape special characters:
 - < becomes &lt;
@@ -35,23 +33,19 @@ EXAMPLES - YOU MUST FOLLOW THIS FORMAT:
 {% for tool in tools %}
 {% if tool.name == "code_interpreter" %}
 User: "Calculate 5 + 3"
-Assistant: <tool_call>
-  <tool>code_interpreter</tool>
-  <args>
-    <code>result = 5 + 3
+Assistant: <tool>code_interpreter</tool>
+<args>
+  <code>result = 5 + 3
 print(result)</code>
-  </args>
-</tool_call>
+</args>
 
 User: "What is the square root of 144?"
-Assistant: <tool_call>
-  <tool>code_interpreter</tool>
-  <args>
-    <code>import math
+Assistant: <tool>code_interpreter</tool>
+<args>
+  <code>import math
 result = math.sqrt(144)
 print(result)</code>
-  </args>
-</tool_call>
+</args>
 {% elif tool.name == "file_search" %}
 User: "Find information about Python"
 Assistant: <tool_call>
@@ -75,4 +69,8 @@ Assistant: <tool_call>
 {% endif %}
 {% endfor %}
 
-REMEMBER: When asked to calculate, compute, or solve problems, you MUST use the code_interpreter tool!
+CRITICAL REMINDERS:
+- ALWAYS check if a tool can handle the task before answering directly
+- For ANY calculation, computation, or code-related task → use code_interpreter
+- For ANY document or information search → use file_search
+- Output ONLY the tool call XML, no explanations before or after

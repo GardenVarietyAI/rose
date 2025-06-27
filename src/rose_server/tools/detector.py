@@ -31,39 +31,44 @@ class StreamingXMLDetector:
         """
         if not token:
             return None, None
+
         self.buffer += token
-        # Check for complete tool call
-        start_idx = self.buffer.find("<tool_call>")
-        if start_idx != -1:
-            end_idx = self.buffer.find("</tool_call>", start_idx)
-            if end_idx != -1:
+
+        # Check for complete tool call - look for <tool> followed by </args>
+        tool_start = self.buffer.find("<tool>")
+        if tool_start != -1:
+            # Look for the closing </args> tag which ends a tool call
+            args_end = self.buffer.find("</args>", tool_start)
+            if args_end != -1:
                 logger.info("XML detector found complete tool call!")
-                end_idx += 12  # Include closing tag
-                text_before = self.buffer[:start_idx]
-                tool_xml = self.buffer[start_idx:end_idx]
-                self.buffer = self.buffer[end_idx:]
+                args_end += 7  # Include closing tag
+                text_before = self.buffer[:tool_start]
+                tool_xml = self.buffer[tool_start:args_end]
+                self.buffer = self.buffer[args_end:]
+
                 # Strip common markdown wrappers
                 stripped = text_before.strip()
                 if stripped in ("```xml", "```") or stripped.startswith("```xml\n") or stripped == "```\n":
                     text_before = ""
                     logger.debug("Stripped markdown wrapper before tool call")
+
                 logger.info(f"Parsing tool XML: {repr(tool_xml)}")
                 tool_call, _ = parse_xml_tool_call(tool_xml)
                 return (text_before if text_before else None), tool_call
-        # Check if we're building up a potential tool call tag
-        # More efficient to check once for '<' and then check prefixes
-        if self.buffer.endswith("<"):
-            return None, None
-        if self.buffer.endswith(
-            ("<t", "<to", "<too", "<tool", "<tool_", "<tool_c", "<tool_ca", "<tool_cal", "<tool_call")
-        ):
-            return None, None
-        # No tool call pattern detected, emit buffer content
-        if self.buffer:
-            text = self.buffer
-            self.buffer = ""
-            return text, None
-        return None, None
+            else:
+                # We have <tool> but no </args> yet, keep buffering
+                return None, None
+
+        # If buffer could be start of a tool call, keep buffering
+        # Check if buffer ends with a partial tag that could become <tool> or <args>
+        for partial in ["<", "<t", "<to", "<too", "<tool", "<a", "<ar", "<arg", "<args"]:
+            if self.buffer.endswith(partial):
+                return None, None
+
+        # If no tool pattern and no partial tags, emit the buffer
+        text = self.buffer
+        self.buffer = ""
+        return text, None
 
     def flush(self) -> Optional[str]:
         """Flush any remaining buffer content.
