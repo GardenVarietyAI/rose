@@ -9,7 +9,9 @@ from openai.types.beta.code_interpreter_tool import CodeInterpreterTool
 from openai.types.beta.file_search_tool import FileSearchTool
 from openai.types.beta.function_tool import FunctionTool
 
-from .chunker import MAX_TOOL_OUTPUT_TOKENS, chunk_tool_output
+from rose_core.config.service import MAX_TOOL_OUTPUT_TOKENS
+
+from .chunker import chunk_tool_output
 from .toolbox import BUILTIN_TOOLS, Tool
 
 logger = logging.getLogger(__name__)
