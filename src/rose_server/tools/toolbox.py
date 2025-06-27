@@ -23,4 +23,9 @@ BUILTIN_TOOLS = {
         "description": "Searches through attached documents using vector similarity",
         "supported": True,
     },
+    "web_search": {
+        "type": "web_search",
+        "description": "Searches the web for current information using DuckDuckGo",
+        "supported": True,
+    },
 }

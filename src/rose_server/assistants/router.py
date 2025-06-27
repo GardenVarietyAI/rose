@@ -83,11 +83,10 @@ async def get(assistant_id: str) -> AssistantResponse:
 @router.post("/assistants/{assistant_id}", response_model=AssistantResponse)
 async def update(assistant_id: str, request: AssistantUpdateRequest) -> AssistantResponse:
     """Update an assistant."""
-    # Build updates dict
+
     updates = request.model_dump(exclude_unset=True)
     if "metadata" in updates:
         updates["meta"] = updates.pop("metadata")
-    # tools are already dicts after model_dump()
 
     assistant = await update_assistant(assistant_id, updates)
     if not assistant:

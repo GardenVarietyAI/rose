@@ -10,6 +10,7 @@ from rose_server.runs.steps.store import create_run_step, update_run_step
 from rose_server.schemas.runs import RunStepResponse
 from rose_server.tools.handlers.code_interpreter import intercept_code_interpreter_tool_call
 from rose_server.tools.handlers.retrieval import intercept_retrieval_tool_call
+from rose_server.tools.handlers.web_search import intercept_web_search_tool_call
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,9 @@ async def execute_builtin_tool(
     elif tool_name == "file_search":
         is_builtin = True
         tool_type = "file_search"
+    elif tool_name == "web_search":
+        is_builtin = True
+        tool_type = "web_search"
 
     if not is_builtin:
         return None
@@ -84,7 +88,7 @@ async def execute_builtin_tool(
             else:
                 raise Exception("Code execution failed")
 
-        else:  # file_search
+        elif tool_type == "file_search":
             result = await intercept_retrieval_tool_call(tool_call, assistant_id)
 
             if result:
@@ -97,6 +101,20 @@ async def execute_builtin_tool(
                 }
             else:
                 raise Exception("Search failed")
+
+        else:  # web_search
+            result = await intercept_web_search_tool_call(tool_call, assistant_id)
+
+            if result:
+                _, output = result
+                # Create web search step details
+                tool_call_detail = {
+                    "id": f"call_{uuid.uuid4().hex[:8]}",
+                    "type": "web_search",
+                    "web_search": {"query": tool_call.get("arguments", {}).get("query", ""), "results": output},
+                }
+            else:
+                raise Exception("Web search failed")
 
         # Update step with tool call details
         step_entity.step_details = {"tool_calls": [tool_call_detail]}

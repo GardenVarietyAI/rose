@@ -89,6 +89,18 @@ def format_tools_for_prompt(tools: List, assistant_id: Optional[str] = None, use
                     },
                 }
             )
+        elif tool_type == "web_search":
+            tool_list.append(
+                {
+                    "name": "web_search",
+                    "description": "Search the web for current information",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"query": {"type": "string", "description": "Search query"}},
+                        "required": ["query"],
+                    },
+                }
+            )
     if not tool_list:
         return ""
     is_agents_sdk = user_agent and "Agents/Python" in user_agent
