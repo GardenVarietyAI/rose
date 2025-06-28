@@ -22,21 +22,12 @@ def _strip_markdown(text: str) -> str:
 
 
 def _parse_args(args_element: ET.Element, tool_name: str) -> Dict[str, Any]:
-    """Parse arguments from XML element, with special handling for shell."""
+    """Parse arguments from XML element."""
     args_dict: Dict[str, Any] = {}
-
-    if tool_name == "shell":
-        # Special handling for shell commands
-        commands: List[str] = []
-        for cmd in args_element.findall("command"):
-            if cmd.text:
-                commands.extend(cmd.text.split())
-        if commands:
-            args_dict["command"] = commands
 
     # Parse all child elements
     for child in args_element:
-        if child.text and (tool_name != "shell" or child.tag != "command"):
+        if child.text:
             args_dict[child.tag] = child.text
 
     return args_dict
