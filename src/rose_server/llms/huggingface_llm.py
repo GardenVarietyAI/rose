@@ -11,6 +11,7 @@ from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
 from rose_core.models import cleanup_model_memory, get_tokenizer, load_hf_model, load_peft_model
 from rose_server.schemas.chat import ChatMessage
+from rose_server.tools import format_tools_for_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,21 @@ class HuggingFaceLLM:
             logger.error("Config: %s", self.config)
             traceback.print_exc()
             return False
+
+    def format_messages_with_tools(self, messages: List[ChatMessage], tools: List[Any]) -> str:
+        """Format messages with tool definitions included."""
+        # Get base prompt from messages
+        base_prompt = self.format_messages(messages)
+
+        # Add tool instructions if tools are provided
+        if tools:
+            tool_prompt = format_tools_for_prompt(tools)
+            if tool_prompt:
+                # Find where to insert tool instructions - typically after system message
+                # For now, prepend to the prompt
+                return f"{tool_prompt}\n\n{base_prompt}"
+
+        return base_prompt
 
     def format_messages(self, messages: List[ChatMessage]) -> str:
         """

@@ -1,23 +1,22 @@
 import logging
 import re
 import xml.etree.ElementTree as ET
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 # Precompiled regex patterns
 CODE_BLOCK_PATTERN = re.compile(r"```(?:xml)?\s*(.*?)\s*```", re.DOTALL)
 XML_PATTERN_FULL = re.compile(r"<tool_call>(.*?)</tool_call>", re.DOTALL)
-TOOL_PATTERN = re.compile(r"<tool>(.*?)</tool>", re.DOTALL)
-ARGS_PATTERN = re.compile(r"<args>(.*?)</args>", re.DOTALL)
 
 
-def parse_xml_tool_call(reply: str, available_tools: Optional[list] = None) -> Tuple[Optional[Dict], str]:
+def parse_xml_tool_call(
+    reply: str, available_tools: Optional[List[Any]] = None
+) -> Tuple[Optional[Dict[str, Any]], str]:
     """Parse XML tool call from LLM response and return (tool_call, cleaned_reply).
 
-    Supports two XML formats:
-    1. Standard: <tool_call><tool>name</tool><args>...</args></tool_call>
-    2. Qwen: <tool>name</tool><args>...</args>
+    Expected XML format: <tool_call><tool>name</tool><args>...</args></tool_call>
+
     Args:
         reply: The LLM response containing potential XML tool calls
         available_tools: List of available tools for parameter validation
@@ -31,47 +30,47 @@ def parse_xml_tool_call(reply: str, available_tools: Optional[list] = None) -> T
         if match:
             working_reply = match.group(1)
             logger.info("Stripped markdown code blocks from tool call")
-    match = XML_PATTERN_FULL.search(working_reply)
-    xml_content = None
-    original_xml = None
-    if match:
-        xml_content = f"<tool_call>{match.group(1)}</tool_call>"
-        original_xml = xml_content
-        logger.info("Found standard <tool_call> format")
-    else:
-        tool_match = TOOL_PATTERN.search(working_reply)
-        if tool_match:
-            tool_end = tool_match.end()
-            remaining = working_reply[tool_end:]
-            args_match = ARGS_PATTERN.search(remaining)
-            if args_match and args_match.start() < 50:
-                tool_name = tool_match.group(1).strip()
-                args_content = args_match.group(1).strip()
-                xml_content = f"<tool_call><tool>{tool_name}</tool><args>{args_content}</args></tool_call>"
-                logger.info(f"Found Qwen format (no wrapper), converted to tool_call: {tool_name}")
-                tool_start = tool_match.start()
-                args_end = tool_end + args_match.end()
-                original_xml = working_reply[tool_start:args_end]
+    # Look for tool calls in the simplified format: <tool>name</tool><args>...</args>
+    tool_pattern = re.compile(r"<tool>(.*?)</tool>\s*<args>(.*?)</args>", re.DOTALL)
+    match = tool_pattern.search(working_reply)
+
+    if not match:
+        # Also check for wrapped format for backwards compatibility
+        wrapped_match = XML_PATTERN_FULL.search(working_reply)
+        if wrapped_match:
+            # Extract and re-parse the wrapped content
+            inner_content = wrapped_match.group(1)
+            inner_match = tool_pattern.search(inner_content)
+            if inner_match:
+                match = inner_match
+                original_xml = wrapped_match.group(0)
             else:
                 return None, reply
         else:
             return None, reply
-    if not xml_content:
-        return None, reply
-    all_matches_full = XML_PATTERN_FULL.findall(working_reply)
-    all_matches_partial = len(TOOL_PATTERN.findall(working_reply))
-    total_matches = len(all_matches_full) + all_matches_partial
-    if total_matches > 1:
-        logger.warning(f"Found {total_matches} tool calls in response - only processing the first one for safety")
+    else:
+        original_xml = match.group(0)
+
+    tool_name = match.group(1).strip()
+    args_content = match.group(2).strip()
+
+    # Wrap in standard format for parsing
+    xml_content = f"<tool_call><tool>{tool_name}</tool><args>{args_content}</args></tool_call>"
+    logger.info(f"Found tool call: {tool_name}")
+
+    # Check if there are multiple tool calls
+    all_matches = XML_PATTERN_FULL.findall(working_reply)
+    if len(all_matches) > 1:
+        logger.warning(f"Found {len(all_matches)} tool calls in response - only processing the first one for safety")
     try:
         root = ET.fromstring(xml_content)
         tool_name = root.find("tool")
         args_element = root.find("args")
         if tool_name is None or args_element is None:
             return None, reply
-        args_dict = {}
+        args_dict: Dict[str, Any] = {}
         if tool_name.text == "shell":
-            commands = []
+            commands: List[str] = []
             for cmd in args_element.findall("command"):
                 if cmd.text:
                     commands.extend(cmd.text.split())
