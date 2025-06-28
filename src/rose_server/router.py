@@ -4,7 +4,6 @@ from fastapi import APIRouter
 
 from rose_server.assistants.router import router as assistants_router
 from rose_server.chat_completions.router import router as chat_completions_router
-from rose_server.completions.router import router as completions_router
 from rose_server.embeddings.router import router as embeddings_router
 from rose_server.files.router import router as files_router
 from rose_server.fine_tuning.router import router as fine_tuning_router
@@ -32,6 +31,5 @@ router.include_router(responses_router)
 router.include_router(fine_tuning_router)
 router.include_router(files_router)
 router.include_router(chat_completions_router)
-router.include_router(completions_router)
 router.include_router(jobs_router)
 router.include_router(webhooks_router)
