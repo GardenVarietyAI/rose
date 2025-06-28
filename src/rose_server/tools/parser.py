@@ -8,6 +8,38 @@ logger = logging.getLogger(__name__)
 # Precompiled regex patterns
 CODE_BLOCK_PATTERN = re.compile(r"```(?:xml)?\s*(.*?)\s*```", re.DOTALL)
 XML_PATTERN_FULL = re.compile(r"<tool_call>(.*?)</tool_call>", re.DOTALL)
+TOOL_PATTERN = re.compile(r"<tool>(.*?)</tool>\s*<args>(.*?)</args>", re.DOTALL)
+
+
+def _strip_markdown(text: str) -> str:
+    """Strip markdown code blocks if present."""
+    if "```" in text:
+        match = CODE_BLOCK_PATTERN.search(text)
+        if match:
+            logger.info("Stripped markdown code blocks from tool call")
+            return match.group(1)
+    return text
+
+
+def _parse_args(args_element: ET.Element, tool_name: str) -> Dict[str, Any]:
+    """Parse arguments from XML element, with special handling for shell."""
+    args_dict: Dict[str, Any] = {}
+
+    if tool_name == "shell":
+        # Special handling for shell commands
+        commands: List[str] = []
+        for cmd in args_element.findall("command"):
+            if cmd.text:
+                commands.extend(cmd.text.split())
+        if commands:
+            args_dict["command"] = commands
+
+    # Parse all child elements
+    for child in args_element:
+        if child.text and (tool_name != "shell" or child.tag != "command"):
+            args_dict[child.tag] = child.text
+
+    return args_dict
 
 
 def parse_xml_tool_call(
@@ -24,32 +56,23 @@ def parse_xml_tool_call(
         Tuple of (tool_call_dict, cleaned_reply) where tool_call_dict contains
         the parsed tool information in a format compatible with the runs API
     """
-    working_reply = reply
-    if "```" in working_reply:
-        match = CODE_BLOCK_PATTERN.search(working_reply)
-        if match:
-            working_reply = match.group(1)
-            logger.info("Stripped markdown code blocks from tool call")
-    # Look for tool calls in the simplified format: <tool>name</tool><args>...</args>
-    tool_pattern = re.compile(r"<tool>(.*?)</tool>\s*<args>(.*?)</args>", re.DOTALL)
-    match = tool_pattern.search(working_reply)
+    working_reply = _strip_markdown(reply)
+
+    # Try to find a match in either format
+    match = TOOL_PATTERN.search(working_reply)
+    original_xml = match.group(0) if match else None
 
     if not match:
-        # Also check for wrapped format for backwards compatibility
+        # Check for wrapped format for backwards compatibility
         wrapped_match = XML_PATTERN_FULL.search(working_reply)
         if wrapped_match:
-            # Extract and re-parse the wrapped content
-            inner_content = wrapped_match.group(1)
-            inner_match = tool_pattern.search(inner_content)
+            inner_match = TOOL_PATTERN.search(wrapped_match.group(1))
             if inner_match:
                 match = inner_match
                 original_xml = wrapped_match.group(0)
-            else:
-                return None, reply
-        else:
-            return None, reply
-    else:
-        original_xml = match.group(0)
+
+    if not match:
+        return None, reply
 
     tool_name = match.group(1).strip()
     args_content = match.group(2).strip()
@@ -62,33 +85,24 @@ def parse_xml_tool_call(
     all_matches = XML_PATTERN_FULL.findall(working_reply)
     if len(all_matches) > 1:
         logger.warning(f"Found {len(all_matches)} tool calls in response - only processing the first one for safety")
+
     try:
         root = ET.fromstring(xml_content)
         tool_name = root.find("tool")
         args_element = root.find("args")
-        if tool_name is None or args_element is None:
+
+        if tool_name is None or args_element is None or tool_name.text is None:
             return None, reply
-        args_dict: Dict[str, Any] = {}
-        if tool_name.text == "shell":
-            commands: List[str] = []
-            for cmd in args_element.findall("command"):
-                if cmd.text:
-                    commands.extend(cmd.text.split())
-            if commands:
-                args_dict["command"] = commands
-            for child in args_element:
-                if child.tag != "command" and child.text:
-                    args_dict[child.tag] = child.text
-        else:
-            for child in args_element:
-                if child.text:
-                    args_dict[child.tag] = child.text
-        parsed_call = {"tool": tool_name.text, "arguments": args_dict}
-        cleaned_reply = reply.replace(original_xml, "").strip()
-        if cleaned_reply.startswith("```xml") and cleaned_reply.endswith("```"):
-            cleaned_reply = cleaned_reply[6:-3].strip()
-        elif cleaned_reply.startswith("```") and cleaned_reply.endswith("```"):
-            cleaned_reply = cleaned_reply[3:-3].strip()
+
+        args_dict = _parse_args(args_element, tool_name.text)
+
+        parsed_call = {
+            "tool": tool_name.text,
+            "arguments": args_dict,
+        }
+
+        cleaned_reply = _strip_markdown(reply.replace(original_xml or "", "").strip())
+
         logger.info(f"Parsed XML tool call: {parsed_call}")
         logger.info(f"Remaining reply text after XML removal: '{cleaned_reply}'")
         return parsed_call, cleaned_reply
