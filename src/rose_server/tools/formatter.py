@@ -2,24 +2,27 @@
 
 import logging
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from jinja2 import Environment, FileSystemLoader
 from openai.types.beta.code_interpreter_tool import CodeInterpreterTool
 from openai.types.beta.file_search_tool import FileSearchTool
 from openai.types.beta.function_tool import FunctionTool
+from openai.types.shared_params.function_definition import FunctionDefinition
 
 from rose_core.config.service import MAX_TOOL_OUTPUT_TOKENS
 
 from .chunker import chunk_tool_output
-from .toolbox import BUILTIN_TOOLS, Tool
+from .toolbox import Tool
 
 logger = logging.getLogger(__name__)
 template_dir = Path(__file__).parent / "prompts"
 jinja_env = Environment(loader=FileSystemLoader(str(template_dir)), trim_blocks=True, lstrip_blocks=True)
 
 
-def format_tools_for_prompt(tools: List, assistant_id: Optional[str] = None, user_agent: Optional[str] = None) -> str:
+def format_tools_for_prompt(
+    tools: List[Any], assistant_id: Optional[str] = None, user_agent: Optional[str] = None
+) -> str:
     """Format tools into XML prompt instructions for LLMs.
 
     Args:
@@ -132,7 +135,7 @@ def format_function_output(output: str, exit_code: int = 0, model: str = "gpt-4"
     return template.render(output=output, exit_code=exit_code)
 
 
-def validate_tools(tools: List[dict]) -> List[Tool]:
+def validate_tools(tools: List[Dict[str, Any]]) -> List[Tool]:
     """Validate and parse tool definitions.
 
     Args:
@@ -142,7 +145,7 @@ def validate_tools(tools: List[dict]) -> List[Tool]:
     Raises:
         ValueError: If tool type is unknown
     """
-    validated = []
+    validated: List[Tool] = []
     for tool_dict in tools:
         tool_type = tool_dict.get("type")
         if tool_type == "function":
@@ -151,13 +154,28 @@ def validate_tools(tools: List[dict]) -> List[Tool]:
             validated.append(CodeInterpreterTool(type="code_interpreter"))
         elif tool_type == "file_search":
             validated.append(FileSearchTool(type="file_search"))
-        elif tool_type in BUILTIN_TOOLS:
+        elif tool_type == "web_search":
+            # Web search is a custom built-in tool, treat as function
             validated.append(
                 FunctionTool(
                     type="function",
-                    function={"name": tool_type, "description": f"Built-in {tool_type} tool", "parameters": {}},
+                    function=FunctionDefinition(
+                        name="web_search",
+                        description="Search the web for current information",
+                        parameters={"type": "object", "properties": {}, "required": []},
+                    ),
                 )
             )
         else:
-            raise ValueError(f"Unknown tool type: {tool_type}")
+            logger.warning(f"Unknown tool type: {tool_type}, treating as custom function tool")
+            validated.append(
+                FunctionTool(
+                    type="function",
+                    function=FunctionDefinition(
+                        name=tool_type or "unknown",
+                        description=f"Custom {tool_type} tool",
+                        parameters={"type": "object", "properties": {}, "required": []},
+                    ),
+                )
+            )
     return validated
