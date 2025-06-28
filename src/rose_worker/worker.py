@@ -5,7 +5,6 @@ import os
 import time
 
 from .client import get_client
-from .evals.process import process_eval_job
 from .fine_tuning.process import process_training_job
 
 logging.basicConfig(level=logging.INFO)
@@ -21,19 +20,12 @@ def main() -> None:
 
     while True:
         try:
-            # Get any job
-            for job_type in ["training", "eval"]:
-                jobs = client.get_queued_jobs(job_type, limit=1)
-                if jobs:
-                    job = jobs[0]
-                    logger.info(f"Running {job_type} job {job['id']}")
-
-                    if job_type == "training":
-                        process_training_job(job["id"], job["payload"])
-                    else:
-                        process_eval_job(job["id"], job["payload"])
-
-                    break
+            # Get training jobs only
+            jobs = client.get_queued_jobs("training", limit=1)
+            if jobs:
+                job = jobs[0]
+                logger.info(f"Running training job {job['id']}")
+                process_training_job(job["id"], job["payload"])
         except Exception as e:
             logger.error(f"Job failed: {e}")
 
