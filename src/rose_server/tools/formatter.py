@@ -76,12 +76,6 @@ def format_tools_for_prompt(
                     },
                 }
             )
-        elif tool_type == "code_interpreter":
-            # Skip unsupported tool
-            continue
-        elif tool_type == "web_search":
-            # Skip unsupported tool
-            continue
     if not tool_list:
         return ""
 
@@ -127,14 +121,8 @@ def validate_tools(tools: List[Dict[str, Any]]) -> List[Tool]:
         tool_type = tool_dict.get("type")
         if tool_type == "function":
             validated.append(FunctionTool(**tool_dict))
-        elif tool_type == "code_interpreter":
-            logger.warning("code_interpreter tool is not supported, skipping")
-            continue
         elif tool_type == "file_search":
             validated.append(FileSearchTool(type="file_search"))
-        elif tool_type == "web_search":
-            logger.warning("web_search tool is not supported, skipping")
-            continue
         else:
             logger.warning(f"Unknown tool type: {tool_type}, treating as custom function tool")
             validated.append(

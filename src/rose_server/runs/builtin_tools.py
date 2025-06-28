@@ -95,7 +95,6 @@ async def execute_builtin_tool(
                 raise Exception("Search failed")
 
         else:
-            # This should not happen since we check supported status above
             raise Exception(f"Tool '{tool_name}' execution not implemented")
 
         # Update step with tool call details

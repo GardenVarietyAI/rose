@@ -17,8 +17,6 @@ from rose_server.runs.steps.store import create_run_step, list_run_steps, update
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.runs import RunResponse, RunStepResponse
 
-# Code interpreter import removed - tool is no longer supported
-
 logger = logging.getLogger(__name__)
 
 
@@ -35,8 +33,6 @@ async def process_tool_outputs(
         (s for s in steps if s.type == "tool_calls" and s.status == "in_progress"),
         None,
     )
-
-    # Note: Code interpreter interception has been removed as the tool is no longer supported
 
     if tool_step:
         await update_run_step(
