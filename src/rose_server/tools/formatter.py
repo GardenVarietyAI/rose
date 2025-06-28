@@ -33,7 +33,6 @@ def format_tools_for_prompt(tools: List, assistant_id: Optional[str] = None, use
         return ""
     logger.info(f"Formatting {len(tools)} tools for prompt")
     tool_list = []
-    has_file_search = False
     for tool in tools:
         if hasattr(tool, "type"):
             tool_type = tool.type
@@ -67,7 +66,6 @@ def format_tools_for_prompt(tools: List, assistant_id: Optional[str] = None, use
                 {"name": name, "description": description, "parameters": parameters if parameters is not None else {}}
             )
         elif tool_type in ["retrieval", "file_search"]:
-            has_file_search = True
             tool_list.append(
                 {
                     "name": "file_search",
@@ -105,26 +103,13 @@ def format_tools_for_prompt(tools: List, assistant_id: Optional[str] = None, use
             )
     if not tool_list:
         return ""
-    is_agents_sdk = user_agent and "Agents/Python" in user_agent
-    has_shell_tools = any(tool["name"] in ["shell", "bash", "execute"] for tool in tool_list)
-    if is_agents_sdk:
-        template_name = "agent_tool_instructions.jinja2"
-    elif has_shell_tools:
-        template_name = "tool_instructions.jinja2"
-    else:
-        template_name = "function_tools.jinja2"
-    template = jinja_env.get_template(template_name)
+
+    template = jinja_env.get_template("tool_calling.jinja2")
     render_args = {
         "tools": tool_list,
-        "has_file_search": has_file_search,
-        "assistant_id": assistant_id,
     }
-    if template_name in ["tool_instructions.jinja2", "agent_tool_instructions.jinja2"]:
-        render_args["example_tool"] = "shell"
-        render_args["example_command"] = "cat README.md"
 
     rendered = template.render(**render_args)
-    logger.info(f"Using template: {template_name}")
     logger.debug(f"Rendered tool prompt:\n{rendered[:500]}...")  # Log first 500 chars
     return rendered
 
