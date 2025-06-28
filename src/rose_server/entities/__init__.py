@@ -4,11 +4,6 @@ API schemas are in the schemas/ module.
 """
 
 from .assistants import Assistant
-from .evals import (
-    Eval,
-    EvalRun,
-    EvalSample,
-)
 from .fine_tuning import (
     FineTuningEvent,
     FineTuningJob,
@@ -31,8 +26,5 @@ __all__ = [
     "MessageMetadata",
     "Run",
     "RunStep",
-    "Eval",
-    "EvalRun",
-    "EvalSample",
     "LanguageModel",
 ]

@@ -17,7 +17,7 @@ router = APIRouter()
 @router.post("/v1/files")
 async def create(
     file: UploadFile = File(...),
-    purpose: Literal["assistants", "batch", "fine-tune", "vision", "user_data", "evals"] = Form(...),
+    purpose: Literal["assistants", "batch", "fine-tune", "vision", "user_data"] = Form(...),
 ) -> FileObject:
     """Upload a file."""
     try:
