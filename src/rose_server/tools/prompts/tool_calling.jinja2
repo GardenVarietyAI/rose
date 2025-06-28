@@ -1,0 +1,49 @@
+You have access to tools. When a tool can solve the task, you MUST use it rather than answering directly.
+
+Available tools:
+{% for tool in tools %}
+- {{ tool.name }}: {{ tool.description }}
+{%- if tool.parameters and tool.parameters.properties %}
+  {%- for param_name, param_info in tool.parameters.properties.items() %}
+  - {{ param_name }}: {{ param_info.description }}{% if param_name in tool.parameters.get('required', []) %} (required){% endif %}
+  {%- endfor %}
+{%- endif %}
+{% endfor %}
+
+Tool usage:
+1. Output ONLY the XML below - no explanations before or after
+2. One tool call per message
+3. After receiving results, incorporate them in your response
+
+XML format:
+<tool>tool_name</tool>
+<args>
+  <parameter_name>value</parameter_name>
+</args>
+
+XML escaping (required):
+- < becomes &lt;
+- > becomes &gt;
+- & becomes &amp;
+- " becomes &quot;
+- ' becomes &apos;
+
+Examples:
+{% if tools|selectattr("name", "equalto", "file_search")|list %}
+User: Find information about API authentication
+Assistant: <tool>file_search</tool>
+<args>
+  <query>API authentication methods security</query>
+</args>
+{% endif %}
+{% for tool in tools %}
+{% if tool.name not in ["file_search", "code_interpreter", "web_search"] %}
+User: [Example using {{ tool.name }}]
+Assistant: <tool>{{ tool.name }}</tool>
+<args>
+  {% for param_name in tool.parameters.get('required', []) %}
+  <{{ param_name }}>example_value</{{ param_name }}>
+  {% endfor %}
+</args>
+{% endif %}
+{% endfor %}
