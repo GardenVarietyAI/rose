@@ -33,7 +33,7 @@ def format_tools_for_prompt(tools: List, assistant_id: Optional[str] = None, use
         return ""
     logger.info(f"Formatting {len(tools)} tools for prompt")
     tool_list = []
-    has_retrieval = False
+    has_file_search = False
     for tool in tools:
         if hasattr(tool, "type"):
             tool_type = tool.type
@@ -67,7 +67,7 @@ def format_tools_for_prompt(tools: List, assistant_id: Optional[str] = None, use
                 {"name": name, "description": description, "parameters": parameters if parameters is not None else {}}
             )
         elif tool_type in ["retrieval", "file_search"]:
-            has_retrieval = True
+            has_file_search = True
             tool_list.append(
                 {
                     "name": "file_search",
@@ -116,7 +116,7 @@ def format_tools_for_prompt(tools: List, assistant_id: Optional[str] = None, use
     template = jinja_env.get_template(template_name)
     render_args = {
         "tools": tool_list,
-        "has_retrieval": has_retrieval,
+        "has_file_search": has_file_search,
         "assistant_id": assistant_id,
     }
     if template_name in ["tool_instructions.jinja2", "agent_tool_instructions.jinja2"]:

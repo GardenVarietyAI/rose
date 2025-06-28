@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class AssistantFileHandler:
-    """Handle file operations for assistant document retrieval."""
+    """Handle file operations for assistant document file search."""
 
     def __init__(self, base_path: str = "./data/assistant_files", max_file_size_mb: int = 10):
         """Initialize file handler with storage path.

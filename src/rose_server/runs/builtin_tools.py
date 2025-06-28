@@ -9,7 +9,7 @@ from rose_server.entities.run_steps import RunStep
 from rose_server.runs.steps.store import create_run_step, update_run_step
 from rose_server.schemas.runs import RunStepResponse
 from rose_server.tools.handlers.code_interpreter import intercept_code_interpreter_tool_call
-from rose_server.tools.handlers.retrieval import intercept_retrieval_tool_call
+from rose_server.tools.handlers.file_search import intercept_file_search_tool_call
 from rose_server.tools.handlers.web_search import intercept_web_search_tool_call
 
 logger = logging.getLogger(__name__)
@@ -89,11 +89,11 @@ async def execute_builtin_tool(
                 raise Exception("Code execution failed")
 
         elif tool_type == "file_search":
-            result = await intercept_retrieval_tool_call(tool_call, assistant_id)
+            result = await intercept_file_search_tool_call(tool_call, assistant_id)
 
             if result:
                 _, output = result
-                # Create retrieval step details
+                # Create file search step details
                 tool_call_detail = {
                     "id": f"call_{uuid.uuid4().hex[:8]}",
                     "type": "file_search",

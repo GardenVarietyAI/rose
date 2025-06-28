@@ -13,11 +13,6 @@ BUILTIN_TOOLS = {
         "description": "Executes Python code in a subprocess",
         "supported": True,
     },
-    "retrieval": {
-        "type": "retrieval",
-        "description": "Searches through attached documents using vector similarity",
-        "supported": True,
-    },
     "file_search": {
         "type": "file_search",
         "description": "Searches through attached documents using vector similarity",

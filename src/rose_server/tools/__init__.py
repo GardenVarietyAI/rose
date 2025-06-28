@@ -2,7 +2,7 @@
 
 from .detector import StreamingXMLDetector
 from .formatter import format_function_output, format_tools_for_prompt, validate_tools
-from .handlers import handle_retrieval_tool_call, intercept_retrieval_tool_call
+from .handlers import handle_file_search_tool_call, intercept_file_search_tool_call
 from .parser import parse_xml_tool_call
 from .toolbox import BUILTIN_TOOLS, Tool, ToolCall, ToolFunction, ToolOutput
 
@@ -17,6 +17,6 @@ __all__ = [
     "format_function_output",
     "validate_tools",
     "StreamingXMLDetector",
-    "handle_retrieval_tool_call",
-    "intercept_retrieval_tool_call",
+    "handle_file_search_tool_call",
+    "intercept_file_search_tool_call",
 ]
