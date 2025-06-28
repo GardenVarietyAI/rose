@@ -11,7 +11,7 @@ BUILTIN_TOOLS = {
     "code_interpreter": {
         "type": "code_interpreter",
         "description": "Executes Python code in a subprocess",
-        "supported": True,
+        "supported": False,
     },
     "file_search": {
         "type": "file_search",
@@ -21,6 +21,6 @@ BUILTIN_TOOLS = {
     "web_search": {
         "type": "web_search",
         "description": "Searches the web for current information using DuckDuckGo",
-        "supported": True,
+        "supported": False,
     },
 }

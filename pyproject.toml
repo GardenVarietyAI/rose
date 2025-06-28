@@ -41,7 +41,6 @@ greenlet = "^3.2.2"
 aiofiles = "^24.1.0"
 apscheduler = "^3.10.4"
 python-multipart = "^0.0.18"
-duckduckgo-search = "^8.0.4"
 
 [tool.poetry.group.cli]
 optional = true

@@ -8,9 +8,8 @@ from rose_server.database import current_timestamp
 from rose_server.entities.run_steps import RunStep
 from rose_server.runs.steps.store import create_run_step, update_run_step
 from rose_server.schemas.runs import RunStepResponse
-from rose_server.tools.handlers.code_interpreter import intercept_code_interpreter_tool_call
 from rose_server.tools.handlers.file_search import intercept_file_search_tool_call
-from rose_server.tools.handlers.web_search import intercept_web_search_tool_call
+from rose_server.tools.toolbox import BUILTIN_TOOLS
 
 logger = logging.getLogger(__name__)
 
@@ -37,21 +36,32 @@ async def execute_builtin_tool(
     tool_name = tool_call.get("tool", "")
 
     # Check if it's a built-in tool
-    is_builtin = False
-    tool_type = None
-
-    if tool_name == "code_interpreter":
-        is_builtin = True
-        tool_type = "code_interpreter"
-    elif tool_name == "file_search":
-        is_builtin = True
-        tool_type = "file_search"
-    elif tool_name == "web_search":
-        is_builtin = True
-        tool_type = "web_search"
-
-    if not is_builtin:
+    if tool_name not in BUILTIN_TOOLS:
         return None
+
+    tool_config = BUILTIN_TOOLS[tool_name]
+    if not tool_config.get("supported", False):
+        # Return a friendly error for unsupported tools
+        step_id = f"step_{uuid.uuid4().hex}"
+        step_entity = RunStep(
+            id=step_id,
+            created_at=current_timestamp(),
+            run_id=run_id,
+            assistant_id=assistant_id,
+            thread_id=thread_id,
+            type="tool_calls",
+            status="failed",
+            step_details={"tool_calls": []},
+            last_error={
+                "code": "unsupported_tool",
+                "message": f"The '{tool_name}' tool is not currently supported. Please use a function tool instead.",
+            },
+        )
+        await create_run_step(step_entity)
+        step = RunStepResponse(**step_entity.model_dump())
+        return step, f"Error: The '{tool_name}' tool is not currently supported."
+
+    tool_type = tool_name
 
     # Create tool call step
     step_id = f"step_{uuid.uuid4().hex}"
@@ -70,25 +80,7 @@ async def execute_builtin_tool(
 
     # Execute the tool
     try:
-        if tool_type == "code_interpreter":
-            # Execute code
-            result = await intercept_code_interpreter_tool_call(tool_call, assistant_id)
-
-            if result:
-                _, output = result
-                # Create proper code interpreter step details
-                tool_call_detail = {
-                    "id": f"call_{uuid.uuid4().hex[:8]}",
-                    "type": "code",  # OpenAI uses "code" not "function" for code_interpreter
-                    "code": {
-                        "input": tool_call.get("arguments", {}).get("code", ""),
-                        "outputs": [{"type": "logs", "logs": output}],
-                    },
-                }
-            else:
-                raise Exception("Code execution failed")
-
-        elif tool_type == "file_search":
+        if tool_type == "file_search":
             result = await intercept_file_search_tool_call(tool_call, assistant_id)
 
             if result:
@@ -102,19 +94,9 @@ async def execute_builtin_tool(
             else:
                 raise Exception("Search failed")
 
-        else:  # web_search
-            result = await intercept_web_search_tool_call(tool_call, assistant_id)
-
-            if result:
-                _, output = result
-                # Create web search step details
-                tool_call_detail = {
-                    "id": f"call_{uuid.uuid4().hex[:8]}",
-                    "type": "web_search",
-                    "web_search": {"query": tool_call.get("arguments", {}).get("query", ""), "results": output},
-                }
-            else:
-                raise Exception("Web search failed")
+        else:
+            # This should not happen since we check supported status above
+            raise Exception(f"Tool '{tool_name}' execution not implemented")
 
         # Update step with tool call details
         step_entity.step_details = {"tool_calls": [tool_call_detail]}

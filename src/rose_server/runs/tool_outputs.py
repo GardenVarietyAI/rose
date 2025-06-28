@@ -1,6 +1,5 @@
 """Tool output processing for runs."""
 
-import json
 import logging
 import uuid
 from typing import Any, Callable, Dict, List
@@ -17,7 +16,8 @@ from rose_server.messages.store import create_message
 from rose_server.runs.steps.store import create_run_step, list_run_steps, update_run_step
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.runs import RunResponse, RunStepResponse
-from rose_server.tools.handlers.code_interpreter import intercept_code_interpreter_tool_call
+
+# Code interpreter import removed - tool is no longer supported
 
 logger = logging.getLogger(__name__)
 
@@ -36,25 +36,7 @@ async def process_tool_outputs(
         None,
     )
 
-    # Check if we need to intercept code_interpreter calls
-    intercepted_outputs = []
-    if tool_step and tool_step.step_details.get("tool_calls"):
-        for tool_call in tool_step.step_details["tool_calls"]:
-            # Parse the tool call
-            parsed_call = {
-                "tool": tool_call.get("function", {}).get("name"),
-                "arguments": json.loads(tool_call.get("function", {}).get("arguments", "{}")),
-            }
-
-            # Try to intercept code_interpreter
-            result = await intercept_code_interpreter_tool_call(parsed_call, run.assistant_id)
-            if result:
-                tool_name, output = result
-                intercepted_outputs.append({"tool_call_id": tool_call["id"], "output": output})
-
-        # If we intercepted any calls, use those outputs instead
-        if intercepted_outputs:
-            tool_outputs = intercepted_outputs
+    # Note: Code interpreter interception has been removed as the tool is no longer supported
 
     if tool_step:
         await update_run_step(

@@ -29,15 +29,6 @@ XML escaping (required):
 - ' becomes &apos;
 
 Examples:
-{% if tools|selectattr("name", "equalto", "code_interpreter")|list %}
-User: Calculate the factorial of 5
-Assistant: <tool>code_interpreter</tool>
-<args>
-  <code>import math
-result = math.factorial(5)
-print(f"5! = {result}")</code>
-</args>
-{% endif %}
 {% if tools|selectattr("name", "equalto", "file_search")|list %}
 User: Find information about API authentication
 Assistant: <tool>file_search</tool>
@@ -45,10 +36,14 @@ Assistant: <tool>file_search</tool>
   <query>API authentication methods security</query>
 </args>
 {% endif %}
-{% if tools|selectattr("name", "equalto", "web_search")|list %}
-User: What's the current weather in Tokyo?
-Assistant: <tool>web_search</tool>
+{% for tool in tools %}
+{% if tool.name not in ["file_search", "code_interpreter", "web_search"] %}
+User: [Example using {{ tool.name }}]
+Assistant: <tool>{{ tool.name }}</tool>
 <args>
-  <query>current weather Tokyo Japan</query>
+  {% for param_name in tool.parameters.get('required', []) %}
+  <{{ param_name }}>example_value</{{ param_name }}>
+  {% endfor %}
 </args>
 {% endif %}
+{% endfor %}
