@@ -87,7 +87,23 @@ def train(
     raw_dataset: Dataset = load_dataset("json", data_files=str(training_file_path), split="train")
 
     def tokenize_example(example: Dict[str, Any]) -> "BatchEncoding":
-        text = tokenizer.apply_chat_template(example["messages"], tokenize=False)
+        # Check if tokenizer has a chat template
+        if tokenizer.chat_template is None:
+            # Fallback for models without chat templates (like phi-1.5)
+            messages = example["messages"]
+            text_parts = []
+            for msg in messages:
+                role = msg.get("role", "")
+                content = msg.get("content", "")
+                if role == "system":
+                    text_parts.append(f"System: {content}")
+                elif role == "user":
+                    text_parts.append(f"User: {content}")
+                elif role == "assistant":
+                    text_parts.append(f"Assistant: {content}")
+            text = "\n".join(text_parts)
+        else:
+            text = tokenizer.apply_chat_template(example["messages"], tokenize=False)
         return tokenizer(str(text), truncation=True, max_length=hp.max_length)
 
     checkpoint_dir = Path(DATA_DIR) / "checkpoints" / job_id
