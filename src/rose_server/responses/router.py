@@ -176,6 +176,23 @@ async def create_response(request: ResponsesRequest = Body(...), registry: Model
     try:
         logger.info(f"RESPONSES API - Input type: {type(request.input)}, Input: {request.input}")
         logger.info(f"RESPONSES API - Instructions: {request.instructions}")
+
+        # Validate previous_response_id if provided
+        previous_response = None
+        if request.previous_response_id:
+            previous_response = await get_response(request.previous_response_id)
+            if not previous_response:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": {
+                            "message": f"Previous response '{request.previous_response_id}' not found",
+                            "type": "invalid_request_error",
+                            "code": "response_not_found",
+                        }
+                    },
+                )
+
         messages = await _convert_input_to_messages(request)
         logger.info(f"RESPONSES API - Converted messages: {messages}")
 
