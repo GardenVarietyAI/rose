@@ -93,7 +93,7 @@ async def list_fine_tuning_jobs(
     }
 
 
-@router.get("/v1/fine_tuning/jobs/{job_id}", response_model=FineTuningJob)
+@router.get("/fine_tuning/jobs/{job_id}", response_model=FineTuningJob)
 async def retrieve_fine_tuning_job(job_id: str) -> FineTuningJob:
     """Retrieve a fine-tuning job."""
     job = await get_job(job_id)
@@ -102,7 +102,7 @@ async def retrieve_fine_tuning_job(job_id: str) -> FineTuningJob:
     return job.to_openai()
 
 
-@router.post("/v1/fine_tuning/jobs/{job_id}/cancel", response_model=FineTuningJob)
+@router.post("/fine_tuning/jobs/{job_id}/cancel", response_model=FineTuningJob)
 async def cancel_fine_tuning_job(job_id: str) -> FineTuningJob:
     """Cancel a fine-tuning job."""
     job = await get_job(job_id)
@@ -124,7 +124,7 @@ async def cancel_fine_tuning_job(job_id: str) -> FineTuningJob:
     return updated_job.to_openai()
 
 
-@router.get("/v1/fine_tuning/jobs/{job_id}/events", response_model=dict)
+@router.get("/fine_tuning/jobs/{job_id}/events", response_model=dict)
 async def list_fine_tuning_events(
     job_id: str,
     limit: int = Query(default=20, ge=1, le=100, description="Number of events to retrieve"),
@@ -138,7 +138,7 @@ async def list_fine_tuning_events(
     return {"object": "list", "data": [event.to_openai() for event in events], "has_more": len(events) == limit}
 
 
-@router.get("/v1/fine_tuning/jobs/{job_id}/checkpoints", response_model=dict)
+@router.get("/fine_tuning/jobs/{job_id}/checkpoints", response_model=dict)
 async def list_fine_tuning_job_checkpoints(job_id: str) -> Dict[str, Any]:
     """List checkpoints for a fine-tuning job."""
     job = await get_job(job_id)
@@ -147,7 +147,7 @@ async def list_fine_tuning_job_checkpoints(job_id: str) -> Dict[str, Any]:
     return {"object": "list", "data": [], "has_more": False}
 
 
-@router.post("/v1/fine_tuning/jobs/{job_id}/pause", response_model=FineTuningJob)
+@router.post("/fine_tuning/jobs/{job_id}/pause", response_model=FineTuningJob)
 async def pause_fine_tuning_job(job_id: str) -> FineTuningJob:
     """Pause a fine-tuning job."""
     job = await get_job(job_id)
@@ -167,7 +167,7 @@ async def pause_fine_tuning_job(job_id: str) -> FineTuningJob:
     return updated_job.to_openai()
 
 
-@router.post("/v1/fine_tuning/jobs/{job_id}/resume", response_model=FineTuningJob)
+@router.post("/fine_tuning/jobs/{job_id}/resume", response_model=FineTuningJob)
 async def resume_fine_tuning_job(job_id: str) -> FineTuningJob:
     """Resume a paused fine-tuning job."""
 
