@@ -14,25 +14,23 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Build Docker image
-      run: docker build -f Dockerfile.codex -t rose-server:test .
+      run: docker build -t rose-server:test .
 
     - name: Run tests in container
       run: |
         docker run --rm \
           -v ${{ github.workspace }}:/app \
           -w /app \
-          -e CODEX_ENV_PYTHON_VERSION=3.13 \
           rose-server:test \
-          bash -c "poetry install --no-interaction && poetry run pytest"
+          poetry run pytest
 
     - name: Run linting
       run: |
         docker run --rm \
           -v ${{ github.workspace }}:/app \
           -w /app \
-          -e CODEX_ENV_PYTHON_VERSION=3.13 \
           rose-server:test \
-          bash -c "poetry run ruff check src/"
+          poetry run ruff check src/
 
     - name: Test API startup
       run: |
