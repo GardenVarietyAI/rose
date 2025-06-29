@@ -1,7 +1,6 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from openai.types.fine_tuning import FineTuningJobEvent as OpenAIFineTuningJobEvent
 from sqlmodel import select
 
 from rose_server.database import current_timestamp, get_session
@@ -28,11 +27,11 @@ async def add_event(job_id: str, level: str, message: str, data: Optional[Dict[s
         return event.id
 
 
-async def get_events(job_id: str, limit: int = 20, after: Optional[str] = None) -> List[OpenAIFineTuningJobEvent]:
+async def get_events(job_id: str, limit: int = 20, after: Optional[str] = None) -> List[FineTuningEvent]:
     """Get events for a job."""
     statement = (
         select(FineTuningEvent).where(FineTuningEvent.job_id == job_id).order_by(FineTuningEvent.created_at.asc())
     )
     async with get_session(read_only=True) as session:
         events = (await session.execute(statement)).scalars().all()
-        return [event.to_openai() for event in events]
+        return events
