@@ -23,17 +23,25 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["responses"])
 
 
-def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMessage]:
+async def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMessage]:
+    """Convert request to messages, loading history if needed."""
     messages = []
+
+    # Load conversation history if continuing from previous response
+    if request.previous_response_id:
+        from .store import get_conversation_messages
+
+        messages = await get_conversation_messages(request.previous_response_id)
+
+    # Add system instructions
     if request.instructions:
         messages.append(ChatMessage(role="system", content=request.instructions))
 
-    if isinstance(request.input, str):
-        messages.append(ChatMessage(role="user", content=request.input))
-    elif isinstance(request.input, list):
-        for item in request.input:
-            if isinstance(item, dict) and "role" in item and "content" in item:
-                messages.append(ChatMessage(role=item["role"], content=item["content"]))
+    # Add current user input
+    user_texts = [item.text for item in request.input]
+    if user_texts:
+        messages.append(ChatMessage(role="user", content="\n".join(user_texts)))
+
     return messages
 
 
@@ -157,7 +165,7 @@ async def create_response(request: ResponsesRequest = Body(...), registry: Model
     try:
         logger.info(f"RESPONSES API - Input type: {type(request.input)}, Input: {request.input}")
         logger.info(f"RESPONSES API - Instructions: {request.instructions}")
-        messages = _convert_input_to_messages(request)
+        messages = await _convert_input_to_messages(request)
         logger.info(f"RESPONSES API - Converted messages: {messages}")
 
         if not messages:

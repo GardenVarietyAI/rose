@@ -22,6 +22,9 @@ class Message(SQLModel, table=True):
     attachments: List[Dict[str, Any]] = Field(default_factory=list, sa_type=JSON)
     meta: Dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
 
+    # Responses API conversation chaining
+    response_chain_id: Optional[str] = Field(default=None, index=True)
+
     # OpenAI compatibility fields
     status: str = Field(default="completed")
     incomplete_details: Optional[Dict[str, Any]] = Field(default=None, sa_type=JSON)
@@ -32,4 +35,5 @@ class Message(SQLModel, table=True):
         Index("idx_messages_thread", "thread_id"),
         Index("idx_messages_created", "created_at"),
         Index("idx_messages_role", "role"),
+        Index("idx_messages_response_chain", "response_chain_id"),
     )
