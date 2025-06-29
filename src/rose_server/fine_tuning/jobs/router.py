@@ -12,8 +12,7 @@ from rose_core.config.service import (
     FINE_TUNING_DEFAULT_LEARNING_RATE_MULTIPLIER,
 )
 from rose_server.fine_tuning.events.store import get_events
-from rose_server.queues.facade import TrainingJob
-from rose_server.queues.store import find_job_by_payload_field, request_cancel, request_pause
+from rose_server.queues.store import enqueue, find_job_by_payload_field, request_cancel, request_pause
 
 from .store import create_job, get_job, list_jobs, update_job_status
 
@@ -62,12 +61,16 @@ async def create_fine_tuning_job(
 
         await update_job_status(job.id, "queued")
 
-        await TrainingJob.dispatch(
-            model=model,
-            training_file=training_file,
-            job_id=job.id,
-            hyperparameters=hyperparameters,
-            suffix=suffix,
+        await enqueue(
+            job_type="training",
+            payload={
+                "model": model,
+                "training_file": training_file,
+                "job_id": job.id,
+                "hyperparameters": hyperparameters,
+                "suffix": suffix or "custom",
+            },
+            max_attempts=3,
         )
 
         return job.to_openai()
@@ -176,12 +179,16 @@ async def resume_fine_tuning_job(job_id: str) -> FineTuningJob:
         )
 
     if job.status == "queued":
-        await TrainingJob.dispatch(
-            model=job.model,
-            training_file=job.training_file,
-            job_id=job.id,
-            hyperparameters=job.hyperparameters if job.hyperparameters else {},
-            suffix=job.suffix,
+        await enqueue(
+            job_type="training",
+            payload={
+                "model": job.model,
+                "training_file": job.training_file,
+                "job_id": job.id,
+                "hyperparameters": job.hyperparameters if job.hyperparameters else {},
+                "suffix": job.suffix or "custom",
+            },
+            max_attempts=3,
         )
         await update_job_status(job_id, "queued")
     else:
