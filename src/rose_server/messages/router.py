@@ -1,7 +1,6 @@
 """API router for threads endpoints."""
 
 import logging
-import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Body, Query
@@ -37,7 +36,6 @@ async def create(
             content = request.content
 
         message = Message(
-            id=f"msg_{uuid.uuid4().hex}",
             thread_id=thread_id,
             role=request.role,
             content=content,
