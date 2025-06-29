@@ -1,49 +1,20 @@
 import json
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from io import BytesIO
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from rose_server.files import store as file_store
 from rose_server.fine_tuning.events.store import get_events
 from rose_server.fine_tuning.jobs.store import get_job, update_job_result_files
+from rose_server.types.training import StepMetrics
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass(slots=True)
-class StepMetrics:
-    step: int
-    train_loss: float
-    epoch: int
-    learning_rate: float
-    train_accuracy: Optional[float] = None
-    valid_loss: Optional[float] = None
-    valid_accuracy: Optional[float] = None
-
-    @classmethod
-    def from_event(cls, data: Dict[str, Any]) -> "StepMetrics":
-        return cls(
-            step=int(data["step"]),
-            train_loss=float(data["loss"]),
-            epoch=int(data.get("epoch", 1)),
-            learning_rate=float(data.get("learning_rate", 5e-6)),
-            train_accuracy=_safe_float(data.get("accuracy")),
-            valid_loss=_safe_float(data.get("valid_loss")),
-            valid_accuracy=_safe_float(data.get("valid_accuracy")),
-        )
-
-
-def _safe_float(value: Any) -> Optional[float]:
-    try:
-        return None if value is None else float(value)
-    except (TypeError, ValueError):
-        return None
-
-
 async def create_result_file(job_id: str, final_loss: float, steps: int) -> Optional[str]:
     """
-    Build an OpenAI-compatible training-results artifact and upload it to the file store.
+    Build a training-results artifact and upload it to the file store.
     Returns the file ID or *None* on failure.
     """
 
