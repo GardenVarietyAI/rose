@@ -4,8 +4,9 @@ from dataclasses import asdict, dataclass
 from io import BytesIO
 from typing import Any, Dict, List, Optional
 
-from ..files import store as file_store
-from ..fine_tuning.store import get_events, get_job, update_job_result_files
+from rose_server.files import store as file_store
+from rose_server.fine_tuning.events.store import get_events
+from rose_server.fine_tuning.jobs.store import get_job, update_job_result_files
 
 logger = logging.getLogger(__name__)
 
