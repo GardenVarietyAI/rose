@@ -5,18 +5,15 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Body, HTTPException, Query
 from openai.types.fine_tuning import FineTuningJob
-from sqlmodel import func, select
 
 from rose_core.config.service import (
     FINE_TUNING_DEFAULT_BATCH_SIZE,
     FINE_TUNING_DEFAULT_EPOCHS,
     FINE_TUNING_DEFAULT_LEARNING_RATE_MULTIPLIER,
 )
-from rose_server.database import run_in_session
-from rose_server.entities.jobs import Job as QueueJob
 from rose_server.fine_tuning.events.store import get_events
 from rose_server.queues.facade import TrainingJob
-from rose_server.queues.store import request_cancel, request_pause
+from rose_server.queues.store import find_job_by_payload_field, request_cancel, request_pause
 
 from .store import create_job, get_job, list_jobs, update_job_status
 
@@ -109,15 +106,7 @@ async def cancel_fine_tuning_job(job_id: str) -> FineTuningJob:
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
 
-    async def find_job(session):
-        stmt = select(QueueJob).where(
-            QueueJob.type == "training", func.json_extract(QueueJob.payload, "$.job_id") == job_id
-        )
-        result = await session.execute(stmt)
-        row = result.first()
-        return row[0] if row else None
-
-    queue_job = await run_in_session(find_job)
+    queue_job = await find_job_by_payload_field("training", "job_id", job_id)
     if queue_job:
         success = await request_cancel(queue_job.id)
         if not success:
@@ -143,7 +132,7 @@ async def list_fine_tuning_events(
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
     events = await get_events(job_id, limit=limit, after=after)
-    return {"object": "list", "data": events, "has_more": len(events) == limit}
+    return {"object": "list", "data": [event.to_openai() for event in events], "has_more": len(events) == limit}
 
 
 @router.get("/v1/fine_tuning/jobs/{job_id}/checkpoints", response_model=dict)
@@ -162,15 +151,7 @@ async def pause_fine_tuning_job(job_id: str) -> FineTuningJob:
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
 
-    async def find_job(session):
-        stmt = select(QueueJob).where(
-            QueueJob.type == "training", func.json_extract(QueueJob.payload, "$.job_id") == job_id
-        )
-        result = await session.execute(stmt)
-        row = result.first()
-        return row[0] if row else None
-
-    queue_job = await run_in_session(find_job)
+    queue_job = await find_job_by_payload_field("training", "job_id", job_id)
     if queue_job:
         success = await request_pause(queue_job.id)
         if not success:

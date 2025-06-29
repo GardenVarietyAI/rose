@@ -2,7 +2,7 @@ import logging
 import time
 from typing import Any, Dict, List, Optional, Union
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from rose_server.database import current_timestamp, get_session
 from rose_server.entities.jobs import Job
@@ -162,3 +162,12 @@ async def update_job_status(job_id: int, status: str, result: Optional[Dict[str,
         await session.commit()
         await session.refresh(job)
         return job
+
+
+async def find_job_by_payload_field(job_type: str, field: str, value: str) -> Optional[Job]:
+    """Find a job by a specific field in its payload."""
+    async with get_session(read_only=True) as session:
+        stmt = select(Job).where(Job.type == job_type, func.json_extract(Job.payload, f"$.{field}") == value)
+        result = await session.execute(stmt)
+        row = result.first()
+        return row[0] if row else None
