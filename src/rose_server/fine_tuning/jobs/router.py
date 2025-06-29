@@ -73,7 +73,7 @@ async def create_fine_tuning_job(
             suffix=suffix,
         )
 
-        return job
+        return job.to_openai()
     except Exception as e:
         logger.error(f"Error creating fine-tuning job: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -88,7 +88,7 @@ async def list_fine_tuning_jobs(
     jobs = await list_jobs(limit=limit, after=after)
     return {
         "object": "list",
-        "data": jobs,
+        "data": [job.to_openai() for job in jobs],
         "has_more": len(jobs) == limit,
     }
 
@@ -99,7 +99,7 @@ async def retrieve_fine_tuning_job(job_id: str) -> FineTuningJob:
     job = await get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
-    return job
+    return job.to_openai()
 
 
 @router.post("/v1/fine_tuning/jobs/{job_id}/cancel", response_model=FineTuningJob)
@@ -129,7 +129,7 @@ async def cancel_fine_tuning_job(job_id: str) -> FineTuningJob:
             await update_job_status(job_id, "cancelled")
     updated_job = await get_job(job_id)
 
-    return updated_job
+    return updated_job.to_openai()
 
 
 @router.get("/v1/fine_tuning/jobs/{job_id}/events", response_model=dict)
@@ -180,7 +180,7 @@ async def pause_fine_tuning_job(job_id: str) -> FineTuningJob:
 
     updated_job = await get_job(job_id)
 
-    return updated_job
+    return updated_job.to_openai()
 
 
 @router.post("/v1/fine_tuning/jobs/{job_id}/resume", response_model=FineTuningJob)
@@ -208,4 +208,4 @@ async def resume_fine_tuning_job(job_id: str) -> FineTuningJob:
 
     updated_job = await get_job(job_id)
 
-    return updated_job
+    return updated_job.to_openai()

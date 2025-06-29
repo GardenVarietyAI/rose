@@ -1,7 +1,6 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from openai.types.fine_tuning import FineTuningJob as OpenAIFineTuningJob
 from sqlalchemy import delete, func
 from sqlmodel import select
 
@@ -19,7 +18,7 @@ async def create_job(
     validation_file: Optional[str] = None,
     seed: Optional[int] = None,
     metadata: Optional[Dict[str, Any]] = None,
-) -> OpenAIFineTuningJob:
+) -> FineTuningJob:
     """Create a new fine-tuning job with normalized method storage."""
     hp = hyperparameters or {}
     training_method = "supervised"
@@ -44,19 +43,19 @@ async def create_job(
         await session.commit()
         await session.refresh(job)
         logger.info(f"Created fine-tuning job: {job.id} with method config stored as JSON")
-        return job.to_openai()
+        return job
 
 
-async def get_job(job_id: str) -> Optional[OpenAIFineTuningJob]:
+async def get_job(job_id: str) -> Optional[FineTuningJob]:
     """Get a job by ID with pre-loaded method configuration."""
     async with get_session(read_only=True) as session:
         job = await session.get(FineTuningJob, job_id)
-        return job.to_openai() if job else None
+        return job if job else None
 
 
 async def list_jobs(
     limit: int = 20, after: Optional[str] = None, metadata_filters: Optional[Dict[str, Any]] = None
-) -> List[OpenAIFineTuningJob]:
+) -> List[FineTuningJob]:
     """List jobs with optional metadata filtering."""
     statement = select(FineTuningJob).order_by(FineTuningJob.created_at.desc())  # type: ignore[attr-defined]
     if metadata_filters:
@@ -68,7 +67,7 @@ async def list_jobs(
 
     async with get_session(read_only=True) as session:
         jobs = (await session.execute(statement)).scalars().all()
-        return [job.to_openai() for job in jobs]
+        return jobs
 
 
 async def update_job_status(
@@ -77,7 +76,7 @@ async def update_job_status(
     error: Optional[Dict[str, Any]] = None,
     fine_tuned_model: Optional[str] = None,
     trained_tokens: Optional[int] = None,
-) -> Optional[OpenAIFineTuningJob]:
+) -> Optional[FineTuningJob]:
     """Update job status."""
 
     async with get_session() as session:
@@ -104,7 +103,7 @@ async def update_job_status(
         await session.commit()
         await session.refresh(job)
         logger.info(f"Updated job {job_id} status to {status}")
-        return job.to_openai()
+        return job
 
 
 async def delete_job(job_id: str) -> bool:
@@ -128,7 +127,7 @@ async def delete_job(job_id: str) -> bool:
         return True
 
 
-async def update_job_result_files(job_id: str, result_files: List[str]) -> Optional[OpenAIFineTuningJob]:
+async def update_job_result_files(job_id: str, result_files: List[str]) -> Optional[FineTuningJob]:
     """Update job with result file IDs."""
 
     async with get_session() as session:
@@ -140,10 +139,10 @@ async def update_job_result_files(job_id: str, result_files: List[str]) -> Optio
         await session.commit()
         await session.refresh(job)
         logger.info(f"Updated job {job_id} with result files: {result_files}")
-        return job.to_openai()
+        return job
 
 
-async def mark_job_failed(job_id: str, error: str) -> Optional[OpenAIFineTuningJob]:
+async def mark_job_failed(job_id: str, error: str) -> Optional[FineTuningJob]:
     """Mark a job as failed with error message."""
 
     async with get_session() as session:
@@ -166,4 +165,4 @@ async def mark_job_failed(job_id: str, error: str) -> Optional[OpenAIFineTuningJ
         session.add(event)
         await session.commit()
         logger.info(f"Marked job {job_id} as failed: {error}")
-        return job.to_openai()
+        return job
