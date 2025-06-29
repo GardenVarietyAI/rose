@@ -10,17 +10,20 @@ from sqlmodel import Field, SQLModel
 class Message(SQLModel, table=True):
     """Message model for database storage."""
 
-    __tablename__: str = "messages"
+    __tablename__ = "messages"
     id: str = Field(primary_key=True)
     object: str = Field(default="thread.message")
     created_at: int = Field(default_factory=lambda: int(time.time()))
-    thread_id: str = Field(foreign_key="threads.id")
+    thread_id: Optional[str] = Field(default=None, foreign_key="threads.id")
     role: str
     content: List[Dict[str, Any]] = Field(sa_type=JSON)
     assistant_id: Optional[str] = None
     run_id: Optional[str] = None
     attachments: List[Dict[str, Any]] = Field(default_factory=list, sa_type=JSON)
     meta: Dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
+
+    # Responses API conversation chaining
+    response_chain_id: Optional[str] = Field(default=None, index=True)
 
     # OpenAI compatibility fields
     status: str = Field(default="completed")
@@ -32,4 +35,5 @@ class Message(SQLModel, table=True):
         Index("idx_messages_thread", "thread_id"),
         Index("idx_messages_created", "created_at"),
         Index("idx_messages_role", "role"),
+        Index("idx_messages_response_chain", "response_chain_id"),
     )

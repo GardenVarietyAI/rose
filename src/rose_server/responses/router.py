@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Optional
 
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import StreamingResponse
@@ -23,17 +24,30 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["responses"])
 
 
-def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMessage]:
+async def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMessage]:
+    """Convert request to messages, loading history if needed."""
     messages = []
+
+    # Load conversation history if continuing from previous response
+    if request.previous_response_id:
+        from .store import get_conversation_messages
+
+        messages = await get_conversation_messages(request.previous_response_id)
+
+    # Add system instructions
     if request.instructions:
         messages.append(ChatMessage(role="system", content=request.instructions))
 
+    # Add current user input
     if isinstance(request.input, str):
+        # Handle string input directly
         messages.append(ChatMessage(role="user", content=request.input))
-    elif isinstance(request.input, list):
-        for item in request.input:
-            if isinstance(item, dict) and "role" in item and "content" in item:
-                messages.append(ChatMessage(role=item["role"], content=item["content"]))
+    else:
+        # Handle list of InputTextItem objects
+        user_texts = [item.text for item in request.input]
+        if user_texts:
+            messages.append(ChatMessage(role="user", content="\n".join(user_texts)))
+
     return messages
 
 
@@ -62,7 +76,9 @@ async def _generate_streaming_response(request: ResponsesRequest, llm, messages:
     )
 
 
-async def _generate_complete_response(request: ResponsesRequest, llm, messages: list[ChatMessage]):
+async def _generate_complete_response(
+    request: ResponsesRequest, llm, messages: list[ChatMessage], chain_id: Optional[str] = None
+):
     generator = ResponsesGenerator(llm)
     formatter = ResponsesFormatter()
     all_events = []
@@ -74,12 +90,14 @@ async def _generate_complete_response(request: ResponsesRequest, llm, messages: 
     complete_response["model"] = request.model
 
     if request.store:
-        await _store_response(complete_response, messages, request.model)
+        await _store_response(complete_response, messages, request.model, chain_id)
 
     return complete_response
 
 
-async def _store_response(complete_response: dict, messages: list[ChatMessage], model: str):
+async def _store_response(
+    complete_response: dict, messages: list[ChatMessage], model: str, chain_id: Optional[str] = None
+):
     reply_text = ""
     for output_item in complete_response.get("output", []):
         if output_item.get("type") == "message":
@@ -97,6 +115,7 @@ async def _store_response(complete_response: dict, messages: list[ChatMessage], 
         input_tokens=complete_response["usage"]["input_tokens"],
         output_tokens=complete_response["usage"]["output_tokens"],
         created_at=complete_response["created_at"],
+        chain_id=chain_id,
     )
 
 
@@ -147,9 +166,20 @@ async def retrieve_response(response_id: str):
         )
 
         return response.model_dump()
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error retrieving response {response_id}: {str(e)}", exc_info=True)
-        return {"error": {"message": str(e), "type": "server_error", "code": None}}
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": {
+                    "message": f"Internal server error: {str(e)}",
+                    "type": "server_error",
+                    "code": None,
+                }
+            },
+        )
 
 
 @router.post("/v1/responses", response_model=None)
@@ -157,44 +187,71 @@ async def create_response(request: ResponsesRequest = Body(...), registry: Model
     try:
         logger.info(f"RESPONSES API - Input type: {type(request.input)}, Input: {request.input}")
         logger.info(f"RESPONSES API - Instructions: {request.instructions}")
-        messages = _convert_input_to_messages(request)
+
+        # Validate previous_response_id if provided
+        previous_response = None
+        if request.previous_response_id:
+            previous_response = await get_response(request.previous_response_id)
+            if not previous_response:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": {
+                            "message": f"Previous response '{request.previous_response_id}' not found",
+                            "type": "invalid_request_error",
+                            "code": "response_not_found",
+                        }
+                    },
+                )
+
+        messages = await _convert_input_to_messages(request)
         logger.info(f"RESPONSES API - Converted messages: {messages}")
 
         if not messages:
             logger.error("No messages extracted from request")
-            return {
-                "error": {
-                    "message": "No valid messages found in request",
-                    "type": "invalid_request_error",
-                    "code": None,
-                }
-            }
-        available_models = await registry.list_models()
-        if request.model not in available_models:
-            return {
-                "error": {
-                    "message": f"Model '{request.model}' not found",
-                    "type": "invalid_request_error",
-                    "code": None,
-                }
-            }
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": {
+                        "message": "No valid messages found in request",
+                        "type": "invalid_request_error",
+                        "code": None,
+                    }
+                },
+            )
 
         config = await registry.get_model_config(request.model)
         if not config:
-            return {
-                "error": {
-                    "message": f"No configuration found for model '{request.model}'",
-                    "type": "invalid_request_error",
-                    "code": None,
-                }
-            }
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": {
+                        "message": f"No configuration found for model '{request.model}'",
+                        "type": "invalid_request_error",
+                        "code": None,
+                    }
+                },
+            )
 
         llm = await model_cache.get_model(request.model, config)
 
         if request.stream:
             return await _generate_streaming_response(request, llm, messages)
         else:
-            return await _generate_complete_response(request, llm, messages)
+            return await _generate_complete_response(
+                request, llm, messages, previous_response.response_chain_id if previous_response else None
+            )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Responses API error: {str(e)}", exc_info=True)
-        return {"error": {"message": str(e), "type": "server_error", "code": None}}
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": {
+                    "message": f"Internal server error: {str(e)}",
+                    "type": "server_error",
+                    "code": None,
+                }
+            },
+        )
