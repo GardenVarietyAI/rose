@@ -1,6 +1,6 @@
 """OpenAI Responses API schemas."""
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -50,7 +50,7 @@ class ResponsesRequest(BaseModel):
     """OpenAI-compatible responses API request format."""
 
     model: str = Field(description="Model to use for completion")
-    input: List[InputTextItem] = Field(description="Input text items")
+    input: Union[List[InputTextItem], str] = Field(description="Input text items")
     modalities: List[Literal["text"]] = Field(default=["text"], description="Supported modalities")
     instructions: Optional[str] = Field(default=None, description="System instructions")
     stream: Optional[bool] = Field(default=False, description="Whether to stream the response")

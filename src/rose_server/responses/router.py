@@ -39,9 +39,14 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMess
         messages.append(ChatMessage(role="system", content=request.instructions))
 
     # Add current user input
-    user_texts = [item.text for item in request.input]
-    if user_texts:
-        messages.append(ChatMessage(role="user", content="\n".join(user_texts)))
+    if isinstance(request.input, str):
+        # Handle string input directly
+        messages.append(ChatMessage(role="user", content=request.input))
+    else:
+        # Handle list of InputTextItem objects
+        user_texts = [item.text for item in request.input]
+        if user_texts:
+            messages.append(ChatMessage(role="user", content="\n".join(user_texts)))
 
     return messages
 
