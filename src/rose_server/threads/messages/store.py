@@ -3,7 +3,7 @@ from typing import Dict, List, Optional
 
 from sqlmodel import select
 
-from ..database import (
+from rose_server.database import (
     Message,
     get_session,
 )
