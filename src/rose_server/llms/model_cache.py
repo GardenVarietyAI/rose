@@ -3,22 +3,22 @@
 import asyncio
 from typing import Dict
 
-from .huggingface_llm import HuggingFaceLLM
+from .llm import LLM
 
 # Module-private cache
-_models: Dict[str, HuggingFaceLLM] = {}
+_models: Dict[str, LLM] = {}
 _lock = asyncio.Lock()
 
 
-async def get_model(model_id: str, config: Dict) -> HuggingFaceLLM:
+async def get_model(model_id: str, config: Dict) -> LLM:
     """Get a cached model or create a new one."""
     async with _lock:
         if model_id not in _models:
-            _models[model_id] = HuggingFaceLLM(config)
+            _models[model_id] = LLM(config)
         return _models[model_id]
 
 
-def _cleanup_model(model: HuggingFaceLLM) -> None:
+def _cleanup_model(model: LLM) -> None:
     """Internal helper to clean up a model instance."""
     model.cleanup()
 

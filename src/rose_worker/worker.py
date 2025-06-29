@@ -37,7 +37,7 @@ async def poll_training_jobs():
         await asyncio.sleep(5)
 
 
-async def handle_inference_connection(websocket, path):
+async def handle_inference_connection(websocket):
     """Handle a single inference WebSocket connection."""
     try:
         # Receive the request
@@ -60,16 +60,27 @@ async def handle_inference_stream():
 
     logger.info(f"Starting inference WebSocket server on ws://{host}:{port}")
 
-    async with websockets.serve(handle_inference_connection, host, port):
+    async with websockets.serve(
+        handle_inference_connection,
+        host,
+        port,
+        ping_interval=30,  # Send ping every 30 seconds
+        ping_timeout=120,  # Wait 120 seconds for pong
+    ):
         await asyncio.Future()  # Run forever
 
 
-async def main():
+async def run_worker():
     """Run both inference server and training poller."""
     logger.info("Worker started")
 
     await asyncio.gather(handle_inference_stream(), poll_training_jobs())
 
 
+def main():
+    """Entry point for the worker process."""
+    asyncio.run(run_worker())
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

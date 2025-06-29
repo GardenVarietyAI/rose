@@ -25,9 +25,10 @@ async def load_model(model_name: str, model_config: Dict[str, Any]) -> Dict[str,
     logger.info(f"Loading model: {model_name}")
     try:
         # Load model with config
+        # Use model_path if available (for custom models), otherwise use model_name
+        model_id = model_config.get("model_path") or model_config.get("model_name", model_name)
         model = load_hf_model(
-            model_id=model_config.get("model_name", model_name),
-            model_path=model_config.get("model_path"),
+            model_id=model_id,
             torch_dtype=model_config.get("torch_dtype"),
         )
 
@@ -58,9 +59,11 @@ async def process_inference_request(websocket, request_data: Dict[str, Any]) -> 
         tokenizer = model_info["tokenizer"]
 
         # Tokenize input
+        logger.info(f"Tokenizing prompt (length: {len(prompt)}): {prompt[:100]}...")
         inputs = tokenizer(prompt, return_tensors="pt")
         if hasattr(model, "device"):
             inputs = {k: v.to(model.device) for k, v in inputs.items()}
+        logger.info(f"Input shape: {inputs['input_ids'].shape}")
 
         # Create streamer for token-by-token output
         streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
@@ -71,7 +74,16 @@ async def process_inference_request(websocket, request_data: Dict[str, Any]) -> 
             **inputs,
             "streamer": streamer,
             "do_sample": generation_kwargs.get("temperature", 1.0) > 0,
+            "pad_token_id": tokenizer.pad_token_id,
+            "eos_token_id": tokenizer.eos_token_id,
         }
+
+        # Log generation parameters
+        logger.info(
+            f"Generation kwargs: max_new_tokens={generation_kwargs.get('max_new_tokens')}, "
+            f"temperature={generation_kwargs.get('temperature')}, "
+            f"do_sample={generation_kwargs.get('do_sample')}"
+        )
 
         # Start generation in background thread
         generation_thread = Thread(target=model.generate, kwargs=generation_kwargs)
@@ -80,10 +92,13 @@ async def process_inference_request(websocket, request_data: Dict[str, Any]) -> 
         # Stream tokens back
         position = 0
         try:
+            logger.info("Starting to stream tokens...")
             for token in streamer:
                 if token:  # Skip empty tokens
+                    logger.debug(f"Sending token {position}: {repr(token)}")
                     await websocket.send(json.dumps({"type": "token", "token": token, "position": position}))
                     position += 1
+            logger.info(f"Finished streaming {position} tokens")
         except Exception as e:
             logger.error(f"Error during streaming: {e}")
             await websocket.send(json.dumps({"type": "error", "error": str(e)}))
