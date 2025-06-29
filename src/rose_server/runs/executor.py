@@ -1,7 +1,6 @@
 import json
 import logging
 import uuid
-from dataclasses import dataclass
 from pathlib import Path
 from typing import (
     Any,
@@ -32,6 +31,7 @@ from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.runs import RunResponse, RunStepResponse
 from rose_server.threads.messages.store import create_message, get_messages
 from rose_server.tools import parse_xml_tool_call
+from rose_server.types.runs import ResponseUsage
 
 logger = logging.getLogger(__name__)
 
@@ -67,23 +67,6 @@ async def fail_run(
     if step:
         yield step_evt
     yield status_evt
-
-
-@dataclass
-class ResponseUsage:
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-
-    @property
-    def total_tokens(self) -> int:
-        return self.prompt_tokens + self.completion_tokens
-
-    def to_dict(self) -> Dict[str, int]:
-        return {
-            "prompt_tokens": self.prompt_tokens,
-            "completion_tokens": self.completion_tokens,
-            "total_tokens": self.total_tokens,
-        }
 
 
 async def get_model_for_run(model_name: str) -> Any:
