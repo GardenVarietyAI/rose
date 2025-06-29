@@ -14,7 +14,7 @@ class Message(SQLModel, table=True):
     id: str = Field(primary_key=True)
     object: str = Field(default="thread.message")
     created_at: int = Field(default_factory=lambda: int(time.time()))
-    thread_id: str = Field(foreign_key="threads.id")
+    thread_id: Optional[str] = Field(default=None, foreign_key="threads.id")
     role: str
     content: List[Dict[str, Any]] = Field(sa_type=JSON)
     assistant_id: Optional[str] = None
