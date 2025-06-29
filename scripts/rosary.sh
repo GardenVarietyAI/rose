@@ -62,33 +62,7 @@ echo "Running assistant..."
 RUN_ID=$(poetry run rose runs create $THREAD_ID --assistant-id $ASSISTANT_ID -q)
 echo "Run ID: $RUN_ID"
 
-# Create eval data
-cat > /tmp/eval_data.jsonl << 'EOF'
-{"item": {"input": "How do I change my email?", "expected": "account settings"}}
-{"item": {"input": "Is shipping free?", "expected": "shipping policy"}}
-EOF
-
-# Upload eval data
-EVAL_FILE_ID=$(poetry run rose files upload /tmp/eval_data.jsonl --purpose batch)
-echo "Eval file ID: $EVAL_FILE_ID"
-
-# Create evaluation
-EVAL_ID=$(poetry run rose evals create --name "Support Bot Eval" --file $EVAL_FILE_ID -q)
-echo "Evaluation ID: $EVAL_ID"
-
-# Run the evaluation
-echo "Running evaluation..."
-RUN_ID=$(poetry run rose evals run $EVAL_ID --model "$MODEL" -q)
-echo "Evaluation run ID: $RUN_ID"
-
-# Wait a moment for eval to process
-sleep 5
-
-# Check evaluation results
-echo "Checking evaluation results..."
-poetry run rose evals status --run-id $RUN_ID --eval-id $EVAL_ID
-
 # Cleanup
-rm -f /tmp/support_data.jsonl /tmp/eval_data.jsonl
+rm -f /tmp/support_data.jsonl
 
 echo "Workflow complete!"
