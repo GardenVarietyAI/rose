@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from rose_server.runs.steps.store import get_run_step, list_run_steps
 from rose_server.schemas.runs import RunStepResponse
 
-router = APIRouter(prefix="/v1")
+router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
