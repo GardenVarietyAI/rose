@@ -1,5 +1,4 @@
 import logging
-import uuid
 from typing import Any, Dict, List, Optional
 
 from openai.types.fine_tuning import (
@@ -49,14 +48,12 @@ async def create_job(
     metadata: Optional[Dict[str, Any]] = None,
 ) -> OpenAIFineTuningJob:
     """Create a new fine-tuning job with normalized method storage."""
-    job_id = f"ftjob-{uuid.uuid4().hex[:24]}"
     hp = hyperparameters or {}
     training_method = "supervised"
     method_config = {"type": training_method, training_method: {"hyperparameters": hp}}
     logger.info(f"Using method '{training_method}' with hyperparameters: {hp}")
 
     job = FineTuningJob(
-        id=job_id,
         model=model,
         status="validating_files",
         training_file=training_file,
@@ -73,7 +70,7 @@ async def create_job(
         session.add(job)
         await session.commit()
         await session.refresh(job)
-        logger.info(f"Created fine-tuning job: {job_id} with method config stored as JSON")
+        logger.info(f"Created fine-tuning job: {job.id} with method config stored as JSON")
         return job.to_openai()
 
 
@@ -139,9 +136,7 @@ async def update_job_status(
 
 async def add_event(job_id: str, level: str, message: str, data: Optional[Dict[str, Any]] = None) -> str:
     """Add an event to a job."""
-    event_id = f"ftevt-{uuid.uuid4().hex[:24]}"
     event = FineTuningEvent(
-        id=event_id,
         job_id=job_id,
         created_at=current_timestamp(),
         level=level,
@@ -152,8 +147,9 @@ async def add_event(job_id: str, level: str, message: str, data: Optional[Dict[s
     async with get_session() as session:
         session.add(event)
         await session.commit()
+        await session.refresh(event)
         logger.debug(f"Added event to job {job_id}: {message}")
-        return event_id
+        return event.id
 
 
 async def get_events(job_id: str, limit: int = 20, after: Optional[str] = None) -> List[OpenAIFineTuningJobEvent]:
@@ -216,7 +212,6 @@ async def mark_job_failed(job_id: str, error: str) -> Optional[OpenAIFineTuningJ
         await session.commit()
         await session.refresh(job)
         event = FineTuningEvent(
-            id=f"ftevt-{uuid.uuid4().hex[:24]}",
             job_id=job_id,
             created_at=current_timestamp(),
             level="error",
