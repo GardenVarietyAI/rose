@@ -4,7 +4,7 @@ services:
   rose-server:
     build:
       context: .
-      dockerfile: Dockerfile.codex
+      dockerfile: Dockerfile
     ports:
       - "8004:8004"
     environment:
