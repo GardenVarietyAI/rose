@@ -1,4 +1,5 @@
 import time
+import uuid
 from typing import Any, Dict, List, Optional
 
 from openai.types.fine_tuning import (
@@ -12,7 +13,7 @@ from sqlmodel import Field, SQLModel
 class FineTuningJob(SQLModel, table=True):
     __tablename__ = "fine_tuning_jobs"
 
-    id: str = Field(primary_key=True)
+    id: str = Field(primary_key=True, default_factory=lambda: f"ftjob-{uuid.uuid4().hex[:24]}")
     created_at: int
     finished_at: Optional[int] = None
     model: str
@@ -61,7 +62,7 @@ class FineTuningJob(SQLModel, table=True):
 class FineTuningEvent(SQLModel, table=True):
     __tablename__ = "fine_tuning_events"
 
-    id: str = Field(primary_key=True)
+    id: str = Field(primary_key=True, default_factory=lambda: f"ftevent-{uuid.uuid4().hex[:24]}")
     object: str = Field(default="fine_tuning.job.event")
     created_at: int = Field(default_factory=lambda: int(time.time()))
     level: str

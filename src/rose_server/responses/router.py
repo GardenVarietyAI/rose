@@ -107,8 +107,7 @@ async def _store_response(
                     reply_text = content_item.get("text", "")
                     break
 
-    await store_response_messages(
-        response_id=complete_response["id"],
+    message_id = await store_response_messages(
         messages=messages,
         reply_text=reply_text,
         model=model,
@@ -117,6 +116,8 @@ async def _store_response(
         created_at=complete_response["created_at"],
         chain_id=chain_id,
     )
+
+    complete_response["id"] = message_id
 
 
 @router.get("/v1/responses/{response_id}", response_model=ResponsesResponse)

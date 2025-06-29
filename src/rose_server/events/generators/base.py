@@ -86,19 +86,18 @@ class BaseEventGenerator:
 
         prompt = await self.prepare_prompt(messages, enable_tools=enable_tools, tools=tools)
         inputs = self._encode_prompt(prompt)
-        response_id = f"resp_{uuid.uuid4().hex[:16]}"
         max_new = max_tokens or self.config.get("max_response_tokens", 512)
         temp = temperature or self.config.get("temperature", 0.7)
 
-        yield ResponseStarted(
+        start_event = ResponseStarted(
             model_name=self.model_name,
-            response_id=response_id,
             input_tokens=len(inputs["input_ids"][0]),
             max_tokens=max_new,
             temperature=temp,
         )
+        yield start_event
 
-        async for event in self._stream_generation(inputs, response_id, max_new, temp, enable_tools):
+        async for event in self._stream_generation(inputs, start_event.response_id, max_new, temp, enable_tools):
             yield event
 
     async def prepare_prompt(
@@ -245,7 +244,7 @@ class BaseEventGenerator:
     def _response_completed_zero(self) -> ResponseCompleted:
         return ResponseCompleted(
             model_name=self.model_name,
-            response_id=f"resp_error_{uuid.uuid4().hex[:8]}",
+            response_id=f"resp_{uuid.uuid4().hex[:16]}",
             total_tokens=0,
             finish_reason="stop",
             output_tokens=0,

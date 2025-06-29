@@ -1,6 +1,7 @@
 """Assistant database entities."""
 
 import time
+import uuid
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import JSON, Index
@@ -11,7 +12,8 @@ class Assistant(SQLModel, table=True):
     """Assistant model for database storage."""
 
     __tablename__ = "assistants"
-    id: str = Field(primary_key=True)
+
+    id: str = Field(primary_key=True, default_factory=lambda: f"asst_{uuid.uuid4().hex[:16]}")
     object: str = Field(default="assistant")
     created_at: int = Field(default_factory=lambda: int(time.time()))
     name: Optional[str] = None
@@ -24,6 +26,7 @@ class Assistant(SQLModel, table=True):
     temperature: Optional[float] = Field(default=1.0)
     top_p: Optional[float] = Field(default=1.0)
     response_format: Optional[Dict[str, Any]] = Field(default=None, sa_type=JSON)
+
     __table_args__ = (
         Index("idx_assistants_created", "created_at"),
         Index("idx_assistants_model", "model"),

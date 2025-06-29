@@ -10,6 +10,7 @@ class Job(SQLModel, table=True):
     """Generic job for background processing."""
 
     __tablename__ = "jobs"
+
     id: int = Field(primary_key=True)
     type: str
     status: str
@@ -21,6 +22,7 @@ class Job(SQLModel, table=True):
     completed_at: Optional[int] = None
     attempts: int = Field(default=0)
     max_attempts: int = Field(default=3)
+
     __table_args__ = (
         Index("idx_jobs_status", "status"),
         Index("idx_jobs_type_status", "type", "status"),

@@ -1,7 +1,6 @@
 """API router for assistants endpoints."""
 
 import logging
-import uuid
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -29,7 +28,6 @@ async def create(request: AssistantCreateRequest):
     tools = [tool.model_dump() for tool in request.tools] if request.tools else []
 
     assistant = Assistant(
-        id=f"asst_{uuid.uuid4().hex}",
         created_at=current_timestamp(),
         name=request.name,
         description=request.description,

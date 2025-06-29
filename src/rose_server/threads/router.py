@@ -1,15 +1,16 @@
 """API router for threads endpoints."""
 
 import logging
-import uuid
 from typing import Any, Dict
 
 from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from rose_server.assistants.store import get_assistant
-from rose_server.database import Message, Thread, current_timestamp
+from rose_server.database import current_timestamp
+from rose_server.entities.messages import Message
 from rose_server.entities.runs import Run
+from rose_server.entities.threads import Thread
 from rose_server.messages.store import create_message
 from rose_server.runs.executor import execute_assistant_run_streaming
 from rose_server.runs.store import create_run, get_run
@@ -50,7 +51,6 @@ async def list_threads(
 async def create(request: ThreadCreateRequest = Body(...)) -> ThreadResponse:
     """Create a new conversation thread."""
     thread = Thread(
-        id=f"thread_{uuid.uuid4().hex}",
         created_at=current_timestamp(),
         meta=request.metadata,
         tool_resources=None,
@@ -79,7 +79,6 @@ async def create(request: ThreadCreateRequest = Body(...)) -> ThreadResponse:
 
             # Create message entity
             message = Message(
-                id=f"msg_{uuid.uuid4().hex}",
                 thread_id=thread.id,
                 role=role,
                 content=formatted_content,
@@ -108,7 +107,6 @@ async def create_thread_and_run(request: Dict[str, Any] = Body(...)) -> JSONResp
         messages = thread_params.get("messages", [])
         thread_metadata = thread_params.get("metadata", {})
         thread = Thread(
-            id=f"thread_{uuid.uuid4().hex}",
             created_at=current_timestamp(),
             meta=thread_metadata,
             tool_resources=None,
@@ -136,7 +134,6 @@ async def create_thread_and_run(request: Dict[str, Any] = Body(...)) -> JSONResp
 
                 # Create message entity
                 message = Message(
-                    id=f"msg_{uuid.uuid4().hex}",
                     thread_id=thread.id,
                     role=role,
                     content=formatted_content,
@@ -157,7 +154,6 @@ async def create_thread_and_run(request: Dict[str, Any] = Body(...)) -> JSONResp
         )
 
         run = Run(
-            id=f"run_{uuid.uuid4().hex}",
             created_at=current_timestamp(),
             thread_id=thread.id,
             assistant_id=run_request.assistant_id,

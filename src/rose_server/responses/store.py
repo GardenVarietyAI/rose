@@ -21,7 +21,7 @@ async def get_conversation_messages(response_id: str) -> List[ChatMessage]:
     async with get_session(read_only=True) as session:
         # Get the response message
         response_msg = await session.get(Message, response_id)
-        if not response_msg or not response_msg.response_chain_id:
+        if not response_msg:
             return messages
 
         # Load all messages in the chain
@@ -48,7 +48,6 @@ async def get_conversation_messages(response_id: str) -> List[ChatMessage]:
 
 
 async def store_response_messages(
-    response_id: str,
     messages: list[ChatMessage],
     reply_text: str,
     model: str,
@@ -56,18 +55,17 @@ async def store_response_messages(
     output_tokens: int,
     created_at: int,
     chain_id: Optional[str] = None,
-) -> None:
+) -> str:
     end_time = time.time()
 
     # Generate new chain_id if not provided
     if not chain_id:
-        chain_id = f"chain_{uuid.uuid4().hex[:24]}"
+        chain_id = f"chain_{uuid.uuid4().hex[:16]}"
 
     async with get_session() as session:
         for msg in messages:
             if msg.role == "user":
                 user_message = Message(
-                    id=f"msg_{uuid.uuid4().hex[:8]}",
                     thread_id=None,
                     role="user",
                     content=[{"type": "text", "text": msg.content}],
@@ -78,7 +76,6 @@ async def store_response_messages(
                 session.add(user_message)
 
         assistant_message = Message(
-            id=response_id,
             thread_id=None,
             role="assistant",
             content=[{"type": "text", "text": reply_text}],
@@ -94,3 +91,4 @@ async def store_response_messages(
         )
         session.add(assistant_message)
         await session.commit()
+        return assistant_message.id

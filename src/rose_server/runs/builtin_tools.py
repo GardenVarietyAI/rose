@@ -42,9 +42,7 @@ async def execute_builtin_tool(
     tool_config = BUILTIN_TOOLS[tool_name]
     if not tool_config.get("supported", False):
         # Return a friendly error for unsupported tools
-        step_id = f"step_{uuid.uuid4().hex}"
         step_entity = RunStep(
-            id=step_id,
             created_at=current_timestamp(),
             run_id=run_id,
             assistant_id=assistant_id,
@@ -64,11 +62,7 @@ async def execute_builtin_tool(
     tool_type = tool_name
 
     # Create tool call step
-    step_id = f"step_{uuid.uuid4().hex}"
-    logger.info(f"Creating tool call step {step_id} for {tool_name}")
-
     step_entity = RunStep(
-        id=step_id,
         created_at=current_timestamp(),
         run_id=run_id,
         assistant_id=assistant_id,
@@ -77,6 +71,7 @@ async def execute_builtin_tool(
         status="in_progress",
         step_details={"tool_calls": []},
     )
+    logger.info(f"Creating tool call step {step_entity.id} for {tool_name}")
 
     # Execute the tool
     try:

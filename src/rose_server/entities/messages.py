@@ -1,6 +1,7 @@
 """Message database entity."""
 
 import time
+import uuid
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import JSON, Index
@@ -11,7 +12,8 @@ class Message(SQLModel, table=True):
     """Message model for database storage."""
 
     __tablename__ = "messages"
-    id: str = Field(primary_key=True)
+
+    id: str = Field(primary_key=True, default_factory=lambda: f"msg_{uuid.uuid4().hex[:16]}")
     object: str = Field(default="thread.message")
     created_at: int = Field(default_factory=lambda: int(time.time()))
     thread_id: Optional[str] = Field(default=None, foreign_key="threads.id")
@@ -21,11 +23,7 @@ class Message(SQLModel, table=True):
     run_id: Optional[str] = None
     attachments: List[Dict[str, Any]] = Field(default_factory=list, sa_type=JSON)
     meta: Dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
-
-    # Responses API conversation chaining
     response_chain_id: Optional[str] = Field(default=None, index=True)
-
-    # OpenAI compatibility fields
     status: str = Field(default="completed")
     incomplete_details: Optional[Dict[str, Any]] = Field(default=None, sa_type=JSON)
     incomplete_at: Optional[int] = None

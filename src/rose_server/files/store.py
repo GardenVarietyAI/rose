@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import time
-import uuid
 from typing import BinaryIO, List, Optional
 
 from openai.types import FileDeleted, FileObject, FilePurpose
@@ -19,42 +18,47 @@ logger = logging.getLogger(__name__)
 
 
 async def create_file(file: BinaryIO, purpose: FilePurpose, filename: Optional[str] = None) -> FileObject:
-    file_id = f"file-{uuid.uuid4().hex[:6]}"
     content = await asyncio.to_thread(file.read)
     file_size = len(content)
-    if not filename:
-        filename = f"{file_id}.txt"
 
-    # Save file to disk
-    await save_file(file_id, content)
-
-    # Save to database
+    # Save to database first to get the auto-generated ID
     uploaded_file = UploadedFile(
-        id=file_id,
         object="file",
         bytes=file_size,
         created_at=int(time.time()),
-        filename=filename,
+        filename=filename or "file.txt",
         purpose=purpose,
         status="processed",
-        storage_path=file_id,
+        storage_path="",  # Will be updated after we have the ID
     )
 
     async with get_session() as session:
         session.add(uploaded_file)
         await session.commit()
+        await session.refresh(uploaded_file)
+
+        # Now we have the ID, update filename if not provided
+        if not filename:
+            uploaded_file.filename = f"{uploaded_file.id}.txt"
+
+        # Save file to disk using the generated ID
+        await save_file(uploaded_file.id, content)
+
+        # Update storage path
+        uploaded_file.storage_path = uploaded_file.id
+        await session.commit()
 
         file_obj = FileObject(
-            id=file_id,
+            id=uploaded_file.id,
             object="file",
             bytes=file_size,
             created_at=uploaded_file.created_at,
-            filename=filename,
+            filename=uploaded_file.filename,
             purpose=purpose,  # type: ignore
             status="processed",
         )
 
-        logger.info(f"Created file {file_id} with filename {filename}")
+        logger.info(f"Created file {uploaded_file.id} with filename {uploaded_file.filename}")
         return file_obj
 
 

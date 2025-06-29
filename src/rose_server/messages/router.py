@@ -1,13 +1,13 @@
 """API router for threads endpoints."""
 
 import logging
-import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Body, Query
 from fastapi.responses import JSONResponse
 
-from rose_server.database import Message, current_timestamp
+from rose_server.database import current_timestamp
+from rose_server.entities.messages import Message
 from rose_server.messages.store import create_message, get_message, get_messages
 from rose_server.schemas.messages import MessageCreateRequest, MessageResponse
 
@@ -37,7 +37,6 @@ async def create(
             content = request.content
 
         message = Message(
-            id=f"msg_{uuid.uuid4().hex}",
             thread_id=thread_id,
             role=request.role,
             content=content,
