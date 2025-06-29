@@ -6,7 +6,8 @@ from typing import Optional
 from fastapi import APIRouter, Body, Query
 from fastapi.responses import JSONResponse
 
-from rose_server.database import Message, current_timestamp
+from rose_server.database import current_timestamp
+from rose_server.entities.messages import Message
 from rose_server.messages.store import create_message, get_message, get_messages
 from rose_server.schemas.messages import MessageCreateRequest, MessageResponse
 

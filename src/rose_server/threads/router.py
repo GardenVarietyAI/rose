@@ -1,7 +1,6 @@
 """API router for threads endpoints."""
 
 import logging
-import uuid
 from typing import Any, Dict
 
 from fastapi import APIRouter, Body, HTTPException, Query
@@ -52,7 +51,6 @@ async def list_threads(
 async def create(request: ThreadCreateRequest = Body(...)) -> ThreadResponse:
     """Create a new conversation thread."""
     thread = Thread(
-        id=f"thread_{uuid.uuid4().hex}",
         created_at=current_timestamp(),
         meta=request.metadata,
         tool_resources=None,
@@ -81,7 +79,6 @@ async def create(request: ThreadCreateRequest = Body(...)) -> ThreadResponse:
 
             # Create message entity
             message = Message(
-                id=f"msg_{uuid.uuid4().hex}",
                 thread_id=thread.id,
                 role=role,
                 content=formatted_content,
@@ -110,7 +107,6 @@ async def create_thread_and_run(request: Dict[str, Any] = Body(...)) -> JSONResp
         messages = thread_params.get("messages", [])
         thread_metadata = thread_params.get("metadata", {})
         thread = Thread(
-            id=f"thread_{uuid.uuid4().hex}",
             created_at=current_timestamp(),
             meta=thread_metadata,
             tool_resources=None,
@@ -138,7 +134,6 @@ async def create_thread_and_run(request: Dict[str, Any] = Body(...)) -> JSONResp
 
                 # Create message entity
                 message = Message(
-                    id=f"msg_{uuid.uuid4().hex}",
                     thread_id=thread.id,
                     role=role,
                     content=formatted_content,
@@ -159,7 +154,6 @@ async def create_thread_and_run(request: Dict[str, Any] = Body(...)) -> JSONResp
         )
 
         run = Run(
-            id=f"run_{uuid.uuid4().hex}",
             created_at=current_timestamp(),
             thread_id=thread.id,
             assistant_id=run_request.assistant_id,

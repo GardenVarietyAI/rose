@@ -1,6 +1,7 @@
 """Thread and message database entities."""
 
 import time
+import uuid
 from typing import Any, Dict, Optional
 
 from sqlalchemy import JSON, Index
@@ -11,7 +12,7 @@ class Thread(SQLModel, table=True):
     """Thread model for database storage."""
 
     __tablename__: str = "threads"
-    id: str = Field(primary_key=True)
+    id: str = Field(primary_key=True, default_factory=lambda: f"thread_{uuid.uuid4().hex[:16]}")
     object: str = Field(default="thread")
     created_at: int = Field(default_factory=lambda: int(time.time()))
     tool_resources: Optional[Dict[str, Any]] = Field(default=None, sa_type=JSON)
