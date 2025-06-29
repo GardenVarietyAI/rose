@@ -1,6 +1,7 @@
 """Run step database entity."""
 
 import time
+import uuid
 from typing import Any, Dict, Optional
 
 from sqlalchemy import JSON, Index
@@ -11,7 +12,7 @@ class RunStep(SQLModel, table=True):
     """Run step model for database storage."""
 
     __tablename__: str = "run_steps"
-    id: str = Field(primary_key=True)
+    id: str = Field(primary_key=True, default_factory=lambda: f"step_{uuid.uuid4().hex[:16]}")
     object: str = Field(default="thread.run.step")
     created_at: int = Field(default_factory=lambda: int(time.time()))
     run_id: str = Field(foreign_key="runs.id")

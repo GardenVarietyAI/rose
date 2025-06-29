@@ -1,7 +1,6 @@
 """Tool output processing for runs."""
 
 import logging
-import uuid
 from typing import Any, Callable, Dict, List
 
 from rose_server.assistants.store import get_assistant
@@ -44,7 +43,6 @@ async def process_tool_outputs(
             },
         )
     continuation_step_entity = RunStep(
-        id=f"step_{uuid.uuid4().hex}",
         created_at=current_timestamp(),
         run_id=run.id,
         assistant_id=run.assistant_id,

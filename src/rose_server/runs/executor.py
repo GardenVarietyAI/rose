@@ -186,7 +186,6 @@ async def handle_tool_calls(
     completed_evt = await stream_run_step_event("completed", step)
 
     tool_step_entity = RunStep(
-        id=f"step_{uuid.uuid4().hex}",
         created_at=current_timestamp(),
         run_id=run_id,
         assistant_id=assistant_id,
@@ -221,7 +220,6 @@ async def execute_assistant_run_streaming(
     yield await stream_run_status(run.id, "in_progress")
     # Create message creation step inline
     step_entity = RunStep(
-        id=f"step_{uuid.uuid4().hex}",
         created_at=current_timestamp(),
         run_id=run.id,
         assistant_id=assistant.id,
