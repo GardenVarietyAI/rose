@@ -11,7 +11,7 @@ from rose_server.entities.messages import Message
 from rose_server.messages.store import create_message, get_message, get_messages
 from rose_server.schemas.messages import MessageCreateRequest, MessageResponse
 
-router = APIRouter(prefix="/v1")
+router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
