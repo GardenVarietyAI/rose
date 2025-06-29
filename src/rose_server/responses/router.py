@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Optional
 
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import StreamingResponse
@@ -70,7 +71,9 @@ async def _generate_streaming_response(request: ResponsesRequest, llm, messages:
     )
 
 
-async def _generate_complete_response(request: ResponsesRequest, llm, messages: list[ChatMessage]):
+async def _generate_complete_response(
+    request: ResponsesRequest, llm, messages: list[ChatMessage], chain_id: Optional[str] = None
+):
     generator = ResponsesGenerator(llm)
     formatter = ResponsesFormatter()
     all_events = []
@@ -82,12 +85,14 @@ async def _generate_complete_response(request: ResponsesRequest, llm, messages: 
     complete_response["model"] = request.model
 
     if request.store:
-        await _store_response(complete_response, messages, request.model)
+        await _store_response(complete_response, messages, request.model, chain_id)
 
     return complete_response
 
 
-async def _store_response(complete_response: dict, messages: list[ChatMessage], model: str):
+async def _store_response(
+    complete_response: dict, messages: list[ChatMessage], model: str, chain_id: Optional[str] = None
+):
     reply_text = ""
     for output_item in complete_response.get("output", []):
         if output_item.get("type") == "message":
@@ -105,6 +110,7 @@ async def _store_response(complete_response: dict, messages: list[ChatMessage], 
         input_tokens=complete_response["usage"]["input_tokens"],
         output_tokens=complete_response["usage"]["output_tokens"],
         created_at=complete_response["created_at"],
+        chain_id=chain_id,
     )
 
 
@@ -227,7 +233,9 @@ async def create_response(request: ResponsesRequest = Body(...), registry: Model
         if request.stream:
             return await _generate_streaming_response(request, llm, messages)
         else:
-            return await _generate_complete_response(request, llm, messages)
+            return await _generate_complete_response(
+                request, llm, messages, previous_response.response_chain_id if previous_response else None
+            )
     except HTTPException:
         raise
     except Exception as e:

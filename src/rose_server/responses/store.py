@@ -55,8 +55,13 @@ async def store_response_messages(
     input_tokens: int,
     output_tokens: int,
     created_at: int,
+    chain_id: Optional[str] = None,
 ) -> None:
     end_time = time.time()
+
+    # Generate new chain_id if not provided
+    if not chain_id:
+        chain_id = f"chain_{uuid.uuid4().hex[:24]}"
 
     async with get_session() as session:
         for msg in messages:
@@ -67,6 +72,7 @@ async def store_response_messages(
                     role="user",
                     content=[{"type": "text", "text": msg.content}],
                     created_at=created_at,
+                    response_chain_id=chain_id,
                     meta={"model": model},
                 )
                 session.add(user_message)
@@ -77,6 +83,7 @@ async def store_response_messages(
             role="assistant",
             content=[{"type": "text", "text": reply_text}],
             created_at=created_at,
+            response_chain_id=chain_id,
             meta={
                 "model": model,
                 "input_tokens": input_tokens,
