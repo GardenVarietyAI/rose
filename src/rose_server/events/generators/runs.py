@@ -8,11 +8,7 @@ from .base import BaseEventGenerator
 
 
 class RunsGenerator(BaseEventGenerator):
-    """Generate events for assistant runs.
-
-    This replaces the fake streaming in runs/streaming.py with real
-    event-based streaming using the same infrastructure as chat completions.
-    """
+    """Generate events for assistant runs. Event-based streaming using the same infrastructure as chat completions."""
 
     async def prepare_prompt(
         self, messages: List[ChatMessage], enable_tools: bool = False, tools: Optional[List] = None
