@@ -1,7 +1,6 @@
 """API router for runs endpoints."""
 
 import logging
-import uuid
 from typing import Any, Dict, Union
 
 from fastapi import APIRouter, Body, HTTPException, Query
@@ -35,7 +34,6 @@ async def create(thread_id: str, request: RunCreateRequest = Body(...)) -> Union
             return JSONResponse(status_code=404, content={"error": "Assistant not found"})
 
         run = Run(
-            id=f"run_{uuid.uuid4().hex}",
             created_at=current_timestamp(),
             thread_id=thread_id,
             assistant_id=request.assistant_id,

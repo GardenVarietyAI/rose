@@ -147,7 +147,6 @@ async def handle_tool_calls(
 
         # Create a message with the tool output
         message = Message(
-            id=f"msg_{uuid.uuid4().hex}",
             created_at=current_timestamp(),
             thread_id=thread_id,
             role="assistant",
@@ -313,7 +312,6 @@ async def execute_assistant_run_streaming(
         return
 
     message = Message(
-        id=f"msg_{uuid.uuid4().hex}",
         created_at=current_timestamp(),
         thread_id=run.thread_id,
         role="assistant",

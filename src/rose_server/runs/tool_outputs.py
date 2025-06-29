@@ -91,7 +91,6 @@ async def process_tool_outputs(
     except Exception as e:
         logger.error(f"Error generating continuation response: {str(e)}")
     message = Message(
-        id=f"msg_{uuid.uuid4().hex}",
         created_at=current_timestamp(),
         thread_id=run.thread_id,
         role="assistant",
