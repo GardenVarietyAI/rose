@@ -21,7 +21,7 @@ from rose_server.language_models.store import get as get_language_model
 from rose_server.llms import model_cache
 from rose_server.schemas.chat import ChatMessage, ChatRequest
 
-router = APIRouter()
+router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
 
 
@@ -31,7 +31,7 @@ def _prepare_tool_params(request: ChatRequest) -> dict:
     return {"enable_tools": enable_tools, "tools": request.tools, "tool_choice": request.tool_choice}
 
 
-@router.post("/v1/chat/completions", response_model=None)
+@router.post("/chat/completions", response_model=None)
 async def event_based_chat_completions(
     request: ChatRequest = Body(...),
 ) -> JSONResponse | EventSourceResponse:

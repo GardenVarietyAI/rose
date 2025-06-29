@@ -21,7 +21,7 @@ from ..llms import model_cache
 from .store import get_response, store_response_messages
 
 logger = logging.getLogger(__name__)
-router = APIRouter(tags=["responses"])
+router = APIRouter(prefix="/v1", tags=["responses"])
 
 
 async def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMessage]:
@@ -120,7 +120,7 @@ async def _store_response(
     complete_response["id"] = message_id
 
 
-@router.get("/v1/responses/{response_id}", response_model=ResponsesResponse)
+@router.get("/responses/{response_id}", response_model=ResponsesResponse)
 async def retrieve_response(response_id: str):
     try:
         response_msg = await get_response(response_id)
@@ -183,7 +183,7 @@ async def retrieve_response(response_id: str):
         )
 
 
-@router.post("/v1/responses", response_model=None)
+@router.post("/responses", response_model=None)
 async def create_response(request: ResponsesRequest = Body(...), registry: ModelRegistryDep = None):
     try:
         logger.info(f"RESPONSES API - Input type: {type(request.input)}, Input: {request.input}")

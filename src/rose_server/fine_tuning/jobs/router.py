@@ -21,7 +21,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-@router.post("/v1/fine_tuning/jobs", response_model=FineTuningJob)
+@router.post("/fine_tuning/jobs", response_model=FineTuningJob)
 async def create_fine_tuning_job(
     model: str = Body(..., description="The name of the model to fine-tune"),
     training_file: str = Body(..., description="The ID of the uploaded file for training"),
@@ -76,7 +76,7 @@ async def create_fine_tuning_job(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/v1/fine_tuning/jobs", response_model=dict)
+@router.get("/fine_tuning/jobs", response_model=dict)
 async def list_fine_tuning_jobs(
     limit: int = Query(default=20, ge=1, le=100, description="Number of jobs to retrieve"),
     after: Optional[str] = Query(default=None, description="Pagination cursor"),
