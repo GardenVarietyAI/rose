@@ -38,7 +38,7 @@ class LanguageModel(SQLModel, table=True):
     def get_lora_modules(self) -> Optional[List[str]]:
         """Get LoRA target modules as a list."""
         if self.lora_target_modules:
-            return json.loads(self.lora_target_modules)
+            return json.loads(self.lora_target_modules)  # type: ignore[no-any-return]
         return None
 
     def set_lora_modules(self, modules: Optional[List[str]]) -> None:
