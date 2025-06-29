@@ -116,7 +116,7 @@ async def _store_response(
         created_at=complete_response["created_at"],
         chain_id=chain_id,
     )
-    # Update the response with the actual database ID
+
     complete_response["id"] = message_id
 
 
