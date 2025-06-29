@@ -155,9 +155,20 @@ async def retrieve_response(response_id: str):
         )
 
         return response.model_dump()
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error retrieving response {response_id}: {str(e)}", exc_info=True)
-        return {"error": {"message": str(e), "type": "server_error", "code": None}}
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": {
+                    "message": f"Internal server error: {str(e)}",
+                    "type": "server_error",
+                    "code": None,
+                }
+            },
+        )
 
 
 @router.post("/v1/responses", response_model=None)
@@ -170,23 +181,29 @@ async def create_response(request: ResponsesRequest = Body(...), registry: Model
 
         if not messages:
             logger.error("No messages extracted from request")
-            return {
-                "error": {
-                    "message": "No valid messages found in request",
-                    "type": "invalid_request_error",
-                    "code": None,
-                }
-            }
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": {
+                        "message": "No valid messages found in request",
+                        "type": "invalid_request_error",
+                        "code": None,
+                    }
+                },
+            )
 
         config = await registry.get_model_config(request.model)
         if not config:
-            return {
-                "error": {
-                    "message": f"No configuration found for model '{request.model}'",
-                    "type": "invalid_request_error",
-                    "code": None,
-                }
-            }
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": {
+                        "message": f"No configuration found for model '{request.model}'",
+                        "type": "invalid_request_error",
+                        "code": None,
+                    }
+                },
+            )
 
         llm = await model_cache.get_model(request.model, config)
 
@@ -194,6 +211,17 @@ async def create_response(request: ResponsesRequest = Body(...), registry: Model
             return await _generate_streaming_response(request, llm, messages)
         else:
             return await _generate_complete_response(request, llm, messages)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Responses API error: {str(e)}", exc_info=True)
-        return {"error": {"message": str(e), "type": "server_error", "code": None}}
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": {
+                    "message": f"Internal server error: {str(e)}",
+                    "type": "server_error",
+                    "code": None,
+                }
+            },
+        )
