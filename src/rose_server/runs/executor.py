@@ -1,7 +1,6 @@
 import json
 import logging
 import uuid
-from dataclasses import dataclass
 from pathlib import Path
 from typing import (
     Any,
@@ -21,9 +20,8 @@ from rose_server.entities.run_steps import RunStep
 from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.events.formatters.runs import RunsFormatter
 from rose_server.events.generators import RunsGenerator
-from rose_server.language_models.store import get as get_language_model
 from rose_server.llms import model_cache
-from rose_server.messages.store import create_message, get_messages
+from rose_server.models.store import get as get_language_model
 from rose_server.runs.builtin_tools import execute_builtin_tool
 from rose_server.runs.prompt_builder import build_prompt, find_latest_user_message
 from rose_server.runs.steps.store import create_run_step, update_run_step
@@ -31,7 +29,9 @@ from rose_server.runs.store import update_run
 from rose_server.schemas.assistants import AssistantResponse
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.runs import RunResponse, RunStepResponse
+from rose_server.threads.messages.store import create_message, get_messages
 from rose_server.tools import parse_xml_tool_call
+from rose_server.types.runs import ResponseUsage
 
 logger = logging.getLogger(__name__)
 
@@ -67,23 +67,6 @@ async def fail_run(
     if step:
         yield step_evt
     yield status_evt
-
-
-@dataclass
-class ResponseUsage:
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-
-    @property
-    def total_tokens(self) -> int:
-        return self.prompt_tokens + self.completion_tokens
-
-    def to_dict(self) -> Dict[str, int]:
-        return {
-            "prompt_tokens": self.prompt_tokens,
-            "completion_tokens": self.completion_tokens,
-            "total_tokens": self.total_tokens,
-        }
 
 
 async def get_model_for_run(model_name: str) -> Any:
@@ -155,8 +138,6 @@ async def handle_tool_calls(
             run_id=run_id,
             meta={"tool_output": True},
         )
-        from rose_server.messages.store import create_message
-
         await create_message(message)
 
         # Complete the run

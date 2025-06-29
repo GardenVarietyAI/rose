@@ -8,8 +8,8 @@ from .fine_tuning import (
     FineTuningEvent,
     FineTuningJob,
 )
-from .language_models import LanguageModel
 from .messages import Message
+from .models import LanguageModel
 from .run_steps import RunStep
 from .runs import Run
 from .threads import (

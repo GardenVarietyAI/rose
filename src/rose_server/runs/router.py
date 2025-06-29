@@ -17,8 +17,13 @@ from rose_server.runs.tool_outputs import process_tool_outputs
 from rose_server.schemas.runs import RunCreateRequest, RunResponse
 from rose_server.threads.store import get_thread
 
+from .steps.router import router as steps_router
+
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
+
+# Include the steps router
+router.include_router(steps_router)
 
 
 @router.post("/threads/{thread_id}/runs", response_model=None)

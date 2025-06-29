@@ -11,10 +11,10 @@ from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerate
 from rose_server.events.generators import RunsGenerator
 from rose_server.llms import model_cache
 from rose_server.llms.registry import ModelRegistry
-from rose_server.messages.store import create_message
 from rose_server.runs.steps.store import create_run_step, list_run_steps, update_run_step
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.runs import RunResponse, RunStepResponse
+from rose_server.threads.messages.store import create_message
 
 logger = logging.getLogger(__name__)
 

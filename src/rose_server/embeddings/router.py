@@ -7,10 +7,10 @@ from fastapi.responses import JSONResponse
 
 from rose_server.embeddings import generate_embeddings
 
-router = APIRouter()
+router = APIRouter(prefix="/v1")
 
 
-@router.post("/v1/embeddings")
+@router.post("/embeddings")
 async def openai_api_embeddings(
     input: Union[str, List[str]],
     model: str = "text-embedding-ada-002",

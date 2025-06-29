@@ -11,10 +11,10 @@ from rose_server.files.store import create_file, delete_file, get_file, get_file
 from rose_server.schemas.files import FileListResponse
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(prefix="/v1")
 
 
-@router.post("/v1/files")
+@router.post("/files")
 async def create(
     file: UploadFile = File(...),
     purpose: Literal["assistants", "batch", "fine-tune", "vision", "user_data"] = Form(...),
@@ -31,7 +31,7 @@ async def create(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/v1/files")
+@router.get("/files")
 async def index(
     purpose: Optional[str] = Query(None),
     limit: int = Query(20, ge=1, le=100),
@@ -42,7 +42,7 @@ async def index(
     return FileListResponse(data=files, has_more=len(files) == limit)
 
 
-@router.get("/v1/files/{file_id}")
+@router.get("/files/{file_id}")
 async def get(file_id: str) -> FileObject:
     """Get file metadata."""
     file_obj = await get_file(file_id)
@@ -51,7 +51,7 @@ async def get(file_id: str) -> FileObject:
     return file_obj
 
 
-@router.get("/v1/files/{file_id}/content")
+@router.get("/files/{file_id}/content")
 async def get_content(file_id: str) -> Response:
     """Get file content."""
     content = await get_file_content(file_id)
@@ -65,7 +65,7 @@ async def get_content(file_id: str) -> Response:
     )
 
 
-@router.delete("/v1/files/{file_id}")
+@router.delete("/files/{file_id}")
 async def remove(file_id: str) -> FileDeleted:
     """Delete a file."""
     try:
