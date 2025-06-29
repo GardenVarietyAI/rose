@@ -3,11 +3,10 @@
 import logging
 from pathlib import Path
 
-from rose_server.database import run_in_session
-from rose_server.entities.jobs import Job
 from rose_server.fine_tuning.events.store import add_event
 from rose_server.fine_tuning.jobs.store import get_job, mark_job_failed, update_job_result_files, update_job_status
 from rose_server.language_models.store import create as create_language_model
+from rose_server.queues.store import update_job_status as update_queue_job_status
 from rose_server.schemas.webhooks import WebhookEvent
 from rose_server.webhooks.results_output import create_result_file
 
@@ -103,34 +102,14 @@ async def _create_training_result_file(event: WebhookEvent) -> str | None:
 
 async def _update_queue_job_completed(event: WebhookEvent) -> None:
     """Update queue job status to completed."""
-
-    async def update_job(session):
-        job = await session.get(Job, event.job_id)
-        if job:
-            job.status = "completed"
-            job.completed_at = event.created_at
-            job.result = event.data
-            await session.commit()
-        else:
-            logger.warning(f"Queue job {event.job_id} not found")
-
-    await run_in_session(update_job)
+    await update_queue_job_status(event.job_id, "completed", result=event.data)
 
 
 async def _update_queue_job_failed(event: WebhookEvent, error_msg: str) -> None:
     """Update queue job status to failed."""
-
-    async def update_job(session):
-        job = await session.get(Job, event.job_id)
-        if job:
-            job.status = "failed"
-            job.completed_at = event.created_at
-            job.error = error_msg
-            await session.commit()
-        else:
-            logger.warning(f"Queue job {event.job_id} not found")
-
-    await run_in_session(update_job)
+    # Note: The fail_job method in queues store handles retry logic,
+    # but for webhooks we want to directly mark as failed
+    await update_queue_job_status(event.job_id, "failed", result={"error": error_msg})
 
 
 async def _handle_training_progress(event: WebhookEvent) -> None:
@@ -144,28 +123,12 @@ async def _handle_training_progress(event: WebhookEvent) -> None:
 async def _handle_training_running(event: WebhookEvent) -> None:
     """Handle training job starting to run."""
     await update_job_status(event.object_id, status="running")
-
-    async def update_job(session):
-        job = await session.get(Job, event.job_id)
-        if job:
-            job.status = "running"
-            job.started_at = event.created_at
-            await session.commit()
-
-    await run_in_session(update_job)
+    await update_queue_job_status(event.job_id, "running")
     logger.info(f"Training job {event.object_id} is now running")
 
 
 async def _handle_training_cancelled(event: WebhookEvent) -> None:
     """Handle training job cancellation."""
     await update_job_status(event.object_id, status="cancelled")
-
-    async def update_job(session):
-        job = await session.get(Job, event.job_id)
-        if job:
-            job.status = "cancelled"
-            job.completed_at = event.created_at
-            await session.commit()
-
-    await run_in_session(update_job)
+    await update_queue_job_status(event.job_id, "cancelled")
     logger.info(f"Training job {event.object_id} was cancelled")

@@ -4,9 +4,9 @@ from typing import Any, Dict, List, Optional, Union
 
 from sqlalchemy import select
 
-from ..database import current_timestamp, get_session
-from ..entities.jobs import Job
-from ..schemas.jobs import JobResponse
+from rose_server.database import current_timestamp, get_session
+from rose_server.entities.jobs import Job
+from rose_server.schemas.jobs import JobResponse
 
 logger = logging.getLogger(__name__)
 
