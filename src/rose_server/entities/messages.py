@@ -10,7 +10,7 @@ from sqlmodel import Field, SQLModel
 class Message(SQLModel, table=True):
     """Message model for database storage."""
 
-    __tablename__: str = "messages"
+    __tablename__ = "messages"
     id: str = Field(primary_key=True)
     object: str = Field(default="thread.message")
     created_at: int = Field(default_factory=lambda: int(time.time()))
