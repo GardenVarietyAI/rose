@@ -53,23 +53,6 @@ class TrainingJob(Queueable):
         return "training"
 
 
-class EvalJob(Queueable):
-    """Model evaluation job."""
-
-    @classmethod
-    def prepare_payload(cls, eval_id: str, model: str, eval: str, **kwargs) -> Dict[str, Any]:
-        return {
-            "eval_id": eval_id,
-            "model": model,
-            "eval": eval,
-            "metadata": kwargs.get("metadata", {}),
-        }
-
-    @classmethod
-    def get_job_type(cls) -> str:
-        return "eval"
-
-
 class Queue:
     """Laravel-style queue helper."""
 
