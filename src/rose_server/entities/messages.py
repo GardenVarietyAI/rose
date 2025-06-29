@@ -35,8 +35,3 @@ class Message(SQLModel, table=True):
         Index("idx_messages_role", "role"),
         Index("idx_messages_response_chain", "response_chain_id"),
     )
-
-    @classmethod
-    def generate_chain_id(cls) -> str:
-        """Generate a unique conversation chain ID."""
-        return f"chain_{uuid.uuid4().hex[:16]}"

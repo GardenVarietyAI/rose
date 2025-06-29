@@ -1,4 +1,5 @@
 import time
+import uuid
 from typing import List, Optional
 
 from sqlmodel import select
@@ -59,7 +60,7 @@ async def store_response_messages(
 
     # Generate new chain_id if not provided
     if not chain_id:
-        chain_id = Message.generate_chain_id()
+        chain_id = f"chain_{uuid.uuid4().hex[:16]}"
 
     async with get_session() as session:
         for msg in messages:
