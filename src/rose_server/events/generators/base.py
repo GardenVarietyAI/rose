@@ -97,7 +97,6 @@ class BaseEventGenerator:
         model_config = {
             "model_name": self.llm.model_name,
             "model_path": self.llm.model_path,
-            "torch_dtype": self.config.get("torch_dtype"),
         }
 
         detector = StreamingXMLDetector() if enable_tools else None
