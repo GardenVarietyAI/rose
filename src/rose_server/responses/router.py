@@ -177,15 +177,6 @@ async def create_response(request: ResponsesRequest = Body(...), registry: Model
                     "code": None,
                 }
             }
-        available_models = await registry.list_models()
-        if request.model not in available_models:
-            return {
-                "error": {
-                    "message": f"Model '{request.model}' not found",
-                    "type": "invalid_request_error",
-                    "code": None,
-                }
-            }
 
         config = await registry.get_model_config(request.model)
         if not config:
