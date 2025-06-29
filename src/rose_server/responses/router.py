@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Body, HTTPException
-from fastapi.responses import StreamingResponse
+from sse_starlette.sse import EventSourceResponse
 
 from rose_server.events.formatters import ResponsesFormatter
 from rose_server.events.generators import ResponsesGenerator
@@ -62,18 +62,14 @@ async def _generate_streaming_response(request: ResponsesRequest, llm, messages:
             ):
                 formatted = formatter.format_event(event)
                 if formatted:
-                    yield f"data: {json.dumps(formatted)}\n\n"
-            yield "data: [DONE]\n\n"
+                    yield {"data": json.dumps(formatted)}
+            yield {"data": "[DONE]"}
         except Exception as e:
             error_event = {"type": "response.error", "error": str(e)}
-            yield f"data: {json.dumps(error_event)}\n\n"
-            yield "data: [DONE]\n\n"
+            yield {"data": json.dumps(error_event)}
+            yield {"data": "[DONE]"}
 
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
-    )
+    return EventSourceResponse(generate())
 
 
 async def _generate_complete_response(

@@ -4,7 +4,8 @@ import logging
 from typing import Any, Dict
 
 from fastapi import APIRouter, Body, HTTPException, Query
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
+from sse_starlette.sse import EventSourceResponse
 
 from rose_server.assistants.store import get_assistant
 from rose_server.database import current_timestamp
@@ -184,10 +185,7 @@ async def create_thread_and_run(request: Dict[str, Any] = Body(...)) -> JSONResp
         run = await create_run(run)
 
         if run_request.stream:
-            return StreamingResponse(
-                execute_assistant_run_streaming(run, assistant),
-                media_type="text/event-stream",
-            )
+            return EventSourceResponse(execute_assistant_run_streaming(run, assistant))
         else:
             events = []
             async for event in execute_assistant_run_streaming(run, assistant):
