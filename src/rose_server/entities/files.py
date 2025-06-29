@@ -1,5 +1,6 @@
 """File entity models."""
 
+import uuid
 from typing import Optional
 
 from sqlmodel import Field, SQLModel
@@ -10,18 +11,15 @@ class UploadedFile(SQLModel, table=True):
 
     __tablename__ = "files"
 
-    id: str = Field(primary_key=True, description="File identifier")
+    id: str = Field(
+        primary_key=True, default_factory=lambda: f"file-{uuid.uuid4().hex[:24]}", description="File identifier"
+    )
     object: str = Field(default="file", description="Object type, always 'file'")
     bytes: int = Field(description="Size of the file in bytes")
     created_at: int = Field(description="Unix timestamp when file was created")
     expires_at: Optional[int] = Field(default=None, description="Unix timestamp when file expires")
     filename: str = Field(description="Name of the file")
-    purpose: str = Field(
-        description="Intended purpose: assistants, assistants_output, batch, batch_output, fine-tune, "
-        "fine-tune-results, vision"
-    )
+    purpose: str = Field(description="assistants, assistants_output, batch, batch_output, fine-tune, fine-tune-results")
     status: Optional[str] = Field(default="processed", description="Deprecated. Status: uploaded, processed, or error")
     status_details: Optional[str] = Field(default=None, description="Deprecated. Details on validation errors")
-
-    # Additional fields for internal use
     storage_path: str = Field(description="Internal storage path relative to uploads directory")
