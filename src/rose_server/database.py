@@ -16,8 +16,8 @@ from .entities.assistants import Assistant
 from .entities.files import UploadedFile
 from .entities.fine_tuning import FineTuningEvent, FineTuningJob
 from .entities.jobs import Job
-from .entities.language_models import LanguageModel
 from .entities.messages import Message
+from .entities.models import LanguageModel
 from .entities.run_steps import RunStep
 from .entities.runs import Run
 from .entities.threads import MessageMetadata, Thread

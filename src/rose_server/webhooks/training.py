@@ -5,7 +5,7 @@ from pathlib import Path
 
 from rose_server.fine_tuning.events.store import add_event
 from rose_server.fine_tuning.jobs.store import get_job, mark_job_failed, update_job_result_files, update_job_status
-from rose_server.language_models.store import create as create_language_model
+from rose_server.models.store import create as create_language_model
 from rose_server.queues.store import update_job_status as update_queue_job_status
 from rose_server.schemas.webhooks import WebhookEvent
 from rose_server.webhooks.results_output import create_result_file

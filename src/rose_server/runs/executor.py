@@ -21,8 +21,8 @@ from rose_server.entities.run_steps import RunStep
 from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.events.formatters.runs import RunsFormatter
 from rose_server.events.generators import RunsGenerator
-from rose_server.language_models.store import get as get_language_model
 from rose_server.llms import model_cache
+from rose_server.models.store import get as get_language_model
 from rose_server.runs.builtin_tools import execute_builtin_tool
 from rose_server.runs.prompt_builder import build_prompt, find_latest_user_message
 from rose_server.runs.steps.store import create_run_step, update_run_step

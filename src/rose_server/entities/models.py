@@ -8,7 +8,7 @@ from sqlmodel import Field, SQLModel
 
 
 class LanguageModel(SQLModel, table=True):
-    __tablename__ = "language_models"
+    __tablename__ = "models"
 
     id: str = Field(primary_key=True)
     name: Optional[str] = Field(default=None)

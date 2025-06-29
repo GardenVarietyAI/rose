@@ -17,8 +17,8 @@ from rose_core.config.service import DATA_DIR
 from rose_server.events import LLMEvent
 from rose_server.events.formatters import ChatCompletionsFormatter
 from rose_server.events.generators import ChatCompletionsGenerator
-from rose_server.language_models.store import get as get_language_model
 from rose_server.llms import model_cache
+from rose_server.models.store import get as get_language_model
 from rose_server.schemas.chat import ChatMessage, ChatRequest
 
 router = APIRouter(prefix="/v1")
