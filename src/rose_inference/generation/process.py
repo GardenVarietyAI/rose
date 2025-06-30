@@ -1,6 +1,7 @@
 """Process inference requests - simple WebSocket-based inference."""
 
 import asyncio
+import atexit
 import json
 import logging
 import threading
@@ -18,6 +19,18 @@ _models: Dict[str, Dict[str, Any]] = {}
 
 # Semaphore for controlling concurrent inferences (default: 1 = sequential)
 inference_semaphore = asyncio.Semaphore(MAX_CONCURRENT_INFERENCE)
+
+
+def cleanup_on_exit():
+    """Clean up models on exit."""
+    logger.info("Shutting down inference server, cleaning up models...")
+    _models.clear()
+    cleanup_model_memory()
+    logger.info("Cleanup complete")
+
+
+# Register cleanup handler
+atexit.register(cleanup_on_exit)
 
 
 async def load_model(model_name: str, model_config: Dict[str, Any]) -> Dict[str, Any]:
