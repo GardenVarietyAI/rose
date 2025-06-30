@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 from rose_core.config.service import DATA_DIR
 from rose_core.models import cleanup_model_memory
-from rose_worker.client import get_client, post_webhook
+from rose_trainer.client import get_client, post_webhook
 
 from .training.hf_trainer import train
 
