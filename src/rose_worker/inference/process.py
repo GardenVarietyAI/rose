@@ -52,11 +52,17 @@ async def process_inference_request(websocket, request_data: Dict[str, Any]) -> 
         model_config = request_data["config"]
         prompt = request_data["prompt"]
         generation_kwargs = request_data["generation_kwargs"]
+        messages = request_data.get("messages")  # Optional messages for better formatting
 
         # Load model
         model_info = await load_model(model_name, model_config)
         model = model_info["model"]
         tokenizer = model_info["tokenizer"]
+
+        # Use chat template if messages provided and tokenizer supports it
+        if messages and hasattr(tokenizer, "chat_template") and tokenizer.chat_template:
+            logger.info(f"Using chat template for {len(messages)} messages")
+            prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
         # Tokenize input
         logger.info(f"Tokenizing prompt (length: {len(prompt)}): {prompt[:100]}...")

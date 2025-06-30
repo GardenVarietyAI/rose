@@ -57,8 +57,8 @@ class BaseEventGenerator:
         )
         yield start_event
 
-        # Pass empty inputs since we're using WebSocket
-        async for event in self._stream_generation({}, start_event.response_id, max_new, temp, enable_tools):
+        # Pass messages for proper formatting
+        async for event in self._stream_generation(messages, start_event.response_id, max_new, temp, enable_tools):
             yield event
 
     async def prepare_prompt(
@@ -70,7 +70,7 @@ class BaseEventGenerator:
 
     async def _stream_generation(
         self,
-        inputs: Dict[str, Any],
+        messages: List[ChatMessage],
         response_id: str,
         max_new: int,
         temperature: float,
@@ -81,8 +81,11 @@ class BaseEventGenerator:
         # Use WebSocket inference instead of local generation
         client = InferenceClient()
 
-        # Convert inputs back to prompt (since we already formatted it)
-        prompt = self.last_prompt  # We'll need to store this in generate_events
+        # Get prompt (fallback formatting)
+        prompt = self.last_prompt
+
+        # Convert ChatMessage objects to dicts for serialization
+        messages_dict = [{"role": msg.role, "content": msg.content} for msg in messages]
 
         # Prepare generation kwargs for the worker
         generation_kwargs = {
@@ -107,6 +110,7 @@ class BaseEventGenerator:
             prompt=prompt,
             generation_kwargs=generation_kwargs,
             response_id=response_id,
+            messages=messages_dict,
         ):
             # Handle tool detection if needed
             if isinstance(event, TokenGenerated) and detector:

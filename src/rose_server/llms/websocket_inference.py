@@ -3,7 +3,7 @@
 import asyncio
 import json
 import logging
-from typing import Any, AsyncGenerator, Dict
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import websockets
 
@@ -25,6 +25,7 @@ class InferenceClient:
         prompt: str,
         generation_kwargs: Dict[str, Any],
         response_id: str,
+        messages: Optional[List[Dict[str, Any]]] = None,
     ) -> AsyncGenerator[Any, None]:
         """Stream inference results from the worker."""
 
@@ -40,6 +41,7 @@ class InferenceClient:
                     "config": model_config,
                     "prompt": prompt,
                     "generation_kwargs": generation_kwargs,
+                    "messages": messages,  # Send messages for model-specific formatting
                 }
 
                 await websocket.send(json.dumps(request))
