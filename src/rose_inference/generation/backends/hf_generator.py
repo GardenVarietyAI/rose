@@ -12,6 +12,22 @@ from rose_core.config.service import INFERENCE_TIMEOUT
 logger = logging.getLogger(__name__)
 
 
+def _format_messages_fallback(messages: List[Dict[str, Any]]) -> str:
+    """Fallback formatting when tokenizer doesn't have a chat template."""
+    prompt_parts = []
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        if role == "system":
+            prompt_parts.append(f"System: {content}")
+        elif role == "user":
+            prompt_parts.append(f"User: {content}")
+        elif role == "assistant":
+            prompt_parts.append(f"Assistant: {content}")
+    prompt_parts.append("Assistant:")  # Add generation prompt
+    return "\n\n".join(prompt_parts)
+
+
 async def generate_stream(
     model: Any,
     tokenizer: Any,
@@ -26,25 +42,22 @@ async def generate_stream(
     Returns:
         Total number of tokens generated.
     """
-    # Use chat template if messages provided and tokenizer supports it
-    if messages and hasattr(tokenizer, "chat_template") and tokenizer.chat_template:
-        logger.info(f"[{stream_id}] Using chat template for {len(messages)} messages")
-        prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-    elif messages and not prompt:
-        # Fallback: format messages if no chat template available
-        logger.info(f"[{stream_id}] No chat template, using fallback formatting for {len(messages)} messages")
-        prompt_parts = []
-        for msg in messages:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            if role == "system":
-                prompt_parts.append(f"System: {content}")
-            elif role == "user":
-                prompt_parts.append(f"User: {content}")
-            elif role == "assistant":
-                prompt_parts.append(f"Assistant: {content}")
-        prompt_parts.append("Assistant:")  # Add generation prompt
-        prompt = "\n\n".join(prompt_parts)
+    # Handle different input combinations
+    if messages:
+        # Format messages using chat template or fallback
+        if hasattr(tokenizer, "chat_template") and tokenizer.chat_template:
+            logger.info(f"[{stream_id}] Using chat template for {len(messages)} messages")
+            formatted_messages = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        else:
+            logger.info(f"[{stream_id}] No chat template, using fallback formatting for {len(messages)} messages")
+            formatted_messages = _format_messages_fallback(messages)
+
+        # If we have both messages and prompt, prepend messages as context
+        if prompt:
+            logger.info(f"[{stream_id}] Combining message history with prompt")
+            prompt = f"{formatted_messages}\n\n{prompt}"
+        else:
+            prompt = formatted_messages
 
     # Tokenize input
     logger.info(f"[{stream_id}] Tokenizing prompt (length: {len(prompt)}): {prompt[:100]}...")
