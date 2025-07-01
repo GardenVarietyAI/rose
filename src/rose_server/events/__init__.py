@@ -1,5 +1,7 @@
 """Event-native LLM system built with Pydantic for clean serialization."""
 
+from rose_server.events.generator import EventGenerator
+
 from .event_types.base import LLMEvent
 from .event_types.generation import (
     InputTokensCounted,
@@ -37,4 +39,5 @@ __all__ = [
     "ModelUnloaded",
     "ResourceAcquired",
     "ResourceReleased",
+    "EventGenerator",
 ]

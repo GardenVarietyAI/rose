@@ -6,7 +6,7 @@ from fastapi import APIRouter, Body, HTTPException
 from sse_starlette.sse import EventSourceResponse
 
 from rose_server.events.formatters import ResponsesFormatter
-from rose_server.events.generators import ResponsesGenerator
+from rose_server.events.generator import EventGenerator
 from rose_server.llms.deps import ModelRegistryDep
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.responses import (
@@ -54,7 +54,7 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMess
 async def _generate_streaming_response(request: ResponsesRequest, llm, messages: list[ChatMessage]):
     async def generate():
         try:
-            generator = ResponsesGenerator(llm)
+            generator = EventGenerator(llm)
             formatter = ResponsesFormatter()
 
             async for event in generator.generate_events(
@@ -75,7 +75,7 @@ async def _generate_streaming_response(request: ResponsesRequest, llm, messages:
 async def _generate_complete_response(
     request: ResponsesRequest, llm, messages: list[ChatMessage], chain_id: Optional[str] = None
 ):
-    generator = ResponsesGenerator(llm)
+    generator = EventGenerator(llm)
     formatter = ResponsesFormatter()
     all_events = []
 

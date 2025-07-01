@@ -18,7 +18,7 @@ from rose_server.tools import StreamingXMLDetector
 logger = logging.getLogger(__name__)
 
 
-class BaseEventGenerator:
+class EventGenerator:
     def __init__(self, llm: LLM) -> None:
         self.llm = llm
         self.model_name: str = llm.model_name
@@ -48,7 +48,6 @@ class BaseEventGenerator:
 
         # Token counting happens in inference layer
         start_event = ResponseStarted(
-            model_name=self.model_name,
             input_tokens=0,  # Will be updated from inference layer
             max_tokens=max_new,
             temperature=temp,

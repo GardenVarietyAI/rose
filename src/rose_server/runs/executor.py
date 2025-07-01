@@ -19,7 +19,7 @@ from rose_server.entities.messages import Message
 from rose_server.entities.run_steps import RunStep
 from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.events.formatters.runs import RunsFormatter
-from rose_server.events.generators import RunsGenerator
+from rose_server.events.generator import EventGenerator
 from rose_server.llms import model_cache
 from rose_server.models.store import get as get_language_model
 from rose_server.runs.builtin_tools import execute_builtin_tool
@@ -248,7 +248,7 @@ async def execute_assistant_run_streaming(
         return
 
     # Model inference & streaming with RunsFormatter
-    generator = RunsGenerator(llm)
+    generator = EventGenerator(llm)
     message_id = f"msg_{uuid.uuid4().hex}"
     formatter = RunsFormatter(run.id, run.thread_id, assistant.id, message_id)
 

@@ -8,6 +8,7 @@ import logging
 import time
 import uuid
 from pathlib import Path
+from typing import Any, AsyncGenerator, Dict
 
 from fastapi import APIRouter, Body
 from fastapi.responses import JSONResponse
@@ -16,7 +17,7 @@ from sse_starlette.sse import EventSourceResponse
 from rose_core.config.service import DATA_DIR
 from rose_server.events import LLMEvent
 from rose_server.events.formatters import ChatCompletionsFormatter
-from rose_server.events.generators import ChatCompletionsGenerator
+from rose_server.events.generator import EventGenerator
 from rose_server.llms import model_cache
 from rose_server.models.store import get as get_language_model
 from rose_server.schemas.chat import ChatMessage, ChatRequest
@@ -25,7 +26,7 @@ router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
 
 
-def _prepare_tool_params(request: ChatRequest) -> dict:
+def _prepare_tool_params(request: ChatRequest) -> Dict[str, Any]:
     """Extract tool parameters from request and log them."""
     enable_tools = bool(request.tools)
     return {"enable_tools": enable_tools, "tools": request.tools, "tool_choice": request.tool_choice}
@@ -92,7 +93,7 @@ async def event_based_chat_completions(
         except Exception as e:
             logger.error(f"Failed to create model {request.model}: {e}")
             return JSONResponse(status_code=500, content={"error": f"Failed to load model: {str(e)}"})
-        generator = ChatCompletionsGenerator(base_llm)
+        generator = EventGenerator(base_llm)
         formatter = ChatCompletionsFormatter()
         logger.info("[EVENT] Using ChatCompletionsGenerator for chat completions")
         if request.stream:
@@ -105,14 +106,14 @@ async def event_based_chat_completions(
 
 
 async def create_event_streaming_response(
-    generator: ChatCompletionsGenerator,
+    generator: EventGenerator,
     messages: list[ChatMessage],
     formatter: ChatCompletionsFormatter,
     request: ChatRequest,
 ) -> EventSourceResponse:
     """Create streaming response using events and sse-starlette."""
 
-    async def generate():
+    async def generate() -> AsyncGenerator[Dict[str, Any], None]:
         """Generate SSE events from LLM events."""
         try:
             tool_params = _prepare_tool_params(request)
@@ -138,7 +139,7 @@ async def create_event_streaming_response(
 
 
 async def create_event_complete_response(
-    generator: ChatCompletionsGenerator,
+    generator: EventGenerator,
     messages: list[ChatMessage],
     formatter: ChatCompletionsFormatter,
     request: ChatRequest,
