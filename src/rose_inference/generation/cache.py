@@ -1,5 +1,6 @@
 """Model caching and management for inference."""
 
+import asyncio
 import logging
 from typing import Any, Dict
 
@@ -9,34 +10,43 @@ logger = logging.getLogger(__name__)
 
 # Global model cache
 _models: Dict[str, Dict[str, Any]] = {}
+_cache_lock = asyncio.Lock()
 
 
 async def load_model(model_name: str, model_config: Dict[str, Any]) -> Dict[str, Any]:
     """Load a model and tokenizer (cached)."""
+    # Fast path - check without lock first
     if model_name in _models:
         logger.info(f"Using cached model: {model_name}")
         return _models[model_name]
 
-    logger.info(f"Loading model: {model_name}")
-    try:
-        # Use model_path if available (for custom/fine-tuned models), otherwise use model_name
-        model_id = model_config.get("model_path") or model_config.get("model_name", model_name)
-        model = load_hf_model(
-            model_id=model_id,
-            torch_dtype=model_config.get("torch_dtype"),
-        )
+    # Slow path - need to load model
+    async with _cache_lock:
+        # Double-check after acquiring lock (another task might have loaded it)
+        if model_name in _models:
+            logger.info(f"Using cached model: {model_name} (loaded by another task)")
+            return _models[model_name]
 
-        # Load tokenizer
-        tokenizer = get_tokenizer(model_config.get("model_path") or model_config.get("model_name", model_name))
+        logger.info(f"Loading model: {model_name}")
+        try:
+            # Use model_path if available (for custom/fine-tuned models), otherwise use model_name
+            model_id = model_config.get("model_path") or model_config.get("model_name", model_name)
+            model = load_hf_model(
+                model_id=model_id,
+                torch_dtype=model_config.get("torch_dtype"),
+            )
 
-        _models[model_name] = {"model": model, "tokenizer": tokenizer, "config": model_config}
+            # Load tokenizer
+            tokenizer = get_tokenizer(model_config.get("model_path") or model_config.get("model_name", model_name))
 
-        logger.info(f"Successfully loaded model: {model_name}")
-        return _models[model_name]
+            _models[model_name] = {"model": model, "tokenizer": tokenizer, "config": model_config}
 
-    except Exception as e:
-        logger.error(f"Failed to load model {model_name}: {e}")
-        raise
+            logger.info(f"Successfully loaded model: {model_name}")
+            return _models[model_name]
+
+        except Exception as e:
+            logger.error(f"Failed to load model {model_name}: {e}")
+            raise
 
 
 def cleanup_models():
