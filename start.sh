@@ -22,35 +22,35 @@ cleanup() {
     echo -e "\nShutting down..."
 
     # Send SIGTERM to processes
-    if kill -0 $SERVICE_PID 2>/dev/null; then
+    if kill -0 "$SERVICE_PID" 2>/dev/null; then
         echo "   Stopping API service..."
-        kill -TERM $SERVICE_PID
+        kill -TERM "$SERVICE_PID"
     fi
 
-    if kill -0 $INFERENCE_PID 2>/dev/null; then
+    if kill -0 "$INFERENCE_PID" 2>/dev/null; then
         echo "   Stopping inference service..."
-        kill -TERM $INFERENCE_PID
+        kill -TERM "$INFERENCE_PID"
     fi
 
-    if kill -0 $TRAINER_PID 2>/dev/null; then
+    if kill -0 "$TRAINER_PID" 2>/dev/null; then
         echo "   Stopping trainer..."
-        kill -TERM $TRAINER_PID
+        kill -TERM "$TRAINER_PID"
     fi
 
     # Wait a bit for graceful shutdown
     sleep 2
 
     # Force kill if still running
-    if kill -0 $SERVICE_PID 2>/dev/null; then
-        kill -9 $SERVICE_PID 2>/dev/null || true
+    if kill -0 "$SERVICE_PID" 2>/dev/null; then
+        kill -9 "$SERVICE_PID" 2>/dev/null || true
     fi
 
-    if kill -0 $INFERENCE_PID 2>/dev/null; then
-        kill -9 $INFERENCE_PID 2>/dev/null || true
+    if kill -0 "$INFERENCE_PID" 2>/dev/null; then
+        kill -9 "$INFERENCE_PID" 2>/dev/null || true
     fi
 
-    if kill -0 $TRAINER_PID 2>/dev/null; then
-        kill -9 $TRAINER_PID 2>/dev/null || true
+    if kill -0 "$TRAINER_PID" 2>/dev/null; then
+        kill -9 "$TRAINER_PID" 2>/dev/null || true
     fi
 
     echo "Shutdown complete"
@@ -89,4 +89,4 @@ echo ""
 echo "Press Ctrl+C to stop"
 
 # Wait for all processes
-wait $SERVICE_PID $INFERENCE_PID $TRAINER_PID
+wait "$SERVICE_PID" "$INFERENCE_PID" "$TRAINER_PID"
