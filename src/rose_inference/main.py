@@ -1,12 +1,14 @@
 """WebSocket server for streaming inference."""
 
 import asyncio
+import atexit
 import json
 import logging
 
 import websockets
 
 from rose_core.config.service import MAX_CONCURRENT_INFERENCE
+from rose_inference.generation.generate.cache import cleanup_models
 from rose_inference.generation.process import process_inference_request
 
 logging.basicConfig(level=logging.INFO)
@@ -47,6 +49,10 @@ async def run_inference_server():
 
 def main():
     """Entry point for the inference server."""
+    # Register cleanup handler
+    atexit.register(cleanup_models)
+
+    # Run server
     asyncio.run(run_inference_server())
 
 
