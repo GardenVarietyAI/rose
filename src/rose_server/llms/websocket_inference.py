@@ -58,7 +58,17 @@ class InferenceClient:
                 async for message in websocket:
                     data = json.loads(message)
 
-                    if data["type"] == "token":
+                    if data["type"] == "input_tokens_counted":
+                        # Yield input tokens counted event
+                        from rose_server.events import InputTokensCounted
+
+                        yield InputTokensCounted(
+                            model_name=model_name,
+                            response_id=response_id,
+                            input_tokens=data["input_tokens"],
+                        )
+
+                    elif data["type"] == "token":
                         total_tokens += 1
                         yield TokenGenerated(
                             model_name=model_name,

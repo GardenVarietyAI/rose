@@ -69,6 +69,9 @@ async def generate_stream(
     input_token_count = inputs["input_ids"].shape[1]
     logger.info(f"[{stream_id}] Input shape: {inputs['input_ids'].shape}, tokens: {input_token_count}")
 
+    # Send input token count event immediately after tokenization
+    await websocket.send(json.dumps({"type": "input_tokens_counted", "input_tokens": input_token_count}))
+
     # Create streamer for token-by-token output
     streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
 

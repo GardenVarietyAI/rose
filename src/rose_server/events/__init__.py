@@ -2,6 +2,7 @@
 
 from .event_types.base import LLMEvent
 from .event_types.generation import (
+    InputTokensCounted,
     ResponseCompleted,
     ResponseStarted,
     TokenGenerated,
@@ -21,6 +22,7 @@ from .event_types.training import (
 __all__ = [
     "LLMEvent",
     "ResponseStarted",
+    "InputTokensCounted",
     "TokenGenerated",
     "ToolCallStarted",
     "ToolCallCompleted",
