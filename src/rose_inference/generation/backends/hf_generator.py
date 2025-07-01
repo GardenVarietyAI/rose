@@ -36,11 +36,11 @@ async def generate_stream(
     generation_kwargs: Dict[str, Any],
     websocket: Any,
     stream_id: str,
-) -> int:
+) -> Dict[str, int]:
     """Run model generation and stream tokens to websocket.
 
     Returns:
-        Total number of tokens generated.
+        Dictionary with input_tokens and output_tokens counts.
     """
     # Handle different input combinations
     if messages:
@@ -64,7 +64,10 @@ async def generate_stream(
     inputs = tokenizer(prompt, return_tensors="pt")
     if hasattr(model, "device"):
         inputs = {k: v.to(model.device) for k, v in inputs.items()}
-    logger.info(f"[{stream_id}] Input shape: {inputs['input_ids'].shape}")
+
+    # Get input token count
+    input_token_count = inputs["input_ids"].shape[1]
+    logger.info(f"[{stream_id}] Input shape: {inputs['input_ids'].shape}, tokens: {input_token_count}")
 
     # Create streamer for token-by-token output
     streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
@@ -110,4 +113,4 @@ async def generate_stream(
     if generation_thread.is_alive():
         logger.error(f"[{stream_id}] Generation thread still alive after {INFERENCE_TIMEOUT}s timeout")
 
-    return position
+    return {"input_tokens": input_token_count, "output_tokens": position}

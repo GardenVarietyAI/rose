@@ -70,12 +70,17 @@ class InferenceClient:
 
                     elif data["type"] == "complete":
                         completion_time = asyncio.get_event_loop().time() - start_time
+                        # Extract token counts from completion message
+                        input_tokens = data.get("input_tokens", 0)
+                        output_tokens = data.get("output_tokens", total_tokens)
+                        total = data.get("total_tokens", input_tokens + output_tokens)
+
                         yield ResponseCompleted(
                             model_name=model_name,
                             response_id=response_id,
-                            total_tokens=data.get("total_tokens", total_tokens),
+                            total_tokens=total,
                             finish_reason="stop",
-                            output_tokens=data.get("total_tokens", total_tokens),
+                            output_tokens=output_tokens,
                             completion_time=completion_time,
                         )
                         break

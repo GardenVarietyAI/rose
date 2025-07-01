@@ -58,7 +58,7 @@ async def process_inference_request(websocket, request_data: Dict[str, Any]) -> 
             model_info = await load_model(model_name, model_config)
 
             # Run generation and stream results
-            total_tokens = await generate_stream(
+            token_counts = await generate_stream(
                 model=model_info["model"],
                 tokenizer=model_info["tokenizer"],
                 prompt=prompt,
@@ -68,8 +68,17 @@ async def process_inference_request(websocket, request_data: Dict[str, Any]) -> 
                 stream_id=stream_id,
             )
 
-            # Send completion
-            await websocket.send(json.dumps({"type": "complete", "total_tokens": total_tokens}))
+            # Send completion with token counts
+            await websocket.send(
+                json.dumps(
+                    {
+                        "type": "complete",
+                        "input_tokens": token_counts["input_tokens"],
+                        "output_tokens": token_counts["output_tokens"],
+                        "total_tokens": token_counts["input_tokens"] + token_counts["output_tokens"],
+                    }
+                )
+            )
 
         except Exception as e:
             logger.error(f"[{stream_id}] Inference error: {e}")
