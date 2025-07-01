@@ -6,7 +6,7 @@ import logging
 import uuid
 from typing import Any, Dict
 
-from rose_core.config.service import MAX_CONCURRENT_INFERENCE, MAX_PROMPT_LENGTH
+from rose_core.config.service import MAX_CONCURRENT_INFERENCE
 from rose_core.models import cleanup_model_memory
 
 from .backends.hf_generator import generate_stream
@@ -37,21 +37,6 @@ async def process_inference_request(websocket, request_data: Dict[str, Any]) -> 
             if not messages and not prompt:
                 logger.info(f"[{stream_id}] Empty input received, returning empty response")
                 await websocket.send(json.dumps({"type": "complete", "total_tokens": 0}))
-                return
-
-            # Validate input length before doing any work
-            # For messages, do a rough estimate
-            if messages:
-                estimated_length = sum(len(str(msg)) for msg in messages)
-                if estimated_length > MAX_PROMPT_LENGTH:
-                    logger.warning(f"[{stream_id}] Messages too long: ~{estimated_length} > {MAX_PROMPT_LENGTH}")
-                    error_msg = f"Input exceeds maximum length of {MAX_PROMPT_LENGTH} characters"
-                    await websocket.send(json.dumps({"type": "error", "error": error_msg}))
-                    return
-            elif len(prompt) > MAX_PROMPT_LENGTH:
-                logger.warning(f"[{stream_id}] Prompt too long: {len(prompt)} > {MAX_PROMPT_LENGTH}")
-                error_msg = f"Prompt exceeds maximum length of {MAX_PROMPT_LENGTH} characters"
-                await websocket.send(json.dumps({"type": "error", "error": error_msg}))
                 return
 
             # Load model (cached)
