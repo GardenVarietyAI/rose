@@ -1,7 +1,6 @@
 """Light orchestrator for inference requests."""
 
 import asyncio
-import json
 import logging
 import uuid
 from typing import Any, Dict
@@ -36,7 +35,7 @@ async def process_inference_request(websocket, request_data: Dict[str, Any]) -> 
             # Check for empty input
             if not messages and not prompt:
                 logger.info(f"[{stream_id}] Empty input received, returning empty response")
-                await websocket.send(json.dumps({"type": "complete", "total_tokens": 0}))
+                await websocket.send_json({"type": "complete", "total_tokens": 0})
                 return
 
             # Load model (cached)
@@ -54,22 +53,20 @@ async def process_inference_request(websocket, request_data: Dict[str, Any]) -> 
             )
 
             # Send completion with token counts
-            await websocket.send(
-                json.dumps(
-                    {
-                        "type": "complete",
-                        "input_tokens": token_counts["input_tokens"],
-                        "output_tokens": token_counts["output_tokens"],
-                        "total_tokens": token_counts["input_tokens"] + token_counts["output_tokens"],
-                    }
-                )
+            await websocket.send_json(
+                {
+                    "type": "complete",
+                    "input_tokens": token_counts["input_tokens"],
+                    "output_tokens": token_counts["output_tokens"],
+                    "total_tokens": token_counts["input_tokens"] + token_counts["output_tokens"],
+                }
             )
 
         except Exception as e:
             logger.error(f"[{stream_id}] Inference error: {e}")
             error_msg = {"type": "error", "error": str(e)}
             try:
-                await websocket.send(json.dumps(error_msg))
+                await websocket.send_json(error_msg)
             except Exception:
                 pass  # Connection might be closed
 

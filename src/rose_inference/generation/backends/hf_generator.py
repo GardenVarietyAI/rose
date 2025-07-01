@@ -1,6 +1,5 @@
 """HuggingFace model generation logic."""
 
-import json
 import logging
 import threading
 from typing import Any, Dict, List, Optional
@@ -70,7 +69,7 @@ async def generate_stream(
     logger.info(f"[{stream_id}] Input shape: {inputs['input_ids'].shape}, tokens: {input_token_count}")
 
     # Send input token count event immediately after tokenization
-    await websocket.send(json.dumps({"type": "input_tokens_counted", "input_tokens": input_token_count}))
+    await websocket.send_json({"type": "input_tokens_counted", "input_tokens": input_token_count})
 
     # Create streamer for token-by-token output
     streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
@@ -103,12 +102,12 @@ async def generate_stream(
         for token in streamer:
             if token:  # Skip empty tokens
                 logger.debug(f"[{stream_id}] Sending token {position}: {repr(token)}")
-                await websocket.send(json.dumps({"type": "token", "token": token, "position": position}))
+                await websocket.send_json({"type": "token", "token": token, "position": position})
                 position += 1
         logger.info(f"[{stream_id}] Finished streaming {position} tokens")
     except Exception as e:
         logger.error(f"[{stream_id}] Error during streaming: {e}")
-        await websocket.send(json.dumps({"type": "error", "error": str(e)}))
+        await websocket.send_json({"type": "error", "error": str(e)})
         raise
 
     # Wait for generation to complete with timeout
