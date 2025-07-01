@@ -1,11 +1,10 @@
-"""WebSocket server for streaming inference."""
-
 import asyncio
 import atexit
 import json
 import logging
 
 import websockets
+from websocket import WebSocket
 
 from rose_core.config.service import MAX_CONCURRENT_INFERENCE
 from rose_inference.generation.cache import cleanup_models
@@ -15,7 +14,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-async def handle_inference(websocket):
+async def handle_inference(websocket: WebSocket) -> None:
     """Handle a single inference WebSocket connection."""
     try:
         # Receive the request
@@ -35,7 +34,7 @@ async def handle_inference(websocket):
             pass  # Connection might be closed
 
 
-async def run_inference_server():
+async def run_inference_server() -> None:
     """Run the inference WebSocket server."""
     host = "localhost"
     port = 8005
@@ -47,7 +46,7 @@ async def run_inference_server():
         await asyncio.Future()  # Run forever
 
 
-def main():
+def main() -> None:
     """Entry point for the inference server."""
     # Register cleanup handler
     atexit.register(cleanup_models)

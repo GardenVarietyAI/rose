@@ -64,6 +64,9 @@ EMBEDDING_MAX_CONCURRENT_REQUESTS = int(os.getenv(f"{ENV_PREFIX}EMBEDDING_MAX_CO
 ENABLE_EMBEDDING_CACHE = os.getenv(f"{ENV_PREFIX}ENABLE_EMBEDDING_CACHE", "true").lower() in ("true", "1", "yes")
 EMBEDDING_CACHE_SIZE = int(os.getenv(f"{ENV_PREFIX}EMBEDDING_CACHE_SIZE", "10000"))
 
+# Inference settings
+INFERENCE_URI = os.getenv(f"{ENV_PREFIX}INFERENCE_URI", "ws://localhost:8005")
+
 # Response settings
 DEFAULT_TIMEOUT_SECONDS = int(os.getenv(f"{ENV_PREFIX}DEFAULT_TIMEOUT", "120"))
 MAX_TIMEOUT_SECONDS = int(os.getenv(f"{ENV_PREFIX}MAX_TIMEOUT", "600"))

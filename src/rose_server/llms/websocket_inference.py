@@ -7,6 +7,7 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import websockets
 
+from rose_core.config.service import INFERENCE_URI
 from rose_server.events import ResponseCompleted, TokenGenerated
 
 logger = logging.getLogger(__name__)
@@ -15,8 +16,8 @@ logger = logging.getLogger(__name__)
 class InferenceClient:
     """Client for connecting to the inference worker via WebSocket."""
 
-    def __init__(self, uri: str = "ws://localhost:8005"):
-        self.uri = uri
+    def __init__(self, uri: Optional[str] = None):
+        self.uri = uri or INFERENCE_URI
 
     async def stream_inference(
         self,
@@ -28,6 +29,8 @@ class InferenceClient:
         messages: Optional[List[Dict[str, Any]]] = None,
     ) -> AsyncGenerator[Any, None]:
         """Stream inference results from the worker."""
+        start_time = asyncio.get_event_loop().time()
+        total_tokens = 0
 
         try:
             async with websockets.connect(
@@ -36,7 +39,7 @@ class InferenceClient:
                 ping_timeout=120,  # Wait 120 seconds for pong
             ) as websocket:
                 # Send inference request
-                request = {
+                request: Dict[str, Any] = {
                     "model_name": model_name,
                     "config": model_config,
                     "generation_kwargs": generation_kwargs,
@@ -52,9 +55,6 @@ class InferenceClient:
                 logger.debug(f"Sent inference request for model {model_name}")
 
                 # Stream responses
-                start_time = asyncio.get_event_loop().time()
-                total_tokens = 0
-
                 async for message in websocket:
                     data = json.loads(message)
 
@@ -99,9 +99,22 @@ class InferenceClient:
                         logger.error(f"Inference error: {data['error']}")
                         raise RuntimeError(f"Inference failed: {data['error']}")
 
+        except websockets.exceptions.ConnectionClosed:
+            logger.info("Client disconnected during inference")
+            # Return a cancelled completion event
+            completion_time = asyncio.get_event_loop().time() - start_time
+            yield ResponseCompleted(
+                model_name=model_name,
+                response_id=response_id,
+                total_tokens=total_tokens,
+                finish_reason="cancelled",
+                output_tokens=total_tokens,
+                completion_time=completion_time,
+            )
+            return
         except OSError as e:
             logger.error(f"Could not connect to inference worker at {self.uri}: {e}")
-            raise
+            raise RuntimeError("Unable to connect to inference worker. Please ensure the inference service is running.")
         except Exception as e:
             logger.error(f"WebSocket error: {e}")
-            raise RuntimeError(f"Inference failed: {str(e)}")
+            raise RuntimeError("Unable to connect to inference worker. Please ensure the inference service is running.")

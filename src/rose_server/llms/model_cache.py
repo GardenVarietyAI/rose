@@ -1,6 +1,6 @@
 """Simple model cache for reusing loaded models."""
 
-from typing import Dict
+from typing import Any, Dict
 
 from .llm import LLM
 
@@ -12,7 +12,7 @@ from .llm import LLM
 _models: Dict[str, LLM] = {}
 
 
-async def get_model(model_id: str, config: Dict) -> LLM:
+async def get_model(model_id: str, config: Dict[str, Any]) -> LLM:
     """Get a cached model or create a new one."""
     if model_id not in _models:
         _models[model_id] = LLM(config)

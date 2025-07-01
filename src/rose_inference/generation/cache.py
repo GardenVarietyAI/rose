@@ -49,7 +49,7 @@ async def load_model(model_name: str, model_config: Dict[str, Any]) -> Dict[str,
             raise
 
 
-def cleanup_models():
+def cleanup_models() -> None:
     """Clean up cached models on exit."""
     logger.info("Shutting down inference server, cleaning up models...")
     _models.clear()
