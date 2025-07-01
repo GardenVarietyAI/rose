@@ -19,11 +19,11 @@ from rose_server.entities.messages import Message
 from rose_server.entities.run_steps import RunStep
 from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.events.formatters.runs import RunsFormatter
-from rose_server.events.generators import RunsGenerator
+from rose_server.events.generator import EventGenerator
 from rose_server.llms import model_cache
 from rose_server.models.store import get as get_language_model
 from rose_server.runs.builtin_tools import execute_builtin_tool
-from rose_server.runs.prompt_builder import build_prompt, find_latest_user_message
+from rose_server.runs.prompt_builder import find_latest_user_message
 from rose_server.runs.steps.store import create_run_step, update_run_step
 from rose_server.runs.store import update_run
 from rose_server.schemas.assistants import AssistantResponse
@@ -221,14 +221,23 @@ async def execute_assistant_run_streaming(
             yield evt
         return
 
-    # Build prompt
-    full_prompt = await build_prompt(
-        instructions=run.instructions or assistant.instructions,
-        messages=messages,
-        latest_user_message=latest_user_msg,
-        tools=assistant.tools,
-        assistant_id=assistant.id,
-    )
+    # Convert thread messages to ChatMessage format
+    chat_messages: List[ChatMessage] = []
+
+    # Add assistant instructions as system message if present
+    instructions = run.instructions or assistant.instructions
+    if instructions:
+        chat_messages.append(ChatMessage(role="system", content=instructions))
+
+    # Convert thread messages
+    for msg in messages:
+        # Extract text content from message
+        text_parts = []
+        for item in msg.content:
+            if item["type"] == "text":
+                text_parts.append(item["text"]["value"])
+        if text_parts:
+            chat_messages.append(ChatMessage(role=msg.role, content="".join(text_parts)))
 
     # Get model
     try:
@@ -239,8 +248,7 @@ async def execute_assistant_run_streaming(
         return
 
     # Model inference & streaming with RunsFormatter
-    generator = RunsGenerator(llm)
-    chat_prompt = [ChatMessage(role="user", content=full_prompt)]
+    generator = EventGenerator(llm)
     message_id = f"msg_{uuid.uuid4().hex}"
     formatter = RunsFormatter(run.id, run.thread_id, assistant.id, message_id)
 
@@ -250,7 +258,7 @@ async def execute_assistant_run_streaming(
 
     try:
         async for event in generator.generate_events(
-            chat_prompt,
+            chat_messages,
             temperature=run.temperature or assistant.temperature,
             top_p=run.top_p or assistant.top_p,
             enable_tools=bool(assistant.tools),

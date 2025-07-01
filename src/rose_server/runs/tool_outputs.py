@@ -8,7 +8,7 @@ from rose_server.database import current_timestamp
 from rose_server.entities.messages import Message
 from rose_server.entities.run_steps import RunStep
 from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
-from rose_server.events.generators import RunsGenerator
+from rose_server.events.generator import EventGenerator
 from rose_server.llms import model_cache
 from rose_server.llms.registry import ModelRegistry
 from rose_server.runs.steps.store import create_run_step, list_run_steps, update_run_step
@@ -65,7 +65,7 @@ async def process_tool_outputs(
         config = await registry.get_model_config(run.model)
         if config:
             llm = await model_cache.get_model(run.model, config)
-            generator = RunsGenerator(llm)
+            generator = EventGenerator(llm)
             messages = [ChatMessage(role="user", content=continuation_prompt)]
             response_text = ""
             prompt_tokens = 0

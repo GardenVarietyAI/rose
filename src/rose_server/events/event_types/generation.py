@@ -22,6 +22,17 @@ class ResponseStarted(LLMEvent):
     temperature: Optional[float] = Field(None, ge=0.0, le=2.0, description="Sampling temperature")
 
 
+class InputTokensCounted(LLMEvent):
+    """Fired when input tokens have been counted.
+
+    This event is sent after tokenization but before generation starts.
+    It provides the accurate input token count.
+    """
+
+    response_id: str = Field(..., description="ID of the response")
+    input_tokens: int = Field(..., ge=0, description="Actual number of input tokens")
+
+
 class TokenGenerated(LLMEvent):
     """Fired for each token generated during completion.
 
