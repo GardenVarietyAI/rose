@@ -23,7 +23,7 @@ class BaseEventGenerator:
         self.llm = llm
         self.model_name: str = llm.model_name
         self.config: Dict[str, Any] = llm.config
-        self.last_prompt: Optional[str] = None
+        self._current_tools: Optional[List[Any]] = None
 
     async def generate_events(
         self,
@@ -40,18 +40,16 @@ class BaseEventGenerator:
         None,
     ]:
         """Main entrypoint: yield events for an LLM run."""
-        prompt = await self.prepare_prompt(messages, enable_tools=enable_tools, tools=tools)
-        self.last_prompt = prompt  # Store for WebSocket inference
+        # Store tools for later use in _stream_generation
+        self._current_tools = tools
 
         max_new = max_tokens or self.config.get("max_response_tokens", 512)
         temp = temperature or self.config.get("temperature", 0.7)
 
-        # Estimate input tokens (rough approximation without tokenizer)
-        input_tokens = len(prompt.split()) * 2  # Rough estimate
-
+        # Token counting happens in inference layer
         start_event = ResponseStarted(
             model_name=self.model_name,
-            input_tokens=input_tokens,
+            input_tokens=0,  # Will be updated from inference layer
             max_tokens=max_new,
             temperature=temp,
         )
@@ -60,13 +58,6 @@ class BaseEventGenerator:
         # Pass messages for proper formatting
         async for event in self._stream_generation(messages, start_event.response_id, max_new, temp, enable_tools):
             yield event
-
-    async def prepare_prompt(
-        self, messages: List[ChatMessage], enable_tools: bool = False, tools: Optional[List[Any]] = None
-    ) -> str:
-        """Override to customize prompt construction."""
-        formatted: Any = self.llm.format_messages(messages)
-        return str(formatted)
 
     async def _stream_generation(
         self,
@@ -81,11 +72,16 @@ class BaseEventGenerator:
         # Use WebSocket inference instead of local generation
         client = InferenceClient()
 
-        # Get prompt (fallback formatting)
-        prompt = self.last_prompt
-
         # Convert ChatMessage objects to dicts for serialization
         messages_dict = [{"role": msg.role, "content": msg.content} for msg in messages]
+
+        # Only prepare prompt if we have tools
+        prompt = None
+        if enable_tools and self._current_tools:
+            # Only format the tool instructions
+            from rose_server.tools import format_tools_for_prompt
+
+            prompt = format_tools_for_prompt(self._current_tools)
 
         # Prepare generation kwargs for the worker
         generation_kwargs = {
@@ -107,10 +103,10 @@ class BaseEventGenerator:
         async for event in client.stream_inference(
             model_name=self.model_name,
             model_config=model_config,
-            prompt=prompt,
+            prompt=prompt,  # Tool instructions only
             generation_kwargs=generation_kwargs,
             response_id=response_id,
-            messages=messages_dict,
+            messages=messages_dict,  # Conversation history
         ):
             # Handle tool detection if needed
             if isinstance(event, TokenGenerated) and detector:
