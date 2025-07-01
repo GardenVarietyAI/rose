@@ -1,7 +1,7 @@
 """HuggingFace model generation logic."""
 
+import asyncio
 import logging
-import threading
 from typing import Any, Dict, List, Optional
 
 from transformers import TextIteratorStreamer
@@ -92,27 +92,43 @@ async def generate_stream(
     )
 
     # Start generation in background thread (required for streaming)
-    generation_thread = threading.Thread(target=model.generate, kwargs=generation_kwargs)
-    generation_thread.start()
+    generation_task = asyncio.create_task(asyncio.to_thread(model.generate, **generation_kwargs))
 
     # Stream tokens back
     position = 0
     try:
         logger.info(f"[{stream_id}] Starting to stream tokens...")
-        for token in streamer:
+
+        # Create async wrapper for the blocking streamer
+        async def stream_tokens():
+            loop = asyncio.get_event_loop()
+            while True:
+                # Run the blocking iterator in executor to avoid blocking event loop
+                token = await loop.run_in_executor(None, lambda: next(streamer, None))
+                if token is None:
+                    break
+                yield token
+
+        async for token in stream_tokens():
             if token:  # Skip empty tokens
                 logger.debug(f"[{stream_id}] Sending token {position}: {repr(token)}")
                 await websocket.send_json({"type": "token", "token": token, "position": position})
                 position += 1
+
         logger.info(f"[{stream_id}] Finished streaming {position} tokens")
+
     except Exception as e:
         logger.error(f"[{stream_id}] Error during streaming: {e}")
         await websocket.send_json({"type": "error", "error": str(e)})
+        # Cancel generation if still running
+        generation_task.cancel()
         raise
-
-    # Wait for generation to complete with timeout
-    generation_thread.join(timeout=INFERENCE_TIMEOUT)
-    if generation_thread.is_alive():
-        logger.error(f"[{stream_id}] Generation thread still alive after {INFERENCE_TIMEOUT}s timeout")
+    finally:
+        # Wait for generation to complete with timeout
+        try:
+            await asyncio.wait_for(generation_task, timeout=INFERENCE_TIMEOUT)
+        except asyncio.TimeoutError:
+            logger.error(f"[{stream_id}] Generation still running after {INFERENCE_TIMEOUT}s timeout")
+            generation_task.cancel()
 
     return {"input_tokens": input_token_count, "output_tokens": position}
