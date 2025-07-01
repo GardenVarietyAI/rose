@@ -8,7 +8,7 @@ import logging
 import websockets
 
 from rose_core.config.service import MAX_CONCURRENT_INFERENCE
-from rose_inference.generation.generate.cache import cleanup_models
+from rose_inference.generation.cache import cleanup_models
 from rose_inference.generation.process import process_inference_request
 
 logging.basicConfig(level=logging.INFO)

@@ -9,8 +9,8 @@ from typing import Any, Dict
 from rose_core.config.service import MAX_CONCURRENT_INFERENCE, MAX_PROMPT_LENGTH
 from rose_core.models import cleanup_model_memory
 
-from .generate.cache import load_model
-from .generate.hf_generator import generate_stream
+from .backends.hf_generator import generate_stream
+from .cache import load_model
 
 logger = logging.getLogger(__name__)
 
