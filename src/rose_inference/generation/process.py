@@ -29,18 +29,29 @@ async def process_inference_request(websocket, request_data: Dict[str, Any]) -> 
             # Extract request data
             model_name = request_data["model_name"]
             model_config = request_data["config"]
-            prompt = request_data["prompt"]
             generation_kwargs = request_data["generation_kwargs"]
             messages = request_data.get("messages")  # Optional messages for chat formatting
+            prompt = request_data.get("prompt", "")  # Optional pre-formatted prompt
 
-            # Validate prompt length before doing any work
-            if len(prompt) > MAX_PROMPT_LENGTH:
+            # Check for empty input
+            if not messages and not prompt:
+                logger.info(f"[{stream_id}] Empty input received, returning empty response")
+                await websocket.send(json.dumps({"type": "complete", "total_tokens": 0}))
+                return
+
+            # Validate input length before doing any work
+            # For messages, do a rough estimate
+            if messages:
+                estimated_length = sum(len(str(msg)) for msg in messages)
+                if estimated_length > MAX_PROMPT_LENGTH:
+                    logger.warning(f"[{stream_id}] Messages too long: ~{estimated_length} > {MAX_PROMPT_LENGTH}")
+                    error_msg = f"Input exceeds maximum length of {MAX_PROMPT_LENGTH} characters"
+                    await websocket.send(json.dumps({"type": "error", "error": error_msg}))
+                    return
+            elif len(prompt) > MAX_PROMPT_LENGTH:
                 logger.warning(f"[{stream_id}] Prompt too long: {len(prompt)} > {MAX_PROMPT_LENGTH}")
-                await websocket.send(
-                    json.dumps(
-                        {"type": "error", "error": f"Prompt exceeds maximum length of {MAX_PROMPT_LENGTH} characters"}
-                    )
-                )
+                error_msg = f"Prompt exceeds maximum length of {MAX_PROMPT_LENGTH} characters"
+                await websocket.send(json.dumps({"type": "error", "error": error_msg}))
                 return
 
             # Load model (cached)

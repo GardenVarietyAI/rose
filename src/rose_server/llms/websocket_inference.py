@@ -39,10 +39,14 @@ class InferenceClient:
                 request = {
                     "model_name": model_name,
                     "config": model_config,
-                    "prompt": prompt,
                     "generation_kwargs": generation_kwargs,
-                    "messages": messages,  # Send messages for model-specific formatting
                 }
+
+                # Send either messages or prompt, not both
+                if messages:
+                    request["messages"] = messages
+                else:
+                    request["prompt"] = prompt
 
                 await websocket.send(json.dumps(request))
                 logger.debug(f"Sent inference request for model {model_name}")

@@ -30,6 +30,21 @@ async def generate_stream(
     if messages and hasattr(tokenizer, "chat_template") and tokenizer.chat_template:
         logger.info(f"[{stream_id}] Using chat template for {len(messages)} messages")
         prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    elif messages and not prompt:
+        # Fallback: format messages if no chat template available
+        logger.info(f"[{stream_id}] No chat template, using fallback formatting for {len(messages)} messages")
+        prompt_parts = []
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if role == "system":
+                prompt_parts.append(f"System: {content}")
+            elif role == "user":
+                prompt_parts.append(f"User: {content}")
+            elif role == "assistant":
+                prompt_parts.append(f"Assistant: {content}")
+        prompt_parts.append("Assistant:")  # Add generation prompt
+        prompt = "\n\n".join(prompt_parts)
 
     # Tokenize input
     logger.info(f"[{stream_id}] Tokenizing prompt (length: {len(prompt)}): {prompt[:100]}...")
