@@ -11,12 +11,13 @@ from fastapi.responses import JSONResponse
 
 from rose_core.config.service import DATA_DIR
 from rose_server.fs import check_file_path
-
-from .store import (
+from rose_server.models.store import (
+    create as create_language_model,
     delete as delete_language_model,
     get as get_language_model,
     list_all,
 )
+from rose_server.schemas.models import CreateModelRequest
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
@@ -140,3 +141,48 @@ async def delete_model(model: str) -> JSONResponse:
 
     logger.info(f"Successfully deleted fine-tuned model: {model}")
     return JSONResponse(content={"id": model, "object": "model", "deleted": True})
+
+
+@router.post("/models", status_code=201)
+async def create_model(request: CreateModelRequest):
+    """Create a new model configuration."""
+    # Check if model already exists
+    existing = await get_language_model(request.id)
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": {
+                    "message": f"Model '{request.id}' already exists",
+                    "type": "invalid_request_error",
+                    "param": "id",
+                    "code": "model_exists",
+                }
+            },
+        )
+
+    # Create the model
+    model = await create_language_model(
+        id=request.id,
+        model_name=request.model_name,
+        name=request.name,
+        temperature=request.temperature,
+        top_p=request.top_p,
+        memory_gb=request.memory_gb,
+        timeout=request.timeout,
+        lora_modules=request.lora_target_modules,
+        owned_by=request.owned_by,
+    )
+
+    logger.info(f"Created model: {model.id} ({model.model_name})")
+
+    # Return the created model in OpenAI format
+    return {
+        "id": model.id,
+        "object": "model",
+        "created": model.created_at,
+        "owned_by": model.owned_by,
+        "permission": json.loads(model.permissions) if model.permissions else [],
+        "root": model.root or model.id,
+        "parent": model.parent,
+    }

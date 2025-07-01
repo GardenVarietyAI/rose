@@ -19,6 +19,7 @@ async def create(
     memory_gb: float = 2.0,
     timeout: Optional[int] = None,
     lora_modules: Optional[List[str]] = None,
+    owned_by: str = "organization-owner",
 ) -> LanguageModel:
     """Register a new language model."""
     model = LanguageModel(
@@ -31,7 +32,7 @@ async def create(
         top_p=top_p,
         memory_gb=memory_gb,
         timeout=timeout,
-        owned_by="user" if parent else "organization-owner",
+        owned_by=owned_by if not parent else "user",
         root=parent or id,  # Fine-tuned models point to base, base models to themselves
         parent=parent,  # None for base models, parent model for fine-tuned
     )
