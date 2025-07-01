@@ -3,7 +3,7 @@ import logging
 import uuid
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
 
-from rose_server.events import (
+from rose_server.events.event_types.generation import (
     ResponseCompleted,
     ResponseStarted,
     TokenGenerated,
@@ -48,6 +48,7 @@ class EventGenerator:
 
         # Token counting happens in inference layer
         start_event = ResponseStarted(
+            model_name=self.model_name,
             input_tokens=0,  # Will be updated from inference layer
             max_tokens=max_new,
             temperature=temp,
