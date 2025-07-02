@@ -5,9 +5,8 @@ import logging
 from fastapi import APIRouter, HTTPException
 
 from rose_server.llms.deps import ModelRegistryDep
-
-from ..schemas.webhooks import WebhookEvent
-from .training import handle_training_webhook
+from rose_server.schemas.webhooks import WebhookEvent
+from rose_server.webhooks.training import handle_training_webhook
 
 router = APIRouter(prefix="/v1/webhooks", tags=["webhooks"])
 logger = logging.getLogger(__name__)

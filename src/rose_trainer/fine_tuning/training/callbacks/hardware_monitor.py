@@ -6,7 +6,7 @@ import torch
 from transformers.trainer_callback import TrainerControl, TrainerState
 from transformers.training_args import TrainingArguments
 
-from .base import _BaseCallback
+from rose_trainer.fine_tuning.training.callbacks.base import _BaseCallback
 
 logger = logging.getLogger(__name__)
 

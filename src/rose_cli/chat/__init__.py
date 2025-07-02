@@ -1,7 +1,7 @@
 import typer
 
-from .chat import chat
-from .interactive import interactive
+from rose_cli.chat.chat import chat
+from rose_cli.chat.interactive import interactive
 
 app = typer.Typer()
 app.callback(invoke_without_command=True)(chat)

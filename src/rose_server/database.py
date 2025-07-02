@@ -11,16 +11,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlmodel import SQLModel
 
 from rose_core.config.settings import settings
-
-from .entities.assistants import Assistant
-from .entities.files import UploadedFile
-from .entities.fine_tuning import FineTuningEvent, FineTuningJob
-from .entities.jobs import Job
-from .entities.messages import Message
-from .entities.models import LanguageModel
-from .entities.run_steps import RunStep
-from .entities.runs import Run
-from .entities.threads import MessageMetadata, Thread
+from rose_server.entities.assistants import Assistant
+from rose_server.entities.files import UploadedFile
+from rose_server.entities.fine_tuning import FineTuningEvent, FineTuningJob
+from rose_server.entities.jobs import Job
+from rose_server.entities.messages import Message
+from rose_server.entities.models import LanguageModel
+from rose_server.entities.run_steps import RunStep
+from rose_server.entities.runs import Run
+from rose_server.entities.threads import MessageMetadata, Thread
 
 DB_PATH = Path(settings.data_dir) / "rose_server.db"
 engine = create_async_engine(

@@ -18,9 +18,8 @@ from rose_core.config.settings import settings
 from rose_core.models import get_tokenizer, load_hf_model
 from rose_core.models.loading import get_optimal_device
 from rose_trainer.client import ServiceClient
-
-from .callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
-from .hyperparams import HyperParams
+from rose_trainer.fine_tuning.training.callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
+from rose_trainer.fine_tuning.training.hyperparams import HyperParams
 
 logger = logging.getLogger(__name__)
 

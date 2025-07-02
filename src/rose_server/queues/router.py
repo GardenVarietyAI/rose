@@ -3,8 +3,8 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-from ..schemas.jobs import JobResponse, JobUpdateRequest
-from .store import fetch_job, get_jobs, request_cancel, update_job_status
+from rose_server.queues.store import fetch_job, get_jobs, request_cancel, update_job_status
+from rose_server.schemas.jobs import JobResponse, JobUpdateRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["jobs"])

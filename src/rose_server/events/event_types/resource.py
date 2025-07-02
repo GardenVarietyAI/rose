@@ -4,7 +4,7 @@ from typing import Literal, Optional
 
 from pydantic import Field
 
-from .base import LLMEvent
+from rose_server.events.event_types.base import LLMEvent
 
 
 class ModelLoaded(LLMEvent):

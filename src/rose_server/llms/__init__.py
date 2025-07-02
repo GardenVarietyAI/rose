@@ -1,5 +1,5 @@
 """LLM inference and model management."""
 
-from . import model_cache
+from rose_server.llms import model_cache
 
 __all__ = ["model_cache"]

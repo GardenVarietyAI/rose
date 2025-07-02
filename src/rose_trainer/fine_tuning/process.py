@@ -7,8 +7,7 @@ from typing import Any, Dict, Optional
 from rose_core.config.settings import settings
 from rose_core.models import cleanup_model_memory
 from rose_trainer.client import ServiceClient
-
-from .training.hf_trainer import train
+from rose_trainer.fine_tuning.training.hf_trainer import train
 
 logger = logging.getLogger(__name__)
 

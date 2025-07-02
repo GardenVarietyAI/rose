@@ -7,9 +7,8 @@ from typing import Any, Dict
 
 from rose_core.config.settings import settings
 from rose_core.models import cleanup_model_memory
-
-from .backends.hf_generator import generate_stream
-from .cache import load_model
+from rose_inference.generation.backends.hf_generator import generate_stream
+from rose_inference.generation.cache import load_model
 
 logger = logging.getLogger(__name__)
 

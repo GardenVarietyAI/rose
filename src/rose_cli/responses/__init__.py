@@ -1,7 +1,7 @@
 import typer
 
-from .create import create_response
-from .retrieve import retrieve_response
+from rose_cli.responses.create import create_response
+from rose_cli.responses.retrieve import retrieve_response
 
 app = typer.Typer()
 

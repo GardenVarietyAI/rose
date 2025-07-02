@@ -2,7 +2,7 @@
 
 from typing import Any, Dict
 
-from .llm import LLM
+from rose_server.llms.llm import LLM
 
 # Module-private cache for config objects
 # NOTE: Currently just caches lightweight config wrappers, but kept for:

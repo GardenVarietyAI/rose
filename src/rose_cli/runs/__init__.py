@@ -1,8 +1,8 @@
 import typer
 
-from .create import create_run
-from .get import get_run
-from .list import list_runs
+from rose_cli.runs.create import create_run
+from rose_cli.runs.get import get_run
+from rose_cli.runs.list import list_runs
 
 app = typer.Typer()
 app.command("create")(create_run)
