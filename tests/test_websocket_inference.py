@@ -2,7 +2,7 @@
 
 import pytest
 
-from rose_core.config.service import INFERENCE_URI
+from rose_core.config.settings import settings
 from rose_server.llms.websocket_inference import InferenceClient
 
 
@@ -37,4 +37,4 @@ async def test_configurable_uri() -> None:
 
     # Test with default URI from config
     client_default = InferenceClient()
-    assert client_default.uri == INFERENCE_URI
+    assert client_default.uri == settings.inference_uri
