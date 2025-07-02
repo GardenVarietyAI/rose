@@ -24,6 +24,7 @@ class ModelCache:
             return self._current_model
 
         # Need to load new model
+        old_model_name = None
         async with self._lock:
             # Double-check after acquiring lock
             if self._current_model.get("name") == model_name:
@@ -32,9 +33,9 @@ class ModelCache:
 
             # Clear previous model if exists
             if self._current_model:
-                logger.info(f"Clearing previous model: {self._current_model.get('name')}")
+                old_model_name = self._current_model.get("name")
+                logger.info(f"Clearing previous model: {old_model_name}")
                 self._current_model.clear()
-                cleanup_model_memory()
 
             logger.info(f"Loading model: {model_name}")
             try:
@@ -58,6 +59,11 @@ class ModelCache:
             except Exception as e:
                 logger.error(f"Failed to load model {model_name}: {e}")
                 raise
+
+        # Cleanup old model memory outside the lock
+        if old_model_name:
+            logger.info(f"Cleaning up memory from previous model: {old_model_name}")
+            cleanup_model_memory()
 
     def cleanup(self) -> None:
         """Clean up cached models."""
