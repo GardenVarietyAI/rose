@@ -15,7 +15,7 @@ def add_message(
     role: str = typer.Option("user", help="Message role (user/assistant)"),
     metadata_json: Optional[str] = typer.Option(None, help="Metadata as JSON string"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Only output the message ID"),
-):
+) -> None:
     """Add a message to a thread."""
     client = get_client()
     metadata = {}
@@ -29,7 +29,7 @@ def add_message(
     try:
         message = client.beta.threads.messages.create(
             thread_id=thread_id,
-            role=role,  # type: ignore
+            role=role,
             content=content,
             metadata=metadata,
         )

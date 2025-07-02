@@ -7,7 +7,7 @@ from agents import Agent, Runner, set_default_openai_api, set_tracing_disabled
 class CalculatorActor:
     """Agent specialized in mathematical calculations and problem solving."""
 
-    def __init__(self, base_url: str = "http://localhost:8004/v1", model: str = "qwen2.5-0.5b"):
+    def __init__(self, base_url: str = "http://localhost:8004/v1", model: str = "qwen2.5-0.5b") -> None:
         os.environ["OPENAI_BASE_URL"] = base_url
         os.environ["OPENAI_API_KEY"] = "dummy"
         set_tracing_disabled(True)

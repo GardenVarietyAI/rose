@@ -5,7 +5,7 @@ from rich.table import Table
 from rose_cli.utils import console, get_client
 
 
-def list_models():
+def list_models() -> None:
     """List available models."""
     client = get_client()
     try:

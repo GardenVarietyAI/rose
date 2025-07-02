@@ -8,7 +8,7 @@ console = Console()
 
 def delete_thread(
     thread_id: str = typer.Argument(..., help="Thread ID to delete"),
-):
+) -> None:
     """Delete a thread and all its messages."""
     client = get_client()
     if not typer.confirm(f"Are you sure you want to delete thread {thread_id}?"):

@@ -1,6 +1,6 @@
 import typer
 
-from .calculator_actor import calculator
+from rose_cli.actors.calculator_actor import calculator
 
 app = typer.Typer()
 

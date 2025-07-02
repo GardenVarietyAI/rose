@@ -10,7 +10,7 @@ console = Console()
 
 def list_threads(
     limit: int = typer.Option(20, help="Number of threads to list"),
-):
+) -> None:
     """List threads."""
     try:
         with httpx.Client() as client:

@@ -4,16 +4,15 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from rose_core.config.service import DATA_DIR
+from rose_core.config.settings import settings
 from rose_core.models import cleanup_model_memory
-from rose_trainer.client import get_client, post_webhook
-
-from .training.hf_trainer import train
+from rose_trainer.client import ServiceClient
+from rose_trainer.fine_tuning.training.hf_trainer import train
 
 logger = logging.getLogger(__name__)
 
 
-def process_training_job(job_id: int, payload: Dict[str, Any]) -> None:
+def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceClient) -> None:
     """Process a single training job."""
     ft_job_id: str = payload["job_id"]
     model_name: str = payload["model"]
@@ -25,34 +24,36 @@ def process_training_job(job_id: int, payload: Dict[str, Any]) -> None:
     # Create event callback for progress reporting
     def event_callback(level: str, msg: str, data: Dict[str, Any] | None = None) -> None:
         if level in ["info", "warning", "error"]:
-            post_webhook(
+            client.post_webhook(
                 "job.progress", "training", job_id, ft_job_id, {"level": level, "message": msg, **(data or {})}
             )
 
     def check_cancel_callback() -> str:
-        return get_client().check_fine_tuning_job_status(ft_job_id)
+        status: str = client.check_fine_tuning_job_status(ft_job_id)
+        return status
 
     try:
         # Send job running webhook
-        post_webhook("job.running", "training", job_id, ft_job_id)
+        client.post_webhook("job.running", "training", job_id, ft_job_id)
 
         # Add suffix to hyperparameters if provided
         if suffix:
             hyperparameters = hyperparameters.copy()
             hyperparameters["suffix"] = suffix
 
-        training_file_path = Path(DATA_DIR) / "uploads" / training_file
+        training_file_path = Path(settings.data_dir) / "uploads" / training_file
 
         result = train(
             job_id=ft_job_id,
             model_name=model_name,
             training_file_path=training_file_path,
             hyperparameters=hyperparameters,
+            client=client,
             check_cancel_callback=check_cancel_callback,
             event_callback=event_callback,
         )
 
-        post_webhook(
+        client.post_webhook(
             "job.completed",
             "training",
             job_id,
@@ -67,11 +68,11 @@ def process_training_job(job_id: int, payload: Dict[str, Any]) -> None:
 
         # Handle cancellation
         if result.get("cancelled"):
-            post_webhook("job.cancelled", "training", job_id, ft_job_id)
+            client.post_webhook("job.cancelled", "training", job_id, ft_job_id)
 
     except Exception as e:
         logger.exception(f"Training job {job_id} failed with unexpected exception")
-        post_webhook(
+        client.post_webhook(
             "job.failed",
             "training",
             job_id,

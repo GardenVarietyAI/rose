@@ -1,11 +1,11 @@
 import typer
 
-from .add_message import add_message
-from .create import create_thread
-from .delete import delete_thread
-from .get import get_thread
-from .list import list_threads
-from .list_messages import list_messages
+from rose_cli.threads.add_message import add_message
+from rose_cli.threads.create import create_thread
+from rose_cli.threads.delete import delete_thread
+from rose_cli.threads.get import get_thread
+from rose_cli.threads.list import list_threads
+from rose_cli.threads.list_messages import list_messages
 
 app = typer.Typer()
 

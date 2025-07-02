@@ -3,7 +3,7 @@
 import logging
 from typing import Any, Dict, Optional, Tuple
 
-from .parser import parse_xml_tool_call
+from rose_server.tools.parser import parse_xml_tool_call
 
 logger = logging.getLogger(__name__)
 

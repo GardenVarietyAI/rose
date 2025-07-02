@@ -5,8 +5,8 @@ from typing import Any, Dict
 
 from fastapi import APIRouter
 
-from .jobs.router import router as jobs_router
-from .store import get_job_status
+from rose_server.fine_tuning.jobs.router import router as jobs_router
+from rose_server.fine_tuning.store import get_job_status
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)

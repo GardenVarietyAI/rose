@@ -9,7 +9,7 @@ from rose_cli.utils import console, get_client
 def show_events(
     job_id: str = typer.Argument(..., help="Fine-tuning job ID"),
     follow: bool = typer.Option(False, "--follow", "-f", help="Follow events"),
-):
+) -> None:
     """Show fine-tuning job events."""
     client = get_client()
     try:

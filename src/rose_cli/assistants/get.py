@@ -8,7 +8,7 @@ console = Console()
 
 def get_assistant(
     assistant_id: str = typer.Argument(..., help="Assistant ID"),
-):
+) -> None:
     """Get a specific assistant."""
     client = get_client()
     try:

@@ -11,16 +11,7 @@ os.environ["POSTHOG_DISABLED"] = "1"
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from rose_core.config.service import (
-    CHROMA_HOST,
-    CHROMA_PERSIST_DIR,
-    CHROMA_PORT,
-    DATA_DIR,
-    FINE_TUNING_CHECKPOINT_DIR,
-    LOG_FORMAT,
-    LOG_LEVEL,
-    MODEL_OFFLOAD_DIR,
-)
+from rose_core.config.settings import settings
 from rose_server.database import create_all_tables
 from rose_server.llms.registry import ModelRegistry
 from rose_server.router import router
@@ -29,8 +20,8 @@ from rose_server.vector import ChromaDBManager
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["ANONYMIZED_TELEMETRY"] = "false"
 logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL),
-    format=LOG_FORMAT,
+    level=getattr(logging, settings.log_level),
+    format=settings.log_format,
 )
 logger = logging.getLogger("rose_server")
 
@@ -39,10 +30,10 @@ logger = logging.getLogger("rose_server")
 async def lifespan(app: FastAPI) -> Any:
     """Manage application lifecycle."""
     directories = [
-        DATA_DIR,
-        MODEL_OFFLOAD_DIR,
-        CHROMA_PERSIST_DIR,
-        FINE_TUNING_CHECKPOINT_DIR,
+        settings.data_dir,
+        settings.model_offload_dir,
+        settings.chroma_persist_dir,
+        settings.fine_tuning_checkpoint_dir,
     ]
     for dir in directories:
         os.makedirs(dir, exist_ok=True)
@@ -53,9 +44,9 @@ async def lifespan(app: FastAPI) -> Any:
     logger.info("SQLite database initialized with WAL mode")
 
     app.state.vector = ChromaDBManager(
-        host=CHROMA_HOST,
-        port=CHROMA_PORT,
-        persist_dir=CHROMA_PERSIST_DIR,
+        host=settings.chroma_host,
+        port=settings.chroma_port,
+        persist_dir=settings.chroma_persist_dir,
     )
 
     app.state.model_registry = ModelRegistry()

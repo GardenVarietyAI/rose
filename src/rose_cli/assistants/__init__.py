@@ -1,10 +1,10 @@
 import typer
 
-from .create import create_assistant
-from .delete import delete_assistant
-from .get import get_assistant
-from .list import list_assistants
-from .update import update_assistant
+from rose_cli.assistants.create import create_assistant
+from rose_cli.assistants.delete import delete_assistant
+from rose_cli.assistants.get import get_assistant
+from rose_cli.assistants.list import list_assistants
+from rose_cli.assistants.update import update_assistant
 
 app = typer.Typer()
 

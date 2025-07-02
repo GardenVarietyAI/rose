@@ -13,7 +13,7 @@ from typing import (
 
 from sse_starlette import ServerSentEvent
 
-from rose_core.config.service import DATA_DIR
+from rose_core.config.settings import settings
 from rose_server.database import current_timestamp
 from rose_server.entities.messages import Message
 from rose_server.entities.run_steps import RunStep
@@ -77,7 +77,7 @@ async def get_model_for_run(model_name: str) -> Any:
     config = model.model_dump()
 
     if model.is_fine_tuned and model.path:
-        config["model_path"] = str(Path(DATA_DIR) / model.path)
+        config["model_path"] = str(Path(settings.data_dir) / model.path)
         config["base_model"] = model.parent
 
     if model.get_lora_modules():

@@ -4,7 +4,7 @@ from typing import Any, Dict, Literal, Optional
 
 from pydantic import Field
 
-from .base import LLMEvent
+from rose_server.events.event_types.base import LLMEvent
 
 
 class TrainingStarted(LLMEvent):

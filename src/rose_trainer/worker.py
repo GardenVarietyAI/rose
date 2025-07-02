@@ -1,11 +1,10 @@
 """Training worker that processes fine-tuning jobs."""
 
-import asyncio
 import logging
 import os
 
-from .client import get_client
-from .fine_tuning.process import process_training_job
+from rose_trainer.client import ServiceClient
+from rose_trainer.fine_tuning.process import process_training_job
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -14,35 +13,47 @@ logger = logging.getLogger(__name__)
 os.environ["POSTHOG_DISABLED"] = "1"
 
 
-async def poll_training_jobs():
-    """Poll for training jobs from the queue."""
-    client = get_client()
-    logger.info("Training worker started - polling for jobs")
+def process_next_training_job() -> bool:
+    """Process the next training job in the queue.
 
-    while True:
-        try:
-            jobs = client.get_queued_jobs("training", limit=1)
-            if jobs:
-                job = jobs[0]
-                logger.info(f"Starting training job {job['id']}")
-                # Run in thread to not block the event loop
-                await asyncio.get_event_loop().run_in_executor(None, process_training_job, job["id"], job["payload"])
-                logger.info(f"Completed training job {job['id']}")
-        except Exception as e:
-            logger.error(f"Training job failed: {e}")
+    Returns:
+        True if a job was processed, False if queue was empty
+    """
+    client = ServiceClient()
 
-        await asyncio.sleep(5)
+    try:
+        jobs = client.get_queued_jobs("training", limit=1)
+        if not jobs:
+            logger.debug("No training jobs in queue")
+            return False
+
+        job = jobs[0]
+        logger.info(f"Starting training job {job['id']}")
+
+        # Process job synchronously
+        process_training_job(job["id"], job["payload"], client)
+
+        logger.info(f"Completed training job {job['id']}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Training job failed: {e}")
+        # Return False to indicate job processing failed
+        # This allows the scheduler to handle retries appropriately
+        return False
+    finally:
+        # Ensure client is cleaned up
+        client.close()
 
 
-async def run_trainer():
-    """Run the training worker."""
-    logger.info("Rose Trainer started")
-    await poll_training_jobs()
-
-
-def main():
-    """Entry point for the trainer process."""
-    asyncio.run(run_trainer())
+def main() -> None:
+    """Entry point for direct execution (useful for testing)."""
+    logger.info("Rose Trainer - processing single job")
+    processed = process_next_training_job()
+    if processed:
+        logger.info("Job processed successfully")
+    else:
+        logger.info("No jobs to process")
 
 
 if __name__ == "__main__":

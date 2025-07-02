@@ -2,11 +2,11 @@
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncIterator, Dict, List, Optional
 
-from transformers import TextIteratorStreamer
+from transformers import TextIteratorStreamer  # type: ignore[attr-defined]
 
-from rose_core.config.service import INFERENCE_TIMEOUT
+from rose_core.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ async def generate_stream(
         logger.info(f"[{stream_id}] Starting to stream tokens...")
 
         # Create async wrapper for the blocking streamer
-        async def stream_tokens():
+        async def stream_tokens() -> AsyncIterator[str]:
             loop = asyncio.get_event_loop()
             while True:
                 # Run the blocking iterator in executor to avoid blocking event loop
@@ -126,9 +126,9 @@ async def generate_stream(
     finally:
         # Wait for generation to complete with timeout
         try:
-            await asyncio.wait_for(generation_task, timeout=INFERENCE_TIMEOUT)
+            await asyncio.wait_for(generation_task, timeout=settings.inference_timeout)
         except asyncio.TimeoutError:
-            logger.error(f"[{stream_id}] Generation still running after {INFERENCE_TIMEOUT}s timeout")
+            logger.error(f"[{stream_id}] Generation still running after {settings.inference_timeout}s timeout")
             generation_task.cancel()
 
     return {"input_tokens": input_token_count, "output_tokens": position}

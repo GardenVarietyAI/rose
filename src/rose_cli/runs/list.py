@@ -10,7 +10,7 @@ console = Console()
 def list_runs(
     thread_id: str = typer.Argument(..., help="Thread ID"),
     limit: int = typer.Option(20, "--limit", "-n", help="Number of runs to list"),
-):
+) -> None:
     """List runs in a thread."""
     client = get_client()
     try:

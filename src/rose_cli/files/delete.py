@@ -8,7 +8,7 @@ app = typer.Typer()
 @app.command()
 def delete_file(
     file_id: str = typer.Argument(..., help="File ID to delete"),
-):
+) -> None:
     """Delete a file."""
     client = get_client()
     try:

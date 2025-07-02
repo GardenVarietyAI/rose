@@ -9,7 +9,7 @@ console = Console()
 def list_messages(
     thread_id: str = typer.Argument(..., help="Thread ID to list messages for"),
     limit: int = typer.Option(20, help="Number of messages to list"),
-):
+) -> None:
     """List messages in a thread."""
     client = get_client()
     try:

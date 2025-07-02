@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from rose_core.config.service import HOST, PORT
+from rose_core.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ class ServiceClient:
     """HTTP client for worker→server communication."""
 
     def __init__(self, base_url: Optional[str] = None, timeout: float = DEFAULT_TIMEOUT):
-        self.base_url = base_url or f"http://{HOST}:{PORT}"
+        self.base_url = base_url or f"http://{settings.host}:{settings.port}"
         self.timeout = timeout
         self._client = httpx.Client(base_url=self.base_url, timeout=timeout)
 
@@ -44,6 +44,17 @@ class ServiceClient:
             f"/v1/jobs/{job_id}",
             json={"status": status, "result": result},
         )
+
+    def get_model(self, model_id: str) -> Optional[Dict[str, Any]]:
+        """Get model information from the API."""
+        try:
+            response = self._request("GET", f"/v1/models/{model_id}")
+            result: Dict[str, Any] = response.json()
+            return result
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                return None
+            raise
 
     def post_webhook(
         self,
@@ -76,13 +87,15 @@ class ServiceClient:
                 "limit": limit,
             },
         )
-        data = response.json()
-        return data.get("data", [])
+        data: Dict[str, Any] = response.json()
+        jobs: List[Dict[str, Any]] = data.get("data", [])
+        return jobs
 
     def get_job_details(self, job_id: str) -> Dict[str, Any]:
         """Get detailed information about a specific job."""
         response = self._request("GET", f"/v1/jobs/{job_id}")
-        return response.json()
+        result: Dict[str, Any] = response.json()
+        return result
 
     def check_fine_tuning_job_status(self, ft_job_id: str) -> str:
         """Check if a fine-tuning job has been cancelled."""
@@ -117,10 +130,11 @@ class ServiceClient:
 
         # Use custom timeout for long generations
         old_timeout = self._client.timeout
-        self._client.timeout = timeout
+        self._client.timeout = httpx.Timeout(timeout)
         try:
             response = self._request("POST", "/v1/chat/completions", json=request_data)
-            return response.json()
+            result: Dict[str, Any] = response.json()
+            return result
         finally:
             self._client.timeout = old_timeout
 
@@ -130,31 +144,3 @@ class ServiceClient:
         if response.status_code == 404:
             raise FileNotFoundError(f"File '{file_id}' not found")
         return response.content
-
-
-# Global client instance
-_client: Optional[ServiceClient] = None
-
-
-def get_client() -> ServiceClient:
-    """Get or create the global service client."""
-    global _client
-    if _client is None:
-        _client = ServiceClient()
-    return _client
-
-
-def update_job_status(job_id: int, status: str, result: Optional[Dict[str, Any]] = None) -> None:
-    """Update job status using the global client."""
-    get_client().update_job_status(job_id, status, result)
-
-
-def post_webhook(
-    event: str,
-    object_type: str,
-    job_id: int,
-    object_id: str,
-    data: Optional[Dict[str, Any]] = None,
-) -> None:
-    """Post webhook using the global client."""
-    get_client().post_webhook(event, object_type, job_id, object_id, data)

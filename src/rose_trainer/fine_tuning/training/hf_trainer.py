@@ -14,12 +14,12 @@ from transformers.trainer import Trainer
 from transformers.trainer_callback import EarlyStoppingCallback, TrainerCallback
 from transformers.training_args import TrainingArguments
 
-from rose_core.config.service import DATA_DIR, FINE_TUNING_EVAL_BATCH_SIZE, LLM_MODELS
+from rose_core.config.settings import settings
 from rose_core.models import get_tokenizer, load_hf_model
 from rose_core.models.loading import get_optimal_device
-
-from .callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
-from .hyperparams import HyperParams
+from rose_trainer.client import ServiceClient
+from rose_trainer.fine_tuning.training.callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
+from rose_trainer.fine_tuning.training.hyperparams import HyperParams
 
 logger = logging.getLogger(__name__)
 
@@ -29,13 +29,16 @@ def train(
     model_name: str,
     training_file_path: Path,
     hyperparameters: Dict[str, Any],
+    client: ServiceClient,
     check_cancel_callback: Optional[Callable[[], str]] = None,
     event_callback: Optional[Callable[[str, str, Dict[str, Any]], None]] = None,
 ) -> Dict[str, Any]:
     """Run a fine-tuning job and return a result dict."""
 
-    if model_name not in LLM_MODELS:
-        raise ValueError(f"Model {model_name} not supported for fine-tuning")
+    # Fetch model info from API
+    model_info = client.get_model(model_name)
+    if not model_info:
+        raise ValueError(f"Model {model_name} not found")
 
     hp = HyperParams.resolve(hyperparameters)
     torch.manual_seed(hp.seed)
@@ -43,11 +46,13 @@ def train(
     if torch.cuda.is_available():
         torch.cuda.manual_seed(hp.seed)
 
-    model_config = LLM_MODELS.get(model_name, {})
-    hf_model_name = model_config.get("model_name", model_name)
+    # Use the actual HuggingFace model name from the database
+    hf_model_name = model_info.get("model_name", model_name)
     model = load_hf_model(model_id=hf_model_name)
     tokenizer = get_tokenizer(hf_model_name)
-    model_config = LLM_MODELS.get(model_name, {})
+
+    # Extract config from model info
+    model_config = {"lora_target_modules": model_info.get("lora_target_modules", [])}
     is_peft_model = False
 
     if hp.use_lora:
@@ -104,9 +109,10 @@ def train(
             text = "\n".join(text_parts)
         else:
             text = tokenizer.apply_chat_template(example["messages"], tokenize=False)
-        return tokenizer(str(text), truncation=True, max_length=hp.max_length)
+        result: BatchEncoding = tokenizer(str(text), truncation=True, max_length=hp.max_length)
+        return result
 
-    checkpoint_dir = Path(DATA_DIR) / "checkpoints" / job_id
+    checkpoint_dir = Path(settings.fine_tuning_checkpoint_dir) / job_id
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     tokenized_dataset = raw_dataset.map(tokenize_example, remove_columns=raw_dataset.column_names)
@@ -121,7 +127,7 @@ def train(
         output_dir=str(checkpoint_dir),
         num_train_epochs=hp.n_epochs,
         per_device_train_batch_size=per_device,
-        per_device_eval_batch_size=FINE_TUNING_EVAL_BATCH_SIZE,
+        per_device_eval_batch_size=settings.fine_tuning_eval_batch_size,
         gradient_accumulation_steps=hp.gradient_accumulation_steps,
         learning_rate=hp.learning_rate,
         warmup_steps=int(total_steps * hp.warmup_ratio),
@@ -179,7 +185,7 @@ def train(
     if hp.suffix:
         model_id = f"{model_id}-{hp.suffix}"
 
-    out_dir = Path(DATA_DIR) / "models" / model_id
+    out_dir = Path(settings.data_dir) / "models" / model_id
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Check if this is a PEFT model

@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 
-from .registry import ModelRegistry
+from rose_server.llms.registry import ModelRegistry
 
 
 def get_model_registry(request: Request) -> ModelRegistry:

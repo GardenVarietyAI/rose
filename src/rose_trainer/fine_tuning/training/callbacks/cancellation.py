@@ -6,7 +6,7 @@ from typing import Any, Callable
 from transformers.trainer_callback import TrainerCallback, TrainerControl, TrainerState
 from transformers.training_args import TrainingArguments
 
-from rose_core.config.service import DATA_DIR
+from rose_core.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class CancellationCallback(TrainerCallback):
                 "global_step": state.global_step,
                 "epoch": state.epoch,
             }
-            pause_meta_path = Path(DATA_DIR) / "checkpoints" / self._job_id / "pause_meta.json"
+            pause_meta_path = Path(settings.fine_tuning_checkpoint_dir) / self._job_id / "pause_meta.json"
             pause_meta_path.parent.mkdir(parents=True, exist_ok=True)
             pause_meta_path.write_text(json.dumps(meta))
         return control

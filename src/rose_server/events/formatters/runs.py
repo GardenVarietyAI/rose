@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 from sse_starlette import ServerSentEvent
 
-from ..event_types.generation import (
+from rose_server.events.event_types.generation import (
     ResponseCompleted,
     ResponseStarted,
     TokenGenerated,

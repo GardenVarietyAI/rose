@@ -1,12 +1,12 @@
 import typer
 
-from .cancel import cancel_job
-from .create import create_job
-from .events import show_events
-from .get import get_job
-from .list import list_jobs
-from .pause import pause_job
-from .resume import resume_job
+from rose_cli.finetune.cancel import cancel_job
+from rose_cli.finetune.create import create_job
+from rose_cli.finetune.events import show_events
+from rose_cli.finetune.get import get_job
+from rose_cli.finetune.list import list_jobs
+from rose_cli.finetune.pause import pause_job
+from rose_cli.finetune.resume import resume_job
 
 app = typer.Typer()
 

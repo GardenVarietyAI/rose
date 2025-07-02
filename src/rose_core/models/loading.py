@@ -12,7 +12,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.modeling_utils import PreTrainedModel
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
-from rose_core.config.service import MODEL_OFFLOAD_DIR
+from rose_core.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ def load_hf_model(
     logger.info(f"Loading model from HuggingFace hub: {model_id}")
 
     # Create offload directory
-    offload_dir = os.path.join(MODEL_OFFLOAD_DIR, model_id.replace("/", "_"))
+    offload_dir = os.path.join(settings.model_offload_dir, model_id.replace("/", "_"))
     os.makedirs(offload_dir, exist_ok=True)
 
     device = get_optimal_device()
@@ -126,7 +126,7 @@ def load_peft_model(
         )
 
     # Create offload directory
-    offload_dir = os.path.join(MODEL_OFFLOAD_DIR, model_id.replace("/", "_"))
+    offload_dir = os.path.join(settings.model_offload_dir, model_id.replace("/", "_"))
     os.makedirs(offload_dir, exist_ok=True)
 
     # Load base model first

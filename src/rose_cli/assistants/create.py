@@ -19,7 +19,7 @@ def create_assistant(
     code_interpreter: bool = typer.Option(False, help="Enable code interpreter"),
     file_search: bool = typer.Option(False, help="Enable file search"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Only output the assistant ID"),
-):
+) -> None:
     """Create a new assistant."""
     client = get_client()
     tools: list[Any] = []

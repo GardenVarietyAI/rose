@@ -20,7 +20,7 @@ app.add_typer(runs.app, name="runs", help="Run management")
 app.add_typer(responses.app, name="responses", help="Responses API operations")
 
 
-def main():
+def main() -> None:
     """Main entry point for the CLI."""
     app()
 

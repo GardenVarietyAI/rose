@@ -9,7 +9,7 @@ from openai.types.beta.file_search_tool import FileSearchTool
 from openai.types.beta.function_tool import FunctionTool
 from openai.types.shared_params.function_definition import FunctionDefinition
 
-from .toolbox import Tool
+from rose_server.tools.toolbox import Tool
 
 logger = logging.getLogger(__name__)
 template_dir = Path(__file__).parent / "prompts"

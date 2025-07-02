@@ -8,7 +8,7 @@ console = Console()
 
 def get_thread(
     thread_id: str = typer.Argument(..., help="Thread ID to get details for"),
-):
+) -> None:
     """Get a specific thread."""
     client = get_client()
     try:

@@ -15,7 +15,7 @@ def create_run(
     instructions: Optional[str] = typer.Option(None, "--instructions", "-i", help="Override assistant's instructions"),
     stream: bool = typer.Option(False, "--stream", "-s", help="Stream the response"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Only output the run ID"),
-):
+) -> None:
     """Create a run in a thread."""
     client = get_client()
     try:

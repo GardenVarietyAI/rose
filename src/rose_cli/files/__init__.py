@@ -1,9 +1,9 @@
 import typer
 
-from .delete import delete_file
-from .get import get_file
-from .list import list_files
-from .upload import upload_file
+from rose_cli.files.delete import delete_file
+from rose_cli.files.get import get_file
+from rose_cli.files.list import list_files
+from rose_cli.files.upload import upload_file
 
 app = typer.Typer()
 
