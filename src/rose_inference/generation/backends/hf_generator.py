@@ -2,9 +2,9 @@
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncIterator, Dict, List, Optional
 
-from transformers import TextIteratorStreamer
+from transformers import TextIteratorStreamer  # type: ignore[attr-defined]
 
 from rose_core.config.settings import settings
 
@@ -100,7 +100,7 @@ async def generate_stream(
         logger.info(f"[{stream_id}] Starting to stream tokens...")
 
         # Create async wrapper for the blocking streamer
-        async def stream_tokens():
+        async def stream_tokens() -> AsyncIterator[str]:
             loop = asyncio.get_event_loop()
             while True:
                 # Run the blocking iterator in executor to avoid blocking event loop

@@ -5,6 +5,8 @@ import logging
 import uuid
 from typing import Any, Dict
 
+from fastapi import WebSocket
+
 from rose_core.config.settings import settings
 from rose_core.models import cleanup_model_memory
 from rose_inference.generation.backends.hf_generator import generate_stream
@@ -16,7 +18,7 @@ logger = logging.getLogger(__name__)
 inference_semaphore = asyncio.Semaphore(settings.max_concurrent_inference)
 
 
-async def process_inference_request(websocket, request_data: Dict[str, Any]) -> None:
+async def process_inference_request(websocket: WebSocket, request_data: Dict[str, Any]) -> None:
     """Process a single inference request - orchestrator."""
     stream_id = str(uuid.uuid4())[:8]  # Short ID for request tracking
 
