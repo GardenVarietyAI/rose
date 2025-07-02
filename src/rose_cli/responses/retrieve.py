@@ -6,7 +6,7 @@ from rose_cli.utils import get_client
 
 def retrieve_response(
     response_id: str = typer.Argument(..., help="Response ID to retrieve"),
-):
+) -> None:
     """Retrieve a stored response."""
     client = get_client()
     try:

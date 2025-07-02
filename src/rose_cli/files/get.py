@@ -8,7 +8,7 @@ app = typer.Typer()
 @app.command()
 def get_file(
     file_id: str = typer.Argument(..., help="File ID"),
-):
+) -> None:
     """Get file details."""
     client = get_client()
     try:

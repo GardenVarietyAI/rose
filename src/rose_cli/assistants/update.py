@@ -15,7 +15,7 @@ def update_assistant(
     instructions: Optional[str] = typer.Option(None, help="New instructions"),
     description: Optional[str] = typer.Option(None, help="New description"),
     temperature: Optional[float] = typer.Option(None, help="New temperature (0.0-2.0)"),
-):
+) -> None:
     """Update an assistant."""
     client = get_client()
     update_data: dict[str, Any] = {}

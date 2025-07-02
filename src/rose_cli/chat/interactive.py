@@ -19,7 +19,7 @@ def interactive_chat(
     system: Optional[str] = None,
     stream: bool = True,
     markdown: bool = True,
-):
+) -> None:
     """Run an interactive chat session."""
     messages: list[ChatCompletionMessageParam] = []
 
@@ -104,7 +104,7 @@ def interactive(
     system: Optional[str] = typer.Option(None, "--system", "-s", help="System prompt"),
     stream: bool = typer.Option(True, "--stream/--no-stream", help="Stream responses"),
     markdown: bool = typer.Option(True, "--markdown/--no-markdown", help="Render markdown in responses"),
-):
+) -> None:
     """Start an interactive chat session with a model."""
     client = get_client()
 

@@ -15,7 +15,7 @@ def create_response(
     stream: bool = typer.Option(False, "--stream", help="Stream response"),
     instructions: Optional[str] = typer.Option(None, "--instructions", "-i", help="System instructions"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Only output the response ID (non-streaming only)"),
-):
+) -> None:
     """Create a response using the Responses API."""
     client = get_client()
     try:

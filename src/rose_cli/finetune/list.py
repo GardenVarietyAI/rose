@@ -6,7 +6,7 @@ from rose_cli.utils import console, get_client
 
 def list_jobs(
     table: bool = typer.Option(False, "--table", "-t", help="Show as table"),
-):
+) -> None:
     """List fine-tuning jobs."""
     client = get_client()
     try:

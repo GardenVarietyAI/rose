@@ -15,7 +15,7 @@ def create_job(
         1.0, "--learning-rate-multiplier", "-lrm", help="Learning rate multiplier (e.g., 1.0, 2.0, 4.0)"
     ),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Only output the job ID"),
-):
+) -> None:
     """Create a fine-tuning job."""
     client = get_client()
     try:
@@ -33,7 +33,7 @@ def create_job(
             training_file=file_id,
             model=model,
             suffix=suffix,
-            hyperparameters=hyperparameters,  # type: ignore
+            hyperparameters=hyperparameters,
         )
 
         if quiet:

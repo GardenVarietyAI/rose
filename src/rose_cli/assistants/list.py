@@ -9,7 +9,7 @@ console = Console()
 
 def list_assistants(
     limit: int = typer.Option(20, help="Number of assistants to list"),
-):
+) -> None:
     """List assistants."""
     client = get_client()
     try:

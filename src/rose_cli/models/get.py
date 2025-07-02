@@ -5,7 +5,7 @@ from rose_cli.utils import console, get_client
 
 def get_model(
     model_id: str = typer.Argument(..., help="Model ID"),
-):
+) -> None:
     """Get model details."""
     client = get_client()
     try:

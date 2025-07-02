@@ -5,7 +5,7 @@ from rose_cli.utils import console, get_client
 
 def resume_job(
     job_id: str = typer.Argument(..., help="Fine-tuning job ID"),
-):
+) -> None:
     """Resume a fine-tuning job."""
     client = get_client()
     try:

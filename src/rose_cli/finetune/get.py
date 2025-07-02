@@ -7,7 +7,7 @@ def get_job(
     job_id: str = typer.Argument(..., help="Fine-tuning job ID"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Only output the job status"),
     model_only: bool = typer.Option(False, "--model-only", help="Only output the fine-tuned model name"),
-):
+) -> None:
     """Get fine-tuning job status."""
     client = get_client()
     try:

@@ -10,7 +10,7 @@ def get_run(
     thread_id: str = typer.Argument(..., help="Thread ID"),
     run_id: str = typer.Argument(..., help="Run ID"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Only output the run status"),
-):
+) -> None:
     """Get a specific run."""
     client = get_client()
     try:

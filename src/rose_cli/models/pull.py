@@ -5,7 +5,7 @@ from rose_cli.utils import console, get_client
 
 def pull_model(
     model_name: str = typer.Argument(..., help="Model name to pull"),
-):
+) -> None:
     """Pre-download a model to avoid blocking during inference."""
     console.print(f"[yellow]Pulling model: {model_name}...[/yellow]")
 

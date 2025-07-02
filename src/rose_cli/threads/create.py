@@ -14,7 +14,7 @@ def create_thread(
     conversation_type: Optional[str] = typer.Option(None, help="Type of conversation (chat, assistant, etc)"),
     source: Optional[str] = typer.Option(None, help="Source of the thread (api, web, cli)"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Only output the thread ID"),
-):
+) -> None:
     """Create a new thread."""
     client = get_client()
     metadata = {}

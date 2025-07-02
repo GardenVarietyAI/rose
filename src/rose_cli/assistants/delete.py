@@ -8,7 +8,7 @@ console = Console()
 
 def delete_assistant(
     assistant_id: str = typer.Argument(..., help="Assistant ID to delete"),
-):
+) -> None:
     """Delete an assistant."""
     client = get_client()
     if not typer.confirm(f"Are you sure you want to delete assistant {assistant_id}?"):

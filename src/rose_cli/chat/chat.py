@@ -1,13 +1,15 @@
-from typing import Optional, cast
+from typing import Optional
 
 import typer
 from openai import OpenAI
-from openai.types.chat import ChatCompletionChunk, ChatCompletionMessageParam
+from openai.types.chat import ChatCompletionMessageParam
 
 from rose_cli.utils import get_client
 
 
-def _do_chat(client: OpenAI, model: str, prompt: str, system: Optional[str], stream: bool, name: Optional[str] = None):
+def _do_chat(
+    client: OpenAI, model: str, prompt: str, system: Optional[str], stream: bool, name: Optional[str] = None
+) -> None:
     messages: list[ChatCompletionMessageParam] = []
     if system:
         system_msg: ChatCompletionMessageParam = {"role": "system", "content": system}
@@ -28,7 +30,6 @@ def _do_chat(client: OpenAI, model: str, prompt: str, system: Optional[str], str
                 stream=True,
             )
             for chunk in stream_response:
-                chunk = cast(ChatCompletionChunk, chunk)
                 if chunk.choices and chunk.choices[0].delta.content:
                     print(chunk.choices[0].delta.content, end="", flush=True)
             print()
@@ -49,7 +50,7 @@ def chat(
     system: Optional[str] = typer.Option(None, "--system", "-s", help="System prompt"),
     stream: bool = typer.Option(True, "--stream/--no-stream", help="Stream response"),
     interactive: bool = typer.Option(False, "--interactive", "-i", help="Start interactive session"),
-):
+) -> None:
     """Chat with models using a single message.
 
     For interactive sessions, use: rose chat interactive

@@ -6,7 +6,7 @@ app = typer.Typer()
 
 
 @app.command()
-def list_files():
+def list_files() -> None:
     """List uploaded files."""
     client = get_client()
     try:

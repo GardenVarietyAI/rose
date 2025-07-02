@@ -21,7 +21,7 @@ def add_model(
     timeout: Optional[int] = typer.Option(None, "--timeout", help="Timeout in seconds"),
     lora_modules: Optional[List[str]] = typer.Option(None, "--lora-modules", "-l", help="LoRA target modules"),
     owned_by: str = typer.Option("organization-owner", "--owned-by", "-o", help="Model owner"),
-):
+) -> None:
     """Add a new model configuration to ROSE server."""
     client = get_client()
 
