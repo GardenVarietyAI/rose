@@ -7,7 +7,7 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import websockets
 
-from rose_core.config.service import INFERENCE_URI
+from rose_core.config.settings import settings
 from rose_server.events import ResponseCompleted, TokenGenerated
 
 logger = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ class InferenceClient:
     """Client for connecting to the inference worker via WebSocket."""
 
     def __init__(self, uri: Optional[str] = None):
-        self.uri = uri or INFERENCE_URI
+        self.uri = uri or settings.inference_uri
 
     async def stream_inference(
         self,

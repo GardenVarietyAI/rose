@@ -7,11 +7,11 @@ from typing import Optional
 import aiofiles
 import aiofiles.os
 
-from rose_core.config import DATA_DIR
+from rose_core.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-BASE_PATH = Path(DATA_DIR) / "uploads"
+BASE_PATH = Path(settings.data_dir) / "uploads"
 
 
 def get_file_path(file_id: str) -> Path:

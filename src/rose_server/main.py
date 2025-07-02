@@ -1,13 +1,13 @@
 import uvicorn
 
-from rose_core.config.service import HOST, PORT
+from rose_core.config.settings import settings
 
 
 def main():
     uvicorn.run(
         "rose_server.app:app",
-        host=HOST,
-        port=PORT,
+        host=settings.host,
+        port=settings.port,
         reload=False,
     )
 

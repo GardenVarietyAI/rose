@@ -4,7 +4,27 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer
 
-from rose_core.config.service import EMBEDDING_MODELS
+# Embedding model configurations
+EMBEDDING_MODELS = {
+    "text-embedding-ada-002": {
+        "model_name": "BAAI/bge-large-en-v1.5",
+        "dimensions": 1536,
+        "description": "BGE",
+        "format": "HuggingFace",
+    },
+    "nomic-embed-text": {
+        "model_name": "nomic-ai/nomic-embed-text-v1",
+        "dimensions": 768,
+        "description": "Very fast, good all-rounder, GPU/CPU friendly",
+        "format": "HuggingFace",
+    },
+    "bge-small-en-v1.5": {
+        "model_name": "BAAI/bge-small-en-v1.5",
+        "dimensions": 384,
+        "description": "Tiny and very RAG-optimized, fast and low-memory",
+        "format": "HuggingFace",
+    },
+}
 
 # Simple caches for models and tokenizers
 _models: Dict[str, SentenceTransformer] = {}

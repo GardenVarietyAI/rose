@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from rose_core.config.service import DATA_DIR
+from rose_core.config.settings import settings
 from rose_server.models.store import (
     get as get_language_model,
     list_all,
@@ -46,7 +46,7 @@ class ModelRegistry:
 
         # Add computed fields
         if model.is_fine_tuned and model.path:
-            config["model_path"] = str(Path(DATA_DIR) / model.path)
+            config["model_path"] = str(Path(settings.data_dir) / model.path)
             config["base_model"] = model.parent
             config["is_fine_tuned"] = True
 

@@ -6,11 +6,6 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Body, HTTPException, Query
 from openai.types.fine_tuning import FineTuningJob
 
-from rose_core.config.service import (
-    FINE_TUNING_DEFAULT_BATCH_SIZE,
-    FINE_TUNING_DEFAULT_EPOCHS,
-    FINE_TUNING_DEFAULT_LEARNING_RATE_MULTIPLIER,
-)
 from rose_server.fine_tuning.events.store import get_events
 from rose_server.queues.store import enqueue, find_job_by_payload_field, request_cancel, request_pause
 
@@ -18,6 +13,11 @@ from .store import create_job, get_job, list_jobs, update_job_status
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Default hyperparameters for fine-tuning
+FINE_TUNING_DEFAULT_EPOCHS = 3
+FINE_TUNING_DEFAULT_BATCH_SIZE = "auto"
+FINE_TUNING_DEFAULT_LEARNING_RATE_MULTIPLIER = "auto"
 
 
 @router.post("/fine_tuning/jobs", response_model=FineTuningJob)
