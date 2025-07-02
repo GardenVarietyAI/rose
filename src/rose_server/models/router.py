@@ -5,6 +5,7 @@ import json
 import logging
 import shutil
 from pathlib import Path
+from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
@@ -64,6 +65,9 @@ async def get_model_details(model_id: str) -> JSONResponse:
                 "permission": json.loads(model.permissions) if model.permissions else [],
                 "root": model.root or model.id,
                 "parent": model.parent,
+                # Extra field for internal use
+                "model_name": model.model_name,
+                "lora_target_modules": model.get_lora_modules(),
             }
         )
     raise HTTPException(
@@ -144,7 +148,7 @@ async def delete_model(model: str) -> JSONResponse:
 
 
 @router.post("/models", status_code=201)
-async def create_model(request: CreateModelRequest):
+async def create_model(request: CreateModelRequest) -> Dict[str, Any]:
     """Create a new model configuration."""
     # Check if model already exists
     existing = await get_language_model(request.id)
