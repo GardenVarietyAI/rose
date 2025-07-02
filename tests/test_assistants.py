@@ -1,14 +1,9 @@
 """Tests for assistants CRUD operations using in-memory SQLite."""
 
-import os
-
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
-
-# Override environment variables before importing app
-os.environ["ROSE_SERVER_DATA_DIR"] = ":memory:"
 
 from rose_server import database
 from rose_server.app import create_app
