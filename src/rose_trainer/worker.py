@@ -1,11 +1,11 @@
 """Training worker that processes fine-tuning jobs."""
 
-import asyncio
 import logging
 import os
+import time
 
-from .client import get_client
-from .fine_tuning.process import process_training_job
+from rose_trainer.client import get_client
+from rose_trainer.fine_tuning.process import process_training_job
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 os.environ["POSTHOG_DISABLED"] = "1"
 
 
-async def poll_training_jobs():
+def poll_training_jobs() -> None:
     """Poll for training jobs from the queue."""
     client = get_client()
     logger.info("Training worker started - polling for jobs")
@@ -25,24 +25,19 @@ async def poll_training_jobs():
             if jobs:
                 job = jobs[0]
                 logger.info(f"Starting training job {job['id']}")
-                # Run in thread to not block the event loop
-                await asyncio.get_event_loop().run_in_executor(None, process_training_job, job["id"], job["payload"])
+                # Process job synchronously
+                process_training_job(job["id"], job["payload"])
                 logger.info(f"Completed training job {job['id']}")
         except Exception as e:
             logger.error(f"Training job failed: {e}")
 
-        await asyncio.sleep(5)
+        time.sleep(5)
 
 
-async def run_trainer():
-    """Run the training worker."""
-    logger.info("Rose Trainer started")
-    await poll_training_jobs()
-
-
-def main():
+def main() -> None:
     """Entry point for the trainer process."""
-    asyncio.run(run_trainer())
+    logger.info("Rose Trainer started")
+    poll_training_jobs()
 
 
 if __name__ == "__main__":
