@@ -2,7 +2,6 @@
 
 import logging
 import signal
-import sys
 from typing import Any
 
 from apscheduler.schedulers.blocking import BlockingScheduler
@@ -26,15 +25,17 @@ class TrainingScheduler:
         """
         self.scheduler = BlockingScheduler()
         self.interval_seconds = interval_seconds
+        self._running = True
         self._setup_signal_handlers()
 
     def _setup_signal_handlers(self) -> None:
         """Setup graceful shutdown on SIGINT/SIGTERM."""
 
         def shutdown(signum: int, frame: Any) -> None:
-            logger.info(f"Received signal {signum}, shutting down scheduler...")
-            self.scheduler.shutdown(wait=True)
-            sys.exit(0)
+            logger.info("Shutting down gracefully...")
+            self._running = False
+            if self.scheduler.running:
+                self.scheduler.shutdown()
 
         signal.signal(signal.SIGINT, shutdown)
         signal.signal(signal.SIGTERM, shutdown)
