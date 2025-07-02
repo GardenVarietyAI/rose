@@ -6,7 +6,7 @@ from typing import Any, Dict
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
-from rose_core.config.service import MAX_CONCURRENT_INFERENCE
+from rose_core.config.settings import settings
 from rose_inference.generation.cache import cleanup_models
 from rose_inference.generation.process import process_inference_request
 
@@ -44,7 +44,7 @@ async def health() -> Dict[str, Any]:
     """Health check endpoint."""
     return {
         "status": "healthy",
-        "max_concurrent_inference": MAX_CONCURRENT_INFERENCE,
+        "max_concurrent_inference": settings.max_concurrent_inference,
     }
 
 
@@ -55,7 +55,7 @@ def main() -> None:
 
     # Run server
     logger.info("Starting inference server on ws://localhost:8005")
-    logger.info(f"Max concurrent inferences: {MAX_CONCURRENT_INFERENCE}")
+    logger.info(f"Max concurrent inferences: {settings.max_concurrent_inference}")
 
     uvicorn.run(app, host="localhost", port=8005, log_level="info")
 

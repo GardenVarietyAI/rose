@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from transformers import TextIteratorStreamer
 
-from rose_core.config.service import INFERENCE_TIMEOUT
+from rose_core.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -126,9 +126,9 @@ async def generate_stream(
     finally:
         # Wait for generation to complete with timeout
         try:
-            await asyncio.wait_for(generation_task, timeout=INFERENCE_TIMEOUT)
+            await asyncio.wait_for(generation_task, timeout=settings.inference_timeout)
         except asyncio.TimeoutError:
-            logger.error(f"[{stream_id}] Generation still running after {INFERENCE_TIMEOUT}s timeout")
+            logger.error(f"[{stream_id}] Generation still running after {settings.inference_timeout}s timeout")
             generation_task.cancel()
 
     return {"input_tokens": input_token_count, "output_tokens": position}

@@ -5,7 +5,7 @@ import logging
 import uuid
 from typing import Any, Dict
 
-from rose_core.config.service import MAX_CONCURRENT_INFERENCE
+from rose_core.config.settings import settings
 from rose_core.models import cleanup_model_memory
 
 from .backends.hf_generator import generate_stream
@@ -14,7 +14,7 @@ from .cache import load_model
 logger = logging.getLogger(__name__)
 
 # Semaphore for controlling concurrent inferences (default: 1 = sequential)
-inference_semaphore = asyncio.Semaphore(MAX_CONCURRENT_INFERENCE)
+inference_semaphore = asyncio.Semaphore(settings.max_concurrent_inference)
 
 
 async def process_inference_request(websocket, request_data: Dict[str, Any]) -> None:
