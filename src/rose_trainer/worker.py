@@ -38,8 +38,9 @@ def process_next_training_job() -> bool:
 
     except Exception as e:
         logger.error(f"Training job failed: {e}")
-        # Return True so we don't immediately retry the same failing job
-        return True
+        # Return False to indicate job processing failed
+        # This allows the scheduler to handle retries appropriately
+        return False
     finally:
         # Ensure client is cleaned up
         client.close()

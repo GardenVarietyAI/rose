@@ -112,7 +112,7 @@ def train(
         result: BatchEncoding = tokenizer(str(text), truncation=True, max_length=hp.max_length)
         return result
 
-    checkpoint_dir = Path(settings.data_dir) / "checkpoints" / job_id
+    checkpoint_dir = Path(settings.fine_tuning_checkpoint_dir) / job_id
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     tokenized_dataset = raw_dataset.map(tokenize_example, remove_columns=raw_dataset.column_names)
