@@ -130,7 +130,7 @@ class ServiceClient:
 
         # Use custom timeout for long generations
         old_timeout = self._client.timeout
-        self._client.timeout = timeout
+        self._client.timeout = httpx.Timeout(timeout)
         try:
             response = self._request("POST", "/v1/chat/completions", json=request_data)
             result: Dict[str, Any] = response.json()
