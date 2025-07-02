@@ -37,6 +37,7 @@ class InferenceClient:
                 self.uri,
                 ping_interval=30,  # Send ping every 30 seconds
                 ping_timeout=120,  # Wait 120 seconds for pong
+                open_timeout=10,  # Wait 10 seconds for connection
             ) as websocket:
                 # Send inference request
                 request: Dict[str, Any] = {
