@@ -2,7 +2,6 @@
 
 import logging
 import os
-import time
 
 from rose_trainer.client import ServiceClient
 from rose_trainer.fine_tuning.process import process_training_job
@@ -14,31 +13,46 @@ logger = logging.getLogger(__name__)
 os.environ["POSTHOG_DISABLED"] = "1"
 
 
-def poll_training_jobs() -> None:
-    """Poll for training jobs from the queue."""
-    # Create a single client instance for the worker
+def process_next_training_job() -> bool:
+    """Process the next training job in the queue.
+
+    Returns:
+        True if a job was processed, False if queue was empty
+    """
     client = ServiceClient()
-    logger.info("Training worker started - polling for jobs")
 
-    while True:
-        try:
-            jobs = client.get_queued_jobs("training", limit=1)
-            if jobs:
-                job = jobs[0]
-                logger.info(f"Starting training job {job['id']}")
-                # Process job synchronously, passing the client
-                process_training_job(job["id"], job["payload"], client)
-                logger.info(f"Completed training job {job['id']}")
-        except Exception as e:
-            logger.error(f"Training job failed: {e}")
+    try:
+        jobs = client.get_queued_jobs("training", limit=1)
+        if not jobs:
+            logger.debug("No training jobs in queue")
+            return False
 
-        time.sleep(5)
+        job = jobs[0]
+        logger.info(f"Starting training job {job['id']}")
+
+        # Process job synchronously
+        process_training_job(job["id"], job["payload"], client)
+
+        logger.info(f"Completed training job {job['id']}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Training job failed: {e}")
+        # Return True so we don't immediately retry the same failing job
+        return True
+    finally:
+        # Ensure client is cleaned up
+        client.close()
 
 
 def main() -> None:
-    """Entry point for the trainer process."""
-    logger.info("Rose Trainer started")
-    poll_training_jobs()
+    """Entry point for direct execution (useful for testing)."""
+    logger.info("Rose Trainer - processing single job")
+    processed = process_next_training_job()
+    if processed:
+        logger.info("Job processed successfully")
+    else:
+        logger.info("No jobs to process")
 
 
 if __name__ == "__main__":

@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     fine_tuning_checkpoint_interval: int = Field(default=10, description="Steps between checkpoints")
     fine_tuning_max_checkpoints: int = Field(default=5, description="Maximum checkpoints to keep")
     fine_tuning_eval_batch_size: int = Field(default=1, description="Evaluation batch size")
+    training_interval: int = Field(default=30, description="Training job check interval in seconds")
 
     # Inference settings
     inference_uri: str = Field(default="ws://localhost:8005", description="WebSocket URI for inference worker")

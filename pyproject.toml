@@ -15,7 +15,8 @@ packages = [
 [tool.poetry.scripts]
 rose = "rose_cli.main:main"
 rose-server = "rose_server.main:main"
-rose-trainer = "rose_trainer.worker:main"
+rose-trainer = "rose_trainer.scheduler:main"
+rose-trainer-worker = "rose_trainer.worker:main"
 rose-inference = "rose_inference.main:main"
 
 [tool.poetry.dependencies]
