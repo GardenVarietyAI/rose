@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from rose_core.config.service import HOST, PORT
+from rose_core.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ class ServiceClient:
     """HTTP client for worker→server communication."""
 
     def __init__(self, base_url: Optional[str] = None, timeout: float = DEFAULT_TIMEOUT):
-        self.base_url = base_url or f"http://{HOST}:{PORT}"
+        self.base_url = base_url or f"http://{settings.host}:{settings.port}"
         self.timeout = timeout
         self._client = httpx.Client(base_url=self.base_url, timeout=timeout)
 
@@ -44,6 +44,16 @@ class ServiceClient:
             f"/v1/jobs/{job_id}",
             json={"status": status, "result": result},
         )
+
+    def get_model(self, model_id: str) -> Optional[Dict[str, Any]]:
+        """Get model information from the API."""
+        try:
+            response = self._request("GET", f"/v1/models/{model_id}")
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                return None
+            raise
 
     def post_webhook(
         self,

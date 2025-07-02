@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from rose_core.config.service import DATA_DIR
+from rose_core.config.settings import settings
 from rose_core.models import cleanup_model_memory
 from rose_trainer.client import get_client, post_webhook
 
@@ -41,7 +41,7 @@ def process_training_job(job_id: int, payload: Dict[str, Any]) -> None:
             hyperparameters = hyperparameters.copy()
             hyperparameters["suffix"] = suffix
 
-        training_file_path = Path(DATA_DIR) / "uploads" / training_file
+        training_file_path = Path(settings.data_dir) / "uploads" / training_file
 
         result = train(
             job_id=ft_job_id,
