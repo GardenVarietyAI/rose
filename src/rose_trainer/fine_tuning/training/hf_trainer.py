@@ -17,7 +17,7 @@ from transformers.training_args import TrainingArguments
 from rose_core.config.settings import settings
 from rose_core.models import get_tokenizer, load_hf_model
 from rose_core.models.loading import get_optimal_device
-from rose_trainer.client import get_client
+from rose_trainer.client import ServiceClient
 
 from .callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
 from .hyperparams import HyperParams
@@ -30,13 +30,13 @@ def train(
     model_name: str,
     training_file_path: Path,
     hyperparameters: Dict[str, Any],
+    client: ServiceClient,
     check_cancel_callback: Optional[Callable[[], str]] = None,
     event_callback: Optional[Callable[[str, str, Dict[str, Any]], None]] = None,
 ) -> Dict[str, Any]:
     """Run a fine-tuning job and return a result dict."""
 
     # Fetch model info from API
-    client = get_client()
     model_info = client.get_model(model_name)
     if not model_info:
         raise ValueError(f"Model {model_name} not found")

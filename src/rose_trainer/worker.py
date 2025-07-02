@@ -4,7 +4,7 @@ import logging
 import os
 import time
 
-from rose_trainer.client import get_client
+from rose_trainer.client import ServiceClient
 from rose_trainer.fine_tuning.process import process_training_job
 
 logging.basicConfig(level=logging.INFO)
@@ -16,7 +16,8 @@ os.environ["POSTHOG_DISABLED"] = "1"
 
 def poll_training_jobs() -> None:
     """Poll for training jobs from the queue."""
-    client = get_client()
+    # Create a single client instance for the worker
+    client = ServiceClient()
     logger.info("Training worker started - polling for jobs")
 
     while True:
@@ -25,8 +26,8 @@ def poll_training_jobs() -> None:
             if jobs:
                 job = jobs[0]
                 logger.info(f"Starting training job {job['id']}")
-                # Process job synchronously
-                process_training_job(job["id"], job["payload"])
+                # Process job synchronously, passing the client
+                process_training_job(job["id"], job["payload"], client)
                 logger.info(f"Completed training job {job['id']}")
         except Exception as e:
             logger.error(f"Training job failed: {e}")

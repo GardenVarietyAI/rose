@@ -140,31 +140,3 @@ class ServiceClient:
         if response.status_code == 404:
             raise FileNotFoundError(f"File '{file_id}' not found")
         return response.content
-
-
-# Global client instance
-_client: Optional[ServiceClient] = None
-
-
-def get_client() -> ServiceClient:
-    """Get or create the global service client."""
-    global _client
-    if _client is None:
-        _client = ServiceClient()
-    return _client
-
-
-def update_job_status(job_id: int, status: str, result: Optional[Dict[str, Any]] = None) -> None:
-    """Update job status using the global client."""
-    get_client().update_job_status(job_id, status, result)
-
-
-def post_webhook(
-    event: str,
-    object_type: str,
-    job_id: int,
-    object_id: str,
-    data: Optional[Dict[str, Any]] = None,
-) -> None:
-    """Post webhook using the global client."""
-    get_client().post_webhook(event, object_type, job_id, object_id, data)
