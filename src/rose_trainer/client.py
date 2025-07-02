@@ -49,7 +49,8 @@ class ServiceClient:
         """Get model information from the API."""
         try:
             response = self._request("GET", f"/v1/models/{model_id}")
-            return response.json()
+            result: Dict[str, Any] = response.json()
+            return result
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 return None
@@ -86,13 +87,15 @@ class ServiceClient:
                 "limit": limit,
             },
         )
-        data = response.json()
-        return data.get("data", [])
+        data: Dict[str, Any] = response.json()
+        jobs: List[Dict[str, Any]] = data.get("data", [])
+        return jobs
 
     def get_job_details(self, job_id: str) -> Dict[str, Any]:
         """Get detailed information about a specific job."""
         response = self._request("GET", f"/v1/jobs/{job_id}")
-        return response.json()
+        result: Dict[str, Any] = response.json()
+        return result
 
     def check_fine_tuning_job_status(self, ft_job_id: str) -> str:
         """Check if a fine-tuning job has been cancelled."""
@@ -130,7 +133,8 @@ class ServiceClient:
         self._client.timeout = timeout
         try:
             response = self._request("POST", "/v1/chat/completions", json=request_data)
-            return response.json()
+            result: Dict[str, Any] = response.json()
+            return result
         finally:
             self._client.timeout = old_timeout
 

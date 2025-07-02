@@ -30,7 +30,8 @@ def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceCl
             )
 
     def check_cancel_callback() -> str:
-        return client.check_fine_tuning_job_status(ft_job_id)
+        status: str = client.check_fine_tuning_job_status(ft_job_id)
+        return status
 
     try:
         # Send job running webhook

@@ -110,7 +110,8 @@ def train(
             text = "\n".join(text_parts)
         else:
             text = tokenizer.apply_chat_template(example["messages"], tokenize=False)
-        return tokenizer(str(text), truncation=True, max_length=hp.max_length)
+        result: BatchEncoding = tokenizer(str(text), truncation=True, max_length=hp.max_length)
+        return result
 
     checkpoint_dir = Path(settings.data_dir) / "checkpoints" / job_id
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
