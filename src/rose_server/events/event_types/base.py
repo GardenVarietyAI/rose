@@ -2,13 +2,12 @@
 
 import time
 import uuid
-from abc import ABC
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Type
 
 from pydantic import BaseModel, Field
 
 
-class LLMEvent(BaseModel, ABC):
+class LLMEvent(BaseModel):
     """Base class for all LLM events using Pydantic.
 
     Every event in the system extends this base class, providing:
@@ -25,14 +24,14 @@ class LLMEvent(BaseModel, ABC):
     event_type: str = Field(default="", description="Type of event for easy filtering")
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
-    def __init__(self, **data):
+    def __init__(self, **data: Any) -> None:
         """Initialize and set event_type to class name if not provided."""
         super().__init__(**data)
         if not self.event_type:
             self.event_type = self.__class__.__name__
 
     @classmethod
-    def create(cls, model_name: str, **kwargs) -> "LLMEvent":
+    def create(cls: Type["LLMEvent"], model_name: str, **kwargs: Any) -> "LLMEvent":
         """Convenience factory method for creating events."""
         return cls(model_name=model_name, **kwargs)
 
