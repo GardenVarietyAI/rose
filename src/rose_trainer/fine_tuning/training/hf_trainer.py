@@ -36,10 +36,10 @@ def train(
     """Run a fine-tuning job and return a result dict."""
 
     # Fetch model info from API
-    with get_client() as client:
-        model_info = client.get_model(model_name)
-        if not model_info:
-            raise ValueError(f"Model {model_name} not found")
+    client = get_client()
+    model_info = client.get_model(model_name)
+    if not model_info:
+        raise ValueError(f"Model {model_name} not found")
 
     hp = HyperParams.resolve(hyperparameters)
     torch.manual_seed(hp.seed)
