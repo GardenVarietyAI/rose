@@ -5,7 +5,12 @@ import uuid
 from typing import Any, Dict, Optional
 
 from openai.types.chat import ChatCompletionChunk
-from openai.types.chat.chat_completion_chunk import Choice, ChoiceDelta
+from openai.types.chat.chat_completion_chunk import (
+    Choice,
+    ChoiceDelta,
+    ChoiceDeltaToolCall,
+    ChoiceDeltaToolCallFunction,
+)
 
 from rose_server.events.event_types import (
     LLMEvent,
@@ -24,7 +29,7 @@ class ChatCompletionsFormatter:
     with the existing OpenAI-compatible infrastructure.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.completion_id: Optional[str] = None
         self.created: Optional[int] = None
         self.model_name: Optional[str] = None
@@ -69,12 +74,15 @@ class ChatCompletionsFormatter:
                         index=0,
                         delta=ChoiceDelta(
                             tool_calls=[
-                                {
-                                    "index": 0,
-                                    "id": event.call_id,
-                                    "type": "function",
-                                    "function": {"name": event.function_name, "arguments": ""},
-                                }
+                                ChoiceDeltaToolCall(
+                                    index=0,
+                                    id=event.call_id,
+                                    type="function",
+                                    function=ChoiceDeltaToolCallFunction(
+                                        name=event.function_name,
+                                        arguments="",
+                                    ),
+                                )
                             ]
                         ),
                         finish_reason=None,
@@ -93,12 +101,15 @@ class ChatCompletionsFormatter:
                         index=0,
                         delta=ChoiceDelta(
                             tool_calls=[
-                                {
-                                    "index": 0,
-                                    "id": event.call_id,
-                                    "type": "function",
-                                    "function": {"name": event.function_name, "arguments": event.arguments},
-                                }
+                                ChoiceDeltaToolCall(
+                                    index=0,
+                                    id=event.call_id,
+                                    type="function",
+                                    function=ChoiceDeltaToolCallFunction(
+                                        name=event.function_name,
+                                        arguments=event.arguments,
+                                    ),
+                                )
                             ]
                         ),
                         finish_reason="tool_calls",

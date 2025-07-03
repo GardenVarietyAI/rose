@@ -96,7 +96,7 @@ async def handle_tool_calls(
     thread_id: str,
     response_text: str,
     step: RunStepResponse,
-    tools: Optional[List] = None,
+    tools: Optional[List[Any]] = None,
 ) -> Optional[Tuple[ServerSentEvent, ...]]:
     if not tools:
         return None

@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/assistants", response_model=AssistantResponse)
-async def create(request: AssistantCreateRequest):
+async def create(request: AssistantCreateRequest) -> AssistantResponse:
     """Create a new assistant."""
     # Convert tools to dicts for JSON storage
     tools = [tool.model_dump() for tool in request.tools] if request.tools else []

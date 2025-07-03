@@ -213,4 +213,4 @@ class ResponsesFormatter:
             usage=usage,
         )
 
-        return response.model_dump()
+        return dict(response.model_dump())
