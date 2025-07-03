@@ -17,7 +17,7 @@ from rose_core.config.settings import settings
 from rose_server.database import current_timestamp
 from rose_server.entities.messages import Message
 from rose_server.entities.run_steps import RunStep
-from rose_server.events import ResponseCompleted, ResponseStarted, TokenGenerated
+from rose_server.events.event_types import ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.events.formatters.runs import RunsFormatter
 from rose_server.events.generator import EventGenerator
 from rose_server.llms import model_cache

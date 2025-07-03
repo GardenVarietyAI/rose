@@ -4,7 +4,7 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
-from rose_server.events import LLMEvent, ResponseCompleted, ResponseStarted, TokenGenerated
+from rose_server.events.event_types import LLMEvent, ResponseCompleted, ResponseStarted, TokenGenerated
 
 
 class CompletionsFormatter:
