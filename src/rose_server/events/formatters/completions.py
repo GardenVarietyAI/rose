@@ -4,7 +4,7 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
-from rose_server.events import LLMEvent, ResponseCompleted, ResponseStarted, TokenGenerated
+from rose_server.events.event_types import LLMEvent, ResponseCompleted, ResponseStarted, TokenGenerated
 
 
 class CompletionsFormatter:
@@ -14,7 +14,7 @@ class CompletionsFormatter:
     which uses simpler text chunks rather than chat messages.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.completion_id: Optional[str] = None
         self.created_at: Optional[int] = None
         self.model_name: Optional[str] = None

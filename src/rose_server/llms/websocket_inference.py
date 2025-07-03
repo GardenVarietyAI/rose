@@ -8,7 +8,7 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 import websockets
 
 from rose_core.config.settings import settings
-from rose_server.events import ResponseCompleted, TokenGenerated
+from rose_server.events.event_types import InputTokensCounted, ResponseCompleted, TokenGenerated
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +61,6 @@ class InferenceClient:
 
                     if data["type"] == "input_tokens_counted":
                         # Yield input tokens counted event
-                        from rose_server.events import InputTokensCounted
-
                         yield InputTokensCounted(
                             model_name=model_name,
                             response_id=response_id,

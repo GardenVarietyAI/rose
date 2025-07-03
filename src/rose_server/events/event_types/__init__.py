@@ -1,5 +1,6 @@
 from rose_server.events.event_types.base import LLMEvent
 from rose_server.events.event_types.generation import (
+    InputTokensCounted,
     ResponseCompleted,
     ResponseStarted,
     TokenGenerated,
@@ -18,6 +19,7 @@ from rose_server.events.event_types.training import (
 
 __all__ = [
     "LLMEvent",
+    "InputTokensCounted",
     "ResponseStarted",
     "TokenGenerated",
     "ToolCallStarted",

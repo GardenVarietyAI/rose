@@ -1,7 +1,7 @@
 """SQLModel-based storage for assistants with clean OpenAI compatibility."""
 
 import logging
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from sqlmodel import select
 
@@ -39,7 +39,7 @@ async def list_assistants(limit: int = 20, order: str = "desc") -> List[Assistan
         return list(result.scalars().all())
 
 
-async def update_assistant(assistant_id: str, updates: dict) -> Optional[Assistant]:
+async def update_assistant(assistant_id: str, updates: dict[str, Any]) -> Optional[Assistant]:
     """Update an assistant."""
     async with get_session() as session:
         db_assistant = await session.get(Assistant, assistant_id)

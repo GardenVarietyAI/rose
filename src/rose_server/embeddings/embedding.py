@@ -35,9 +35,9 @@ def _get_model(model_name: str) -> SentenceTransformer:
     """Get or load an embedding model."""
     if model_name not in _models:
         if model_name in EMBEDDING_MODELS:
-            model_path = EMBEDDING_MODELS[model_name]["model_name"]
+            model_path = str(EMBEDDING_MODELS[model_name]["model_name"])
         else:
-            model_path = model_name
+            model_path = str(model_name)
         _models[model_name] = SentenceTransformer(model_path)
     return _models[model_name]
 

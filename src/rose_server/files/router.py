@@ -21,11 +21,12 @@ async def create(
 ) -> FileObject:
     """Upload a file."""
     try:
-        return await create_file(
-            file=file.file,
-            purpose=purpose,
-            filename=file.filename,
-        )
+        file_obj = await create_file(file=file.file, purpose=purpose, filename=file.filename)
+        if file_obj is None:
+            raise HTTPException(status_code=500, detail="Failed to create file")
+        if not isinstance(file_obj, FileObject):
+            raise HTTPException(status_code=500, detail="Invalid file object returned")
+        return file_obj
     except Exception as e:
         logger.error(f"File upload error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -48,6 +49,8 @@ async def get(file_id: str) -> FileObject:
     file_obj = await get_file(file_id)
     if not file_obj:
         raise HTTPException(status_code=404, detail=f"File {file_id} not found")
+    if not isinstance(file_obj, FileObject):
+        raise HTTPException(status_code=500, detail="Internal error: file object has invalid type")
     return file_obj
 
 
@@ -69,6 +72,9 @@ async def get_content(file_id: str) -> Response:
 async def remove(file_id: str) -> FileDeleted:
     """Delete a file."""
     try:
-        return await delete_file(file_id)
+        deleted = await delete_file(file_id)
+        if not isinstance(deleted, FileDeleted):
+            raise HTTPException(status_code=500, detail="Internal error: invalid FileDeleted object")
+        return deleted
     except Exception:
         raise HTTPException(status_code=404, detail=f"File {file_id} not found")

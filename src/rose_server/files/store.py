@@ -76,7 +76,7 @@ async def get_file(file_id: str) -> Optional[FileObject]:
             bytes=uploaded_file.bytes,
             created_at=uploaded_file.created_at,
             filename=uploaded_file.filename,
-            purpose=uploaded_file.purpose,  # type: ignore
+            purpose=uploaded_file.purpose,
             status=uploaded_file.status or "processed",
         )
 
@@ -122,7 +122,7 @@ async def list_files(
                 bytes=f.bytes,
                 created_at=f.created_at,
                 filename=f.filename,
-                purpose=f.purpose,  # type: ignore
+                purpose=f.purpose,
                 status=f.status or "processed",
             )
             for f in files
