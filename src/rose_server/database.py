@@ -5,7 +5,7 @@ Database setup stays here. SQLModel classes have been moved to entity files.
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncGenerator, Callable, TypeVar
+from typing import AsyncGenerator, TypeVar
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
@@ -53,20 +53,6 @@ async def get_session(read_only: bool = False) -> AsyncGenerator[AsyncSession, N
             await session.close()
 
 
-async def run_in_session(operation: Callable[[AsyncSession], Any], read_only: bool = False) -> Any:
-    """
-    Execute a database operation with proper session management.
-
-    Args:
-        operation: Async function that takes a session and performs database operations
-        read_only: Whether this is a read-only operation (no commit needed)
-    Returns:
-        The result of the operation function
-    """
-    async with get_session(read_only=read_only) as session:
-        return await operation(session)
-
-
 async def create_all_tables() -> None:
     """Create all database tables."""
     async with engine.begin() as conn:
@@ -81,7 +67,6 @@ def current_timestamp() -> int:
 __all__ = [
     "engine",
     "get_session",
-    "run_in_session",
     "create_all_tables",
     "current_timestamp",
     "UploadedFile",
