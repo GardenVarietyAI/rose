@@ -1,15 +1,15 @@
 import typer
 from rich import print
 
-from rose_cli.actors.personas import CalculatorActor
+from rose_cli.actors.personas import FileReaderActor
 
 
-def calculator(
-    query: str = typer.Argument(..., help="Math question or expression"),
+def file_reader(
+    query: str = typer.Argument(..., help="File operation request"),
     model: str = typer.Option("qwen2.5-0.5b", "--model", "-m", help="Model to use"),
 ) -> None:
-    """Run a calculator agent to solve math problems."""
-    actor = CalculatorActor(model=model)
+    """Run a file reader agent to list directories and read files."""
+    actor = FileReaderActor(model=model)
 
     try:
         result = actor.run(query)

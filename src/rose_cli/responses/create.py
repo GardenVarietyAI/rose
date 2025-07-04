@@ -9,8 +9,6 @@ from rose_cli.utils import get_client
 def create_response(
     message: str = typer.Argument(..., help="Message to send"),
     model: str = typer.Option("qwen-coder", "--model", "-m", help="Model to use"),
-    url: Optional[str] = typer.Option(None, "--url", "-u", help="Base URL"),
-    local: bool = typer.Option(True, "--local/--remote", "-l", help="Use local service"),
     store: bool = typer.Option(True, "--store/--no-store", help="Store response for later retrieval"),
     stream: bool = typer.Option(False, "--stream", help="Stream response"),
     instructions: Optional[str] = typer.Option(None, "--instructions", "-i", help="System instructions"),
@@ -22,7 +20,7 @@ def create_response(
         if stream:
             response_stream = client.responses.create(
                 model=model,
-                input=message,
+                input=[{"role": "user", "content": message}],
                 instructions=instructions,
                 store=store,
                 stream=True,
@@ -34,7 +32,7 @@ def create_response(
         else:
             response = client.responses.create(
                 model=model,
-                input=message,
+                input=[{"role": "user", "content": message}],
                 instructions=instructions,
                 store=store,
                 stream=False,

@@ -20,6 +20,6 @@ class MessageResponse(OpenAIMessage):
 class MessageCreateRequest(BaseModel):
     """Request to create a new message in a thread."""
 
-    role: Literal["user", "assistant"] = Field(description="Role of the message sender")
+    role: Literal["user", "assistant", "developer"] = Field(description="Role of the message sender")
     content: Union[str, List[Dict[str, Any]]] = Field(description="Content of the message")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Set of key-value pairs for metadata")

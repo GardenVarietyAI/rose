@@ -1,8 +1,10 @@
-"""OpenAI Responses API schemas."""
+"""Responses API schemas."""
 
 from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
+
+from rose_server.schemas.messages import MessageCreateRequest
 
 
 class ResponsesContentItem(BaseModel):
@@ -39,18 +41,11 @@ class ResponsesResponse(BaseModel):
     usage: ResponsesUsage
 
 
-class InputTextItem(BaseModel):
-    """Input text item for responses API."""
-
-    type: Literal["input_text"] = "input_text"
-    text: str = Field(description="The text content")
-
-
 class ResponsesRequest(BaseModel):
-    """OpenAI-compatible responses API request format."""
+    """Responses API request format."""
 
     model: str = Field(description="Model to use for completion")
-    input: Union[List[InputTextItem], str] = Field(description="Input text items")
+    input: Union[List[MessageCreateRequest], str] = Field(description="Input messages or text")
     modalities: List[Literal["text"]] = Field(default=["text"], description="Supported modalities")
     instructions: Optional[str] = Field(default=None, description="System instructions")
     stream: Optional[bool] = Field(default=False, description="Whether to stream the response")
