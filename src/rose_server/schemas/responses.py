@@ -4,8 +4,6 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
-from rose_server.schemas.messages import MessageCreateRequest
-
 
 class ResponsesContentItem(BaseModel):
     type: Literal["output_text"]
@@ -41,11 +39,41 @@ class ResponsesResponse(BaseModel):
     usage: ResponsesUsage
 
 
+class ResponsesInputMessage(BaseModel):
+    """Standard message input for responses API."""
+
+    role: Literal["user", "assistant", "developer"] = Field(description="Message role")
+    content: Union[str, List[Dict[str, Any]], None] = Field(description="Message content")
+
+
+class ResponsesInputFunctionCall(BaseModel):
+    """Function call message from assistant."""
+
+    type: Literal["function_call"] = Field(description="Message type")
+    id: str = Field(description="Function call ID")
+    name: str = Field(description="Function name")
+    arguments: Optional[str] = Field(description="Function arguments as JSON string")
+    role: Literal["assistant"] = Field(default="assistant", description="Always assistant role")
+    content: Union[str, None] = Field(default=None, description="Optional content")
+    status: Optional[str] = Field(default=None, description="Call status")
+
+
+class ResponsesInputFunctionOutput(BaseModel):
+    """Function call output/result."""
+
+    type: Literal["function_call_output"] = Field(description="Message type")
+    call_id: Optional[str] = Field(description="ID of the function call this is responding to")
+    output: str = Field(description="Function execution output")
+
+
+ResponsesInput = Union[ResponsesInputMessage, ResponsesInputFunctionCall, ResponsesInputFunctionOutput]
+
+
 class ResponsesRequest(BaseModel):
     """Responses API request format."""
 
     model: str = Field(description="Model to use for completion")
-    input: Union[List[MessageCreateRequest], str] = Field(description="Input messages or text")
+    input: Union[List[ResponsesInput], str] = Field(description="Input messages or text")
     modalities: List[Literal["text"]] = Field(default=["text"], description="Supported modalities")
     instructions: Optional[str] = Field(default=None, description="System instructions")
     stream: Optional[bool] = Field(default=False, description="Whether to stream the response")

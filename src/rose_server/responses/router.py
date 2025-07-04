@@ -42,13 +42,28 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMess
         # Handle string input directly
         messages.append(ChatMessage(role="user", content=request.input))
     elif isinstance(request.input, list):
-        # Handle list of MessageCreateRequest objects
+        # Handle list of ResponsesInput objects
         for msg in request.input:
-            # Map 'developer' role to 'system' for ChatMessage
-            role = "system" if msg.role == "developer" else msg.role
-            # Handle content - if it's a list, convert to string
-            content = msg.content if isinstance(msg.content, str) else str(msg.content)
-            messages.append(ChatMessage(role=role, content=content))
+            # Check message type
+            if hasattr(msg, "type"):
+                if msg.type == "function_call":
+                    # Function call from assistant - add as a message showing the call
+                    content = f"[Function call: {msg.name}({msg.arguments})]"
+                    messages.append(ChatMessage(role="assistant", content=content))
+                elif msg.type == "function_call_output":
+                    # Function output - add as a system message with instructions to use the result
+                    content = (
+                        f"The function returned the following result:\n\n{msg.output}\n\n"
+                        "Please provide a natural language response incorporating this information."
+                    )
+                    messages.append(ChatMessage(role="system", content=content))
+            else:
+                # Standard message format
+                # Map 'developer' role to 'system' for ChatMessage
+                role = "system" if msg.role == "developer" else msg.role
+                # Handle content - if it's a list, convert to string
+                content = msg.content if isinstance(msg.content, str) else str(msg.content) if msg.content else ""
+                messages.append(ChatMessage(role=role, content=content))
 
     return messages
 

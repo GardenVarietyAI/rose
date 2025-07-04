@@ -56,9 +56,9 @@ def list_files(ctx: RunContextWrapper[Any], directory: str = ".") -> str:
             files = []
             for item in path.iterdir():
                 if item.is_file():
-                    files.append(f"📄 {item.name}")
+                    files.append(f"{item.name}")
                 elif item.is_dir():
-                    files.append(f"📁 {item.name}/")
+                    files.append(f"{item.name}/")
 
             if files:
                 return f"Files in {path}:\n" + "\n".join(sorted(files))
@@ -81,15 +81,46 @@ class FileReaderActor:
 
         instructions = """You are a helpful file system assistant.
 
-        You can:
-        1. Read file contents using the read_file function
-        2. List files in directories using the list_files function
+        You have access to tools. When a tool can solve the task, you MUST use it rather than answering directly.
 
-        When users ask about files:
-        - If they want to see what's in a directory, use list_files
-        - If they want to read a specific file, use read_file
-        - Always provide clear feedback about what you found
-        - Be careful with file paths and handle errors gracefully
+        Available tools:
+        - read_file: Read the contents of a file
+        - list_files: List files in a directory
+
+        Tool usage:
+        1. Output ONLY the XML below - no explanations before or after
+        2. One tool call per message
+        3. After receiving results, incorporate them in your response
+
+        XML format:
+        <tool>tool_name</tool>
+        <args>
+          <parameter_name>value</parameter_name>
+        </args>
+
+        Examples:
+        User: What files are in the current directory?
+        Assistant: <tool>list_files</tool>
+        <args>
+          <directory>.</directory>
+        </args>
+
+        User: Show me the contents of config.py
+        Assistant: <tool>read_file</tool>
+        <args>
+          <path>config.py</path>
+        </args>
+
+        User: Read the file at /home/user/data.txt
+        Assistant: <tool>read_file</tool>
+        <args>
+          <path>/home/user/data.txt</path>
+        </args>
+
+        Remember:
+        - Always use tools to interact with the file system
+        - Do not make up file contents or directory listings
+        - Report errors clearly if files or directories don't exist
         """
 
         self.agent = Agent(
