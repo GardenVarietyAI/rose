@@ -2,7 +2,6 @@ import typer
 from rich import print
 
 from rose_cli.actors.personas import CalculatorActor
-from rose_cli.utils import BASE_URL
 
 
 def calculator(
@@ -10,7 +9,7 @@ def calculator(
     model: str = typer.Option("qwen2.5-0.5b", "--model", "-m", help="Model to use"),
 ) -> None:
     """Run a calculator agent to solve math problems."""
-    actor = CalculatorActor(base_url=BASE_URL, model=model)
+    actor = CalculatorActor(model=model)
 
     try:
         result = actor.run(query)
