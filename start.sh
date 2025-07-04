@@ -59,6 +59,17 @@ cleanup() {
 
 trap cleanup EXIT SIGINT SIGTERM
 
+echo ""
+# Generate auth token if not set
+if [ -z "$ROSE_API_KEY" ]; then
+    export ROSE_API_KEY=$(poetry run rose auth generate-token)
+    echo "Generated API key: $ROSE_API_KEY"
+    echo "To use this key in the future, export ROSE_API_KEY=$ROSE_API_KEY"
+else
+    echo "Using existing API key"
+fi
+echo ""
+
 # Start the service
 echo "Starting API service on http://localhost:8004..."
 poetry run rose-server &
