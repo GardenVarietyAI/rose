@@ -18,7 +18,7 @@ from rose_server.models.store import (
     get as get_language_model,
     list_all,
 )
-from rose_server.schemas.models import CreateModelRequest
+from rose_server.schemas.models import ModelCreateRequest
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
@@ -148,7 +148,7 @@ async def delete_model(model: str) -> JSONResponse:
 
 
 @router.post("/models", status_code=201)
-async def create_model(request: CreateModelRequest) -> Dict[str, Any]:
+async def create_model(request: ModelCreateRequest) -> Dict[str, Any]:
     """Create a new model configuration."""
     # Check if model already exists
     existing = await get_language_model(request.id)

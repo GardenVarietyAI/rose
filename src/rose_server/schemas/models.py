@@ -5,7 +5,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 
-class CreateModelRequest(BaseModel):
+class ModelCreateRequest(BaseModel):
     """Request schema for creating a new model."""
 
     id: str
