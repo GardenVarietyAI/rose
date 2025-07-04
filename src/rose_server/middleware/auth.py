@@ -29,7 +29,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 status_code=401,
                 content={
                     "error": {
-                        "message": "Incorrect API key provided: invalid-key.",
+                        "message": "Invalid API key provided.",
                         "type": "invalid_request_error",
                         "code": "invalid_api_key",
                     }
