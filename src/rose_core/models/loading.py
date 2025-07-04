@@ -17,14 +17,30 @@ from rose_core.config.settings import settings
 logger = logging.getLogger(__name__)
 
 
-def get_tokenizer(path: str) -> PreTrainedTokenizerBase:
-    """Setup tokenizer with proper padding token."""
-    # Check if this is a local path first
+def get_local_model_path(model_id: str) -> Optional[Path]:
+    """Get the local path for a downloaded model if it exists.
+
+    Args:
+        model_id: HuggingFace model identifier
+
+    Returns:
+        Path to local model directory if it exists, None otherwise
+    """
     models_dir = Path(settings.data_dir) / "models"
-    safe_model_name = path.replace("/", "--")
+    safe_model_name = model_id.replace("/", "--")
     local_model_path = models_dir / safe_model_name
 
     if local_model_path.exists():
+        return local_model_path
+    return None
+
+
+def get_tokenizer(path: str) -> PreTrainedTokenizerBase:
+    """Setup tokenizer with proper padding token."""
+    # Check if model is downloaded locally
+    local_model_path = get_local_model_path(path)
+
+    if local_model_path:
         tokenizer = AutoTokenizer.from_pretrained(str(local_model_path), local_files_only=True)
     else:
         tokenizer = AutoTokenizer.from_pretrained(path)
@@ -71,12 +87,10 @@ def load_hf_model(
     Returns:
         PreTrainedModel
     """
-    # Check if model is downloaded locally first
-    models_dir = Path(settings.data_dir) / "models"
-    safe_model_name = model_id.replace("/", "--")
-    local_model_path = models_dir / safe_model_name
+    # Check if model is downloaded locally
+    local_model_path = get_local_model_path(model_id)
 
-    if local_model_path.exists():
+    if local_model_path:
         logger.info(f"Loading model from local path: {local_model_path}")
         model_path = str(local_model_path)
         local_files_only = True
