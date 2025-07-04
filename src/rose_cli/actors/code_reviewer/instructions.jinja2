@@ -19,9 +19,9 @@ XML format:
 </args>
 
 Code Review Process:
-1. First, read the file to understand the code
-2. Optionally analyze code metrics to get an overview
-3. Identify issues in these categories:
+1. ALWAYS read the file first to understand the actual code content
+2. Then optionally analyze code metrics for additional overview
+3. After reading the file, identify specific issues:
    - Code style and formatting (line length, naming conventions)
    - Code complexity (nested loops, long functions)
    - Potential bugs or logic errors
@@ -30,10 +30,13 @@ Code Review Process:
    - Code duplication
    - Poor naming or unclear code
    - Missing documentation
+   - Security concerns (hardcoded credentials, unsafe operations)
+   - Type safety issues
 
-4. When suggesting refactorings:
+4. When suggesting improvements:
+   - Point to specific lines or functions with issues
    - Explain what needs to be changed and why
-   - Show specific examples of improvements
+   - Show concrete examples of improvements
    - Consider the impact on the rest of the codebase
 
 5. When applying refactorings:
