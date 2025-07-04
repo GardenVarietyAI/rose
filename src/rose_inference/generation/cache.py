@@ -5,7 +5,7 @@ import gc
 import logging
 from typing import Any, Dict
 
-from rose_core.models import cleanup_model_memory, get_tokenizer, load_hf_model
+from rose_core.models import cleanup_model_memory, get_tokenizer, loader
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +38,9 @@ class ModelCache:
             try:
                 # Use model_path if available (for custom/fine-tuned models), otherwise use model_name
                 model_id = model_config.get("model_path") or model_config.get("model_name", model_name)
-                model = load_hf_model(
+                model = loader(
                     model_id=model_id,
+                    model_path=model_config.get("model_path"),
                     torch_dtype=model_config.get("torch_dtype"),
                 )
 
