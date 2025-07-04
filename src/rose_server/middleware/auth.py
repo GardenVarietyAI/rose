@@ -1,16 +1,18 @@
 """Simple authentication middleware using environment variable."""
 
 import os
+from typing import Awaitable, Callable
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
     """Middleware to check Bearer token authentication."""
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
         """Check authentication for protected routes."""
         # Skip auth for public paths
         if request.url.path in {"/docs", "/openapi.json", "/health", "/redoc"}:
