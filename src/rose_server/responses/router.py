@@ -41,11 +41,14 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMess
     if isinstance(request.input, str):
         # Handle string input directly
         messages.append(ChatMessage(role="user", content=request.input))
-    else:
-        # Handle list of InputTextItem objects
-        user_texts = [item.text for item in request.input]
-        if user_texts:
-            messages.append(ChatMessage(role="user", content="\n".join(user_texts)))
+    elif isinstance(request.input, list):
+        # Handle list of MessageCreateRequest objects
+        for msg in request.input:
+            # Map 'developer' role to 'system' for ChatMessage
+            role = "system" if msg.role == "developer" else msg.role
+            # Handle content - if it's a list, convert to string
+            content = msg.content if isinstance(msg.content, str) else str(msg.content)
+            messages.append(ChatMessage(role=role, content=content))
 
     return messages
 
