@@ -10,6 +10,7 @@ from agents import (
     set_default_openai_client,
     set_tracing_disabled,
 )
+from jinja2 import Environment, FileSystemLoader
 
 from rose_cli.utils import get_async_client
 
@@ -79,49 +80,18 @@ class FileReaderActor:
         set_tracing_disabled(True)
         set_default_openai_api("responses")
 
-        instructions = """You are a helpful file system assistant.
+        # Load instructions from Jinja template
+        template_dir = Path(__file__).parent
+        env = Environment(loader=FileSystemLoader(str(template_dir)))
+        template = env.get_template("instructions.jinja2")
 
-        You have access to tools. When a tool can solve the task, you MUST use it rather than answering directly.
+        # Prepare tool information for the template
+        tools_info = [
+            {"name": "read_file", "description": "Read the contents of a file"},
+            {"name": "list_files", "description": "List files in a directory"},
+        ]
 
-        Available tools:
-        - read_file: Read the contents of a file
-        - list_files: List files in a directory
-
-        Tool usage:
-        1. Output ONLY the XML below - no explanations before or after
-        2. One tool call per message
-        3. After receiving results, incorporate them in your response
-
-        XML format:
-        <tool>tool_name</tool>
-        <args>
-          <parameter_name>value</parameter_name>
-        </args>
-
-        Examples:
-        User: What files are in the current directory?
-        Assistant: <tool>list_files</tool>
-        <args>
-          <directory>.</directory>
-        </args>
-
-        User: Show me the contents of config.py
-        Assistant: <tool>read_file</tool>
-        <args>
-          <path>config.py</path>
-        </args>
-
-        User: Read the file at /home/user/data.txt
-        Assistant: <tool>read_file</tool>
-        <args>
-          <path>/home/user/data.txt</path>
-        </args>
-
-        Remember:
-        - Always use tools to interact with the file system
-        - Do not make up file contents or directory listings
-        - Report errors clearly if files or directories don't exist
-        """
+        instructions = template.render(tools=tools_info)
 
         self.agent = Agent(
             name="FileReader",

@@ -1,7 +1,7 @@
 import typer
 from rich import print
 
-from rose_cli.actors.personas import CalculatorActor
+from rose_cli.actors.calculator.actor import CalculatorActor
 
 
 def calculator(
