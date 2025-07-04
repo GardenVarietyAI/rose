@@ -20,7 +20,7 @@ def create_response(
         if stream:
             response_stream = client.responses.create(
                 model=model,
-                input=message,
+                input=[{"role": "user", "content": message}],
                 instructions=instructions,
                 store=store,
                 stream=True,
@@ -32,7 +32,7 @@ def create_response(
         else:
             response = client.responses.create(
                 model=model,
-                input=message,
+                input=[{"role": "user", "content": message}],
                 instructions=instructions,
                 store=store,
                 stream=False,
