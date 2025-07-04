@@ -5,18 +5,42 @@ from rose_cli.utils import console, get_client
 
 def pull_model(
     model_name: str = typer.Argument(..., help="Model name to pull"),
+    force: bool = typer.Option(False, "--force", "-f", help="Force re-download even if exists"),
 ) -> None:
-    """Pre-download a model to avoid blocking during inference."""
-    console.print(f"[yellow]Pulling model: {model_name}...[/yellow]")
+    """Download a model to local storage."""
+    console.print(f"[yellow]Downloading model: {model_name}...[/yellow]")
 
-    # Trigger model download by making a minimal inference request
     client = get_client()
+
+    # Build auth headers
+    headers = {}
+    if client.api_key:
+        headers["Authorization"] = f"Bearer {client.api_key}"
+
     try:
-        client.chat.completions.create(
-            model=model_name,
-            messages=[{"role": "user", "content": "test"}],
-            max_tokens=1,
+        # Call the download endpoint
+        response = client._client.post(
+            "/models/download",
+            json={"model": model_name, "force": force},
+            headers=headers,
         )
-        console.print(f"[green]Model {model_name} ready![/green]")
+        response.raise_for_status()
+
+        result = response.json()
+
+        if result["status"] == "exists":
+            console.print(f"[yellow]{result['message']}[/yellow]")
+        else:
+            console.print(f"[green]{result['message']}[/green]")
+
+        console.print(f"[dim]Path: {result['path']}[/dim]")
+
     except Exception as e:
-        console.print(f"[red]Error pulling model: {e}[/red]")
+        if hasattr(e, "response") and hasattr(e.response, "json"):
+            try:
+                error_data = e.response.json()
+                console.print(f"[red]Error: {error_data.get('detail', str(e))}[/red]")
+            except Exception:
+                console.print(f"[red]Error: {e}[/red]")
+        else:
+            console.print(f"[red]Error: {e}[/red]")

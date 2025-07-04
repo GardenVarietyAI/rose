@@ -19,7 +19,16 @@ logger = logging.getLogger(__name__)
 
 def get_tokenizer(path: str) -> PreTrainedTokenizerBase:
     """Setup tokenizer with proper padding token."""
-    tokenizer = AutoTokenizer.from_pretrained(path)
+    # Check if this is a local path first
+    models_dir = Path(settings.data_dir) / "models"
+    safe_model_name = path.replace("/", "--")
+    local_model_path = models_dir / safe_model_name
+
+    if local_model_path.exists():
+        tokenizer = AutoTokenizer.from_pretrained(str(local_model_path), local_files_only=True)
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(path)
+
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     return tokenizer  # type: ignore[no-any-return]
@@ -62,7 +71,19 @@ def load_hf_model(
     Returns:
         PreTrainedModel
     """
-    logger.info(f"Loading model from HuggingFace hub: {model_id}")
+    # Check if model is downloaded locally first
+    models_dir = Path(settings.data_dir) / "models"
+    safe_model_name = model_id.replace("/", "--")
+    local_model_path = models_dir / safe_model_name
+
+    if local_model_path.exists():
+        logger.info(f"Loading model from local path: {local_model_path}")
+        model_path = str(local_model_path)
+        local_files_only = True
+    else:
+        logger.info(f"Loading model from HuggingFace hub: {model_id}")
+        model_path = model_id
+        local_files_only = False
 
     # Create offload directory
     offload_dir = os.path.join(settings.model_offload_dir, model_id.replace("/", "_"))
@@ -70,12 +91,13 @@ def load_hf_model(
 
     device = get_optimal_device()
     model = AutoModelForCausalLM.from_pretrained(  # type: ignore[no-untyped-call]
-        model_id,
+        model_path,
         torch_dtype=get_torch_dtype(torch_dtype),
         offload_folder=offload_dir,
         offload_state_dict=True,
         low_cpu_mem_usage=True,
         trust_remote_code=True,
+        local_files_only=local_files_only,
     )
     model = model.to(device)
 
