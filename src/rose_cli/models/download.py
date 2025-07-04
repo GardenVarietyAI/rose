@@ -2,8 +2,7 @@ import os
 from pathlib import Path
 
 import typer
-from huggingface_hub import snapshot_download
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from huggingface_hub import HfFolder, snapshot_download
 
 from rose_cli.utils import console, get_client
 
@@ -38,22 +37,17 @@ def download_model(
         return
 
     try:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            task = progress.add_task(f"Downloading {hf_model_name}...", total=None)
+        console.print(f"[yellow]Downloading {hf_model_name} to {local_dir}[/yellow]")
+        console.print("[dim]This may take several minutes for large models...[/dim]\n")
 
-            # Download using snapshot_download
-            local_path = snapshot_download(
-                repo_id=hf_model_name,
-                local_dir=str(local_dir),
-                force_download=force,
-                token=None,  # Public models only for now
-            )
-
-            progress.update(task, completed=True)
+        # Download using snapshot_download with better error handling
+        local_path = snapshot_download(
+            repo_id=hf_model_name,
+            local_dir=str(local_dir),
+            force_download=force,
+            token=HfFolder.get_token(),  # Use token if user is logged in
+            max_workers=4,  # Limit concurrent downloads
+        )
 
         console.print(f"[green]✓ Model {model_name} successfully downloaded[/green]")
         console.print(f"[dim]Path: {local_path}[/dim]")
