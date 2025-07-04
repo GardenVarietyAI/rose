@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import torch
 from peft import PeftModel
@@ -151,3 +151,24 @@ def load_peft_model(
 
     logger.info(f"Successfully loaded PEFT model: {model_id}")
     return model
+
+
+def loader(
+    model_id: str,
+    model_path: Optional[str] = None,
+    torch_dtype: Optional[torch.dtype] = None,
+) -> Union[PreTrainedModel, PeftModel]:
+    """Load a model - PEFT if model_path provided, otherwise standard HF model."""
+    if model_path:
+        # Check if it's actually a PEFT model
+        resolved_path = _resolve_model_path(model_path)
+        adapter_config_path = Path(resolved_path) / "adapter_config.json"
+        if adapter_config_path.exists():
+            logger.info(f"Found adapter config, loading as PEFT model: {model_path}")
+            return load_peft_model(model_id, model_path, torch_dtype)
+        else:
+            # Merged model - load directly
+            logger.info(f"No adapter config found, loading as merged model: {resolved_path}")
+            return load_hf_model(resolved_path, torch_dtype)
+    else:
+        return load_hf_model(model_id, torch_dtype)
