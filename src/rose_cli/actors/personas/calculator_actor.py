@@ -2,14 +2,14 @@ from typing import Any, Dict
 
 from agents import Agent, Runner, set_default_openai_api, set_default_openai_client, set_tracing_disabled
 
-from rose_cli.utils import get_client
+from rose_cli.utils import get_async_client
 
 
 class CalculatorActor:
     """Agent specialized in mathematical calculations and problem solving."""
 
     def __init__(self, model: str = "qwen2.5-0.5b") -> None:
-        client = get_client()
+        client = get_async_client()
         set_default_openai_client(client)
         set_tracing_disabled(True)
         set_default_openai_api("responses")
