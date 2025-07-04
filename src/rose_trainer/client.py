@@ -1,6 +1,7 @@
 """API client utilities for worker processes."""
 
 import logging
+import os
 import time
 from typing import Any, Dict, List, Optional
 
@@ -19,7 +20,12 @@ class ServiceClient:
     def __init__(self, base_url: Optional[str] = None, timeout: float = DEFAULT_TIMEOUT):
         self.base_url = base_url or f"http://{settings.host}:{settings.port}"
         self.timeout = timeout
-        self._client = httpx.Client(base_url=self.base_url, timeout=timeout)
+
+        # Always set auth header
+        token = os.getenv("ROSE_API_KEY") or ""
+        headers = {"Authorization": f"Bearer {token}"}
+
+        self._client = httpx.Client(base_url=self.base_url, timeout=timeout, headers=headers)
 
     def __enter__(self) -> "ServiceClient":
         return self

@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import os
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import websockets
@@ -33,8 +34,13 @@ class InferenceClient:
         total_tokens = 0
 
         try:
+            # Build headers for auth
+            token = os.getenv("ROSE_API_KEY") or ""
+            headers = {"Authorization": f"Bearer {token}"}
+
             async with websockets.connect(
                 self.uri,
+                additional_headers=headers,
                 ping_interval=30,  # Send ping every 30 seconds
                 ping_timeout=120,  # Wait 120 seconds for pong
                 open_timeout=10,  # Wait 10 seconds for connection

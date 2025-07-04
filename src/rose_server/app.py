@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from rose_core.config.settings import settings
 from rose_server.database import create_all_tables
 from rose_server.llms.registry import ModelRegistry
+from rose_server.middleware.auth import AuthMiddleware
 from rose_server.router import router
 from rose_server.vector import ChromaDBManager
 
@@ -73,6 +74,13 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Add auth middleware if enabled
+    if settings.auth_enabled:
+        app.add_middleware(AuthMiddleware)
+    else:
+        logger.warning("⚠️  API authentication is DISABLED. Set ROSE_SERVER_AUTH_ENABLED=true to enable.")
+
     app.include_router(router)
 
     @app.get("/health")
