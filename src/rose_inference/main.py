@@ -1,6 +1,7 @@
 import atexit
 import json
 import logging
+import os
 from typing import Any, Dict
 
 import uvicorn
@@ -19,6 +20,15 @@ app = FastAPI(title="ROSE Inference Server")
 @app.websocket("/")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     """Handle inference WebSocket connections."""
+    # Check auth if enabled
+    if settings.auth_enabled:
+        token = os.getenv("ROSE_API_KEY")
+        # Headers are normalized to lowercase by Starlette
+        auth_header = websocket.headers.get("authorization", "")
+        if token and auth_header != f"Bearer {token}":
+            await websocket.close(code=1008, reason="Unauthorized")
+            return
+
     await websocket.accept()
 
     try:
