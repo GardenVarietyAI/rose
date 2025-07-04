@@ -12,7 +12,6 @@ from fastapi.responses import JSONResponse
 
 from rose_core.config.settings import settings
 from rose_server.fs import check_file_path
-from rose_server.models.download import download_model_async
 from rose_server.models.store import (
     create as create_language_model,
     delete as delete_language_model,
@@ -82,41 +81,6 @@ async def get_model_details(model_id: str) -> JSONResponse:
             }
         },
     )
-
-
-@router.post("/models/download")
-async def download_model(request: Dict[str, Any]) -> JSONResponse:
-    """Download a model to local storage.
-
-    Expects JSON body: {"model": "model-name"}
-    """
-    model_name = request.get("model")
-    if not model_name:
-        raise HTTPException(status_code=400, detail="Missing required field: 'model'")
-
-    # Check if model exists in database
-    model = await get_language_model(model_name)
-    if not model:
-        raise HTTPException(status_code=404, detail=f"Model '{model_name}' not found")
-
-    try:
-        # Download the actual model files
-        result = await download_model_async(
-            model.model_name,  # Use the HuggingFace model name
-            force_download=request.get("force", False),
-        )
-
-        return JSONResponse(
-            content={
-                "status": result["status"],
-                "message": result["message"],
-                "model": model_name,
-                "path": result["path"],
-            }
-        )
-    except Exception as e:
-        logger.error(f"Error downloading model: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to download model: {str(e)}")
 
 
 @router.delete("/models/{model}")
