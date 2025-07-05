@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional, Union
 
 import torch
-from peft import PeftModel
+from peft import AutoPeftModelForCausalLM, PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.modeling_utils import PreTrainedModel
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
@@ -43,7 +43,7 @@ def get_tokenizer(path: str) -> PreTrainedTokenizerBase:
     if local_model_path:
         tokenizer = AutoTokenizer.from_pretrained(str(local_model_path), local_files_only=True)
     else:
-        tokenizer = AutoTokenizer.from_pretrained(path)
+        tokenizer = AutoTokenizer.from_pretrained(path, local_files_only=True)
 
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -97,7 +97,7 @@ def load_hf_model(
     else:
         logger.info(f"Loading model from HuggingFace hub: {model_id}")
         model_path = model_id
-        local_files_only = False
+        local_files_only = True
 
     # Create offload directory
     offload_dir = os.path.join(settings.model_offload_dir, model_id.replace("/", "_"))
@@ -165,22 +165,23 @@ def load_peft_model(
     offload_dir = os.path.join(settings.model_offload_dir, model_id.replace("/", "_"))
     os.makedirs(offload_dir, exist_ok=True)
 
-    # Load base model first
-    logger.info(f"Loading base model: {base_model_name}")
+    # Use AutoPeftModelForCausalLM to avoid double loading
+    logger.info(f"Loading PEFT model with base {base_model_name} and adapter from {source_path}")
     device = get_optimal_device()
-    base_model = AutoModelForCausalLM.from_pretrained(  # type: ignore[no-untyped-call]
-        base_model_name,
+
+    # This loads base + adapter in one go, avoiding double memory
+    model = AutoPeftModelForCausalLM.from_pretrained(
+        source_path,
         torch_dtype=get_torch_dtype(torch_dtype),
         trust_remote_code=True,
         offload_folder=offload_dir,
         offload_state_dict=True,
         low_cpu_mem_usage=True,
+        local_files_only=True,
+        device_map="auto" if device == "cuda" else None,
     )
-    base_model = base_model.to(device)
-
-    # Load and apply LoRA adapter
-    logger.info(f"Loading LoRA adapter from {source_path}")
-    model = PeftModel.from_pretrained(base_model, source_path)
+    if device != "cuda":
+        model = model.to(device)
 
     # Set to evaluation mode
     model.eval()

@@ -13,11 +13,18 @@ TOOL_PATTERN = re.compile(r"<tool>(.*?)</tool>\s*<args>(.*?)</args>", re.DOTALL)
 
 def _strip_markdown(text: str) -> str:
     """Strip markdown code blocks if present."""
+    # First try triple backticks
     if "```" in text:
         match = CODE_BLOCK_PATTERN.search(text)
         if match:
             logger.info("Stripped markdown code blocks from tool call")
             return match.group(1)
+
+    # Also strip single backticks around the entire content
+    if text.startswith("`") and text.endswith("`"):
+        logger.info("Stripped single backticks from tool call")
+        return text[1:-1]
+
     return text
 
 
@@ -49,19 +56,16 @@ def parse_xml_tool_call(
     """
     working_reply = _strip_markdown(reply)
 
-    # Try to find a match in either format
-    match = TOOL_PATTERN.search(working_reply)
-    original_xml = match.group(0) if match else None
+    # Look for the wrapped format as primary
+    wrapped_match = XML_PATTERN_FULL.search(working_reply)
+    if not wrapped_match:
+        return None, reply
 
-    if not match:
-        # Check for wrapped format for backwards compatibility
-        wrapped_match = XML_PATTERN_FULL.search(working_reply)
-        if wrapped_match:
-            inner_match = TOOL_PATTERN.search(wrapped_match.group(1))
-            if inner_match:
-                match = inner_match
-                original_xml = wrapped_match.group(0)
+    original_xml = wrapped_match.group(0)
+    inner_content = wrapped_match.group(1)
 
+    # Extract tool and args from inside the wrapper
+    match = TOOL_PATTERN.search(inner_content)
     if not match:
         return None, reply
 

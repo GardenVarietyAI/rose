@@ -10,14 +10,14 @@ from agents import (
 )
 from jinja2 import Environment, FileSystemLoader
 
-from rose_cli.tools.functions import list_files, read_file
+from rose_cli.tools.functions.list_models import list_models
 from rose_cli.utils import get_async_client
 
 
-class FileReaderActor:
-    """Agent that can read files and list directories."""
+class ModelManagerActor:
+    """Agent that manages models through the ROSE API."""
 
-    def __init__(self, model: str = "Qwen/Qwen2.5-1.5B-Instruct") -> None:
+    def __init__(self, model: str = "Qwen2.5-1.5B-Instruct") -> None:
         client = get_async_client()
         set_default_openai_client(client)
         set_tracing_disabled(True)
@@ -30,17 +30,16 @@ class FileReaderActor:
 
         # Prepare tool information for the template
         tools_info = [
-            {"name": "read_file", "description": "Read the contents of a file"},
-            {"name": "list_files", "description": "List files in a directory"},
+            {"name": "list_models", "description": "List all available models"},
         ]
 
         instructions = template.render(tools=tools_info)
 
         self.agent = Agent(
-            name="FileReader",
+            name="ModelManager",
             model=model,
             instructions=instructions,
-            tools=[read_file, list_files],
+            tools=[list_models],
         )
 
     def run(self, query: str) -> Dict[str, Any]:

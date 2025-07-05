@@ -43,7 +43,7 @@ class EventGenerator:
         # Store tools for later use in _stream_generation
         self._current_tools = tools
 
-        max_new = max_tokens or self.config.get("max_response_tokens", 512)
+        max_new = max_tokens or self.config.get("max_response_tokens", 2048)
         temp = temperature or self.config.get("temperature", 0.7)
 
         # Token counting happens in inference layer

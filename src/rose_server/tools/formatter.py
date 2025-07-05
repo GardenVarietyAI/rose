@@ -37,6 +37,9 @@ def format_tools_for_prompt(
             tool_type = tool.type
         elif isinstance(tool, dict):
             tool_type = tool.get("type")
+            # Handle OpenAI agents format (name, description, input_schema/params_json_schema)
+            if not tool_type and "name" in tool and "description" in tool:
+                tool_type = "function"
         else:
             continue
         if tool_type == "function":

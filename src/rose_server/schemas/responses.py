@@ -17,8 +17,9 @@ class ResponsesOutputItem(BaseModel):
     status: Optional[str] = "completed"
     role: str
     content: Optional[List[ResponsesContentItem]] = None
-    name: Optional[str] = None  # For function calls
-    arguments: Optional[str] = None  # For function calls
+    name: Optional[str] = None  # For function calls (deprecated)
+    arguments: Optional[str] = None  # For function calls (deprecated)
+    tool_calls: Optional[List[Dict[str, Any]]] = None  # OpenAI format tool calls
 
 
 class ResponsesUsage(BaseModel):
@@ -80,9 +81,9 @@ class ResponsesRequest(BaseModel):
     tools: Optional[List[Dict[str, Any]]] = Field(default=None, description="Available tools")
     tool_choice: Optional[str] = Field(default="auto", description="Tool choice strategy")
     parallel_tool_calls: Optional[bool] = Field(default=True, description="Whether to allow parallel tool calls")
-    max_output_tokens: Optional[int] = Field(default=None, description="Maximum tokens to generate")
-    temperature: Optional[float] = Field(default=1.0, description="Temperature for sampling")
-    top_p: Optional[float] = Field(default=1.0, description="Top-p value for sampling")
+    max_output_tokens: Optional[int] = Field(default=2048, description="Maximum tokens to generate")
+    temperature: Optional[float] = Field(default=0.7, description="Temperature for sampling")
+    top_p: Optional[float] = Field(default=0.8, description="Top-p value for sampling")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata")
     store: Optional[bool] = Field(default=True, description="Whether to store the conversation")
     previous_response_id: Optional[str] = Field(default=None, description="Previous response ID")
@@ -162,6 +163,7 @@ class ResponseFunctionCallArgumentsDoneEvent(ResponseEventBase):
     item_id: str = Field(description="Item ID")
     output_index: int = Field(description="Output index")
     call_id: str = Field(description="Call ID")
+    name: str = Field(description="Function name")
     arguments: str = Field(description="Complete arguments")
 
 

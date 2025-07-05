@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import shutil
+import uuid
 from pathlib import Path
 from typing import Any, Dict
 
@@ -130,24 +131,11 @@ async def delete_model(model: str) -> JSONResponse:
 @router.post("/models", status_code=201)
 async def create_model(request: ModelCreateRequest) -> Dict[str, Any]:
     """Create a new model configuration."""
-    # Check if model already exists
-    existing = await get_language_model(request.id)
-    if existing:
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "error": {
-                    "message": f"Model '{request.id}' already exists",
-                    "type": "invalid_request_error",
-                    "param": "id",
-                    "code": "model_exists",
-                }
-            },
-        )
+    # Always generate UUID internally
+    str(uuid.uuid4())
 
     # Create the model
     model = await create_language_model(
-        id=request.id,
         model_name=request.model_name,
         name=request.name,
         temperature=request.temperature,
