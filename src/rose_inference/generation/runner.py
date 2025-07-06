@@ -82,7 +82,7 @@ async def run_subprocess_inference() -> None:
         # Read request from stdin
         logger.info("Reading request from stdin...")
         try:
-            stdin_data = sys.stdin.read()
+            stdin_data = await asyncio.to_thread(sys.stdin.read)
             if not stdin_data:
                 logger.error("No input data received from stdin")
                 print(json.dumps({"type": "error", "error": "No input data received"}), flush=True)

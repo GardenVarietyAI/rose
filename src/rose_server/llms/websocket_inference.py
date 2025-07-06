@@ -30,7 +30,7 @@ class InferenceClient:
         messages: Optional[List[Dict[str, Any]]] = None,
     ) -> AsyncGenerator[Any, None]:
         """Stream inference results from the worker."""
-        start_time = asyncio.get_event_loop().time()
+        start_time = asyncio.get_running_loop().time()
         total_tokens = 0
 
         try:
@@ -63,11 +63,11 @@ class InferenceClient:
 
                 # Stream responses with timeout
                 timeout = settings.inference_timeout
-                deadline = asyncio.get_event_loop().time() + timeout
+                deadline = asyncio.get_running_loop().time() + timeout
 
                 async for message in websocket:
                     # Check if we've exceeded the timeout
-                    if asyncio.get_event_loop().time() > deadline:
+                    if asyncio.get_running_loop().time() > deadline:
                         logger.error(f"Inference timeout after {timeout}s")
                         raise asyncio.TimeoutError(f"Inference timeout after {timeout}s")
                     data = json.loads(message)
@@ -91,7 +91,7 @@ class InferenceClient:
                         )
 
                     elif data["type"] == "complete":
-                        completion_time = asyncio.get_event_loop().time() - start_time
+                        completion_time = asyncio.get_running_loop().time() - start_time
                         # Extract token counts from completion message
                         input_tokens = data.get("input_tokens", 0)
                         output_tokens = data.get("output_tokens", total_tokens)
@@ -114,7 +114,7 @@ class InferenceClient:
         except asyncio.TimeoutError as e:
             logger.error(f"Inference timeout: {e}")
             # Return a timeout completion event
-            completion_time = asyncio.get_event_loop().time() - start_time
+            completion_time = asyncio.get_running_loop().time() - start_time
             yield ResponseCompleted(
                 model_name=model_name,
                 response_id=response_id,
@@ -127,7 +127,7 @@ class InferenceClient:
         except websockets.exceptions.ConnectionClosed:
             logger.info("Client disconnected during inference")
             # Return a cancelled completion event
-            completion_time = asyncio.get_event_loop().time() - start_time
+            completion_time = asyncio.get_running_loop().time() - start_time
             yield ResponseCompleted(
                 model_name=model_name,
                 response_id=response_id,

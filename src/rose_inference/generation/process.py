@@ -17,9 +17,6 @@ logger = logging.getLogger(__name__)
 # Semaphore for controlling concurrent inferences (default: 1 = sequential)
 inference_semaphore = asyncio.Semaphore(settings.max_concurrent_inference)
 
-# Default timeout for inference
-INFERENCE_TIMEOUT = settings.inference_timeout
-
 
 async def process_inference_request(websocket: WebSocket, request_data: Dict[str, Any]) -> None:
     """Process inference request in isolated subprocess."""
@@ -54,7 +51,12 @@ async def process_inference_request(websocket: WebSocket, request_data: Dict[str
                 )
             except (OSError, PermissionError) as e:
                 logger.error(f"[{stream_id}] Failed to create subprocess: {e}")
-                await websocket.send_json({"type": "error", "error": f"Failed to create inference process: {e}"})
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "error": f"Failed to create inference process: {e}",
+                    }
+                )
                 return
 
             logger.info(f"[{stream_id}] Subprocess started with PID {proc.pid}")
@@ -69,7 +71,12 @@ async def process_inference_request(websocket: WebSocket, request_data: Dict[str
                     raise RuntimeError("Process stdin not available")
             except (BrokenPipeError, ConnectionError) as e:
                 logger.error(f"[{stream_id}] Failed to send request to subprocess: {e}")
-                await websocket.send_json({"type": "error", "error": "Failed to communicate with inference process"})
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "error": "Failed to communicate with inference process",
+                    }
+                )
                 return
 
             # Create tasks for streaming
@@ -107,9 +114,9 @@ async def process_inference_request(websocket: WebSocket, request_data: Dict[str
 
                 # Wait for stdout completion with timeout (stderr can continue)
                 try:
-                    await asyncio.wait_for(stdout_task, timeout=INFERENCE_TIMEOUT)
+                    await asyncio.wait_for(stdout_task, timeout=settings.inference_timeout)
                 except asyncio.TimeoutError:
-                    logger.error(f"[{stream_id}] Inference timeout after {INFERENCE_TIMEOUT}s")
+                    logger.error(f"[{stream_id}] Inference timeout after {settings.inference_timeout}s")
                     stdout_task.cancel()
                     if websocket.client_state == WebSocketState.CONNECTED:
                         await websocket.send_json({"type": "error", "error": "Inference timeout"})
