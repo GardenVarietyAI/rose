@@ -140,6 +140,9 @@ class InferenceClient:
         except OSError as e:
             logger.error(f"Could not connect to inference worker at {self.uri}: {e}")
             raise RuntimeError("Unable to connect to inference worker. Please ensure the inference service is running.")
+        except RuntimeError:
+            # Re-raise RuntimeError to preserve the original error message
+            raise
         except Exception as e:
             logger.error(f"WebSocket error: {e}")
-            raise RuntimeError("Unable to connect to inference worker. Please ensure the inference service is running.")
+            raise RuntimeError(f"Inference error: {str(e)}")
