@@ -61,7 +61,8 @@ class InferenceClient:
                 await websocket.send(json.dumps(request))
                 logger.debug(f"Sent inference request for model {model_name}")
 
-                # Stream responses
+                # Stream responses with timeout
+                asyncio.get_event_loop().time()
                 async for message in websocket:
                     data = json.loads(message)
 

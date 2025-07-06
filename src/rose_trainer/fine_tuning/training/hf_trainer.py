@@ -89,7 +89,12 @@ def train(
         callbacks.append(EarlyStoppingCallback(early_stopping_patience=hp.early_stopping_patience))
 
     # Load dataset and tokenize
-    raw_dataset: Dataset = load_dataset("json", data_files=str(training_file_path), split="train")
+    try:
+        raw_dataset: Dataset = load_dataset("json", data_files=str(training_file_path), split="train")
+    except Exception as e:
+        raise ValueError(
+            "Failed to load training data: Invalid JSONL format. Each line must be a valid JSON object."
+        ) from e
 
     def tokenize_example(example: Dict[str, Any]) -> "BatchEncoding":
         # Check if tokenizer has a chat template

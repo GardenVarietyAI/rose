@@ -17,6 +17,7 @@ class StreamingXMLDetector:
 
     def __init__(self):
         self.buffer = ""
+        self.max_buffer_size = 8192  # 8KB max buffer to prevent infinite buffering
         # Remove unused state variables
 
     def process_token(self, token: str) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
@@ -34,17 +35,24 @@ class StreamingXMLDetector:
 
         self.buffer += token
 
-        # Check for complete tool call - look for <tool> followed by </args>
-        tool_start = self.buffer.find("<tool>")
+        # Check buffer size limit to prevent infinite buffering
+        if len(self.buffer) > self.max_buffer_size:
+            logger.warning(f"Buffer exceeded max size ({self.max_buffer_size} bytes), flushing")
+            text = self.buffer
+            self.buffer = ""
+            return text, None
+
+        # Check for complete tool call - look for <tool_call> followed by </tool_call>
+        tool_start = self.buffer.find("<tool_call>")
         if tool_start != -1:
-            # Look for the closing </args> tag which ends a tool call
-            args_end = self.buffer.find("</args>", tool_start)
-            if args_end != -1:
+            # Look for the closing </tool_call> tag which ends a tool call
+            tool_end = self.buffer.find("</tool_call>", tool_start)
+            if tool_end != -1:
                 logger.info("XML detector found complete tool call!")
-                args_end += 7  # Include closing tag
+                tool_end += 12  # Include closing tag
                 text_before = self.buffer[:tool_start]
-                tool_xml = self.buffer[tool_start:args_end]
-                self.buffer = self.buffer[args_end:]
+                tool_xml = self.buffer[tool_start:tool_end]
+                self.buffer = self.buffer[tool_end:]
 
                 # Strip common markdown wrappers
                 stripped = text_before.strip()
@@ -56,12 +64,12 @@ class StreamingXMLDetector:
                 tool_call, _ = parse_xml_tool_call(tool_xml)
                 return (text_before if text_before else None), tool_call
             else:
-                # We have <tool> but no </args> yet, keep buffering
+                # We have <tool_call> but no </tool_call> yet, keep buffering
                 return None, None
 
         # If buffer could be start of a tool call, keep buffering
-        # Check if buffer ends with a partial tag that could become <tool> or <args>
-        for partial in ["<", "<t", "<to", "<too", "<tool", "<a", "<ar", "<arg", "<args"]:
+        # Check if buffer ends with a partial tag that could become <tool_call>
+        for partial in ["<", "<t", "<to", "<too", "<tool", "<tool_", "<tool_c", "<tool_ca", "<tool_cal", "<tool_call"]:
             if self.buffer.endswith(partial):
                 return None, None
 

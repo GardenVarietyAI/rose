@@ -4,8 +4,6 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
-from rose_server.schemas.messages import MessageCreateRequest
-
 
 class ResponsesContentItem(BaseModel):
     type: Literal["output_text"]
@@ -19,8 +17,9 @@ class ResponsesOutputItem(BaseModel):
     status: Optional[str] = "completed"
     role: str
     content: Optional[List[ResponsesContentItem]] = None
-    name: Optional[str] = None  # For function calls
-    arguments: Optional[str] = None  # For function calls
+    name: Optional[str] = None  # For function calls (deprecated)
+    arguments: Optional[str] = None  # For function calls (deprecated)
+    tool_calls: Optional[List[Dict[str, Any]]] = None  # OpenAI format tool calls
 
 
 class ResponsesUsage(BaseModel):
@@ -41,20 +40,50 @@ class ResponsesResponse(BaseModel):
     usage: ResponsesUsage
 
 
+class ResponsesInputMessage(BaseModel):
+    """Standard message input for responses API."""
+
+    role: Literal["user", "assistant", "developer"] = Field(description="Message role")
+    content: Union[str, List[Dict[str, Any]], None] = Field(description="Message content")
+
+
+class ResponsesInputFunctionCall(BaseModel):
+    """Function call message from assistant."""
+
+    type: Literal["function_call"] = Field(description="Message type")
+    id: str = Field(description="Function call ID")
+    name: str = Field(description="Function name")
+    arguments: Optional[str] = Field(description="Function arguments as JSON string")
+    role: Literal["assistant"] = Field(default="assistant", description="Always assistant role")
+    content: Union[str, None] = Field(default=None, description="Optional content")
+    status: Optional[str] = Field(default=None, description="Call status")
+
+
+class ResponsesInputFunctionOutput(BaseModel):
+    """Function call output/result."""
+
+    type: Literal["function_call_output"] = Field(description="Message type")
+    call_id: Optional[str] = Field(description="ID of the function call this is responding to")
+    output: str = Field(description="Function execution output")
+
+
+ResponsesInput = Union[ResponsesInputMessage, ResponsesInputFunctionCall, ResponsesInputFunctionOutput]
+
+
 class ResponsesRequest(BaseModel):
     """Responses API request format."""
 
     model: str = Field(description="Model to use for completion")
-    input: Union[List[MessageCreateRequest], str] = Field(description="Input messages or text")
+    input: Union[List[ResponsesInput], str] = Field(description="Input messages or text")
     modalities: List[Literal["text"]] = Field(default=["text"], description="Supported modalities")
     instructions: Optional[str] = Field(default=None, description="System instructions")
     stream: Optional[bool] = Field(default=False, description="Whether to stream the response")
     tools: Optional[List[Dict[str, Any]]] = Field(default=None, description="Available tools")
     tool_choice: Optional[str] = Field(default="auto", description="Tool choice strategy")
     parallel_tool_calls: Optional[bool] = Field(default=True, description="Whether to allow parallel tool calls")
-    max_output_tokens: Optional[int] = Field(default=None, description="Maximum tokens to generate")
-    temperature: Optional[float] = Field(default=1.0, description="Temperature for sampling")
-    top_p: Optional[float] = Field(default=1.0, description="Top-p value for sampling")
+    max_output_tokens: Optional[int] = Field(default=2048, description="Maximum tokens to generate")
+    temperature: Optional[float] = Field(default=0.7, description="Temperature for sampling")
+    top_p: Optional[float] = Field(default=0.8, description="Top-p value for sampling")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata")
     store: Optional[bool] = Field(default=True, description="Whether to store the conversation")
     previous_response_id: Optional[str] = Field(default=None, description="Previous response ID")
@@ -134,6 +163,7 @@ class ResponseFunctionCallArgumentsDoneEvent(ResponseEventBase):
     item_id: str = Field(description="Item ID")
     output_index: int = Field(description="Output index")
     call_id: str = Field(description="Call ID")
+    name: str = Field(description="Function name")
     arguments: str = Field(description="Complete arguments")
 
 

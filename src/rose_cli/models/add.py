@@ -43,10 +43,16 @@ def add_model(
         data["lora_target_modules"] = lora_modules
 
     try:
+        # Build auth headers from the client's API key
+        headers = {}
+        if client.api_key:
+            headers["Authorization"] = f"Bearer {client.api_key}"
+
         # Use the OpenAI client's underlying httpx client to make the request
         response = client._client.post(
-            "/v1/models",
+            "/models",
             json=data,
+            headers=headers,
         )
         response.raise_for_status()
 

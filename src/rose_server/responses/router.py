@@ -18,6 +18,7 @@ from rose_server.schemas.responses import (
     ResponsesResponse,
     ResponsesUsage,
 )
+from rose_server.tools import format_tools_for_prompt
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["responses"])
@@ -34,21 +35,49 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMess
         messages = await get_conversation_messages(request.previous_response_id)
 
     # Add system instructions
+    system_content_parts = []
+
     if request.instructions:
-        messages.append(ChatMessage(role="system", content=request.instructions))
+        system_content_parts.append(request.instructions)
+
+    # Auto-inject tool instructions if tools are provided
+    if request.tools:
+        tool_instructions = format_tools_for_prompt(request.tools)
+        if tool_instructions:
+            system_content_parts.append(tool_instructions)
+
+    # Combine system instructions
+    if system_content_parts:
+        combined_instructions = "\n\n".join(system_content_parts)
+        messages.append(ChatMessage(role="system", content=combined_instructions))
 
     # Add current user input
     if isinstance(request.input, str):
         # Handle string input directly
         messages.append(ChatMessage(role="user", content=request.input))
     elif isinstance(request.input, list):
-        # Handle list of MessageCreateRequest objects
+        # Handle list of ResponsesInput objects
         for msg in request.input:
-            # Map 'developer' role to 'system' for ChatMessage
-            role = "system" if msg.role == "developer" else msg.role
-            # Handle content - if it's a list, convert to string
-            content = msg.content if isinstance(msg.content, str) else str(msg.content)
-            messages.append(ChatMessage(role=role, content=content))
+            # Check message type
+            if hasattr(msg, "type"):
+                if msg.type == "function_call":
+                    # Function call from assistant - add as a message showing the call
+                    content = f"[Function call: {msg.name}({msg.arguments})]"
+                    messages.append(ChatMessage(role="assistant", content=content))
+                elif msg.type == "function_call_output":
+                    # Function output - add as a system message with instructions to use the result
+                    content = (
+                        f"The function returned the following result:\n\n{msg.output}\n\n"
+                        "Please provide a natural language response incorporating this information."
+                    )
+                    messages.append(ChatMessage(role="system", content=content))
+            else:
+                # Standard message format
+                # Map 'developer' role to 'system' for ChatMessage
+                role = "system" if msg.role == "developer" else msg.role
+                # Handle content - if it's a list, convert to string
+                content = msg.content if isinstance(msg.content, str) else str(msg.content) if msg.content else ""
+                messages.append(ChatMessage(role=role, content=content))
 
     return messages
 
@@ -60,7 +89,12 @@ async def _generate_streaming_response(request: ResponsesRequest, llm, messages:
             formatter = ResponsesFormatter()
 
             async for event in generator.generate_events(
-                messages, enable_tools=bool(request.tools), tools=request.tools
+                messages,
+                enable_tools=bool(request.tools),
+                tools=request.tools,
+                max_tokens=request.max_output_tokens,
+                temperature=request.temperature,
+                tool_choice=request.tool_choice,
             ):
                 formatted = formatter.format_event(event)
                 if formatted:
@@ -81,7 +115,14 @@ async def _generate_complete_response(
     formatter = ResponsesFormatter()
     all_events = []
 
-    async for event in generator.generate_events(messages, enable_tools=bool(request.tools), tools=request.tools):
+    async for event in generator.generate_events(
+        messages,
+        enable_tools=bool(request.tools),
+        tools=request.tools,
+        max_tokens=request.max_output_tokens,
+        temperature=request.temperature,
+        tool_choice=request.tool_choice,
+    ):
         all_events.append(event)
 
     complete_response = formatter.format_complete_response(all_events)
@@ -186,6 +227,7 @@ async def create_response(request: ResponsesRequest = Body(...), registry: Model
     try:
         logger.info(f"RESPONSES API - Input type: {type(request.input)}, Input: {request.input}")
         logger.info(f"RESPONSES API - Instructions: {request.instructions}")
+        logger.info(f"RESPONSES API - max_output_tokens: {request.max_output_tokens}")
 
         # Validate previous_response_id if provided
         previous_response = None

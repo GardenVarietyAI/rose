@@ -42,19 +42,10 @@ async def _handle_training_completed(event: WebhookEvent, registry) -> None:
 
     fine_tuned_model = event.data.get("fine_tuned_model")
 
-    await update_job_status(
-        event.object_id,
-        status="succeeded",
-        fine_tuned_model=fine_tuned_model,
-        trained_tokens=event.data.get("trained_tokens", 0),
-    )
-
     if result_file_id:
         await update_job_result_files(event.object_id, [result_file_id])
 
-    await _update_queue_job_completed(event)
-
-    # Register the fine-tuned model in the LanguageModel table
+    # Register the fine-tuned model in the LanguageModel table FIRST
     if not fine_tuned_model:
         logger.error(f"Fine-tuning model from job {event.object_id} not found")
         return
@@ -64,15 +55,24 @@ async def _handle_training_completed(event: WebhookEvent, registry) -> None:
         base_config = await registry.get_model_config(ft_job.model)
         hf_model_name = base_config.get("hf_model_name") if base_config else None
 
-        await create_language_model(
-            id=fine_tuned_model,
+        created_model = await create_language_model(
             model_name=hf_model_name or ft_job.model,
             name=fine_tuned_model,
             path=str(model_path),
             parent=ft_job.model,
         )
 
-        logger.info(f"Registered fine-tuned model {fine_tuned_model} in database")
+        logger.info(f"Registered fine-tuned model {fine_tuned_model} with ID {created_model.id} in database")
+
+        # Update job with the UUID instead of the timestamp-based name
+        await update_job_status(
+            event.object_id,
+            status="succeeded",
+            fine_tuned_model=created_model.id,  # Use UUID here
+            trained_tokens=event.data.get("trained_tokens", 0),
+        )
+
+        await _update_queue_job_completed(event)
     except Exception as e:
         logger.error(f"Failed to register fine-tuned model: {e}")
 

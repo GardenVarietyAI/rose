@@ -1,16 +1,18 @@
 """Light orchestrator for inference requests."""
 
 import asyncio
+import gc
 import logging
 import uuid
 from typing import Any, Dict
 
+import torch
 from fastapi import WebSocket
 
 from rose_core.config.settings import settings
 from rose_core.models import cleanup_model_memory
 from rose_inference.generation.backends.hf_generator import generate_stream
-from rose_inference.generation.cache import load_model
+from rose_inference.generation.runner import load_model, log_memory_status
 
 logger = logging.getLogger(__name__)
 
@@ -39,29 +41,51 @@ async def process_inference_request(websocket: WebSocket, request_data: Dict[str
                 await websocket.send_json({"type": "complete", "total_tokens": 0})
                 return
 
-            # Load model (cached)
             model_info = await load_model(model_name, model_config)
 
-            # Run generation and stream results
-            token_counts = await generate_stream(
-                model=model_info["model"],
-                tokenizer=model_info["tokenizer"],
-                prompt=prompt,
-                messages=messages,
-                generation_kwargs=generation_kwargs,
-                websocket=websocket,
-                stream_id=stream_id,
-            )
+            try:
+                # Run generation and stream results
+                token_counts = await generate_stream(
+                    model=model_info["model"],
+                    tokenizer=model_info["tokenizer"],
+                    prompt=prompt,
+                    messages=messages,
+                    generation_kwargs=generation_kwargs,
+                    websocket=websocket,
+                    stream_id=stream_id,
+                )
 
-            # Send completion with token counts
-            await websocket.send_json(
-                {
-                    "type": "complete",
-                    "input_tokens": token_counts["input_tokens"],
-                    "output_tokens": token_counts["output_tokens"],
-                    "total_tokens": token_counts["input_tokens"] + token_counts["output_tokens"],
-                }
-            )
+                # Send completion with token counts
+                await websocket.send_json(
+                    {
+                        "type": "complete",
+                        "input_tokens": token_counts["input_tokens"],
+                        "output_tokens": token_counts["output_tokens"],
+                        "total_tokens": token_counts["input_tokens"] + token_counts["output_tokens"],
+                    }
+                )
+            finally:
+                # ALWAYS cleanup the model after use since we're not caching
+                logger.info(f"[{stream_id}] Cleaning up model {model_name}")
+                log_memory_status("before cleanup")
+
+                if model_info.get("model"):
+                    cleanup_model_memory(model_info["model"])
+
+                # Force deletion of references
+                if "model" in model_info:
+                    del model_info["model"]
+                if "tokenizer" in model_info:
+                    del model_info["tokenizer"]
+                del model_info
+
+                # Aggressive cleanup
+                gc.collect()
+                if hasattr(torch, "mps") and torch.backends.mps.is_available():
+                    # MPS doesn't have empty_cache, but we can try to force cleanup
+                    torch.mps.synchronize()
+
+                log_memory_status("after cleanup")
 
         except Exception as e:
             logger.error(f"[{stream_id}] Inference error: {e}")
@@ -72,6 +96,5 @@ async def process_inference_request(websocket: WebSocket, request_data: Dict[str
                 pass  # Connection might be closed
 
         finally:
-            # Cleanup memory after each inference
-            cleanup_model_memory()
+            # Additional cleanup to ensure memory is released
             logger.info(f"[{stream_id}] Inference completed")

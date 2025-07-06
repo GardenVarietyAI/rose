@@ -1,7 +1,7 @@
 import typer
 from rich import print
 
-from rose_cli.actors.personas import FileReaderActor
+from rose_cli.actors.file_reader.actor import FileReaderActor
 
 
 def file_reader(

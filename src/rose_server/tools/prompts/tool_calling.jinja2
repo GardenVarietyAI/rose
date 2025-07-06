@@ -16,10 +16,12 @@ Tool usage:
 3. After receiving results, incorporate them in your response
 
 XML format:
-<tool>tool_name</tool>
-<args>
-  <parameter_name>value</parameter_name>
-</args>
+<tool_call>
+  <tool>tool_name</tool>
+  <args>
+    <parameter_name>value</parameter_name>
+  </args>
+</tool_call>
 
 XML escaping (required):
 - < becomes &lt;
@@ -31,19 +33,23 @@ XML escaping (required):
 Examples:
 {% if tools|selectattr("name", "equalto", "file_search")|list %}
 User: Find information about API authentication
-Assistant: <tool>file_search</tool>
-<args>
-  <query>API authentication methods security</query>
-</args>
+Assistant: <tool_call>
+  <tool>file_search</tool>
+  <args>
+    <query>API authentication methods security</query>
+  </args>
+</tool_call>
 {% endif %}
 {% for tool in tools %}
 {% if tool.name not in ["file_search", "code_interpreter", "web_search"] %}
 User: [Example using {{ tool.name }}]
-Assistant: <tool>{{ tool.name }}</tool>
-<args>
-  {% for param_name in tool.parameters.get('required', []) %}
-  <{{ param_name }}>example_value</{{ param_name }}>
-  {% endfor %}
-</args>
+Assistant: <tool_call>
+  <tool>{{ tool.name }}</tool>
+  <args>
+    {% for param_name in tool.parameters.get('required', []) %}
+    <{{ param_name }}>example_value</{{ param_name }}>
+    {% endfor %}
+  </args>
+</tool_call>
 {% endif %}
 {% endfor %}

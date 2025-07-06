@@ -9,7 +9,6 @@ from rose_server.entities.models import LanguageModel
 
 
 async def create(
-    id: str,
     model_name: str,
     path: Optional[str] = None,
     parent: Optional[str] = None,
@@ -23,9 +22,8 @@ async def create(
 ) -> LanguageModel:
     """Register a new language model."""
     model = LanguageModel(
-        id=id,
-        name=name or id,
         model_name=model_name,
+        name=name,
         path=path,
         is_fine_tuned=parent is not None,
         temperature=temperature,
@@ -33,9 +31,15 @@ async def create(
         memory_gb=memory_gb,
         timeout=timeout,
         owned_by=owned_by if not parent else "user",
-        root=parent or id,  # Fine-tuned models point to base, base models to themselves
         parent=parent,  # None for base models, parent model for fine-tuned
     )
+
+    # Set root after model is created (so we have the auto-generated id)
+    model.root = parent or model.id
+
+    # If no name provided, use the auto-generated id
+    if not model.name:
+        model.name = model.id
 
     if lora_modules:
         model.set_lora_modules(lora_modules)
