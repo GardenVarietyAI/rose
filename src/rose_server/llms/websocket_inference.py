@@ -62,8 +62,14 @@ class InferenceClient:
                 logger.debug(f"Sent inference request for model {model_name}")
 
                 # Stream responses with timeout
-                asyncio.get_event_loop().time()
+                timeout = settings.inference_timeout
+                deadline = asyncio.get_event_loop().time() + timeout
+
                 async for message in websocket:
+                    # Check if we've exceeded the timeout
+                    if asyncio.get_event_loop().time() > deadline:
+                        logger.error(f"Inference timeout after {timeout}s")
+                        raise asyncio.TimeoutError(f"Inference timeout after {timeout}s")
                     data = json.loads(message)
 
                     if data["type"] == "input_tokens_counted":
@@ -105,6 +111,19 @@ class InferenceClient:
                         logger.error(f"Inference error: {data['error']}")
                         raise RuntimeError(f"Inference failed: {data['error']}")
 
+        except asyncio.TimeoutError as e:
+            logger.error(f"Inference timeout: {e}")
+            # Return a timeout completion event
+            completion_time = asyncio.get_event_loop().time() - start_time
+            yield ResponseCompleted(
+                model_name=model_name,
+                response_id=response_id,
+                total_tokens=total_tokens,
+                finish_reason="timeout",
+                output_tokens=total_tokens,
+                completion_time=completion_time,
+            )
+            return
         except websockets.exceptions.ConnectionClosed:
             logger.info("Client disconnected during inference")
             # Return a cancelled completion event
