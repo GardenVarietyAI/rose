@@ -44,7 +44,7 @@ class InferenceClient:
                 result = json.loads(response)
 
                 logger.info(f"Model eviction response: {result}")
-                return result
+                return dict(result)
 
         except asyncio.TimeoutError:
             logger.error("Timeout waiting for eviction response")

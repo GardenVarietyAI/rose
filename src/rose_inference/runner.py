@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import Any, AsyncGenerator, Dict, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from rose_core.config.settings import settings
 from rose_inference.backends.hf_generator import generate_stream
@@ -17,7 +17,7 @@ class Runner:
     def __init__(self) -> None:
         self.model_cache = ModelCache()
         self.request_count = 0
-        self.request_queue = asyncio.Queue(maxsize=100)
+        self.request_queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue(maxsize=100)
         self.worker_task = None
 
     async def start_worker(self) -> None:
@@ -118,13 +118,13 @@ class Runner:
         model_name: str,
         model_config: Dict[str, Any],
         generation_kwargs: Dict[str, Any],
-        messages: Optional[list] = None,
+        messages: Optional[List[Dict[str, Any]]] = None,
         prompt: str = "",
         stream_id: Optional[str] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """Queue an inference request and yield events as they're processed."""
         # Create response queue for this request
-        response_queue = asyncio.Queue()
+        response_queue: asyncio.Queue[Optional[Dict[str, Any]]] = asyncio.Queue()
 
         # Add request to the processing queue
         request = {

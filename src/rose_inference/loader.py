@@ -4,6 +4,7 @@ import logging
 from typing import Any, Callable, Dict
 
 import torch
+from torch import quantization
 
 from rose_core.models import get_tokenizer, load_hf_model
 
@@ -45,7 +46,7 @@ async def load_model(model_name: str, model_config: Dict[str, Any]) -> Dict[str,
         if torch.backends.mps.is_available():
             # Use PyTorch's dynamic quantization for CPU/Apple Silicon
             # This converts weights to INT8 and uses INT8 compute where possible
-            model = torch.quantization.quantize_dynamic(
+            model = quantization.quantize_dynamic(  # type: ignore[attr-defined]
                 model,
                 {torch.nn.Linear},  # Quantize Linear layers
                 dtype=torch.qint8,

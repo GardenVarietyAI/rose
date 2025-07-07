@@ -22,7 +22,7 @@ class ModelCache:
     async def get_or_load_model(self, model_name: str, model_config: Dict[str, Any]) -> Dict[str, Any]:
         """Get model from cache or load it."""
         # Check if we have the same model cached
-        if self.current_model_name == model_name:
+        if self.current_model_name == model_name and self.current_model is not None:
             logger.info(f"Using cached model: {model_name} (inference #{self.total_inferences + 1})")
             self.last_used = time.time()
             self.total_inferences += 1
