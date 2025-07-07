@@ -139,7 +139,6 @@ async def create_model(request: ModelCreateRequest) -> Dict[str, Any]:
         memory_gb=request.memory_gb,
         timeout=request.timeout,
         lora_modules=request.lora_target_modules,
-        owned_by=request.owned_by,
     )
 
     logger.info(f"Created model: {model.id} ({model.model_name})")

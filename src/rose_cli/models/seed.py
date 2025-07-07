@@ -17,7 +17,6 @@ def seed_models() -> None:
     # Default models to seed
     default_models = [
         {
-            "name": "phi-1.5",
             "model_name": "microsoft/phi-1_5",
             "temperature": 0.7,
             "top_p": 0.95,
@@ -25,7 +24,6 @@ def seed_models() -> None:
             "lora_target_modules": ["q_proj", "k_proj", "v_proj", "dense"],
         },
         {
-            "name": "phi-2",
             "model_name": "microsoft/phi-2",
             "temperature": 0.5,
             "top_p": 0.9,
@@ -33,7 +31,6 @@ def seed_models() -> None:
             "lora_target_modules": ["q_proj", "k_proj", "v_proj", "dense"],
         },
         {
-            "name": "qwen-coder",
             "model_name": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
             "temperature": 0.2,
             "top_p": 0.9,
@@ -42,7 +39,6 @@ def seed_models() -> None:
             "lora_target_modules": ["q_proj", "k_proj", "v_proj", "o_proj"],
         },
         {
-            "name": "qwen2.5-0.5b",
             "model_name": "Qwen/Qwen2.5-0.5B-Instruct",
             "temperature": 0.3,
             "top_p": 0.9,
@@ -51,7 +47,14 @@ def seed_models() -> None:
             "lora_target_modules": ["q_proj", "k_proj", "v_proj", "o_proj"],
         },
         {
-            "name": "Hermes 3 Llama 3.2 3B",
+            "model_name": "Qwen/Qwen2.5-1.5B-Instruct",
+            "temperature": 0.3,
+            "top_p": 0.9,
+            "memory_gb": 3.0,
+            "timeout": 90,
+            "lora_target_modules": ["q_proj", "k_proj", "v_proj", "o_proj"],
+        },
+        {
             "model_name": "NousResearch/Hermes-3-Llama-3.2-3B",
             "temperature": 0.7,
             "top_p": 0.9,

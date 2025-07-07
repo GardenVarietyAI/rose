@@ -1,27 +1,24 @@
 """Store for LanguageModel entity operations."""
 
-import hashlib
 import uuid
 from typing import List, Optional
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from rose_server.database import get_session
 from rose_server.entities.models import LanguageModel
 
 
-async def _generate_model_id(is_fine_tuned: bool, base_model: str, suffix: str = "") -> str:
+async def _generate_model_id(is_fine_tuned: bool, base_model: str, model_name: str, suffix: str = "") -> str:
     """Generate model ID based on OpenAI format."""
-    # Generate short hash for uniqueness
-    unique_hash = hashlib.sha256(str(uuid.uuid4()).encode()).hexdigest()[:6]
+    if not is_fine_tuned:
+        return model_name.replace("/", "--")
 
-    if is_fine_tuned:
-        # Format: ft:{base_model}:{org}:{suffix}:{hash}
-        suffix_part = suffix if suffix else "default"
-        return f"ft:{base_model}:user:{suffix_part}:{unique_hash}"
-    else:
-        # For base models: model-id-{hash}
-        return f"model-id-{unique_hash}"
+    unique_hash = uuid.uuid4().hex[:6]
+    suffix_part = suffix if suffix else "default"
+    safe_base_model = base_model.replace("/", "--")
+    return f"ft:{safe_base_model}:user:{suffix_part}:{unique_hash}"
 
 
 async def create(
@@ -34,19 +31,20 @@ async def create(
     memory_gb: float = 2.0,
     timeout: Optional[int] = None,
     lora_modules: Optional[List[str]] = None,
-    owned_by: str = "organization-owner",
     suffix: Optional[str] = None,
 ) -> LanguageModel:
     """Register a new language model."""
+
     is_fine_tuned = parent is not None
+    owned_by = "user" if is_fine_tuned else "system"
 
     # Generate appropriate ID
     model_id = await _generate_model_id(
-        is_fine_tuned=is_fine_tuned, base_model=parent or model_name, suffix=suffix or ""
+        is_fine_tuned=is_fine_tuned,
+        base_model=parent or model_name,
+        model_name=model_name,
+        suffix=suffix or "",
     )
-
-    # Always set owned_by based on model type
-    owned_by = "user" if is_fine_tuned else "system"
 
     model = LanguageModel(
         id=model_id,
@@ -65,18 +63,20 @@ async def create(
     # Set root to parent for fine-tuned, or self for base models
     model.root = parent or model_id
 
-    # If no name provided, use the model_name
-    if not model.name:
-        model.name = model.model_name
-
     if lora_modules:
         model.set_lora_modules(lora_modules)
 
     async with get_session() as session:
-        session.add(model)
-        await session.commit()
-        await session.refresh(model)
-        return model
+        try:
+            session.add(model)
+            await session.commit()
+            await session.refresh(model)
+            return model
+        except IntegrityError:
+            # Model already exists, retrieve and return it
+            await session.rollback()
+            existing_model = await session.execute(select(LanguageModel).where(LanguageModel.id == model_id))
+            return existing_model.scalar_one()
 
 
 async def get(model_id: str) -> Optional[LanguageModel]:
