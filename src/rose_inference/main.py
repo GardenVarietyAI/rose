@@ -86,7 +86,13 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             prompt=request_data.get("prompt", ""),
             stream_id=request_data.get("stream_id"),
         ):
+            # Send the event
             await websocket.send_json(event)
+
+            # If it's an error event, stop processing
+            if event.get("type") == "error":
+                logger.error(f"Inference error: {event.get('error', 'Unknown error')}")
+                break
 
     except WebSocketDisconnect:
         logger.info("Client disconnected")

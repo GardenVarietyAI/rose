@@ -52,9 +52,19 @@ async def load_model(model_name: str, model_config: Dict[str, Any]) -> Dict[str,
                 dtype=torch.qint8,
             )
             logger.info("Applied INT8 dynamic quantization (Apple Silicon compatible)")
-        else:
+        elif torch.cuda.is_available():
             # For CUDA, could use bitsandbytes if available
-            logger.warning("INT8 quantization requested but not on Apple Silicon, skipping quantization")
+            logger.warning(
+                f"INT8 quantization requested for {model_name} but PyTorch dynamic quantization "
+                "is not supported on CUDA. Skipping quantization. Consider using bitsandbytes "
+                "for CUDA quantization support."
+            )
+        else:
+            # CPU without MPS
+            logger.warning(
+                f"INT8 quantization requested for {model_name} but running on CPU without Apple Silicon MPS. "
+                "Skipping quantization."
+            )
 
     # Return model info
     return {

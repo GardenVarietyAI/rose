@@ -62,8 +62,11 @@ class ModelCache:
     def get_status(self) -> Dict[str, Any]:
         """Get cache status."""
         return {
+            "cache_type": "single_model",
+            "cache_description": "Keeps one model hot in memory. Loading a different model evicts the current one.",
             "cached_model": self.current_model_name,
             "last_used": self.last_used,
             "total_inferences": self.total_inferences,
             "cache_age_seconds": time.time() - self.last_used if self.current_model else 0,
+            "is_loaded": self.current_model is not None,
         }

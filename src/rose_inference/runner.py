@@ -165,5 +165,7 @@ class Runner:
             "worker_status": {
                 "request_count": self.request_count,
                 "max_concurrent": settings.max_concurrent_inference,
+                "queue_depth": self.request_queue.qsize(),
+                "queue_max_size": self.request_queue.maxsize,
             },
         }
