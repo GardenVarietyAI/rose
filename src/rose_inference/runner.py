@@ -167,7 +167,3 @@ class Runner:
                 "max_concurrent": settings.max_concurrent_inference,
             },
         }
-
-
-# Runner class is now just a plain class - no singleton needed
-# Instance will be managed by FastAPI's app.state
