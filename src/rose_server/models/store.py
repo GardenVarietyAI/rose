@@ -32,6 +32,7 @@ async def create(
     timeout: Optional[int] = None,
     lora_modules: Optional[List[str]] = None,
     suffix: Optional[str] = None,
+    quantization: Optional[str] = None,
 ) -> LanguageModel:
     """Register a new language model."""
 
@@ -58,6 +59,7 @@ async def create(
         timeout=timeout,
         owned_by=owned_by,
         parent=parent,
+        quantization=quantization,
     )
 
     # Set root to parent for fine-tuned, or self for base models

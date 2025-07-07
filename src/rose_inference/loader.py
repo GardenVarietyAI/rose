@@ -3,6 +3,8 @@
 import logging
 from typing import Any, Callable, Dict
 
+import torch
+
 from rose_core.models import get_tokenizer, load_hf_model
 
 logger = logging.getLogger(__name__)
@@ -35,6 +37,24 @@ async def load_model(model_name: str, model_config: Dict[str, Any]) -> Dict[str,
     # Load tokenizer
     tokenizer = get_tokenizer(model_id)
 
+    # Apply INT8 quantization if requested
+    if model_config.get("quantization") == "int8":
+        logger.info(f"Applying INT8 quantization to {model_name}")
+
+        # Check if running on Apple Silicon
+        if torch.backends.mps.is_available():
+            # Use PyTorch's dynamic quantization for CPU/Apple Silicon
+            # This converts weights to INT8 and uses INT8 compute where possible
+            model = torch.quantization.quantize_dynamic(
+                model,
+                {torch.nn.Linear},  # Quantize Linear layers
+                dtype=torch.qint8,
+            )
+            logger.info("Applied INT8 dynamic quantization (Apple Silicon compatible)")
+        else:
+            # For CUDA, could use bitsandbytes if available
+            logger.warning("INT8 quantization requested but not on Apple Silicon, skipping quantization")
+
     # Return model info
     return {
         "name": model_name,
@@ -43,4 +63,5 @@ async def load_model(model_name: str, model_config: Dict[str, Any]) -> Dict[str,
         "config": model_config,
         "device": str(model.device) if hasattr(model, "device") else "cpu",
         "dtype": str(next(model.parameters()).dtype) if hasattr(model, "parameters") else "unknown",
+        "quantized": model_config.get("quantization") == "int8" and torch.backends.mps.is_available(),
     }

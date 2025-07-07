@@ -69,6 +69,7 @@ async def get_model_details(model_id: str) -> JSONResponse:
                 # Extra field for internal use
                 "model_name": model.model_name,
                 "lora_target_modules": model.get_lora_modules(),
+                "quantization": model.quantization,
             }
         )
     raise HTTPException(
@@ -177,6 +178,7 @@ async def create_model(request: ModelCreateRequest) -> Dict[str, Any]:
         memory_gb=request.memory_gb,
         timeout=request.timeout,
         lora_modules=request.lora_target_modules,
+        quantization=request.quantization,
     )
 
     logger.info(f"Created model: {model.id} ({model.model_name})")
