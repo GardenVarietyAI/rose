@@ -5,7 +5,7 @@ import time
 from typing import Any, Dict, Optional
 
 from rose_core.models import cleanup_model_memory
-from rose_inference.generation.runner import load_model
+from rose_inference.loader import load_model
 
 logger = logging.getLogger(__name__)
 
