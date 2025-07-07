@@ -1,18 +1,16 @@
-"""Light orchestrator for inference requests."""
+"""Subprocess-per-request inference orchestrator."""
 
 import asyncio
-import gc
+import json
 import logging
+import sys
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-import torch
-from fastapi import WebSocket
+from fastapi import WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketState
 
 from rose_core.config.settings import settings
-from rose_core.models import cleanup_model_memory
-from rose_inference.generation.backends.hf_generator import generate_stream
-from rose_inference.generation.runner import load_model, log_memory_status
 
 logger = logging.getLogger(__name__)
 
@@ -21,80 +19,155 @@ inference_semaphore = asyncio.Semaphore(settings.max_concurrent_inference)
 
 
 async def process_inference_request(websocket: WebSocket, request_data: Dict[str, Any]) -> None:
-    """Process a single inference request - orchestrator."""
-    stream_id = str(uuid.uuid4())[:8]  # Short ID for request tracking
+    """Process inference request in isolated subprocess."""
+    stream_id = str(uuid.uuid4())[:8]
+    proc: Optional[asyncio.subprocess.Process] = None
 
-    async with inference_semaphore:  # Simple concurrency control
+    async with inference_semaphore:
         try:
-            logger.info(f"[{stream_id}] Starting inference request")
-
-            # Extract request data
-            model_name = request_data["model_name"]
-            model_config = request_data["config"]
-            generation_kwargs = request_data["generation_kwargs"]
-            messages = request_data.get("messages")  # Optional messages for chat formatting
-            prompt = request_data.get("prompt", "")  # Optional pre-formatted prompt
+            logger.info(f"[{stream_id}] Starting subprocess inference")
 
             # Check for empty input
+            messages = request_data.get("messages")
+            prompt = request_data.get("prompt", "")
+
             if not messages and not prompt:
-                logger.info(f"[{stream_id}] Empty input received, returning empty response")
+                logger.info(f"[{stream_id}] Empty input received")
                 await websocket.send_json({"type": "complete", "total_tokens": 0})
                 return
 
-            model_info = await load_model(model_name, model_config)
+            # Add stream_id to request
+            request_data["stream_id"] = stream_id
 
+            # Launch subprocess
             try:
-                # Run generation and stream results
-                token_counts = await generate_stream(
-                    model=model_info["model"],
-                    tokenizer=model_info["tokenizer"],
-                    prompt=prompt,
-                    messages=messages,
-                    generation_kwargs=generation_kwargs,
-                    websocket=websocket,
-                    stream_id=stream_id,
+                proc = await asyncio.create_subprocess_exec(
+                    sys.executable,
+                    "-m",
+                    "rose_inference.generation.runner",
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
                 )
-
-                # Send completion with token counts
+            except (OSError, PermissionError) as e:
+                logger.error(f"[{stream_id}] Failed to create subprocess: {e}")
                 await websocket.send_json(
                     {
-                        "type": "complete",
-                        "input_tokens": token_counts["input_tokens"],
-                        "output_tokens": token_counts["output_tokens"],
-                        "total_tokens": token_counts["input_tokens"] + token_counts["output_tokens"],
+                        "type": "error",
+                        "error": f"Failed to create inference process: {e}",
                     }
                 )
-            finally:
-                # ALWAYS cleanup the model after use since we're not caching
-                logger.info(f"[{stream_id}] Cleaning up model {model_name}")
-                log_memory_status("before cleanup")
+                return
 
-                if model_info.get("model"):
-                    cleanup_model_memory(model_info["model"])
+            logger.info(f"[{stream_id}] Subprocess started with PID {proc.pid}")
 
-                # Force deletion of references
-                if "model" in model_info:
-                    del model_info["model"]
-                if "tokenizer" in model_info:
-                    del model_info["tokenizer"]
-                del model_info
-
-                # Aggressive cleanup
-                gc.collect()
-                if hasattr(torch, "mps") and torch.backends.mps.is_available():
-                    # MPS doesn't have empty_cache, but we can try to force cleanup
-                    torch.mps.synchronize()
-
-                log_memory_status("after cleanup")
-
-        except Exception as e:
-            logger.error(f"[{stream_id}] Inference error: {e}")
-            error_msg = {"type": "error", "error": str(e)}
+            # Send request via stdin and close
             try:
-                await websocket.send_json(error_msg)
-            except Exception:
-                pass  # Connection might be closed
+                if proc.stdin:
+                    proc.stdin.write(json.dumps(request_data).encode())
+                    await proc.stdin.drain()
+                    proc.stdin.close()
+                else:
+                    raise RuntimeError("Process stdin not available")
+            except (BrokenPipeError, ConnectionError) as e:
+                logger.error(f"[{stream_id}] Failed to send request to subprocess: {e}")
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "error": "Failed to communicate with inference process",
+                    }
+                )
+                return
 
+            # Create tasks for streaming
+            async def stream_stdout() -> bool:
+                """Stream stdout to websocket."""
+                if not proc.stdout:
+                    return False
+                async for line in proc.stdout:
+                    # Check if client is still connected
+                    if websocket.client_state != WebSocketState.CONNECTED:
+                        logger.info(f"[{stream_id}] Client disconnected, stopping stream")
+                        return False
+
+                    try:
+                        data = json.loads(line)
+                        await websocket.send_json(data)
+                    except json.JSONDecodeError:
+                        logger.warning(f"[{stream_id}] Invalid JSON: {line.decode()}")
+                    except Exception as e:
+                        logger.error(f"[{stream_id}] Error forwarding: {e}")
+                        return False
+                return True
+
+            async def stream_stderr() -> None:
+                """Stream stderr for real-time logging."""
+                if not proc.stderr:
+                    return
+                async for line in proc.stderr:
+                    logger.info(f"[{stream_id}] Subprocess: {line.decode().strip()}")
+
+            # Run streams with timeout
+            try:
+                stdout_task = asyncio.create_task(stream_stdout())
+                stderr_task = asyncio.create_task(stream_stderr())
+
+                # Wait for stdout completion with timeout (stderr can continue)
+                try:
+                    await asyncio.wait_for(stdout_task, timeout=settings.inference_timeout)
+                except asyncio.TimeoutError:
+                    logger.error(f"[{stream_id}] Inference timeout after {settings.inference_timeout}s")
+                    stdout_task.cancel()
+                    if websocket.client_state == WebSocketState.CONNECTED:
+                        await websocket.send_json({"type": "error", "error": "Inference timeout"})
+                    raise
+
+                # Check if stdout completed successfully
+                if not stdout_task.result():
+                    raise Exception("Stream interrupted")
+
+                # Give stderr a bit more time to finish logging
+                try:
+                    await asyncio.wait_for(stderr_task, timeout=5)
+                except asyncio.TimeoutError:
+                    stderr_task.cancel()
+
+            except asyncio.TimeoutError:
+                raise
+
+            # Wait for process completion
+            returncode = await asyncio.wait_for(proc.wait(), timeout=10)
+
+            if returncode != 0:
+                logger.error(f"[{stream_id}] Subprocess failed with code {returncode}")
+                if websocket.client_state == WebSocketState.CONNECTED:
+                    await websocket.send_json({"type": "error", "error": "Inference failed"})
+
+        except WebSocketDisconnect:
+            logger.info(f"[{stream_id}] WebSocket disconnected during inference")
+        except asyncio.CancelledError:
+            logger.info(f"[{stream_id}] Inference cancelled")
+            raise
+        except Exception as e:
+            logger.error(f"[{stream_id}] Error: {e}")
+            if websocket.client_state == WebSocketState.CONNECTED:
+                try:
+                    await websocket.send_json({"type": "error", "error": str(e)})
+                except Exception:
+                    pass
         finally:
-            # Additional cleanup to ensure memory is released
-            logger.info(f"[{stream_id}] Inference completed")
+            # Clean up subprocess if still running
+            if proc and proc.returncode is None:
+                logger.info(f"[{stream_id}] Terminating subprocess")
+                try:
+                    proc.terminate()
+                    await asyncio.wait_for(proc.wait(), timeout=5)
+                except asyncio.TimeoutError:
+                    logger.warning(f"[{stream_id}] Force killing subprocess")
+                    try:
+                        proc.kill()
+                        await proc.wait()
+                    except ProcessLookupError:
+                        pass  # Process already gone
+                except ProcessLookupError:
+                    pass  # Process already gone

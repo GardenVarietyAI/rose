@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     # Inference settings
     inference_uri: str = Field(default="ws://localhost:8005", description="WebSocket URI for inference worker")
     default_model: str = Field(default="qwen2.5-0.5b", description="Default model for inference")
-    inference_timeout: int = Field(default=30, description="Inference timeout in seconds")
+    inference_timeout: int = Field(default=300, description="Inference timeout in seconds")
     max_concurrent_inference: int = Field(default=1, description="Maximum concurrent inference requests")
 
     # Webhook settings

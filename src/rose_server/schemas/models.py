@@ -15,4 +15,3 @@ class ModelCreateRequest(BaseModel):
     memory_gb: float = 2.0
     timeout: Optional[int] = None
     lora_target_modules: Optional[List[str]] = None
-    owned_by: str = "organization-owner"

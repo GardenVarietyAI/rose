@@ -4,7 +4,6 @@ import asyncio
 import json
 import logging
 import shutil
-import uuid
 from pathlib import Path
 from typing import Any, Dict
 
@@ -131,9 +130,6 @@ async def delete_model(model: str) -> JSONResponse:
 @router.post("/models", status_code=201)
 async def create_model(request: ModelCreateRequest) -> Dict[str, Any]:
     """Create a new model configuration."""
-    # Always generate UUID internally
-    str(uuid.uuid4())
-
     # Create the model
     model = await create_language_model(
         model_name=request.model_name,
@@ -143,7 +139,6 @@ async def create_model(request: ModelCreateRequest) -> Dict[str, Any]:
         memory_gb=request.memory_gb,
         timeout=request.timeout,
         lora_modules=request.lora_target_modules,
-        owned_by=request.owned_by,
     )
 
     logger.info(f"Created model: {model.id} ({model.model_name})")

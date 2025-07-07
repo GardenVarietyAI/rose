@@ -38,7 +38,11 @@ def train(
     # Fetch model info from API
     model_info = client.get_model(model_name)
     if not model_info:
-        raise ValueError(f"Model {model_name} not found")
+        logger.error(
+            f"Model '{model_name}' not found in models database. "
+            "Please ensure the model is registered before fine-tuning."
+        )
+        raise ValueError(f"Model '{model_name}' not found")
 
     hp = HyperParams.resolve(hyperparameters)
     torch.manual_seed(hp.seed)
