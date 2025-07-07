@@ -60,7 +60,7 @@ async def _handle_training_completed(event: WebhookEvent, registry) -> None:
             name=fine_tuned_model,
             path=str(model_path),
             parent=ft_job.model,
-            suffix=ft_job.suffix if hasattr(ft_job, "suffix") else None,
+            suffix=getattr(ft_job, "suffix", None),
         )
 
         logger.info(f"Registered fine-tuned model {fine_tuned_model} with ID {created_model.id} in database")
