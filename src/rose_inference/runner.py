@@ -49,7 +49,7 @@ async def load_model(model_name: str, model_config: Dict[str, Any]) -> Dict[str,
     }
 
 
-class InferenceWorker:
+class Runner:
     """Long-running worker that handles inference requests with model caching."""
 
     def __init__(self) -> None:
@@ -151,12 +151,12 @@ class InferenceWorker:
 
 
 # Global worker instance
-_worker: Optional[InferenceWorker] = None
+_worker: Optional[Runner] = None
 
 
-def get_worker() -> InferenceWorker:
+def get_worker() -> Runner:
     """Get or create the global worker instance."""
     global _worker
     if _worker is None:
-        _worker = InferenceWorker()
+        _worker = Runner()
     return _worker
