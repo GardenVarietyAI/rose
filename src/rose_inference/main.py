@@ -8,7 +8,7 @@ import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from rose_core.config.settings import settings
-from rose_inference.worker import get_worker
+from rose_inference.runner import get_worker
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

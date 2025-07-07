@@ -5,8 +5,8 @@ from typing import Any, AsyncGenerator, Callable, Dict, Optional
 
 from rose_core.config.settings import settings
 from rose_core.models import get_tokenizer, load_hf_model
+from rose_inference.backends.hf_generator import generate_stream
 from rose_inference.cache import ModelCache
-from rose_inference.generation.backends.hf_generator import generate_stream
 
 logger = logging.getLogger(__name__)
 
