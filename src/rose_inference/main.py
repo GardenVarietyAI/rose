@@ -36,6 +36,15 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         request = await websocket.receive_text()
         request_data = json.loads(request)
 
+        # Check if this is a control request
+        if request_data.get("type") == "control" and request_data.get("action") == "evict_models":
+            logger.info("Received model eviction request")
+            # For now, just acknowledge - the subprocess approach means models aren't cached here
+            await websocket.send_json(
+                {"status": "evicted", "message": "Model cache cleared (subprocess-based inference)"}
+            )
+            return
+
         # Process the inference request
         await process_inference_request(websocket, request_data)
 
