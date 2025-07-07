@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -19,11 +20,21 @@ async def lifespan(app: FastAPI):
     """Manage application lifecycle."""
     # Initialize runner on startup
     app.state.runner = Runner()
-    logger.info("Inference runner initialized")
+
+    # Start the worker task
+    app.state.runner.worker_task = asyncio.create_task(app.state.runner.start_worker())
+    logger.info("Inference runner initialized with queue worker")
 
     yield
 
     # Cleanup on shutdown
+    if app.state.runner.worker_task:
+        app.state.runner.worker_task.cancel()
+        try:
+            await app.state.runner.worker_task
+        except asyncio.CancelledError:
+            pass
+
     app.state.runner.model_cache.evict()
     logger.info("Inference runner cleaned up")
 
