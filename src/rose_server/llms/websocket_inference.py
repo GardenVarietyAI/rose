@@ -9,7 +9,11 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 import websockets
 
 from rose_core.config.settings import settings
-from rose_server.events.event_types import InputTokensCounted, ResponseCompleted, TokenGenerated
+from rose_server.events.event_types import (
+    InputTokensCounted,
+    ResponseCompleted,
+    TokenGenerated,
+)
 
 logger = logging.getLogger(__name__)
 
