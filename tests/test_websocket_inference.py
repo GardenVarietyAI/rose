@@ -3,7 +3,7 @@
 import pytest
 
 from rose_core.config.settings import settings
-from rose_server.llms.websocket_inference import InferenceClient
+from rose_server.inference.client import InferenceClient
 
 
 @pytest.mark.asyncio

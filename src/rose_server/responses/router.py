@@ -7,8 +7,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from rose_server.events.formatters import ResponsesFormatter
 from rose_server.events.generator import EventGenerator
-from rose_server.llms import model_cache
-from rose_server.llms.deps import ModelRegistryDep
+from rose_server.models.deps import ModelRegistryDep
 from rose_server.responses.store import get_response, store_response_messages
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.responses import (
@@ -82,19 +81,27 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMess
     return messages
 
 
-async def _generate_streaming_response(request: ResponsesRequest, llm, messages: list[ChatMessage]):
+async def _generate_streaming_response(
+    model_name: str,
+    config: dict,
+    messages: list[ChatMessage],
+    tools: Optional[list] = None,
+    max_output_tokens: Optional[int] = None,
+    temperature: Optional[float] = None,
+    tool_choice: Optional[str] = None,
+):
     async def generate():
         try:
-            generator = EventGenerator(llm)
+            generator = EventGenerator(model_name, config)
             formatter = ResponsesFormatter()
 
             async for event in generator.generate_events(
                 messages,
-                enable_tools=bool(request.tools),
-                tools=request.tools,
-                max_tokens=request.max_output_tokens,
-                temperature=request.temperature,
-                tool_choice=request.tool_choice,
+                enable_tools=bool(tools),
+                tools=tools,
+                max_tokens=max_output_tokens,
+                temperature=temperature,
+                tool_choice=tool_choice,
             ):
                 formatted = formatter.format_event(event)
                 if formatted:
@@ -109,27 +116,35 @@ async def _generate_streaming_response(request: ResponsesRequest, llm, messages:
 
 
 async def _generate_complete_response(
-    request: ResponsesRequest, llm, messages: list[ChatMessage], chain_id: Optional[str] = None
+    model_name: str,
+    config: dict,
+    messages: list[ChatMessage],
+    tools: Optional[list] = None,
+    max_output_tokens: Optional[int] = None,
+    temperature: Optional[float] = None,
+    tool_choice: Optional[str] = None,
+    store: bool = False,
+    chain_id: Optional[str] = None,
 ):
-    generator = EventGenerator(llm)
+    generator = EventGenerator(model_name, config)
     formatter = ResponsesFormatter()
     all_events = []
 
     async for event in generator.generate_events(
         messages,
-        enable_tools=bool(request.tools),
-        tools=request.tools,
-        max_tokens=request.max_output_tokens,
-        temperature=request.temperature,
-        tool_choice=request.tool_choice,
+        enable_tools=bool(tools),
+        tools=tools,
+        max_tokens=max_output_tokens,
+        temperature=temperature,
+        tool_choice=tool_choice,
     ):
         all_events.append(event)
 
     complete_response = formatter.format_complete_response(all_events)
-    complete_response["model"] = request.model
+    complete_response["model"] = model_name
 
-    if request.store:
-        await _store_response(complete_response, messages, request.model, chain_id)
+    if store:
+        await _store_response(complete_response, messages, model_name, chain_id)
 
     return complete_response
 
@@ -274,13 +289,27 @@ async def create_response(request: ResponsesRequest = Body(...), registry: Model
                 },
             )
 
-        llm = await model_cache.get_model(request.model, config)
-
         if request.stream:
-            return await _generate_streaming_response(request, llm, messages)
+            return await _generate_streaming_response(
+                model_name=request.model,
+                config=config,
+                messages=messages,
+                tools=request.tools,
+                max_output_tokens=request.max_output_tokens,
+                temperature=request.temperature,
+                tool_choice=request.tool_choice,
+            )
         else:
             return await _generate_complete_response(
-                request, llm, messages, previous_response.response_chain_id if previous_response else None
+                model_name=request.model,
+                config=config,
+                messages=messages,
+                tools=request.tools,
+                max_output_tokens=request.max_output_tokens,
+                temperature=request.temperature,
+                tool_choice=request.tool_choice,
+                store=request.store,
+                chain_id=previous_response.response_chain_id if previous_response else None,
             )
     except HTTPException:
         raise

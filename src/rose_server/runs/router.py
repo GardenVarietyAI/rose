@@ -10,7 +10,7 @@ from sse_starlette.sse import EventSourceResponse
 from rose_server.assistants.store import get_assistant
 from rose_server.database import current_timestamp
 from rose_server.entities.runs import Run
-from rose_server.llms.deps import ModelRegistryDep
+from rose_server.models.deps import ModelRegistryDep
 from rose_server.runs.executor import execute_assistant_run_streaming
 from rose_server.runs.steps.router import router as steps_router
 from rose_server.runs.store import cancel_run, create_run, get_run, list_runs, update_run

@@ -10,8 +10,7 @@ from rose_server.events.event_types.generation import (
     ToolCallCompleted,
     ToolCallStarted,
 )
-from rose_server.llms.llm import LLM
-from rose_server.llms.websocket_inference import InferenceClient
+from rose_server.inference.client import InferenceClient
 from rose_server.schemas.chat import ChatMessage
 from rose_server.tools import StreamingXMLDetector
 
@@ -19,10 +18,9 @@ logger = logging.getLogger(__name__)
 
 
 class EventGenerator:
-    def __init__(self, llm: LLM) -> None:
-        self.llm = llm
-        self.model_name: str = llm.model_name
-        self.config: Dict[str, Any] = llm.config
+    def __init__(self, model_name: str, config: Dict[str, Any]) -> None:
+        self.model_name: str = model_name
+        self.config: Dict[str, Any] = config
         self._current_tools: Optional[List[Any]] = None
 
     async def generate_events(
@@ -39,7 +37,7 @@ class EventGenerator:
         Union[ResponseStarted, TokenGenerated, ToolCallStarted, ToolCallCompleted, ResponseCompleted],
         None,
     ]:
-        """Main entrypoint: yield events for an LLM run."""
+        """Main entrypoint: yield events for a model run."""
         # Store tools for later use in _stream_generation
         self._current_tools = tools
 
@@ -94,8 +92,8 @@ class EventGenerator:
 
         # Get model config
         model_config = {
-            "model_name": self.llm.model_name,
-            "model_path": self.llm.model_path,
+            "model_name": self.model_name,
+            "model_path": self.config.get("model_path"),
         }
 
         detector = StreamingXMLDetector() if enable_tools else None
