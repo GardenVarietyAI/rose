@@ -21,6 +21,7 @@ def add_model(
     timeout: Optional[int] = typer.Option(None, "--timeout", help="Timeout in seconds"),
     lora_modules: Optional[List[str]] = typer.Option(None, "--lora-modules", "-l", help="LoRA target modules"),
     owned_by: str = typer.Option("organization-owner", "--owned-by", "-o", help="Model owner"),
+    quantization: Optional[str] = typer.Option(None, "--quantization", "-q", help="Quantization type (e.g., 'int8')"),
 ) -> None:
     """Add a new model configuration to ROSE server."""
     client = get_client()
@@ -41,6 +42,8 @@ def add_model(
         data["timeout"] = timeout
     if lora_modules:
         data["lora_target_modules"] = lora_modules
+    if quantization:
+        data["quantization"] = quantization
 
     try:
         # Build auth headers from the client's API key
@@ -74,6 +77,7 @@ def add_model(
         table.add_row("Memory (GB)", str(memory_gb))
         table.add_row("Timeout (s)", str(timeout) if timeout else "None")
         table.add_row("Owner", owned_by)
+        table.add_row("Quantization", quantization or "None")
         table.add_row("Created", str(model["created"]))
 
         console.print(table)

@@ -285,7 +285,7 @@ async def create_response(request: ResponsesRequest = Body(...), registry: Model
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Responses API error: {str(e)}", exc_info=True)
+        logger.error(f"Responses API error: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail={

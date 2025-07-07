@@ -2,7 +2,6 @@
 
 import json
 import time
-import uuid
 from typing import List, Optional
 
 from sqlmodel import Field, SQLModel
@@ -11,7 +10,7 @@ from sqlmodel import Field, SQLModel
 class LanguageModel(SQLModel, table=True):
     __tablename__ = "models"
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    id: str = Field(primary_key=True)
     name: Optional[str] = Field(default=None)
     model_name: str = Field(index=True)  # HuggingFace model name
     model_type: str = Field(default="huggingface")
@@ -23,6 +22,7 @@ class LanguageModel(SQLModel, table=True):
     top_p: float = Field(default=0.9)
     memory_gb: float = Field(default=2.0)
     timeout: Optional[int] = Field(default=None)  # Timeout in seconds
+    quantization: Optional[str] = Field(default=None)  # Quantization type: "int8", etc.
 
     # LoRA configuration (stored as JSON)
     lora_target_modules: Optional[str] = Field(default=None)  # JSON array

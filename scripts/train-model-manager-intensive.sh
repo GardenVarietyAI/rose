@@ -5,7 +5,7 @@ set -e
 # === Configuration ===
 TRAIN_FILE=/tmp/model_manager_diverse_data.jsonl
 EPOCHS=10
-MODEL_NAME=Qwen2.5-1.5B-Instruct
+MODEL_ID="Qwen--Qwen2.5-1.5B-Instruct"
 SUFFIX=diverse-model-manager
 LR_MULTIPLIER=2.0
 BATCH_SIZE=4
@@ -40,7 +40,7 @@ echo "File ID: $FILE_ID"
 echo "Starting fine-tuning job with diverse training set..."
 JOB_ID=$(poetry run rose finetune create \
   --file "$FILE_ID" \
-  --model "$MODEL_NAME" \
+  --model "$MODEL_ID" \
   --suffix "$SUFFIX" \
   --epochs "$EPOCHS" \
   --learning-rate-multiplier "$LR_MULTIPLIER" \
