@@ -8,8 +8,7 @@ import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from rose_core.config.settings import settings
-from rose_inference.generation.process import process_inference_request
-from rose_inference.generation.runner import cleanup_models
+from rose_inference.worker import get_worker
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -36,17 +35,35 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         request = await websocket.receive_text()
         request_data = json.loads(request)
 
+        # Get the worker instance
+        worker = get_worker()
+
         # Check if this is a control request
-        if request_data.get("type") == "control" and request_data.get("action") == "evict_models":
-            logger.info("Received model eviction request")
-            # For now, just acknowledge - the subprocess approach means models aren't cached here
-            await websocket.send_json(
-                {"status": "evicted", "message": "Model cache cleared (subprocess-based inference)"}
-            )
+        if request_data.get("type") == "control":
+            action = request_data.get("action")
+
+            if action == "evict_models":
+                result = worker.evict_models()
+                await websocket.send_json(result)
+
+            elif action == "cache_status":
+                result = worker.get_status()
+                await websocket.send_json(result)
+
+            else:
+                await websocket.send_json({"status": "error", "message": f"Unknown control action: {action}"})
             return
 
         # Process the inference request
-        await process_inference_request(websocket, request_data)
+        async for event in worker.run_inference(
+            model_name=request_data["model_name"],
+            model_config=request_data["config"],
+            generation_kwargs=request_data["generation_kwargs"],
+            messages=request_data.get("messages"),
+            prompt=request_data.get("prompt", ""),
+            stream_id=request_data.get("stream_id"),
+        ):
+            await websocket.send_json(event)
 
     except WebSocketDisconnect:
         logger.info("Client disconnected")
@@ -67,10 +84,17 @@ async def health() -> Dict[str, Any]:
     }
 
 
+def cleanup_worker() -> None:
+    """Clean up worker resources on shutdown."""
+    worker = get_worker()
+    worker.model_cache.evict()
+    logger.info("Worker cleaned up")
+
+
 def main() -> None:
     """Entry point for the inference server."""
     # Register cleanup handler
-    atexit.register(cleanup_models)
+    atexit.register(cleanup_worker)
 
     # Run server
     logger.info("Starting inference server on ws://localhost:8005")
