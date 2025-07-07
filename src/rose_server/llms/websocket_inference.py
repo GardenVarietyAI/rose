@@ -137,7 +137,7 @@ class InferenceClient:
                 completion_time=completion_time,
             )
             return
-        except OSError as e:
+        except (OSError, ValueError) as e:
             logger.error(f"Could not connect to inference worker at {self.uri}: {e}")
             raise RuntimeError("Unable to connect to inference worker. Please ensure the inference service is running.")
         except RuntimeError:
