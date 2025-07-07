@@ -61,7 +61,7 @@ async def fail_run(
     yield status_evt
 
 
-async def get_model_for_run(model_name: str) -> Tuple[str, Dict[str, Any]]:
+async def get_model_for_run(model_name: str) -> Dict[str, Any]:
     model = await get_language_model(model_name)
     if not model:
         raise ValueError(f"Model '{model_name}' not found")
@@ -78,7 +78,7 @@ async def get_model_for_run(model_name: str) -> Tuple[str, Dict[str, Any]]:
     if not config.get("model_name"):
         raise ValueError(f"No configuration found for model: {model_name}")
 
-    return model_name, config
+    return config
 
 
 async def handle_tool_calls(
@@ -233,7 +233,7 @@ async def execute_assistant_run_streaming(
 
     # Get model
     try:
-        model_name, config = await get_model_for_run(run.model or assistant.model)
+        config = await get_model_for_run(run.model or assistant.model)
     except Exception as exc:
         async for evt in fail_run(run.id, step, "model_error", str(exc)):
             yield evt
