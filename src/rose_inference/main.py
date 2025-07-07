@@ -1,19 +1,34 @@
-import atexit
 import json
 import logging
 import os
+from contextlib import asynccontextmanager
 from typing import Any, Dict
 
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from rose_core.config.settings import settings
-from rose_inference.runner import get_worker
+from rose_inference.runner import Runner
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="ROSE Inference Server")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifecycle."""
+    # Initialize runner on startup
+    app.state.runner = Runner()
+    logger.info("Inference runner initialized")
+
+    yield
+
+    # Cleanup on shutdown
+    app.state.runner.model_cache.evict()
+    logger.info("Inference runner cleaned up")
+
+
+app = FastAPI(title="ROSE Inference Server", lifespan=lifespan)
 
 
 @app.websocket("/")
@@ -35,19 +50,16 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         request = await websocket.receive_text()
         request_data = json.loads(request)
 
-        # Get the worker instance
-        worker = get_worker()
-
         # Check if this is a control request
         if request_data.get("type") == "control":
             action = request_data.get("action")
 
             if action == "evict_models":
-                result = worker.evict_models()
+                result = app.state.runner.evict_models()
                 await websocket.send_json(result)
 
             elif action == "cache_status":
-                result = worker.get_status()
+                result = app.state.runner.get_status()
                 await websocket.send_json(result)
 
             else:
@@ -55,7 +67,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             return
 
         # Process the inference request
-        async for event in worker.run_inference(
+        async for event in app.state.runner.run_inference(
             model_name=request_data["model_name"],
             model_config=request_data["config"],
             generation_kwargs=request_data["generation_kwargs"],
@@ -84,17 +96,8 @@ async def health() -> Dict[str, Any]:
     }
 
 
-def cleanup_worker() -> None:
-    """Clean up worker resources on shutdown."""
-    worker = get_worker()
-    worker.model_cache.evict()
-    logger.info("Worker cleaned up")
-
-
 def main() -> None:
     """Entry point for the inference server."""
-    # Register cleanup handler
-    atexit.register(cleanup_worker)
 
     # Run server
     logger.info("Starting inference server on ws://localhost:8005")

@@ -150,13 +150,5 @@ class Runner:
         }
 
 
-# Global worker instance
-_worker: Optional[Runner] = None
-
-
-def get_worker() -> Runner:
-    """Get or create the global worker instance."""
-    global _worker
-    if _worker is None:
-        _worker = Runner()
-    return _worker
+# Runner class is now just a plain class - no singleton needed
+# Instance will be managed by FastAPI's app.state
