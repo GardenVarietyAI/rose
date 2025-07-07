@@ -18,7 +18,6 @@ from rose_core.config.settings import settings
 from rose_server.events.event_types import LLMEvent
 from rose_server.events.formatters import ChatCompletionsFormatter
 from rose_server.events.generator import EventGenerator
-from rose_server.llms import model_cache
 from rose_server.models.store import get as get_language_model
 from rose_server.schemas.chat import ChatMessage, ChatRequest
 
@@ -88,12 +87,7 @@ async def event_based_chat_completions(
 
         if model.get_lora_modules():
             config["lora_target_modules"] = model.get_lora_modules()
-        try:
-            base_llm = await model_cache.get_model(request.model, config)
-        except Exception as e:
-            logger.error(f"Failed to create model {request.model}: {e}")
-            return JSONResponse(status_code=500, content={"error": f"Failed to load model: {str(e)}"})
-        generator = EventGenerator(base_llm)
+        generator = EventGenerator(config)
         formatter = ChatCompletionsFormatter()
         logger.info("[EVENT] Using ChatCompletionsGenerator for chat completions")
         if request.stream:

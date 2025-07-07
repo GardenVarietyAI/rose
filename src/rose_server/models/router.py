@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 
 from rose_core.config.settings import settings
 from rose_server.fs import check_file_path
-from rose_server.llms.websocket_inference import InferenceClient
+from rose_server.inference.client import InferenceClient
 from rose_server.models.store import (
     create as create_language_model,
     delete as delete_language_model,

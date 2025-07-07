@@ -2,14 +2,7 @@ import json
 import logging
 import uuid
 from pathlib import Path
-from typing import (
-    Any,
-    AsyncGenerator,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-)
+from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 
 from sse_starlette import ServerSentEvent
 
@@ -20,7 +13,6 @@ from rose_server.entities.run_steps import RunStep
 from rose_server.events.event_types import ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.events.formatters.runs import RunsFormatter
 from rose_server.events.generator import EventGenerator
-from rose_server.llms import model_cache
 from rose_server.models.store import get as get_language_model
 from rose_server.runs.builtin_tools import execute_builtin_tool
 from rose_server.runs.prompt_builder import find_latest_user_message
@@ -69,7 +61,7 @@ async def fail_run(
     yield status_evt
 
 
-async def get_model_for_run(model_name: str) -> Any:
+async def get_model_for_run(model_name: str) -> Tuple[str, Dict[str, Any]]:
     model = await get_language_model(model_name)
     if not model:
         raise ValueError(f"Model '{model_name}' not found")
@@ -86,7 +78,7 @@ async def get_model_for_run(model_name: str) -> Any:
     if not config.get("model_name"):
         raise ValueError(f"No configuration found for model: {model_name}")
 
-    return await model_cache.get_model(model_name, config)
+    return model_name, config
 
 
 async def handle_tool_calls(
@@ -241,14 +233,14 @@ async def execute_assistant_run_streaming(
 
     # Get model
     try:
-        llm = await get_model_for_run(run.model or assistant.model)
+        model_name, config = await get_model_for_run(run.model or assistant.model)
     except Exception as exc:
         async for evt in fail_run(run.id, step, "model_error", str(exc)):
             yield evt
         return
 
     # Model inference & streaming with RunsFormatter
-    generator = EventGenerator(llm)
+    generator = EventGenerator(config)
     message_id = f"msg_{uuid.uuid4().hex}"
     formatter = RunsFormatter(run.id, run.thread_id, assistant.id, message_id)
 
