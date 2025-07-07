@@ -20,6 +20,35 @@ class InferenceClient:
     def __init__(self, uri: Optional[str] = None):
         self.uri = uri or settings.inference_uri
 
+    async def evict_models(self) -> Dict[str, Any]:
+        """Evict all cached models from the inference service."""
+        try:
+            # Build headers for auth
+            token = os.getenv("ROSE_API_KEY") or ""
+            headers = {"Authorization": f"Bearer {token}"}
+
+            async with websockets.connect(
+                self.uri,
+                additional_headers=headers,
+                open_timeout=5,
+            ) as websocket:
+                # Send eviction request
+                await websocket.send(json.dumps({"action": "evict_models", "type": "control"}))
+
+                # Wait for response
+                response = await asyncio.wait_for(websocket.recv(), timeout=5.0)
+                result = json.loads(response)
+
+                logger.info(f"Model eviction response: {result}")
+                return result
+
+        except asyncio.TimeoutError:
+            logger.error("Timeout waiting for eviction response")
+            return {"status": "timeout", "message": "Eviction request timed out"}
+        except Exception as e:
+            logger.error(f"Failed to evict models: {e}")
+            return {"status": "error", "message": str(e)}
+
     async def stream_inference(
         self,
         model_name: str,

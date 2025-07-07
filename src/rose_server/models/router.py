@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 
 from rose_core.config.settings import settings
 from rose_server.fs import check_file_path
+from rose_server.llms.websocket_inference import InferenceClient
 from rose_server.models.store import (
     create as create_language_model,
     delete as delete_language_model,
@@ -125,6 +126,43 @@ async def delete_model(model: str) -> JSONResponse:
 
     logger.info(f"Successfully deleted fine-tuned model: {model}")
     return JSONResponse(content={"id": model, "object": "model", "deleted": True})
+
+
+@router.post("/models/evict")
+async def evict_cached_models() -> Dict[str, Any]:
+    """Evict all cached models from the inference service to free memory."""
+    try:
+        client = InferenceClient()
+        result = await client.evict_models()
+
+        if result.get("status") == "error":
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": {
+                        "message": result.get("message", "Failed to evict models"),
+                        "type": "service_unavailable",
+                        "code": "eviction_failed",
+                    }
+                },
+            )
+
+        return {"status": "success", "message": "Models evicted from cache", "details": result}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error during model eviction: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": {
+                    "message": "Internal server error during eviction",
+                    "type": "server_error",
+                    "code": "eviction_error",
+                }
+            },
+        )
 
 
 @router.post("/models", status_code=201)
