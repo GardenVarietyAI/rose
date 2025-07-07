@@ -18,9 +18,9 @@ logger = logging.getLogger(__name__)
 
 
 class EventGenerator:
-    def __init__(self, model_name: str, config: Dict[str, Any]) -> None:
-        self.model_name: str = model_name
+    def __init__(self, config: Dict[str, Any]) -> None:
         self.config: Dict[str, Any] = config
+        self.model_name: str = config["model_name"]
         self._current_tools: Optional[List[Any]] = None
 
     async def generate_events(
@@ -90,17 +90,11 @@ class EventGenerator:
             "length_penalty": self.config.get("length_penalty", 1.0),
         }
 
-        # Get model config
-        model_config = {
-            "model_name": self.model_name,
-            "model_path": self.config.get("model_path"),
-        }
-
         detector = StreamingXMLDetector() if enable_tools else None
 
         async for event in client.stream_inference(
             model_name=self.model_name,
-            model_config=model_config,
+            model_config=self.config,
             prompt=prompt,  # Tool instructions only
             generation_kwargs=generation_kwargs,
             response_id=response_id,

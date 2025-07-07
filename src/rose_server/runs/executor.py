@@ -240,7 +240,7 @@ async def execute_assistant_run_streaming(
         return
 
     # Model inference & streaming with RunsFormatter
-    generator = EventGenerator(model_name, config)
+    generator = EventGenerator(config)
     message_id = f"msg_{uuid.uuid4().hex}"
     formatter = RunsFormatter(run.id, run.thread_id, assistant.id, message_id)
 

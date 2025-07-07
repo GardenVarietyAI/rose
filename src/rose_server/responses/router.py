@@ -82,7 +82,6 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMess
 
 
 async def _generate_streaming_response(
-    model_name: str,
     config: dict,
     messages: list[ChatMessage],
     tools: Optional[list] = None,
@@ -92,7 +91,7 @@ async def _generate_streaming_response(
 ):
     async def generate():
         try:
-            generator = EventGenerator(model_name, config)
+            generator = EventGenerator(config)
             formatter = ResponsesFormatter()
 
             async for event in generator.generate_events(
@@ -116,7 +115,6 @@ async def _generate_streaming_response(
 
 
 async def _generate_complete_response(
-    model_name: str,
     config: dict,
     messages: list[ChatMessage],
     tools: Optional[list] = None,
@@ -126,7 +124,7 @@ async def _generate_complete_response(
     store: bool = False,
     chain_id: Optional[str] = None,
 ):
-    generator = EventGenerator(model_name, config)
+    generator = EventGenerator(config)
     formatter = ResponsesFormatter()
     all_events = []
 
@@ -141,10 +139,10 @@ async def _generate_complete_response(
         all_events.append(event)
 
     complete_response = formatter.format_complete_response(all_events)
-    complete_response["model"] = model_name
+    complete_response["model"] = config["model_name"]
 
     if store:
-        await _store_response(complete_response, messages, model_name, chain_id)
+        await _store_response(complete_response, messages, config["model_name"], chain_id)
 
     return complete_response
 
@@ -291,7 +289,6 @@ async def create_response(request: ResponsesRequest = Body(...), registry: Model
 
         if request.stream:
             return await _generate_streaming_response(
-                model_name=request.model,
                 config=config,
                 messages=messages,
                 tools=request.tools,
@@ -301,7 +298,6 @@ async def create_response(request: ResponsesRequest = Body(...), registry: Model
             )
         else:
             return await _generate_complete_response(
-                model_name=request.model,
                 config=config,
                 messages=messages,
                 tools=request.tools,

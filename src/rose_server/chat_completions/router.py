@@ -87,7 +87,7 @@ async def event_based_chat_completions(
 
         if model.get_lora_modules():
             config["lora_target_modules"] = model.get_lora_modules()
-        generator = EventGenerator(request.model, config)
+        generator = EventGenerator(config)
         formatter = ChatCompletionsFormatter()
         logger.info("[EVENT] Using ChatCompletionsGenerator for chat completions")
         if request.stream:

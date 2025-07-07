@@ -63,7 +63,7 @@ async def process_tool_outputs(
     try:
         config = await registry.get_model_config(run.model)
         if config:
-            generator = EventGenerator(run.model, config)
+            generator = EventGenerator(config)
             messages = [ChatMessage(role="user", content=continuation_prompt)]
             response_text = ""
             prompt_tokens = 0
