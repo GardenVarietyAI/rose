@@ -1,20 +1,45 @@
-import atexit
+import asyncio
 import json
 import logging
 import os
-from typing import Any, Dict
+from contextlib import asynccontextmanager
+from typing import Any, AsyncGenerator, Dict
 
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from rose_core.config.settings import settings
-from rose_inference.generation.process import process_inference_request
-from rose_inference.generation.runner import cleanup_models
+from rose_inference.runner import Runner
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="ROSE Inference Server")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Manage application lifecycle."""
+    # Initialize runner on startup
+    app.state.runner = Runner()
+
+    # Start the worker task
+    app.state.runner.worker_task = asyncio.create_task(app.state.runner.start_worker())
+    logger.info("Inference runner initialized with queue worker")
+
+    yield
+
+    # Cleanup on shutdown
+    if app.state.runner.worker_task:
+        app.state.runner.worker_task.cancel()
+        try:
+            await app.state.runner.worker_task
+        except asyncio.CancelledError:
+            pass
+
+    app.state.runner.model_cache.evict()
+    logger.info("Inference runner cleaned up")
+
+
+app = FastAPI(title="ROSE Inference Server", lifespan=lifespan)
 
 
 @app.websocket("/")
@@ -36,8 +61,38 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         request = await websocket.receive_text()
         request_data = json.loads(request)
 
+        # Check if this is a control request
+        if request_data.get("type") == "control":
+            action = request_data.get("action")
+
+            if action == "evict_models":
+                result = app.state.runner.evict_models()
+                await websocket.send_json(result)
+
+            elif action == "cache_status":
+                result = app.state.runner.get_status()
+                await websocket.send_json(result)
+
+            else:
+                await websocket.send_json({"status": "error", "message": f"Unknown control action: {action}"})
+            return
+
         # Process the inference request
-        await process_inference_request(websocket, request_data)
+        async for event in app.state.runner.run_inference(
+            model_name=request_data["model_name"],
+            model_config=request_data["config"],
+            generation_kwargs=request_data["generation_kwargs"],
+            messages=request_data.get("messages"),
+            prompt=request_data.get("prompt", ""),
+            stream_id=request_data.get("stream_id"),
+        ):
+            # Send the event
+            await websocket.send_json(event)
+
+            # If it's an error event, stop processing
+            if event.get("type") == "error":
+                logger.error(f"Inference error: {event.get('error', 'Unknown error')}")
+                break
 
     except WebSocketDisconnect:
         logger.info("Client disconnected")
@@ -60,8 +115,6 @@ async def health() -> Dict[str, Any]:
 
 def main() -> None:
     """Entry point for the inference server."""
-    # Register cleanup handler
-    atexit.register(cleanup_models)
 
     # Run server
     logger.info("Starting inference server on ws://localhost:8005")

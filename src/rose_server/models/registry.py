@@ -38,6 +38,7 @@ class ModelRegistry:
                 "top_p",
                 "memory_gb",
                 "timeout",
+                "quantization",
             }
         )
 

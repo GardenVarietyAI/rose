@@ -22,6 +22,7 @@ class LanguageModel(SQLModel, table=True):
     top_p: float = Field(default=0.9)
     memory_gb: float = Field(default=2.0)
     timeout: Optional[int] = Field(default=None)  # Timeout in seconds
+    quantization: Optional[str] = Field(default=None)  # Quantization type: "int8", etc.
 
     # LoRA configuration (stored as JSON)
     lora_target_modules: Optional[str] = Field(default=None)  # JSON array

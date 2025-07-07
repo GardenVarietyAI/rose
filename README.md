@@ -31,6 +31,7 @@ Full documentation is available in the `docs/` directory:
 - [Configuration](docs/configuration.md)
 - [Development](docs/development.md)
 - [Troubleshooting](docs/troubleshooting.md)
+- [Quantization](docs/quantization.md)
 - [License](docs/license.md)
 
 ## Quick Start
