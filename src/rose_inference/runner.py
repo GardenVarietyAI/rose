@@ -7,6 +7,7 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 from rose_core.config.settings import settings
 from rose_inference.backends.hf_generator import generate_stream
 from rose_inference.cache import ModelCache
+from rose_inference.loader import load_model
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ class Runner:
     """Long-running worker that handles inference requests with model caching."""
 
     def __init__(self) -> None:
-        self.model_cache = ModelCache()
+        self.cache = ModelCache()
         self.num_requests = 0
         self.queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue(maxsize=100)
         self.task = None
@@ -69,8 +70,14 @@ class Runner:
                 }
                 return
 
-            # Get or load model
-            model_info = await self.model_cache.get_or_load_model(model_name, model_config)
+            # Check cache first
+            model_info = self.cache.get(model_name)
+
+            # Load if not cached
+            if model_info is None:
+                logger.info(f"[{stream_id}] Cache miss, loading model: {model_name}")
+                model_info = await load_model(model_name, model_config)
+                self.cache.set(model_name, model_info)
 
             # Stream events directly from generate_stream
             async for event in generate_stream(
@@ -126,18 +133,18 @@ class Runner:
     def evict_models(self) -> Dict[str, Any]:
         """Evict all cached models."""
         logger.info("Evicting all models")
-        self.model_cache.evict()
+        self.cache.evict()
         return {
             "status": "evicted",
             "message": "Model cache cleared",
-            "cache_status": self.model_cache.get_status(),
+            "cache_status": self.cache.get_status(),
         }
 
     def get_status(self) -> Dict[str, Any]:
         """Get worker and cache status."""
         return {
             "status": "ok",
-            "cache_status": self.model_cache.get_status(),
+            "cache_status": self.cache.get_status(),
             "worker_status": {
                 "num_requests": self.num_requests,
                 "max_concurrent": settings.max_concurrent_inference,

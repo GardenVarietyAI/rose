@@ -5,7 +5,6 @@ import time
 from typing import Any, Dict, Optional
 
 from rose_core.models import cleanup_model_memory
-from rose_inference.loader import load_model
 
 logger = logging.getLogger(__name__)
 
@@ -19,32 +18,28 @@ class ModelCache:
         self.last_used: float = time.time()
         self.total_inferences: int = 0
 
-    async def get_or_load_model(self, model_name: str, model_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Get model from cache or load it."""
-        # Check if we have the same model cached
+    def get(self, model_name: str) -> Optional[Dict[str, Any]]:
+        """Get model from cache if it exists."""
         if self.current_model_name == model_name and self.current_model is not None:
-            logger.info(f"Using cached model: {model_name} (inference #{self.total_inferences + 1})")
+            logger.info(f"Cache hit for model: {model_name} (inference #{self.total_inferences + 1})")
             self.last_used = time.time()
             self.total_inferences += 1
             return self.current_model
+        return None
 
-        # Different model requested - evict old one if exists
-        if self.current_model:
-            logger.info(f"Evicting model: {self.current_model_name} (served {self.total_inferences} inferences)")
+    def set(self, model_name: str, model_info: Dict[str, Any]) -> None:
+        """Set a model in the cache, evicting any existing model."""
+        # Evict old model if different
+        if self.current_model_name and self.current_model_name != model_name:
+            logger.info(f"Evicting model: {self.current_model_name} to make room for {model_name}")
             self.evict()
 
-        logger.info(f"Loading new model: {model_name}, quantization={model_config.get('quantization')}")
-        self.current_model = await load_model(model_name, model_config)
-
-        # IMPORTANT: Store the actual model_name passed in, not what's in the config
-        # This ensures fine-tuned models are cached with their full ID
+        # Cache new model
+        logger.info(f"Caching model: {model_name}")
+        self.current_model = model_info
         self.current_model_name = model_name
-        logger.info(f"Cached model under name: {self.current_model_name}")
-
         self.last_used = time.time()
         self.total_inferences = 1
-
-        return self.current_model
 
     def evict(self) -> None:
         """Evict the cached model to free memory."""
