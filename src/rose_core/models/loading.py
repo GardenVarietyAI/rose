@@ -27,7 +27,7 @@ def get_local_model_path(model_id: str) -> Optional[Path]:
         Path to local model directory if it exists, None otherwise
     """
     models_dir = Path(settings.data_dir) / "models"
-    safe_model_name = model_id.replace("/", "--")
+    safe_model_name = model_id.replace("/", "_")
     local_model_path = models_dir / safe_model_name
 
     if local_model_path.exists():
