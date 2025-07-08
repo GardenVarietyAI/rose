@@ -29,7 +29,6 @@ class LanguageModel(SQLModel, table=True):
 
     # OpenAI API compatibility fields
     owned_by: str = Field(default="organization-owner")
-    root: Optional[str] = Field(default=None)  # Root model (self.id for base models)
     parent: Optional[str] = Field(default=None)  # Parent model (None for base, base_model for fine-tuned)
     permissions: Optional[str] = Field(default="[]")  # JSON array of permissions
 
