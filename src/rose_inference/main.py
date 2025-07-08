@@ -22,16 +22,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.runner = Runner()
 
     # Start the worker task
-    app.state.runner.worker_task = asyncio.create_task(app.state.runner.start_worker())
+    app.state.runner.task = asyncio.create_task(app.state.runner.start_worker())
     logger.info("Inference runner initialized with queue worker")
 
     yield
 
     # Cleanup on shutdown
-    if app.state.runner.worker_task:
-        app.state.runner.worker_task.cancel()
+    if app.state.runner.task:
+        app.state.runner.task.cancel()
         try:
-            await app.state.runner.worker_task
+            await app.state.runner.task
         except asyncio.CancelledError:
             pass
 
@@ -68,13 +68,16 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             if action == "evict_models":
                 result = app.state.runner.evict_models()
                 await websocket.send_json(result)
-
             elif action == "cache_status":
                 result = app.state.runner.get_status()
                 await websocket.send_json(result)
-
             else:
-                await websocket.send_json({"status": "error", "message": f"Unknown control action: {action}"})
+                await websocket.send_json(
+                    {
+                        "status": "error",
+                        "message": f"Unknown control action: {action}",
+                    }
+                )
             return
 
         # Process the inference request
@@ -107,10 +110,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 @app.get("/health")
 async def health() -> Dict[str, Any]:
     """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "max_concurrent_inference": settings.max_concurrent_inference,
-    }
+    return {"status": "ok"}
 
 
 def main() -> None:

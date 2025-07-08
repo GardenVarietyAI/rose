@@ -91,9 +91,11 @@ class EventGenerator:
         tool_processor = ToolProcessor(self.model_name) if enable_tools else None
 
         # Stream from inference
+        model_config_dict = self.config.model_dump()
+        logger.info(f"Streaming inference for {self.model_name} with config: {model_config_dict}")
         async for event in self.client.stream_inference(
             model_name=self.model_name,
-            model_config=self.config.model_dump(),
+            model_config=model_config_dict,
             prompt=prompt,
             generation_kwargs=generation_kwargs,
             response_id=response_id,

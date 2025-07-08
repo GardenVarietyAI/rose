@@ -16,9 +16,9 @@ class Runner:
 
     def __init__(self) -> None:
         self.model_cache = ModelCache()
-        self.request_count = 0
-        self.request_queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue(maxsize=100)
-        self.worker_task = None
+        self.num_requests = 0
+        self.queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue(maxsize=100)
+        self.task = None
 
     async def start_worker(self) -> None:
         """Background worker that processes the request queue."""
@@ -27,7 +27,7 @@ class Runner:
         while True:
             try:
                 # Get next request from queue
-                request = await self.request_queue.get()
+                request = await self.queue.get()
 
                 # Process the request
                 async for event in self._process_inference(request):
@@ -51,9 +51,9 @@ class Runner:
         generation_kwargs = request["generation_kwargs"]
         messages = request.get("messages")
         prompt = request.get("prompt", "")
-        stream_id = request.get("stream_id", f"req-{self.request_count}")
+        stream_id = request.get("stream_id", f"req-{self.num_requests}")
 
-        self.request_count += 1
+        self.num_requests += 1
 
         try:
             logger.info(f"[{stream_id}] Processing inference request for model: {model_name}")
@@ -72,40 +72,16 @@ class Runner:
             # Get or load model
             model_info = await self.model_cache.get_or_load_model(model_name, model_config)
 
-            # Create event collector
-            events = []
-
-            class EventCollector:
-                """Collects events from generate_stream."""
-
-                async def send_json(self, data: Dict[str, Any]) -> None:
-                    events.append(data)
-
-            collector = EventCollector()
-
-            # Run generation
-            logger.info(f"[{stream_id}] Starting generation")
-            token_counts = await generate_stream(
+            # Stream events directly from generate_stream
+            async for event in generate_stream(
                 model=model_info["model"],
                 tokenizer=model_info["tokenizer"],
                 prompt=prompt,
                 messages=messages,
                 generation_kwargs=generation_kwargs,
-                websocket=collector,  # Pass collector instead of websocket
                 stream_id=stream_id,
-            )
-
-            # Yield all collected events
-            for event in events:
+            ):
                 yield event
-
-            # Yield completion
-            yield {
-                "type": "complete",
-                "input_tokens": token_counts["input_tokens"],
-                "output_tokens": token_counts["output_tokens"],
-                "total_tokens": token_counts["input_tokens"] + token_counts["output_tokens"],
-            }
 
             logger.info(f"[{stream_id}] Inference completed successfully")
 
@@ -137,8 +113,8 @@ class Runner:
             "response_queue": response_queue,
         }
 
-        await self.request_queue.put(request)
-        logger.info(f"Queued inference request (queue size: {self.request_queue.qsize()})")
+        await self.queue.put(request)
+        logger.info(f"Queued inference request (queue size: {self.queue.qsize()})")
 
         # Yield events as they come from the worker
         while True:
@@ -163,9 +139,9 @@ class Runner:
             "status": "ok",
             "cache_status": self.model_cache.get_status(),
             "worker_status": {
-                "request_count": self.request_count,
+                "num_requests": self.num_requests,
                 "max_concurrent": settings.max_concurrent_inference,
-                "queue_depth": self.request_queue.qsize(),
-                "queue_max_size": self.request_queue.maxsize,
+                "queue_depth": self.queue.qsize(),
+                "queue_max_size": self.queue.maxsize,
             },
         }

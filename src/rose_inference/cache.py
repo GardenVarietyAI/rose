@@ -33,10 +33,14 @@ class ModelCache:
             logger.info(f"Evicting model: {self.current_model_name} (served {self.total_inferences} inferences)")
             self.evict()
 
-        # Load new model
-        logger.info(f"Loading new model: {model_name}")
+        logger.info(f"Loading new model: {model_name}, quantization={model_config.get('quantization')}")
         self.current_model = await load_model(model_name, model_config)
+
+        # IMPORTANT: Store the actual model_name passed in, not what's in the config
+        # This ensures fine-tuned models are cached with their full ID
         self.current_model_name = model_name
+        logger.info(f"Cached model under name: {self.current_model_name}")
+
         self.last_used = time.time()
         self.total_inferences = 1
 
@@ -46,11 +50,18 @@ class ModelCache:
         """Evict the cached model to free memory."""
         if self.current_model:
             logger.info(f"Evicting model: {self.current_model_name}")
-            # Clean up model
+
+            # Pass model to cleanup for proper PEFT handling
+            if "model" in self.current_model:
+                cleanup_model_memory(self.current_model["model"])
+
+            # Clean up remaining references
             if "model" in self.current_model:
                 del self.current_model["model"]
+
             if "tokenizer" in self.current_model:
                 del self.current_model["tokenizer"]
+
             self.current_model = None
             self.current_model_name = None
             self.total_inferences = 0

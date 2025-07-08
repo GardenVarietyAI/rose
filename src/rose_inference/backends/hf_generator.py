@@ -33,13 +33,15 @@ async def generate_stream(
     prompt: str,
     messages: Optional[List[Dict[str, Any]]],
     generation_kwargs: Dict[str, Any],
-    websocket: Any,
     stream_id: str,
-) -> Dict[str, int]:
-    """Run model generation and stream tokens to websocket.
+) -> AsyncIterator[Dict[str, Any]]:
+    """Run model generation and yield events.
 
-    Returns:
-        Dictionary with input_tokens and output_tokens counts.
+    Yields events with types:
+    - input_tokens_counted: After tokenization
+    - token: For each generated token
+    - complete: When generation finishes
+    - error: If an error occurs
     """
     # Handle different input combinations
     if messages:
@@ -48,28 +50,27 @@ async def generate_stream(
             logger.info(f"[{stream_id}] Using chat template for {len(messages)} messages")
             formatted_messages = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         else:
-            logger.info(f"[{stream_id}] No chat template, using fallback formatting for {len(messages)} messages")
+            logger.info(f"[{stream_id}] No chat template, using fallback formatting")
             formatted_messages = _format_messages_fallback(messages)
 
         # If we have both messages and prompt, prepend messages as context
         if prompt:
-            logger.info(f"[{stream_id}] Combining message history with prompt")
             prompt = f"{formatted_messages}\n\n{prompt}"
         else:
             prompt = formatted_messages
 
     # Tokenize input
-    logger.info(f"[{stream_id}] Tokenizing prompt (length: {len(prompt)}): {prompt[:100]}...")
+    logger.info(f"[{stream_id}] Tokenizing prompt (length: {len(prompt)})")
     inputs = tokenizer(prompt, return_tensors="pt")
     if hasattr(model, "device"):
         inputs = {k: v.to(model.device) for k, v in inputs.items()}
 
     # Get input token count
     input_token_count = inputs["input_ids"].shape[1]
-    logger.info(f"[{stream_id}] Input shape: {inputs['input_ids'].shape}, tokens: {input_token_count}")
+    logger.info(f"[{stream_id}] Input tokens: {input_token_count}")
 
-    # Send input token count event immediately after tokenization
-    await websocket.send_json({"type": "input_tokens_counted", "input_tokens": input_token_count})
+    # Yield input token count
+    yield {"type": "input_tokens_counted", "input_tokens": input_token_count}
 
     # Create streamer for token-by-token output
     streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
@@ -84,26 +85,16 @@ async def generate_stream(
         "eos_token_id": tokenizer.eos_token_id,
     }
 
-    # Log generation parameters
-    logger.info(
-        f"[{stream_id}] Generation kwargs: max_new_tokens={generation_kwargs.get('max_new_tokens')}, "
-        f"temperature={generation_kwargs.get('temperature')}, "
-        f"do_sample={generation_kwargs.get('do_sample')}"
-    )
-
     # Start generation in background thread (required for streaming)
     generation_task = asyncio.create_task(asyncio.to_thread(model.generate, **generation_kwargs))
 
-    # Stream tokens back
+    # Stream tokens
     position = 0
     try:
-        logger.info(f"[{stream_id}] Starting to stream tokens...")
-
         # Create async wrapper for the blocking streamer
         async def stream_tokens() -> AsyncIterator[str]:
             loop = asyncio.get_event_loop()
             while True:
-                # Run the blocking iterator in executor to avoid blocking event loop
                 token = await loop.run_in_executor(None, lambda: next(streamer, None))
                 if token is None:
                     break
@@ -111,24 +102,28 @@ async def generate_stream(
 
         async for token in stream_tokens():
             if token:  # Skip empty tokens
-                logger.debug(f"[{stream_id}] Sending token {position}: {repr(token)}")
-                await websocket.send_json({"type": "token", "token": token, "position": position})
+                yield {"type": "token", "token": token, "position": position}
                 position += 1
 
-        logger.info(f"[{stream_id}] Finished streaming {position} tokens")
+        logger.info(f"[{stream_id}] Generated {position} tokens")
 
     except Exception as e:
-        logger.error(f"[{stream_id}] Error during streaming: {e}")
-        await websocket.send_json({"type": "error", "error": str(e)})
-        # Cancel generation if still running
+        logger.error(f"[{stream_id}] Error during generation: {e}")
+        yield {"type": "error", "error": str(e)}
         generation_task.cancel()
         raise
     finally:
-        # Wait for generation to complete with timeout
+        # Wait for generation to complete
         try:
             await asyncio.wait_for(generation_task, timeout=settings.inference_timeout)
         except asyncio.TimeoutError:
-            logger.error(f"[{stream_id}] Generation still running after {settings.inference_timeout}s timeout")
+            logger.error(f"[{stream_id}] Generation timeout after {settings.inference_timeout}s")
             generation_task.cancel()
 
-    return {"input_tokens": input_token_count, "output_tokens": position}
+    # Yield completion with token counts
+    yield {
+        "type": "complete",
+        "input_tokens": input_token_count,
+        "output_tokens": position,
+        "total_tokens": input_token_count + position,
+    }

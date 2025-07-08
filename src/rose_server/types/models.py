@@ -12,6 +12,7 @@ from rose_server.models.store import LanguageModel
 class ModelConfig(BaseModel):
     """Configuration for model inference."""
 
+    name: Optional[str] = Field(None, description="Human-readable name")
     model_name: str = Field(..., description="The model identifier")
     model_path: Optional[str] = Field(None, description="Path to fine-tuned model")
     base_model: Optional[str] = Field(None, description="Parent model for fine-tuned models")
@@ -35,6 +36,7 @@ class ModelConfig(BaseModel):
         """
         # Start with basic configuration
         config_data = {
+            "name": model.name,
             "model_name": model.model_name,
             "temperature": model.temperature or 0.7,
             "top_p": model.top_p or 0.9,
