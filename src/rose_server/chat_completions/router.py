@@ -7,19 +7,18 @@ import json
 import logging
 import time
 import uuid
-from pathlib import Path
 from typing import Any, AsyncGenerator, Dict
 
 from fastapi import APIRouter, Body
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
-from rose_core.config.settings import settings
 from rose_server.events.event_types import LLMEvent
 from rose_server.events.formatters import ChatCompletionsFormatter
 from rose_server.events.generator import EventGenerator
 from rose_server.models.store import get as get_language_model
 from rose_server.schemas.chat import ChatMessage, ChatRequest
+from rose_server.types.models import ModelConfig
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
@@ -71,22 +70,8 @@ async def event_based_chat_completions(
                 )
 
     try:
-        # Build config from model
-        config = {
-            "model_name": model.model_name,
-            "model_type": model.model_type,
-            "temperature": model.temperature,
-            "top_p": model.top_p,
-            "memory_gb": model.memory_gb,
-        }
-
-        if model.is_fine_tuned and model.path:
-            config["model_path"] = str(Path(settings.data_dir) / model.path)
-            config["base_model"] = model.parent
-            config["is_fine_tuned"] = True
-
-        if model.get_lora_modules():
-            config["lora_target_modules"] = model.get_lora_modules()
+        # Build strongly typed config from model
+        config = ModelConfig.from_language_model(model)
         generator = EventGenerator(config)
         formatter = ChatCompletionsFormatter()
         logger.info("[EVENT] Using ChatCompletionsGenerator for chat completions")

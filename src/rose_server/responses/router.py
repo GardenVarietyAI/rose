@@ -18,6 +18,7 @@ from rose_server.schemas.responses import (
     ResponsesUsage,
 )
 from rose_server.tools import format_tools_for_prompt
+from rose_server.types.models import ModelConfig
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["responses"])
@@ -82,7 +83,7 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMess
 
 
 async def _generate_streaming_response(
-    config: dict,
+    config: ModelConfig,
     messages: list[ChatMessage],
     tools: Optional[list] = None,
     max_output_tokens: Optional[int] = None,
@@ -115,7 +116,7 @@ async def _generate_streaming_response(
 
 
 async def _generate_complete_response(
-    config: dict,
+    config: ModelConfig,
     messages: list[ChatMessage],
     tools: Optional[list] = None,
     max_output_tokens: Optional[int] = None,
@@ -139,10 +140,10 @@ async def _generate_complete_response(
         all_events.append(event)
 
     complete_response = formatter.format_complete_response(all_events)
-    complete_response["model"] = config["model_name"]
+    complete_response["model"] = config.model_name
 
     if store:
-        await _store_response(complete_response, messages, config["model_name"], chain_id)
+        await _store_response(complete_response, messages, config.model_name, chain_id)
 
     return complete_response
 

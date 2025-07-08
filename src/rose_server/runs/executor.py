@@ -1,12 +1,10 @@
 import json
 import logging
 import uuid
-from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 
 from sse_starlette import ServerSentEvent
 
-from rose_core.config.settings import settings
 from rose_server.database import current_timestamp
 from rose_server.entities.messages import Message
 from rose_server.entities.run_steps import RunStep
@@ -23,6 +21,7 @@ from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.runs import RunResponse, RunStepResponse
 from rose_server.threads.messages.store import create_message, get_messages
 from rose_server.tools import parse_xml_tool_call
+from rose_server.types.models import ModelConfig
 from rose_server.types.runs import ResponseUsage
 
 logger = logging.getLogger(__name__)
@@ -55,30 +54,18 @@ async def fail_run(
         await update_run_step(step.id, status="failed", last_error=err)
     await update_run(run_id, status="failed", last_error=err)
     status_evt = await stream_run_status(run_id, "failed", last_error=err)
-    step_evt = await stream_run_step_event("failed", step) if step else ""
     if step:
+        step_evt = await stream_run_step_event("failed", step)
         yield step_evt
     yield status_evt
 
 
-async def get_model_for_run(model_name: str) -> Dict[str, Any]:
+async def get_model_for_run(model_name: str) -> ModelConfig:
     model = await get_language_model(model_name)
     if not model:
         raise ValueError(f"Model '{model_name}' not found")
 
-    config = model.model_dump()
-
-    if model.is_fine_tuned and model.path:
-        config["model_path"] = str(Path(settings.data_dir) / model.path)
-        config["base_model"] = model.parent
-
-    if model.get_lora_modules():
-        config["lora_target_modules"] = model.get_lora_modules()
-
-    if not config.get("model_name"):
-        raise ValueError(f"No configuration found for model: {model_name}")
-
-    return config
+    return ModelConfig.from_language_model(model)
 
 
 async def handle_tool_calls(

@@ -53,10 +53,10 @@ async def _handle_training_completed(event: WebhookEvent, registry) -> None:
     try:
         model_path = Path("models") / fine_tuned_model
         base_config = await registry.get_model_config(ft_job.model)
-        hf_model_name = base_config.get("hf_model_name") if base_config else None
+        model_name = base_config.model_name if base_config else None
 
         created_model = await create_language_model(
-            model_name=hf_model_name or ft_job.model,
+            model_name=model_name or ft_job.model,
             name=fine_tuned_model,
             path=str(model_path),
             parent=ft_job.model,

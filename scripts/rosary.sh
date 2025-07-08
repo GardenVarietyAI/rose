@@ -65,7 +65,7 @@ echo "File ID: $FILE_ID"
 
 # Start fine-tuning
 echo "Starting fine-tune job..."
-JOB_ID=$(poetry run rose finetune create --file $FILE_ID --model qwen2.5-0.5b -q)
+JOB_ID=$(poetry run rose finetune create --file $FILE_ID --model Qwen--Qwen2.5-0.5B-Instruct -q)
 echo "Job ID: $JOB_ID"
 
 # Wait for completion

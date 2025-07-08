@@ -1,7 +1,7 @@
 import json
 import logging
 import uuid
-from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
+from typing import Any, AsyncGenerator, List, Optional, Tuple, Union
 
 from rose_server.events.event_types.generation import (
     ResponseCompleted,
@@ -13,14 +13,15 @@ from rose_server.events.event_types.generation import (
 from rose_server.inference.client import InferenceClient
 from rose_server.schemas.chat import ChatMessage
 from rose_server.tools import StreamingXMLDetector
+from rose_server.types.models import ModelConfig
 
 logger = logging.getLogger(__name__)
 
 
 class EventGenerator:
-    def __init__(self, config: Dict[str, Any]) -> None:
-        self.config: Dict[str, Any] = config
-        self.model_name: str = config["model_name"]
+    def __init__(self, config: ModelConfig) -> None:
+        self.config: ModelConfig = config
+        self.model_name: str = config.model_name
         self._current_tools: Optional[List[Any]] = None
 
     async def generate_events(
@@ -41,8 +42,8 @@ class EventGenerator:
         # Store tools for later use in _stream_generation
         self._current_tools = tools
 
-        max_new = max_tokens or self.config.get("max_response_tokens", 2048)
-        temp = temperature or self.config.get("temperature", 0.7)
+        max_new = max_tokens or self.config.max_response_tokens
+        temp = temperature or self.config.temperature
 
         # Token counting happens in inference layer
         start_event = ResponseStarted(
@@ -85,16 +86,16 @@ class EventGenerator:
         generation_kwargs = {
             "max_new_tokens": max_new,
             "temperature": temperature,
-            "top_p": self.config.get("top_p", 0.9),
-            "repetition_penalty": self.config.get("repetition_penalty", 1.1),
-            "length_penalty": self.config.get("length_penalty", 1.0),
+            "top_p": self.config.top_p,
+            "repetition_penalty": self.config.repetition_penalty,
+            "length_penalty": self.config.length_penalty,
         }
 
         detector = StreamingXMLDetector() if enable_tools else None
 
         async for event in client.stream_inference(
             model_name=self.model_name,
-            model_config=self.config,
+            model_config=self.config.model_dump(),
             prompt=prompt,  # Tool instructions only
             generation_kwargs=generation_kwargs,
             response_id=response_id,
