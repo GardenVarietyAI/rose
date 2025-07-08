@@ -1,45 +1,61 @@
 """Model loading utilities."""
 
 import logging
-from typing import Any, Callable, Dict
+from pathlib import Path
+from typing import Any, Dict
 
 import torch
 from torch import quantization
+from transformers import AutoTokenizer
 
-from rose_core.models import get_tokenizer, load_hf_model
+from rose_inference.model_loader import load_hf_model, load_peft_model
 
 logger = logging.getLogger(__name__)
 
 
-async def load_model(model_name: str, model_config: Dict[str, Any]) -> Dict[str, Any]:
+async def load_model(config: Dict[str, Any]) -> Dict[str, Any]:
     """Load a model and tokenizer for inference."""
-    logger.info(f"Loading model: {model_name}")
+    model_name = config.get("model_name")
+    model_path = config.get("model_path")
 
-    loader: Callable[..., Any] = model_config.get("loader", load_hf_model)
+    if not model_name:
+        raise ValueError("model_name is required in config")
 
-    # Use model_path if available (for custom/fine-tuned models), otherwise use model_name
-    model_id = model_config.get("model_path") or model_config.get("model_name", model_name)
+    logger.info(f"Loading model: {model_name} (path: {model_path})")
 
-    # Load the model based on loader type
-    if loader.__name__ == "load_peft_model":
-        # PEFT models require model_path
-        model = loader(
-            model_id=model_id,
-            model_path=model_config.get("model_path"),
-            torch_dtype=model_config.get("torch_dtype"),
+    # Load the model - check if it's a fine-tuned model by presence of model_path
+    if model_path:
+        # Fine-tuned models use PEFT loader
+        model = load_peft_model(
+            model_id=model_name,
+            model_path=model_path,
+            torch_dtype=config.get("torch_dtype"),
         )
     else:
-        # Regular HF models only need model_id
-        model = loader(
-            model_id=model_id,
-            torch_dtype=model_config.get("torch_dtype"),
+        # Regular HF models
+        model = load_hf_model(
+            model_id=model_name,
+            torch_dtype=config.get("torch_dtype"),
         )
 
     # Load tokenizer
-    tokenizer = get_tokenizer(model_id)
+    data_dir = config.get("data_dir", "./data")
+    models_dir = Path(data_dir) / "models"
+    safe_model_name = model_name.replace("/", "--")
+    local_model_path = models_dir / safe_model_name
+
+    # Try local path first, then model name
+    if local_model_path.exists():
+        tokenizer = AutoTokenizer.from_pretrained(str(local_model_path), local_files_only=True)
+    else:
+        # Try loading from model name (will download if needed)
+        tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=False)
+
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
 
     # Apply INT8 quantization if requested
-    if model_config.get("quantization") == "int8":
+    if config.get("quantization") == "int8":
         logger.info(f"Applying INT8 quantization to {model_name}")
 
         # Check if running on Apple Silicon
@@ -71,8 +87,8 @@ async def load_model(model_name: str, model_config: Dict[str, Any]) -> Dict[str,
         "name": model_name,
         "model": model,
         "tokenizer": tokenizer,
-        "config": model_config,
+        "config": config,
         "device": str(model.device) if hasattr(model, "device") else "cpu",
         "dtype": str(next(model.parameters()).dtype) if hasattr(model, "parameters") else "unknown",
-        "quantized": model_config.get("quantization") == "int8" and torch.backends.mps.is_available(),
+        "quantized": config.get("quantization") == "int8" and not torch.backends.mps.is_available(),
     }

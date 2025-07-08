@@ -1,12 +1,10 @@
-"""HuggingFace model generation logic."""
+"""Simplified model generation with streaming."""
 
 import asyncio
 import logging
 from typing import Any, AsyncIterator, Dict, List, Optional
 
-from transformers import TextIteratorStreamer  # type: ignore[attr-defined]
-
-from rose_core.config.settings import settings
+from transformers.generation import TextIteratorStreamer
 
 logger = logging.getLogger(__name__)
 
@@ -23,60 +21,53 @@ def _format_messages_fallback(messages: List[Dict[str, Any]]) -> str:
             prompt_parts.append(f"User: {content}")
         elif role == "assistant":
             prompt_parts.append(f"Assistant: {content}")
-    prompt_parts.append("Assistant:")  # Add generation prompt
+    prompt_parts.append("Assistant:")
     return "\n\n".join(prompt_parts)
 
 
 async def generate_stream(
     model: Any,
     tokenizer: Any,
-    prompt: str,
-    messages: Optional[List[Dict[str, Any]]],
-    generation_kwargs: Dict[str, Any],
-    stream_id: str,
+    messages: Optional[List[Dict[str, Any]]] = None,
+    prompt: str = "",
+    generation_kwargs: Optional[Dict[str, Any]] = None,
+    config: Optional[Dict[str, Any]] = None,
 ) -> AsyncIterator[Dict[str, Any]]:
-    """Run model generation and yield events.
+    """Stream generation events from a model.
 
-    Yields events with types:
-    - input_tokens_counted: After tokenization
-    - token: For each generated token
-    - complete: When generation finishes
-    - error: If an error occurs
+    Yields:
+        Dict events with types: input_tokens_counted, token, complete, error
     """
-    # Handle different input combinations
+    generation_kwargs = generation_kwargs or {}
+
+    # Format input
     if messages:
-        # Format messages using chat template or fallback
         if hasattr(tokenizer, "chat_template") and tokenizer.chat_template:
-            logger.info(f"[{stream_id}] Using chat template for {len(messages)} messages")
-            formatted_messages = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            formatted_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         else:
-            logger.info(f"[{stream_id}] No chat template, using fallback formatting")
-            formatted_messages = _format_messages_fallback(messages)
+            formatted_prompt = _format_messages_fallback(messages)
 
-        # If we have both messages and prompt, prepend messages as context
         if prompt:
-            prompt = f"{formatted_messages}\n\n{prompt}"
-        else:
-            prompt = formatted_messages
+            formatted_prompt = f"{formatted_prompt}\n\n{prompt}"
+    else:
+        formatted_prompt = prompt
 
-    # Tokenize input
-    logger.info(f"[{stream_id}] Tokenizing prompt (length: {len(prompt)})")
-    inputs = tokenizer(prompt, return_tensors="pt")
+    if not formatted_prompt:
+        yield {"type": "complete", "input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+        return
+
+    # Tokenize
+    inputs = tokenizer(formatted_prompt, return_tensors="pt")
     if hasattr(model, "device"):
         inputs = {k: v.to(model.device) for k, v in inputs.items()}
 
-    # Get input token count
     input_token_count = inputs["input_ids"].shape[1]
-    logger.info(f"[{stream_id}] Input tokens: {input_token_count}")
-
-    # Yield input token count
     yield {"type": "input_tokens_counted", "input_tokens": input_token_count}
 
-    # Create streamer for token-by-token output
+    # Setup streaming
     streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
 
-    # Add streamer to generation kwargs
-    generation_kwargs = {
+    gen_kwargs = {
         **generation_kwargs,
         **inputs,
         "streamer": streamer,
@@ -85,13 +76,13 @@ async def generate_stream(
         "eos_token_id": tokenizer.eos_token_id,
     }
 
-    # Start generation in background thread (required for streaming)
-    generation_task = asyncio.create_task(asyncio.to_thread(model.generate, **generation_kwargs))
+    # Start generation
+    generation_task = asyncio.create_task(asyncio.to_thread(model.generate, **gen_kwargs))
 
     # Stream tokens
     position = 0
     try:
-        # Create async wrapper for the blocking streamer
+
         async def stream_tokens() -> AsyncIterator[str]:
             loop = asyncio.get_event_loop()
             while True:
@@ -101,26 +92,23 @@ async def generate_stream(
                 yield token
 
         async for token in stream_tokens():
-            if token:  # Skip empty tokens
+            if token:
                 yield {"type": "token", "token": token, "position": position}
                 position += 1
 
-        logger.info(f"[{stream_id}] Generated {position} tokens")
-
     except Exception as e:
-        logger.error(f"[{stream_id}] Error during generation: {e}")
+        logger.error(f"Generation error: {e}")
         yield {"type": "error", "error": str(e)}
         generation_task.cancel()
-        raise
+        return
     finally:
-        # Wait for generation to complete
+        timeout = config.get("inference_timeout", 120) if config else 120
         try:
-            await asyncio.wait_for(generation_task, timeout=settings.inference_timeout)
+            await asyncio.wait_for(generation_task, timeout=timeout)
         except asyncio.TimeoutError:
-            logger.error(f"[{stream_id}] Generation timeout after {settings.inference_timeout}s")
+            logger.error(f"Generation timeout after {timeout}s")
             generation_task.cancel()
 
-    # Yield completion with token counts
     yield {
         "type": "complete",
         "input_tokens": input_token_count,

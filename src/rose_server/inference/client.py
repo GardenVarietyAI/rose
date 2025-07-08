@@ -80,7 +80,6 @@ class InferenceClient:
             ) as websocket:
                 # Send inference request
                 request: Dict[str, Any] = {
-                    "model_name": model_name,
                     "config": model_config,
                     "generation_kwargs": generation_kwargs,
                 }

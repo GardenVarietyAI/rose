@@ -27,7 +27,7 @@ def get_local_model_path(model_id: str) -> Optional[Path]:
         Path to local model directory if it exists, None otherwise
     """
     models_dir = Path(settings.data_dir) / "models"
-    safe_model_name = model_id.replace("/", "_")
+    safe_model_name = model_id.replace("/", "--")
     local_model_path = models_dir / safe_model_name
 
     if local_model_path.exists():
@@ -100,7 +100,7 @@ def load_hf_model(
         local_files_only = True
 
     # Create offload directory
-    offload_dir = os.path.join(settings.model_offload_dir, model_id.replace("/", "_"))
+    offload_dir = os.path.join(settings.model_offload_dir, model_id.replace("/", "--"))
     os.makedirs(offload_dir, exist_ok=True)
 
     device = get_optimal_device()
@@ -162,7 +162,7 @@ def load_peft_model(
         )
 
     # Create offload directory
-    offload_dir = os.path.join(settings.model_offload_dir, model_id.replace("/", "_"))
+    offload_dir = os.path.join(settings.model_offload_dir, model_id.replace("/", "--"))
     os.makedirs(offload_dir, exist_ok=True)
 
     # Use AutoPeftModelForCausalLM to avoid double loading
