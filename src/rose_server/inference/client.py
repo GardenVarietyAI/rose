@@ -1,4 +1,4 @@
-"""WebSocket client for inference worker."""
+"""Client for inference worker with WebSocket for streaming and HTTP for control."""
 
 import asyncio
 import json
@@ -6,6 +6,7 @@ import logging
 import os
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
+import httpx
 import websockets
 
 from rose_core.config.settings import settings
@@ -19,36 +20,37 @@ logger = logging.getLogger(__name__)
 
 
 class InferenceClient:
-    """Client for connecting to the inference worker via WebSocket."""
+    """Client for connecting to the inference worker via WebSocket and HTTP."""
 
     def __init__(self, uri: Optional[str] = None):
         self.uri = uri or settings.inference_uri
+        # Extract base URL for HTTP endpoints
+        self.base_url = self.uri.replace("ws://", "http://").replace("wss://", "https://").rstrip("/")
+        # Build auth headers once
+        token = os.getenv("ROSE_API_KEY") or ""
+        self.headers = {"Authorization": f"Bearer {token}"} if token else {}
 
     async def evict_models(self) -> Dict[str, Any]:
         """Evict all cached models from the inference service."""
         try:
-            # Build headers for auth
-            token = os.getenv("ROSE_API_KEY") or ""
-            headers = {"Authorization": f"Bearer {token}"}
-
-            async with websockets.connect(
-                self.uri,
-                additional_headers=headers,
-                open_timeout=5,
-            ) as websocket:
-                # Send eviction request
-                await websocket.send(json.dumps({"action": "evict_models", "type": "control"}))
-
-                # Wait for response
-                response = await asyncio.wait_for(websocket.recv(), timeout=5.0)
-                result = json.loads(response)
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/control/evict",
+                    headers=self.headers,
+                    timeout=5.0,
+                )
+                response.raise_for_status()
+                result: Dict[str, Any] = response.json()
 
                 logger.info(f"Model eviction response: {result}")
-                return dict(result)
+                return result
 
-        except asyncio.TimeoutError:
+        except httpx.TimeoutException:
             logger.error("Timeout waiting for eviction response")
             return {"status": "timeout", "message": "Eviction request timed out"}
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error evicting models: {e}")
+            return {"status": "error", "message": f"HTTP {e.response.status_code}: {e.response.text}"}
         except Exception as e:
             logger.error(f"Failed to evict models: {e}")
             return {"status": "error", "message": str(e)}
@@ -67,13 +69,12 @@ class InferenceClient:
         total_tokens = 0
 
         try:
-            # Build headers for auth
-            token = os.getenv("ROSE_API_KEY") or ""
-            headers = {"Authorization": f"Bearer {token}"}
+            # Update URI to use /inference endpoint
+            inference_uri = self.uri + "/inference"
 
             async with websockets.connect(
-                self.uri,
-                additional_headers=headers,
+                inference_uri,
+                additional_headers=self.headers,
                 ping_interval=30,  # Send ping every 30 seconds
                 ping_timeout=120,  # Wait 120 seconds for pong
                 open_timeout=10,  # Wait 10 seconds for connection

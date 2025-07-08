@@ -4,25 +4,39 @@ import asyncio
 import logging
 from typing import Any, AsyncIterator, Dict, List, Optional
 
-from transformers.generation import TextIteratorStreamer
+from transformers.generation.streamers import TextIteratorStreamer
 
 logger = logging.getLogger(__name__)
 
 
-def _format_messages_fallback(messages: List[Dict[str, Any]]) -> str:
-    """Fallback formatting when tokenizer doesn't have a chat template."""
-    prompt_parts = []
-    for msg in messages:
-        role = msg.get("role", "user")
-        content = msg.get("content", "")
-        if role == "system":
-            prompt_parts.append(f"System: {content}")
-        elif role == "user":
-            prompt_parts.append(f"User: {content}")
-        elif role == "assistant":
-            prompt_parts.append(f"Assistant: {content}")
-    prompt_parts.append("Assistant:")
-    return "\n\n".join(prompt_parts)
+def _format_messages(
+    messages: Optional[List[Dict[str, Any]]], tokenizer: Any, prompt: Optional[str] = None
+) -> Optional[str]:
+    """Format messages and/or prompt into a single string, or return None if nothing to format."""
+    if messages:
+        if hasattr(tokenizer, "chat_template") and tokenizer.chat_template:
+            formatted: str = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        else:
+            # Fallback formatting
+            prompt_parts = []
+            for msg in messages:
+                role = msg.get("role", "user")
+                content = msg.get("content", "")
+                if role == "system":
+                    prompt_parts.append(f"System: {content}")
+                elif role == "user":
+                    prompt_parts.append(f"User: {content}")
+                elif role == "assistant":
+                    prompt_parts.append(f"Assistant: {content}")
+            prompt_parts.append("Assistant:")
+            formatted = "\n\n".join(prompt_parts)
+
+        if prompt:
+            return f"{formatted}\n\n{prompt}"
+
+        return formatted
+
+    return prompt
 
 
 async def generate_stream(
@@ -41,18 +55,9 @@ async def generate_stream(
     generation_kwargs = generation_kwargs or {}
 
     # Format input
-    if messages:
-        if hasattr(tokenizer, "chat_template") and tokenizer.chat_template:
-            formatted_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        else:
-            formatted_prompt = _format_messages_fallback(messages)
+    formatted_prompt = _format_messages(messages, tokenizer, prompt)
 
-        if prompt:
-            formatted_prompt = f"{formatted_prompt}\n\n{prompt}"
-    else:
-        formatted_prompt = prompt
-
-    if not formatted_prompt:
+    if formatted_prompt is None:
         yield {"type": "complete", "input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
         return
 

@@ -126,7 +126,9 @@ class ChatCompletionsFormatter:
                     Choice(
                         index=0,
                         delta=ChoiceDelta(),
-                        finish_reason="stop" if event.finish_reason == "cancelled" else event.finish_reason,
+                        finish_reason="stop"
+                        if event.finish_reason in ["cancelled", "timeout"]
+                        else event.finish_reason,
                     )
                 ],
             )
@@ -166,7 +168,7 @@ class ChatCompletionsFormatter:
                     if tool_events
                     else (
                         "stop"
-                        if end_event and end_event.finish_reason == "cancelled"
+                        if end_event and end_event.finish_reason in ["cancelled", "timeout"]
                         else (end_event.finish_reason if end_event else "stop")
                     ),
                 }

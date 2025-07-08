@@ -33,8 +33,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(title="ROSE Inference Server", lifespan=lifespan)
 
 
-@app.websocket("/")
-async def websocket_endpoint(websocket: WebSocket) -> None:
+@app.websocket("/inference")
+async def inference_endpoint(websocket: WebSocket) -> None:
     """Handle persistent inference WebSocket connections."""
     # Check connection limit before accepting
     if app.state.active_connections >= app.state.max_connections:
@@ -55,25 +55,10 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     logger.info(f"Client connected (active_connections={app.state.active_connections})")
 
     try:
-        # Process requests on this connection sequentially
+        # Process inference requests on this connection sequentially
         async for message in websocket.iter_text():
             request_data = json.loads(message)
 
-            # Handle control requests
-            if request_data.get("type") == "control":
-                action = request_data.get("action")
-
-                if action == "evict_models":
-                    result = app.state.handler.evict_cache()
-                    await websocket.send_json(result)
-                elif action == "cache_status":
-                    result = app.state.handler.get_status()
-                    await websocket.send_json(result)
-                else:
-                    await websocket.send_json({"status": "error", "message": f"Unknown action: {action}"})
-                continue
-
-            # Handle inference request
             try:
                 async for event in app.state.handler.run_inference(
                     config=request_data["config"],
@@ -104,6 +89,12 @@ async def health() -> Dict[str, Any]:
         "max_connections": app.state.max_connections,
         "cache_status": app.state.handler.get_status(),
     }
+
+
+@app.post("/control/evict")
+async def evict_cache() -> Dict[str, Any]:
+    """Evict all cached models."""
+    return app.state.handler.evict_cache()
 
 
 def main() -> None:
