@@ -14,37 +14,38 @@ class ModelCache:
 
     def __init__(self) -> None:
         self.current_model: Optional[Dict[str, Any]] = None
-        self.current_model_name: Optional[str] = None
         self.last_used: float = time.time()
         self.total_inferences: int = 0
 
-    def get(self, model_name: str) -> Optional[Dict[str, Any]]:
+    def get(self, model_id: str) -> Optional[Dict[str, Any]]:
         """Get model from cache if it exists."""
-        if self.current_model_name == model_name and self.current_model is not None:
-            logger.info(f"Cache hit for model: {model_name} (inference #{self.total_inferences + 1})")
+        if self.current_model and self.current_model.get("model_id") == model_id:
+            logger.info(f"Cache hit for model: {model_id} (inference #{self.total_inferences + 1})")
             self.last_used = time.time()
             self.total_inferences += 1
             return self.current_model
         return None
 
-    def set(self, model_name: str, model_info: Dict[str, Any]) -> None:
+    def set(self, model_id: str, model_info: Dict[str, Any]) -> None:
         """Set a model in the cache, evicting any existing model."""
+        # Add model_id to the info dict for later reference
+        model_info["model_id"] = model_id
+
         # Evict old model if different
-        if self.current_model_name and self.current_model_name != model_name:
-            logger.info(f"Evicting model: {self.current_model_name} to make room for {model_name}")
+        if self.current_model and self.current_model.get("model_id") != model_id:
+            logger.info(f"Evicting model: {self.current_model.get('model_id')} to make room for {model_id}")
             self.evict()
 
         # Cache new model
-        logger.info(f"Caching model: {model_name}")
+        logger.info(f"Caching model: {model_id}")
         self.current_model = model_info
-        self.current_model_name = model_name
         self.last_used = time.time()
         self.total_inferences = 1
 
     def evict(self) -> None:
         """Evict the cached model to free memory."""
         if self.current_model:
-            logger.info(f"Evicting model: {self.current_model_name}")
+            logger.info(f"Evicting model: {self.current_model.get('model_id')}")
 
             # Pass model to cleanup for proper PEFT handling
             if "model" in self.current_model:
@@ -58,7 +59,6 @@ class ModelCache:
                 del self.current_model["tokenizer"]
 
             self.current_model = None
-            self.current_model_name = None
             self.total_inferences = 0
 
             # Force memory cleanup
@@ -70,7 +70,7 @@ class ModelCache:
         return {
             "cache_type": "single_model",
             "cache_description": "Keeps one model hot in memory. Loading a different model evicts the current one.",
-            "cached_model": self.current_model_name,
+            "cached_model": self.current_model.get("model_id") if self.current_model else None,
             "last_used": self.last_used,
             "total_inferences": self.total_inferences,
             "cache_age_seconds": time.time() - self.last_used if self.current_model else 0,
