@@ -173,7 +173,7 @@ def cleanup_model_memory(model: Optional[Any] = None) -> None:
     # GPU memory cleanup
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-        torch.cuda.ipc_collect()  # type: ignore[attr-defined]
+        torch.cuda.ipc_collect()  # type: ignore[no-untyped-call]
         # Force synchronization
         for i in range(torch.cuda.device_count()):
             with torch.cuda.device(i):
