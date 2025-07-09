@@ -1,30 +1,77 @@
 version: '3.8'
 
 services:
-  rose-server:
-    build:
-      context: .
-      dockerfile: Dockerfile
+
+  rose-api:
+    build: .
+    command: ["python", "-m", "rose_server.main"]
     ports:
       - "8004:8004"
     environment:
+      - ROSE_API_KEY=${ROSE_API_KEY:-docker-dev-key-123456}
+      - ROSE_SERVER_HOST=0.0.0.0
+      - ROSE_SERVER_PORT=8004
+      - ROSE_SERVER_DATA_DIR=/app/data
       - ROSE_SERVER_CHROMA_HOST=chromadb
       - ROSE_SERVER_CHROMA_PORT=8000
+      - ROSE_SERVER_INFERENCE_URI=ws://rose-inference:8005
     volumes:
       - ./data:/app/data
-      - ~/.cache/huggingface:/root/.cache/huggingface
     depends_on:
-      - chromadb
+      chromadb:
+        condition: service_healthy
+      rose-inference:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  rose-trainer:
+    build: .
+    command: ["python", "-m", "rose_trainer.scheduler"]
+    environment:
+      - ROSE_SERVER_URL=http://rose-api:8004
+      - ROSE_API_KEY=${ROSE_API_KEY:-docker-dev-key-123456}
+      - ROSE_SERVER_TRAINING_INTERVAL=30
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      rose-api:
+        condition: service_healthy
+
+  rose-inference:
+    build: .
+    command: ["python", "-m", "rose_inference.main"]
+    ports:
+      - "8005:8005"
+    environment:
+      - ROSE_SERVER_URL=http://rose-api:8004
+      - ROSE_API_KEY=${ROSE_API_KEY:-docker-dev-key-123456}
+      - ROSE_INFERENCE_HOST=0.0.0.0
+      - ROSE_INFERENCE_PORT=8005
+    volumes:
+      - ./data:/app/data
+      - ./src:/app/src:ro
 
   chromadb:
     image: chromadb/chroma:latest
     ports:
       - "8003:8000"
-    volumes:
-      - chromadb-data:/chroma/chroma
     environment:
-      - IS_PERSISTENT=TRUE
+      - CHROMA_HOST=0.0.0.0
+      - CHROMA_PORT=8000
+      - PERSIST_DIRECTORY=/chroma/data
       - ANONYMIZED_TELEMETRY=false
+    volumes:
+      - chroma-data:/chroma/data
+    healthcheck:
+      test: ["CMD", "/bin/bash", "-c", "cat < /dev/null > /dev/tcp/localhost/8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
-  chromadb-data:
+  chroma-data:
+    driver: local
