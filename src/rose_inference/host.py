@@ -36,7 +36,7 @@ def load_hf_model(model_id: str, torch_dtype: Optional[str] = None) -> Any:
 
     logger.info(f"Loading HF model {model_id} on {device} with dtype {dtype}")
 
-    model = AutoModelForCausalLM.from_pretrained(
+    model = AutoModelForCausalLM.from_pretrained(  # type: ignore[no-untyped-call]
         model_id,
         torch_dtype=dtype,
         device_map="auto" if device == "cuda" else None,
@@ -57,7 +57,7 @@ def load_peft_model(model_id: str, model_path: str, torch_dtype: Optional[str] =
     logger.info(f"Loading PEFT model from {model_path}")
 
     # Load the PEFT model with its base model
-    model = AutoModelForCausalLM.from_pretrained(
+    model = AutoModelForCausalLM.from_pretrained(  # type: ignore[no-untyped-call]
         model_path,
         torch_dtype=dtype,
         device_map="auto" if device == "cuda" else None,
@@ -104,7 +104,7 @@ def cleanup_model_memory(model: Optional[Any] = None) -> None:
     # GPU memory cleanup
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-        torch.cuda.ipc_collect()
+        torch.cuda.ipc_collect()  # type: ignore[no-untyped-call]
     elif torch.backends.mps.is_available():
         torch.mps.empty_cache()
 

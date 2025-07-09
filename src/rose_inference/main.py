@@ -9,7 +9,9 @@ from typing import Any, AsyncGenerator, Dict
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
-from rose_inference.inference import InferenceHandler
+from rose_inference.cache import ModelCache
+from rose_inference.generator import generate_stream
+from rose_inference.loader import load_model
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -18,16 +20,16 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application lifecycle."""
-    app.state.handler = InferenceHandler()
+    app.state.cache = ModelCache()
     app.state.active_connections = 0
     app.state.max_connections = int(os.getenv("ROSE_INFERENCE_MAX_CONNECTIONS", "10"))
 
-    logger.info(f"Inference handler initialized (max_connections={app.state.max_connections})")
+    logger.info(f"Inference server initialized (max_connections={app.state.max_connections})")
     yield
 
     # Cleanup
-    app.state.handler.evict_cache()
-    logger.info("Inference handler cleaned up")
+    app.state.cache.evict()
+    logger.info("Inference server cleaned up")
 
 
 app = FastAPI(title="ROSE Inference Server", lifespan=lifespan)
@@ -60,11 +62,34 @@ async def inference_endpoint(websocket: WebSocket) -> None:
             request_data = json.loads(message)
 
             try:
-                async for event in app.state.handler.run_inference(
-                    config=request_data["config"],
-                    generation_kwargs=request_data["generation_kwargs"],
+                config = request_data["config"]
+                model_id = config.get("model_id")
+                model_name = config.get("model_name")
+
+                if not model_id or not model_name:
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "error": f"Missing required config: model_id={model_id}, model_name={model_name}",
+                        }
+                    )
+                    continue
+
+                # Get or load model
+                model_info = app.state.cache.get(model_id)
+                if model_info is None:
+                    logger.info(f"Cache miss, loading model: {model_name}")
+                    model_info = await load_model(config)
+                    app.state.cache.set(model_id, model_info)
+
+                # Generate
+                async for event in generate_stream(
+                    model=model_info["model"],
+                    tokenizer=model_info["tokenizer"],
                     messages=request_data.get("messages"),
                     prompt=request_data.get("prompt", ""),
+                    generation_kwargs=request_data["generation_kwargs"],
+                    config=config,
                 ):
                     await websocket.send_json(event)
             except Exception as e:
@@ -83,18 +108,14 @@ async def inference_endpoint(websocket: WebSocket) -> None:
 @app.get("/health")
 async def health() -> Dict[str, Any]:
     """Health check endpoint."""
-    return {
-        "status": "ok",
-        "active_connections": app.state.active_connections,
-        "max_connections": app.state.max_connections,
-        "cache_status": app.state.handler.get_status(),
-    }
+    return {"status": "ok"}
 
 
 @app.post("/control/evict")
-async def evict_cache() -> Dict[str, Any]:
+async def evict_cache() -> Dict[str, str]:
     """Evict all cached models."""
-    return app.state.handler.evict_cache()
+    app.state.cache.evict()
+    return {"status": "evicted", "message": "Model cache cleared"}
 
 
 def main() -> None:
