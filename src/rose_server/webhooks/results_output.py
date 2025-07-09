@@ -12,7 +12,9 @@ from rose_server.types.training import StepMetrics
 logger = logging.getLogger(__name__)
 
 
-async def create_result_file(job_id: str, final_loss: float, steps: int) -> Optional[str]:
+async def create_result_file(
+    job_id: str, final_loss: float, steps: int, final_perplexity: Optional[float] = None
+) -> Optional[str]:
     """
     Build a training-results artifact and upload it to the file store.
     Returns the file ID or *None* on failure.
@@ -51,6 +53,10 @@ async def create_result_file(job_id: str, final_loss: float, steps: int) -> Opti
         "convergence_achieved": final_loss < 1.0,
         "training_time_seconds": (training_end - training_start) if training_start and training_end else None,
     }
+
+    # Add perplexity if available (validation split was used)
+    if final_perplexity is not None:
+        training_summary["final_perplexity"] = final_perplexity
 
     training_results = {
         "object": "fine_tuning.job.training_results",

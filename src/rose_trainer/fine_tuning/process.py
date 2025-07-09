@@ -55,17 +55,23 @@ def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceCl
             config=config,
         )
 
+        webhook_data = {
+            "fine_tuned_model": result["model_name"],
+            "trained_tokens": int(result.get("tokens_processed", 0)),
+            "final_loss": result.get("final_loss"),
+            "steps": result.get("steps"),
+        }
+
+        # Include perplexity if available (only when validation split was used)
+        if result.get("final_perplexity") is not None:
+            webhook_data["final_perplexity"] = result["final_perplexity"]
+
         client.post_webhook(
             "job.completed",
             "training",
             job_id,
             ft_job_id,
-            {
-                "fine_tuned_model": result["model_name"],
-                "trained_tokens": int(result.get("tokens_processed", 0)),
-                "final_loss": result.get("final_loss"),
-                "steps": result.get("steps"),
-            },
+            webhook_data,
         )
 
         # Handle cancellation
