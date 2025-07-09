@@ -4,7 +4,7 @@ import logging
 import time
 from typing import Any, Dict, Optional
 
-from rose_inference.host import cleanup_model_memory
+from rose_inference.loader import unload_model
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class ModelCache:
 
             # Pass model to cleanup for proper PEFT handling
             if "model" in self.current_model:
-                cleanup_model_memory(self.current_model["model"])
+                unload_model(self.current_model["model"])
 
             # Clean up remaining references
             if "model" in self.current_model:
@@ -62,7 +62,7 @@ class ModelCache:
             self.total_inferences = 0
 
             # Force memory cleanup
-            cleanup_model_memory()
+            unload_model()
             logger.info("Model evicted and memory cleaned")
 
     def get_status(self) -> Dict[str, Any]:
