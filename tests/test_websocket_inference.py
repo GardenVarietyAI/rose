@@ -2,7 +2,7 @@
 
 import pytest
 
-from rose_core.config.settings import settings
+from rose_server.config.settings import settings
 from rose_server.inference.client import InferenceClient
 
 

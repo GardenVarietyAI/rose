@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-from rose_core.config.settings import settings
+from rose_server.config.settings import settings
 from rose_server.models.store import LanguageModel
 
 

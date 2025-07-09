@@ -7,8 +7,6 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from rose_core.config.settings import settings
-
 logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 30.0
@@ -18,7 +16,10 @@ class ServiceClient:
     """HTTP client for worker→server communication."""
 
     def __init__(self, base_url: Optional[str] = None, timeout: float = DEFAULT_TIMEOUT):
-        self.base_url = base_url or f"http://{settings.host}:{settings.port}"
+        # Get base URL from environment or use default
+        if base_url is None:
+            base_url = os.getenv("ROSE_SERVER_URL", "http://127.0.0.1:8004")
+        self.base_url = base_url
         self.timeout = timeout
 
         # Always set auth header

@@ -1,4 +1,4 @@
 """Configuration modules for Rose services."""
 
 # Import settings
-from rose_core.config.settings import settings  # noqa: F401
+from rose_server.config.settings import settings  # noqa: F401

@@ -10,7 +10,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
-from rose_core.config.settings import settings
+from rose_server.config.settings import settings
 from rose_server.fs import check_file_path
 from rose_server.inference.client import InferenceClient
 from rose_server.models.store import (
@@ -44,7 +44,6 @@ async def openai_api_models() -> JSONResponse:
                 "created": model.created_at,
                 "owned_by": model.owned_by,
                 "permission": json.loads(model.permissions) if model.permissions else [],
-                "root": model.root or model.id,
                 "parent": model.parent,
             }
         )
@@ -64,7 +63,6 @@ async def get_model_details(model_id: str) -> JSONResponse:
                 "created": model.created_at,
                 "owned_by": model.owned_by,
                 "permission": json.loads(model.permissions) if model.permissions else [],
-                "root": model.root or model.id,
                 "parent": model.parent,
                 # Extra field for internal use
                 "model_name": model.model_name,
@@ -169,7 +167,7 @@ async def evict_cached_models() -> Dict[str, Any]:
 @router.post("/models", status_code=201)
 async def create_model(request: ModelCreateRequest) -> Dict[str, Any]:
     """Create a new model configuration."""
-    # Create the model
+
     model = await create_language_model(
         model_name=request.model_name,
         name=request.name,
@@ -183,13 +181,11 @@ async def create_model(request: ModelCreateRequest) -> Dict[str, Any]:
 
     logger.info(f"Created model: {model.id} ({model.model_name})")
 
-    # Return the created model in OpenAI format
     return {
         "id": model.id,
         "object": "model",
         "created": model.created_at,
         "owned_by": model.owned_by,
         "permission": json.loads(model.permissions) if model.permissions else [],
-        "root": model.root or model.id,
         "parent": model.parent,
     }

@@ -1,4 +1,5 @@
-import asyncio
+"""Simplified WebSocket inference server."""
+
 import json
 import logging
 import os
@@ -8,8 +9,9 @@ from typing import Any, AsyncGenerator, Dict
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
-from rose_core.config.settings import settings
-from rose_inference.runner import Runner
+from rose_inference.cache import ModelCache
+from rose_inference.generator import generate_stream
+from rose_inference.loader import load_model
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -18,108 +20,107 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application lifecycle."""
-    # Initialize runner on startup
-    app.state.runner = Runner()
+    app.state.cache = ModelCache()
+    app.state.active_connections = 0
+    app.state.max_connections = int(os.getenv("ROSE_INFERENCE_MAX_CONNECTIONS", "10"))
 
-    # Start the worker task
-    app.state.runner.worker_task = asyncio.create_task(app.state.runner.start_worker())
-    logger.info("Inference runner initialized with queue worker")
-
+    logger.info(f"Inference server initialized (max_connections={app.state.max_connections})")
     yield
 
-    # Cleanup on shutdown
-    if app.state.runner.worker_task:
-        app.state.runner.worker_task.cancel()
-        try:
-            await app.state.runner.worker_task
-        except asyncio.CancelledError:
-            pass
-
-    app.state.runner.model_cache.evict()
-    logger.info("Inference runner cleaned up")
+    # Cleanup
+    app.state.cache.evict()
+    logger.info("Inference server cleaned up")
 
 
 app = FastAPI(title="ROSE Inference Server", lifespan=lifespan)
 
 
-@app.websocket("/")
-async def websocket_endpoint(websocket: WebSocket) -> None:
-    """Handle inference WebSocket connections."""
+@app.websocket("/inference")
+async def inference_endpoint(websocket: WebSocket) -> None:
+    """Handle persistent inference WebSocket connections."""
+    # Check connection limit before accepting
+    if app.state.active_connections >= app.state.max_connections:
+        await websocket.close(code=1013, reason="Server busy - too many connections")
+        return
+
     # Check auth if enabled
-    if settings.auth_enabled:
+    auth_enabled = os.getenv("ROSE_SERVER_AUTH_ENABLED", "false").lower() == "true"
+    if auth_enabled:
         token = os.getenv("ROSE_API_KEY")
-        # Headers are normalized to lowercase by Starlette
         auth_header = websocket.headers.get("authorization", "")
         if token and auth_header != f"Bearer {token}":
             await websocket.close(code=1008, reason="Unauthorized")
             return
 
     await websocket.accept()
+    app.state.active_connections += 1
+    logger.info(f"Client connected (active_connections={app.state.active_connections})")
 
     try:
-        # Receive the request
-        request = await websocket.receive_text()
-        request_data = json.loads(request)
+        # Process inference requests on this connection sequentially
+        async for message in websocket.iter_text():
+            request_data = json.loads(message)
 
-        # Check if this is a control request
-        if request_data.get("type") == "control":
-            action = request_data.get("action")
+            try:
+                config = request_data["config"]
+                model_id = config.get("model_id")
+                model_name = config.get("model_name")
 
-            if action == "evict_models":
-                result = app.state.runner.evict_models()
-                await websocket.send_json(result)
+                if not model_id or not model_name:
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "error": f"Missing required config: model_id={model_id}, model_name={model_name}",
+                        }
+                    )
+                    continue
 
-            elif action == "cache_status":
-                result = app.state.runner.get_status()
-                await websocket.send_json(result)
+                # Get or load model
+                model_info = app.state.cache.get(model_id)
+                if model_info is None:
+                    logger.info(f"Cache miss, loading model: {model_name}")
+                    model_info = await load_model(config)
+                    app.state.cache.set(model_id, model_info)
 
-            else:
-                await websocket.send_json({"status": "error", "message": f"Unknown control action: {action}"})
-            return
-
-        # Process the inference request
-        async for event in app.state.runner.run_inference(
-            model_name=request_data["model_name"],
-            model_config=request_data["config"],
-            generation_kwargs=request_data["generation_kwargs"],
-            messages=request_data.get("messages"),
-            prompt=request_data.get("prompt", ""),
-            stream_id=request_data.get("stream_id"),
-        ):
-            # Send the event
-            await websocket.send_json(event)
-
-            # If it's an error event, stop processing
-            if event.get("type") == "error":
-                logger.error(f"Inference error: {event.get('error', 'Unknown error')}")
-                break
+                # Generate
+                async for event in generate_stream(
+                    model=model_info["model"],
+                    tokenizer=model_info["tokenizer"],
+                    messages=request_data.get("messages"),
+                    prompt=request_data.get("prompt", ""),
+                    generation_kwargs=request_data["generation_kwargs"],
+                    config=config,
+                ):
+                    await websocket.send_json(event)
+            except Exception as e:
+                logger.error(f"Error processing request: {e}")
+                await websocket.send_json({"type": "error", "error": str(e)})
 
     except WebSocketDisconnect:
         logger.info("Client disconnected")
     except Exception as e:
-        logger.error(f"Error handling inference: {e}")
-        try:
-            await websocket.send_json({"type": "error", "error": str(e)})
-        except Exception:
-            pass  # Connection might be closed
+        logger.error(f"WebSocket error: {e}")
+    finally:
+        app.state.active_connections -= 1
+        logger.info(f"Client cleanup (active_connections={app.state.active_connections})")
 
 
 @app.get("/health")
 async def health() -> Dict[str, Any]:
     """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "max_concurrent_inference": settings.max_concurrent_inference,
-    }
+    return {"status": "ok"}
+
+
+@app.post("/control/evict")
+async def evict_cache() -> Dict[str, str]:
+    """Evict all cached models."""
+    app.state.cache.evict()
+    return {"status": "evicted", "message": "Model cache cleared"}
 
 
 def main() -> None:
     """Entry point for the inference server."""
-
-    # Run server
     logger.info("Starting inference server on ws://localhost:8005")
-    logger.info(f"Max concurrent inferences: {settings.max_concurrent_inference}")
-
     uvicorn.run(app, host="localhost", port=8005, log_level="info")
 
 

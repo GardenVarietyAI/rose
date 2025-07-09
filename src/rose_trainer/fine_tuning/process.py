@@ -4,10 +4,9 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from rose_core.config.settings import settings
-from rose_core.models import cleanup_model_memory
 from rose_trainer.client import ServiceClient
-from rose_trainer.fine_tuning.training.hf_trainer import train
+from rose_trainer.fine_tuning.fine_tuner import train
+from rose_trainer.models import unload_model
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +18,7 @@ def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceCl
     training_file: str = payload["training_file"]
     hyperparameters: Dict[str, Any] = payload.get("hyperparameters", {})
     suffix: Optional[str] = payload["suffix"]
+    config: Dict[str, Any] = payload.get("config", {})
     logger.info(f"Starting training job {job_id} for fine-tuning {ft_job_id}")
 
     # Create event callback for progress reporting
@@ -41,7 +41,8 @@ def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceCl
             hyperparameters = hyperparameters.copy()
             hyperparameters["suffix"] = suffix
 
-        training_file_path = Path(settings.data_dir) / "uploads" / training_file
+        data_dir = config.get("data_dir", "./data")
+        training_file_path = Path(data_dir) / "uploads" / training_file
 
         result = train(
             job_id=ft_job_id,
@@ -51,6 +52,7 @@ def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceCl
             client=client,
             check_cancel_callback=check_cancel_callback,
             event_callback=event_callback,
+            config=config,
         )
 
         client.post_webhook(
@@ -81,4 +83,4 @@ def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceCl
         )
         raise
     finally:
-        cleanup_model_memory()
+        unload_model()

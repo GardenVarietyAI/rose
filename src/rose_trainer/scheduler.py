@@ -1,13 +1,13 @@
 """Job scheduler for the training worker using APScheduler."""
 
 import logging
+import os
 import signal
 from typing import Any
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
-from rose_core.config.settings import settings
 from rose_trainer.worker import process_next_training_job
 
 logging.basicConfig(level=logging.INFO)
@@ -64,8 +64,15 @@ class TrainingScheduler:
 
 def main() -> None:
     """Entry point for the scheduler."""
-    # Use interval from settings
-    scheduler = TrainingScheduler(interval_seconds=settings.training_interval)
+    # Get interval from environment or use default
+    try:
+        interval = int(os.getenv("ROSE_SERVER_TRAINING_INTERVAL", "30"))
+    except ValueError:
+        logger.warning(
+            "Invalid value for ROSE_SERVER_TRAINING_INTERVAL. Falling back to default interval of 30 seconds."
+        )
+        interval = 30
+    scheduler = TrainingScheduler(interval_seconds=interval)
     scheduler.start()
 
 

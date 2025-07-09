@@ -7,7 +7,7 @@ from typing import Optional
 import aiofiles
 import aiofiles.os
 
-from rose_core.config.settings import settings
+from rose_server.config.settings import settings
 
 logger = logging.getLogger(__name__)
 

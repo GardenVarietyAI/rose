@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Body, HTTPException, Query
 from openai.types.fine_tuning import FineTuningJob
 
+from rose_server.config.settings import settings
 from rose_server.fine_tuning.events.store import get_events
 from rose_server.fine_tuning.jobs.store import create_job, get_job, list_jobs, update_job_status
 from rose_server.queues.store import enqueue, find_job_by_payload_field, request_cancel, request_pause
@@ -68,6 +69,13 @@ async def create_fine_tuning_job(
                 "job_id": job.id,
                 "hyperparameters": hyperparameters,
                 "suffix": suffix or "custom",
+                "config": {
+                    "data_dir": settings.data_dir,
+                    "checkpoint_dir": settings.fine_tuning_checkpoint_dir,
+                    "checkpoint_interval": settings.fine_tuning_checkpoint_interval,
+                    "max_checkpoints": settings.fine_tuning_max_checkpoints,
+                    "webhook_url": settings.webhook_url,
+                },
             },
             max_attempts=3,
         )
@@ -186,6 +194,13 @@ async def resume_fine_tuning_job(job_id: str) -> FineTuningJob:
                 "job_id": job.id,
                 "hyperparameters": job.hyperparameters if job.hyperparameters else {},
                 "suffix": job.suffix or "custom",
+                "config": {
+                    "data_dir": settings.data_dir,
+                    "checkpoint_dir": settings.fine_tuning_checkpoint_dir,
+                    "checkpoint_interval": settings.fine_tuning_checkpoint_interval,
+                    "max_checkpoints": settings.fine_tuning_max_checkpoints,
+                    "webhook_url": settings.webhook_url,
+                },
             },
             max_attempts=3,
         )

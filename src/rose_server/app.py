@@ -11,7 +11,7 @@ os.environ["POSTHOG_DISABLED"] = "1"
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from rose_core.config.settings import settings
+from rose_server.config.settings import settings
 from rose_server.database import create_all_tables
 from rose_server.middleware.auth import AuthMiddleware
 from rose_server.models.registry import ModelRegistry
@@ -51,7 +51,6 @@ async def lifespan(app: FastAPI) -> Any:
     )
 
     app.state.model_registry = ModelRegistry()
-    await app.state.model_registry.initialize()
     logger.info("Model registry initialized")
 
     yield
