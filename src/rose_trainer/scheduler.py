@@ -65,7 +65,11 @@ class TrainingScheduler:
 def main() -> None:
     """Entry point for the scheduler."""
     # Get interval from environment or use default
-    interval = int(os.getenv("ROSE_SERVER_TRAINING_INTERVAL", "30"))
+    try:
+        interval = int(os.getenv("ROSE_SERVER_TRAINING_INTERVAL", "30"))
+    except ValueError:
+        logger.warning("Invalid value for ROSE_SERVER_TRAINING_INTERVAL. Falling back to default interval of 30 seconds.")
+        interval = 30
     scheduler = TrainingScheduler(interval_seconds=interval)
     scheduler.start()
 
