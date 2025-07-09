@@ -157,7 +157,7 @@ def cleanup_peft_model(model: Any) -> None:
         logger.warning(f"Error during model cleanup: {e}")
 
 
-def cleanup_model_memory(model: Optional[Any] = None) -> None:
+def unload_model(model: Optional[Any] = None) -> None:
     """Enhanced cleanup that handles PEFT models properly.
 
     Args:
