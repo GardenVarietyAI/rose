@@ -120,8 +120,10 @@ async def evict_cache() -> Dict[str, str]:
 
 def main() -> None:
     """Entry point for the inference server."""
-    logger.info("Starting inference server on ws://localhost:8005")
-    uvicorn.run(app, host="localhost", port=8005, log_level="info")
+    host = os.getenv("ROSE_INFERENCE_HOST", "0.0.0.0")
+    port = int(os.getenv("ROSE_INFERENCE_PORT", "8005"))
+    logger.info(f"Starting inference server on ws://{host}:{port}")
+    uvicorn.run(app, host=host, port=port, log_level="info")
 
 
 if __name__ == "__main__":
