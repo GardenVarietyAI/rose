@@ -9,7 +9,7 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 import httpx
 import websockets
 
-from rose_core.config.settings import settings
+from rose_server.config.settings import settings
 from rose_server.events.event_types import (
     InputTokensCounted,
     ResponseCompleted,

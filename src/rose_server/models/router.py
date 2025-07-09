@@ -10,7 +10,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
-from rose_core.config.settings import settings
+from rose_server.config.settings import settings
 from rose_server.fs import check_file_path
 from rose_server.inference.client import InferenceClient
 from rose_server.models.store import (
