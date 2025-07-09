@@ -14,12 +14,10 @@ from transformers.trainer import Trainer
 from transformers.trainer_callback import EarlyStoppingCallback, TrainerCallback
 from transformers.training_args import TrainingArguments
 
-from rose_core.config.settings import settings
-from rose_core.models import get_tokenizer, load_hf_model
-from rose_core.models.loading import get_optimal_device
 from rose_trainer.client import ServiceClient
-from rose_trainer.fine_tuning.training.callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
-from rose_trainer.fine_tuning.training.hyperparams import HyperParams
+from rose_trainer.fine_tuning.callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
+from rose_trainer.fine_tuning.hyperparams import HyperParams
+from rose_trainer.models import get_optimal_device, get_tokenizer, load_hf_model
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +30,7 @@ def train(
     client: ServiceClient,
     check_cancel_callback: Optional[Callable[[], str]] = None,
     event_callback: Optional[Callable[[str, str, Dict[str, Any]], None]] = None,
+    config: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Run a fine-tuning job and return a result dict."""
 
@@ -52,8 +51,9 @@ def train(
 
     # Use the actual HuggingFace model name from the database
     hf_model_name = model_info.get("model_name", model_name)
-    model = load_hf_model(model_id=hf_model_name)
-    tokenizer = get_tokenizer(hf_model_name)
+    config = config or {}
+    model = load_hf_model(model_id=hf_model_name, config=config)
+    tokenizer = get_tokenizer(hf_model_name, data_dir=config.get("data_dir", "./data"))
 
     # Extract config from model info
     model_config = {"lora_target_modules": model_info.get("lora_target_modules", [])}
@@ -88,7 +88,8 @@ def train(
     # Build training components
     callbacks: List[TrainerCallback] = [EventCallback(event_callback), HardwareMonitorCallback(event_callback)]
     if check_cancel_callback:
-        callbacks.append(CancellationCallback(check_cancel_callback, job_id))
+        checkpoint_dir_config = config.get("checkpoint_dir", "data/checkpoints")
+        callbacks.append(CancellationCallback(check_cancel_callback, job_id, checkpoint_dir=checkpoint_dir_config))
     if hp.validation_split > 0:
         callbacks.append(EarlyStoppingCallback(early_stopping_patience=hp.early_stopping_patience))
 
@@ -121,7 +122,8 @@ def train(
         result: BatchEncoding = tokenizer(str(text), truncation=True, max_length=hp.max_length)
         return result
 
-    checkpoint_dir = Path(settings.fine_tuning_checkpoint_dir) / job_id
+    checkpoint_base_dir = config.get("checkpoint_dir", "data/checkpoints")
+    checkpoint_dir = Path(checkpoint_base_dir) / job_id
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     tokenized_dataset = raw_dataset.map(tokenize_example, remove_columns=raw_dataset.column_names)
@@ -136,7 +138,7 @@ def train(
         output_dir=str(checkpoint_dir),
         num_train_epochs=hp.n_epochs,
         per_device_train_batch_size=per_device,
-        per_device_eval_batch_size=settings.fine_tuning_eval_batch_size,
+        per_device_eval_batch_size=1,  # Default eval batch size
         gradient_accumulation_steps=hp.gradient_accumulation_steps,
         learning_rate=hp.learning_rate,
         warmup_steps=int(total_steps * hp.warmup_ratio),
@@ -194,7 +196,7 @@ def train(
     if hp.suffix:
         model_id = f"{model_id}-{hp.suffix}"
 
-    out_dir = Path(settings.data_dir) / "models" / model_id
+    out_dir = Path(config.get("data_dir", "./data")) / "models" / model_id
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Check if this is a PEFT model
