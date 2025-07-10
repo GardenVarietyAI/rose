@@ -30,8 +30,6 @@ def chat(
     if ctx.invoked_subcommand is not None:
         return
 
-    client = get_client()
-
     # Handle interactive mode
     if interactive or prompt is None:
         interactive_func(model=model, system=system)
@@ -59,6 +57,7 @@ def chat(
             if top_logprobs is not None:
                 kwargs["top_logprobs"] = top_logprobs
 
+        client = get_client()
         response = client.chat.completions.create(**kwargs)
 
         # Print the message content

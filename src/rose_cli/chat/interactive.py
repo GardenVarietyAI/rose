@@ -16,8 +16,6 @@ def interactive(
     system: Optional[str] = typer.Option(None, "--system", "-s", help="System prompt"),
 ) -> None:
     """Start an interactive chat session with a model."""
-    client = get_client()
-
     messages: list[ChatCompletionMessageParam] = []
 
     # Add system message if provided
@@ -50,6 +48,7 @@ def interactive(
 
             try:
                 # Streaming response
+                client = get_client()
                 response_text = ""
                 stream_response = client.chat.completions.create(
                     model=model,
