@@ -69,6 +69,20 @@ async def event_based_chat_completions(
                     },
                 )
 
+    # Validate logprobs with streaming
+    if request.stream and request.logprobs:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": {
+                    "message": "Logprobs are not supported with streaming. Set stream=false to use logprobs.",
+                    "type": "invalid_request_error",
+                    "param": "logprobs",
+                    "code": "invalid_parameter_combination",
+                }
+            },
+        )
+
     try:
         # Build strongly typed config from model
         config = ModelConfig.from_language_model(model)
@@ -97,7 +111,12 @@ async def create_event_streaming_response(
         try:
             tool_params = _prepare_tool_params(request)
             async for event in generator.generate_events(
-                messages, temperature=request.temperature, max_tokens=request.max_tokens, **tool_params
+                messages,
+                temperature=request.temperature,
+                max_tokens=request.max_tokens,
+                logprobs=request.logprobs,
+                top_logprobs=request.top_logprobs,
+                **tool_params,
             ):
                 chunk = formatter.format_event(event)
                 if chunk:
@@ -128,7 +147,12 @@ async def create_event_complete_response(
         tool_params = _prepare_tool_params(request)
         all_events: list[LLMEvent] = []
         async for event in generator.generate_events(
-            messages, temperature=request.temperature, max_tokens=request.max_tokens, **tool_params
+            messages,
+            temperature=request.temperature,
+            max_tokens=request.max_tokens,
+            logprobs=request.logprobs,
+            top_logprobs=request.top_logprobs,
+            **tool_params,
         ):
             all_events.append(event)
         complete_response = formatter.format_complete_response(all_events)

@@ -39,7 +39,7 @@ def seed_models() -> None:
             "lora_target_modules": ["q_proj", "k_proj", "v_proj", "o_proj"],
         },
         {
-            "model_name": "Qwen/Qwen2.5-0.5B-Instruct",
+            "model_name": "Qwen/Qwen--Qwen2.5-1.5B-Instruct-Instruct",
             "temperature": 0.3,
             "top_p": 0.9,
             "memory_gb": 1.5,
