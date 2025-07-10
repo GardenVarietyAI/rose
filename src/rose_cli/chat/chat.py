@@ -5,6 +5,7 @@ from openai.types.chat import ChatCompletionMessageParam
 from rich.console import Console
 from rich.table import Table
 
+from rose_cli.chat.interactive import interactive as interactive_func
 from rose_cli.utils import get_client
 
 console = Console()
@@ -33,9 +34,6 @@ def chat(
 
     # Handle interactive mode
     if interactive or prompt is None:
-        # Call the interactive function directly which handles its own client setup
-        from .interactive import interactive as interactive_func
-
         interactive_func(model=model, system=system)
         return
 
