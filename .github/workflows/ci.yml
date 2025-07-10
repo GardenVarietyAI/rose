@@ -37,5 +37,5 @@ jobs:
         docker compose up -d
         sleep 30
         curl -f http://localhost:8004/health || exit 1
-        docker compose logs rose-server
+        docker compose logs rose-api
         docker compose down
