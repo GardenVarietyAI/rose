@@ -17,6 +17,7 @@ from transformers.training_args import TrainingArguments
 from rose_trainer.client import ServiceClient
 from rose_trainer.fine_tuning.callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
 from rose_trainer.fine_tuning.hyperparams import HyperParams
+from rose_trainer.fine_tuning.metrics import compute_perplexity
 from rose_trainer.models import get_optimal_device, get_tokenizer, load_hf_model
 
 logger = logging.getLogger(__name__)
@@ -147,7 +148,8 @@ def train(
         save_strategy="epoch",
         save_total_limit=3,
         load_best_model_at_end=bool(hp.validation_split),
-        metric_for_best_model="loss",
+        metric_for_best_model="eval_loss",  # Will be used to compute perplexity
+        greater_is_better=False,
         optim="adamw_torch",
         logging_dir=str(checkpoint_dir / "logs"),
         logging_steps=10,
@@ -219,9 +221,27 @@ def train(
         # Not a PEFT model, save normally
         trainer.save_model(str(out_dir))
 
+    # Calculate perplexity from validation loss when available
+    final_perplexity = None
+
+    if hp.validation_split > 0 and eval_ds is not None:
+        # The trainer.train() result doesn't include eval_loss in its metrics,
+        # so we need to run evaluation to get the final validation loss
+        eval_metrics = trainer.evaluate()
+
+        if "eval_loss" in eval_metrics:
+            final_perplexity = compute_perplexity(eval_metrics["eval_loss"])
+            logger.info(f"Final validation perplexity: {final_perplexity:.4f} (loss: {eval_metrics['eval_loss']:.4f})")
+        else:
+            logger.error(
+                f"Expected eval_loss in evaluation metrics but found: {list(eval_metrics.keys())}. "
+                "This indicates a potential issue with the evaluation dataset or configuration."
+            )
+
     return {
         "success": True,
         "final_loss": result.metrics.get("train_loss"),
+        "final_perplexity": final_perplexity,
         "steps": trainer.state.global_step,
         "tokens_processed": trainer.state.num_input_tokens_seen,
         "model_path": str(out_dir),

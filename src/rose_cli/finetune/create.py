@@ -14,6 +14,9 @@ def create_job(
     learning_rate_multiplier: float = typer.Option(
         1.0, "--learning-rate-multiplier", "-lrm", help="Learning rate multiplier (e.g., 1.0, 2.0, 4.0)"
     ),
+    validation_split: Optional[float] = typer.Option(
+        None, "--validation-split", "-vs", help="Validation split ratio (0.0-1.0)"
+    ),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Only output the job ID"),
 ) -> None:
     """Create a fine-tuning job."""
@@ -28,6 +31,8 @@ def create_job(
         }
         if batch_size is not None:
             hyperparameters["batch_size"] = batch_size
+        if validation_split is not None:
+            hyperparameters["validation_split"] = validation_split
 
         job = client.fine_tuning.jobs.create(
             training_file=file_id,

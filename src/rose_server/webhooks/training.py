@@ -89,11 +89,12 @@ async def _create_training_result_file(event: WebhookEvent) -> str | None:
     """Create result file for completed training job."""
     final_loss = event.data.get("final_loss")
     steps = event.data.get("steps")
+    final_perplexity = event.data.get("final_perplexity")  # May be None if no validation split
     if final_loss is None or steps is None:
         logger.warning(f"Missing final_loss or steps for job {event.object_id}")
         return None
     try:
-        result_file_id = await create_result_file(event.object_id, final_loss, steps)
+        result_file_id = await create_result_file(event.object_id, final_loss, steps, final_perplexity)
         logger.info(f"Created result file {result_file_id} for job {event.object_id}")
         return result_file_id
     except Exception as e:
