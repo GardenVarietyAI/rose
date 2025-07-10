@@ -26,6 +26,8 @@ def interactive(
     console.print(f"[bold green]ROSE Chat[/bold green] - Model: [cyan]{model}[/cyan]")
     console.print("[dim]Type 'exit' or 'quit' to end the session. Use Ctrl+C to interrupt.[/dim]\n")
 
+    client = get_client()
+
     while True:
         try:
             # Get user input
@@ -48,7 +50,6 @@ def interactive(
 
             try:
                 # Streaming response
-                client = get_client()
                 response_text = ""
                 stream_response = client.chat.completions.create(
                     model=model,
