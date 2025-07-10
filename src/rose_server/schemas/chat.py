@@ -30,6 +30,10 @@ class ChatRequest(BaseModel):
     tools: Optional[List[Dict[str, Any]]] = Field(default=None, description="Available tools")
     tool_choice: Optional[str] = Field(default="auto", description="Tool selection mode")
     return_tool_calls: Optional[bool] = Field(default=True, description="Return tool calls in response")
+    logprobs: Optional[bool] = Field(default=None, description="Whether to return log probabilities")
+    top_logprobs: Optional[int] = Field(
+        default=None, ge=0, le=5, description="Number of most likely tokens to return at each position"
+    )
 
 
 class ChatResponse(BaseModel):

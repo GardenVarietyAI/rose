@@ -10,7 +10,7 @@ import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from rose_inference.cache import ModelCache
-from rose_inference.generator import generate_stream
+from rose_inference.generator import generate_stream, generate_with_logprobs
 from rose_inference.loader import load_model
 
 logging.basicConfig(level=logging.INFO)
@@ -82,13 +82,22 @@ async def inference_endpoint(websocket: WebSocket) -> None:
                     model_info = await load_model(config)
                     app.state.cache.set(model_id, model_info)
 
+                # Choose generation function based on logprobs parameter
+                generation_kwargs = request_data["generation_kwargs"]
+                if generation_kwargs.get("logprobs", False):
+                    # Use non-streaming generation with logprobs
+                    generator_fn = generate_with_logprobs
+                else:
+                    # Use regular streaming generation
+                    generator_fn = generate_stream
+
                 # Generate
-                async for event in generate_stream(
+                async for event in generator_fn(
                     model=model_info["model"],
                     tokenizer=model_info["tokenizer"],
                     messages=request_data.get("messages"),
                     prompt=request_data.get("prompt", ""),
-                    generation_kwargs=request_data["generation_kwargs"],
+                    generation_kwargs=generation_kwargs,
                     config=config,
                 ):
                     await websocket.send_json(event)

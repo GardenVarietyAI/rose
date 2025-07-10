@@ -32,6 +32,8 @@ class EventGenerator:
         enable_tools: bool = False,
         tools: Optional[List[Any]] = None,
         tool_choice: Optional[str] = "auto",
+        logprobs: Optional[bool] = None,
+        top_logprobs: Optional[int] = None,
         **kwargs: Any,
     ) -> AsyncGenerator[
         Union[ResponseStarted, TokenGenerated, ToolCallStarted, ToolCallCompleted, ResponseCompleted],
@@ -59,6 +61,8 @@ class EventGenerator:
             max_tokens=max_tokens,
             enable_tools=enable_tools,
             tools=tools,
+            logprobs=logprobs,
+            top_logprobs=top_logprobs,
         ):
             yield event
 
@@ -70,6 +74,8 @@ class EventGenerator:
         max_tokens: int,
         enable_tools: bool,
         tools: Optional[List[Any]],
+        logprobs: Optional[bool] = None,
+        top_logprobs: Optional[int] = None,
     ) -> AsyncGenerator[Union[TokenGenerated, ToolCallStarted, ToolCallCompleted, ResponseCompleted], None]:
         """Stream events from the inference service."""
         # Prepare messages
@@ -86,6 +92,11 @@ class EventGenerator:
             "repetition_penalty": self.config.repetition_penalty,
             "length_penalty": self.config.length_penalty,
         }
+
+        # Add logprobs parameters if provided
+        if logprobs is not None:
+            generation_kwargs["logprobs"] = logprobs
+            generation_kwargs["top_logprobs"] = top_logprobs or 0
 
         # Create tool processor if needed
         tool_processor = ToolProcessor(self.model_name) if enable_tools else None

@@ -120,7 +120,8 @@ class InferenceClient:
                             token=data["token"],
                             token_id=total_tokens,
                             position=data["position"],
-                            logprob=None,
+                            logprob=data.get("logprob"),
+                            top_logprobs=data.get("top_logprobs"),
                         )
 
                     elif data["type"] == "complete":
