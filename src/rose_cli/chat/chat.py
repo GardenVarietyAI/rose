@@ -20,6 +20,7 @@ def chat(
     logprobs: bool = typer.Option(False, "--logprobs", help="Return log probabilities of tokens"),
     top_logprobs: Optional[int] = typer.Option(None, "--top-logprobs", help="Number of top logprobs to return (0-5)"),
     temperature: Optional[float] = typer.Option(None, "--temperature", "-t", help="Sampling temperature (0.0-2.0)"),
+    seed: Optional[int] = typer.Option(None, "--seed", help="Seed for deterministic generation"),
 ) -> None:
     """Chat with models using a single message.
 
@@ -56,6 +57,8 @@ def chat(
             kwargs["logprobs"] = logprobs
             if top_logprobs is not None:
                 kwargs["top_logprobs"] = top_logprobs
+        if seed is not None:
+            kwargs["seed"] = seed
 
         client = get_client()
         response = client.chat.completions.create(**kwargs)

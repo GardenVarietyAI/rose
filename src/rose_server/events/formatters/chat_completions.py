@@ -33,6 +33,11 @@ class ChatCompletionsFormatter:
         self.completion_id: Optional[str] = None
         self.created: Optional[int] = None
         self.model_name: Optional[str] = None
+        self.request_seed: Optional[int] = None
+
+    def set_request_seed(self, seed: Optional[int]) -> None:
+        """Set the seed value from the request for fingerprint generation."""
+        self.request_seed = seed
 
     def format_event(self, event: LLMEvent) -> Optional[ChatCompletionChunk]:
         """Convert an LLM event to ChatCompletionChunk format."""
@@ -46,7 +51,7 @@ class ChatCompletionsFormatter:
                 object="chat.completion.chunk",
                 created=self.created,
                 model=self.model_name,
-                system_fingerprint=f"fp_{self.model_name}",
+                system_fingerprint=f"fp_{self.model_name}" if self.request_seed is not None else None,
                 choices=[Choice(index=0, delta=ChoiceDelta(role="assistant"), finish_reason=None)],
             )
         elif isinstance(event, TokenGenerated):
@@ -59,7 +64,7 @@ class ChatCompletionsFormatter:
                 object="chat.completion.chunk",
                 created=self.created,
                 model=self.model_name,
-                system_fingerprint=f"fp_{self.model_name}",
+                system_fingerprint=f"fp_{self.model_name}" if self.request_seed is not None else None,
                 choices=[Choice(index=0, delta=ChoiceDelta(content=event.token), finish_reason=None)],
             )
         elif isinstance(event, ToolCallStarted):
@@ -68,7 +73,7 @@ class ChatCompletionsFormatter:
                 object="chat.completion.chunk",
                 created=self.created,
                 model=self.model_name,
-                system_fingerprint=f"fp_{self.model_name}",
+                system_fingerprint=f"fp_{self.model_name}" if self.request_seed is not None else None,
                 choices=[
                     Choice(
                         index=0,
@@ -95,7 +100,7 @@ class ChatCompletionsFormatter:
                 object="chat.completion.chunk",
                 created=self.created,
                 model=self.model_name,
-                system_fingerprint=f"fp_{self.model_name}",
+                system_fingerprint=f"fp_{self.model_name}" if self.request_seed is not None else None,
                 choices=[
                     Choice(
                         index=0,
@@ -193,7 +198,7 @@ class ChatCompletionsFormatter:
             "object": "chat.completion",
             "created": int(start_event.timestamp if start_event else time.time()),
             "model": start_event.model_name if start_event else "unknown",
-            "system_fingerprint": f"fp_{start_event.model_name if start_event else 'unknown'}",
+            "system_fingerprint": f"fp_{start_event.model_name}" if self.request_seed is not None else None,
             "choices": [choice],
             "usage": {
                 "prompt_tokens": start_event.input_tokens if start_event else 0,

@@ -2,8 +2,10 @@
 
 import asyncio
 import logging
+import random
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
+import numpy as np
 import torch
 from transformers.generation.streamers import TextIteratorStreamer
 
@@ -40,11 +42,7 @@ def _format_messages(
     return prompt
 
 
-async def _prepare_inputs(
-    formatted_prompt: str,
-    tokenizer: Any,
-    model: Any,
-) -> Tuple[Dict[str, Any], int]:
+async def _prepare_inputs(formatted_prompt: str, tokenizer: Any, model: Any) -> Tuple[Dict[str, Any], int]:
     """Tokenize and prepare inputs for model generation.
 
     Returns:
@@ -65,11 +63,7 @@ def _process_logprob(logprob: float) -> float:
     return logprob
 
 
-def _extract_top_logprobs(
-    log_probs: torch.Tensor,
-    top_k: int,
-    tokenizer: Any,
-) -> List[Dict[str, Any]]:
+def _extract_top_logprobs(log_probs: torch.Tensor, top_k: int, tokenizer: Any) -> List[Dict[str, Any]]:
     """Extract top k tokens with their log probabilities."""
     if top_k <= 0:
         return []
@@ -106,6 +100,15 @@ async def generate_stream(
         Dict events with types: input_tokens_counted, token, complete, error
     """
     generation_kwargs = generation_kwargs or {}
+
+    # Handle seed for deterministic generation
+    seed = generation_kwargs.pop("seed", None)
+    if seed is not None:
+        torch.manual_seed(seed)
+        random.seed(seed)
+        np.random.seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
 
     # Format input
     formatted_prompt = _format_messages(messages, tokenizer, prompt)
@@ -189,6 +192,15 @@ async def generate_with_logprobs(
     # Extract logprobs parameters (remove them from generation_kwargs)
     generation_kwargs.pop("logprobs", False)
     top_logprobs = generation_kwargs.pop("top_logprobs", 0)
+
+    # Handle seed for deterministic generation
+    seed = generation_kwargs.pop("seed", None)
+    if seed is not None:
+        torch.manual_seed(seed)
+        random.seed(seed)
+        np.random.seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
 
     # Format input
     formatted_prompt = _format_messages(messages, tokenizer, prompt)
