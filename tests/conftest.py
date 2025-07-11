@@ -1,4 +1,4 @@
-"""Pytest configuration and fixtures."""
+# mypy: ignore-errors
 
 import pytest
 from fastapi.testclient import TestClient
@@ -7,6 +7,7 @@ from sqlmodel import SQLModel
 
 from rose_server import database
 from rose_server.app import create_app
+from rose_server.config import settings
 
 # Create in-memory engine for testing
 test_engine = create_async_engine(
@@ -37,9 +38,6 @@ def client(test_db, monkeypatch):
     # Monkey patch the database session factory
     monkeypatch.setattr(database, "async_session_factory", test_async_session_factory)
     monkeypatch.setattr(database, "engine", test_engine)
-
-    # Disable auth by modifying the settings object
-    from rose_server.config import settings
 
     original_auth = settings.auth_enabled
     settings.auth_enabled = False

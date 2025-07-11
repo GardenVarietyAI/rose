@@ -1,4 +1,4 @@
-"""Tests for chat completions endpoint error states."""
+# mypy: ignore-errors
 
 from fastapi.testclient import TestClient
 

@@ -1,4 +1,4 @@
-"""Tests for assistants CRUD operations using in-memory SQLite."""
+# mypy: ignore-errors
 
 
 class TestAssistants:
