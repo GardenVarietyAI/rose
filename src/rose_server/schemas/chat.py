@@ -34,6 +34,7 @@ class ChatRequest(BaseModel):
     top_logprobs: Optional[int] = Field(
         default=None, ge=0, le=5, description="Number of most likely tokens to return at each position"
     )
+    seed: Optional[int] = Field(default=None, ge=0, description="Seed for deterministic generation")
 
 
 class ChatResponse(BaseModel):
