@@ -39,6 +39,16 @@ class ChatCompletionsFormatter:
         """Set the seed value from the request for fingerprint generation."""
         self.request_seed = seed
 
+    def _get_base_chunk_dict(self) -> Dict[str, Any]:
+        """Get base dictionary with common fields for all chunks."""
+        return {
+            "id": self.completion_id,
+            "object": "chat.completion.chunk",
+            "created": self.created,
+            "model": self.model_name,
+            "system_fingerprint": f"fp_{self.model_name}" if self.request_seed is not None else None,
+        }
+
     def format_event(self, event: LLMEvent) -> Optional[ChatCompletionChunk]:
         """Convert an LLM event to ChatCompletionChunk format."""
 
@@ -46,34 +56,19 @@ class ChatCompletionsFormatter:
             self.completion_id = f"chatcmpl-{event.response_id}"
             self.created = int(event.timestamp)
             self.model_name = event.model_name
+
             return ChatCompletionChunk(
-                id=self.completion_id,
-                object="chat.completion.chunk",
-                created=self.created,
-                model=self.model_name,
-                system_fingerprint=f"fp_{self.model_name}" if self.request_seed is not None else None,
+                **self._get_base_chunk_dict(),
                 choices=[Choice(index=0, delta=ChoiceDelta(role="assistant"), finish_reason=None)],
             )
         elif isinstance(event, TokenGenerated):
-            if not self.completion_id:
-                self.completion_id = f"chatcmpl-{uuid.uuid4().hex[:16]}"
-                self.created = int(time.time())
-                self.model_name = event.model_name
             return ChatCompletionChunk(
-                id=self.completion_id,
-                object="chat.completion.chunk",
-                created=self.created,
-                model=self.model_name,
-                system_fingerprint=f"fp_{self.model_name}" if self.request_seed is not None else None,
+                **self._get_base_chunk_dict(),
                 choices=[Choice(index=0, delta=ChoiceDelta(content=event.token), finish_reason=None)],
             )
         elif isinstance(event, ToolCallStarted):
             return ChatCompletionChunk(
-                id=self.completion_id,
-                object="chat.completion.chunk",
-                created=self.created,
-                model=self.model_name,
-                system_fingerprint=f"fp_{self.model_name}" if self.request_seed is not None else None,
+                **self._get_base_chunk_dict(),
                 choices=[
                     Choice(
                         index=0,
@@ -96,11 +91,7 @@ class ChatCompletionsFormatter:
             )
         elif isinstance(event, ToolCallCompleted):
             return ChatCompletionChunk(
-                id=self.completion_id,
-                object="chat.completion.chunk",
-                created=self.created,
-                model=self.model_name,
-                system_fingerprint=f"fp_{self.model_name}" if self.request_seed is not None else None,
+                **self._get_base_chunk_dict(),
                 choices=[
                     Choice(
                         index=0,
