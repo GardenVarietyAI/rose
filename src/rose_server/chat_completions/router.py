@@ -110,12 +110,15 @@ async def create_event_streaming_response(
         """Generate SSE events from LLM events."""
         try:
             tool_params = _prepare_tool_params(request)
+            # Set seed in formatter for fingerprint generation
+            formatter.set_request_seed(request.seed)
             async for event in generator.generate_events(
                 messages,
                 temperature=request.temperature,
                 max_tokens=request.max_tokens,
                 logprobs=request.logprobs,
                 top_logprobs=request.top_logprobs,
+                seed=request.seed,
                 **tool_params,
             ):
                 chunk = formatter.format_event(event)
@@ -145,6 +148,8 @@ async def create_event_complete_response(
     """Create complete (non-streaming) response from events."""
     try:
         tool_params = _prepare_tool_params(request)
+        # Set seed in formatter for fingerprint generation
+        formatter.set_request_seed(request.seed)
         all_events: list[LLMEvent] = []
         async for event in generator.generate_events(
             messages,
@@ -152,6 +157,7 @@ async def create_event_complete_response(
             max_tokens=request.max_tokens,
             logprobs=request.logprobs,
             top_logprobs=request.top_logprobs,
+            seed=request.seed,
             **tool_params,
         ):
             all_events.append(event)
