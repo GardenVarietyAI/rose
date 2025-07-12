@@ -20,7 +20,7 @@ def chat(
     logprobs: bool = typer.Option(False, "--logprobs", help="Return log probabilities of tokens"),
     top_logprobs: Optional[int] = typer.Option(None, "--top-logprobs", help="Number of top logprobs to return (0-5)"),
     temperature: Optional[float] = typer.Option(None, "--temperature", "-t", help="Sampling temperature (0.0-2.0)"),
-    seed: Optional[int] = typer.Option(None, "--seed", help="Seed for deterministic generation"),
+    seed: Optional[int] = typer.Option(None, "--seed", min=0, help="Seed for deterministic generation (non-negative)"),
 ) -> None:
     """Chat with models using a single message.
 
