@@ -12,6 +12,15 @@ from transformers.generation.streamers import TextIteratorStreamer
 logger = logging.getLogger(__name__)
 
 
+def _set_random_seeds(seed: int) -> None:
+    """Set random seeds for deterministic generation."""
+    torch.manual_seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
 def _format_messages(
     messages: Optional[List[Dict[str, Any]]], tokenizer: Any, prompt: Optional[str] = None
 ) -> Optional[str]:
@@ -104,11 +113,7 @@ async def generate_stream(
     # Handle seed for deterministic generation
     seed = generation_kwargs.pop("seed", None)
     if seed is not None:
-        torch.manual_seed(seed)
-        random.seed(seed)
-        np.random.seed(seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(seed)
+        _set_random_seeds(seed)
 
     # Format input
     formatted_prompt = _format_messages(messages, tokenizer, prompt)
@@ -196,11 +201,7 @@ async def generate_with_logprobs(
     # Handle seed for deterministic generation
     seed = generation_kwargs.pop("seed", None)
     if seed is not None:
-        torch.manual_seed(seed)
-        random.seed(seed)
-        np.random.seed(seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(seed)
+        _set_random_seeds(seed)
 
     # Format input
     formatted_prompt = _format_messages(messages, tokenizer, prompt)
