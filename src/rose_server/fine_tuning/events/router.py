@@ -1,5 +1,3 @@
-"""OpenAI-compatible fine-tuning jobs API endpoints."""
-
 import logging
 from typing import Any, Dict, Optional
 
