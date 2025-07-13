@@ -87,7 +87,8 @@ def train(
         is_peft_model = True
 
     # Build training components
-    callbacks: List[TrainerCallback] = [EventCallback(event_callback), HardwareMonitorCallback(event_callback)]
+    hardware_monitor = HardwareMonitorCallback(event_callback)
+    callbacks: List[TrainerCallback] = [EventCallback(event_callback), hardware_monitor]
     if check_cancel_callback:
         checkpoint_dir_config = config.get("checkpoint_dir", "data/checkpoints")
         callbacks.append(CancellationCallback(check_cancel_callback, job_id, checkpoint_dir=checkpoint_dir_config))
@@ -238,7 +239,10 @@ def train(
                 "This indicates a potential issue with the evaluation dataset or configuration."
             )
 
-    return {
+    # Get peak memory usage from hardware monitor
+    peak_memory = hardware_monitor.get_peak_memory_gb()
+
+    result_dict = {
         "success": True,
         "final_loss": result.metrics.get("train_loss"),
         "final_perplexity": final_perplexity,
@@ -247,3 +251,8 @@ def train(
         "model_path": str(out_dir),
         "model_name": out_dir.name,
     }
+
+    # Add peak memory metrics if available
+    result_dict.update(peak_memory)
+
+    return result_dict

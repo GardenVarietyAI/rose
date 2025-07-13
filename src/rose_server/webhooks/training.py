@@ -67,7 +67,15 @@ async def _handle_training_completed(event: WebhookEvent, registry) -> None:
 
         # Extract training metrics - only include non-None values
         training_metrics = {}
-        for key in ["final_loss", "steps", "trained_tokens", "final_perplexity"]:
+        metric_keys = [
+            "final_loss",
+            "steps",
+            "trained_tokens",
+            "final_perplexity",
+            "cuda_peak_memory_gb",
+            "mps_peak_memory_gb",
+        ]
+        for key in metric_keys:
             value = event.data.get(key)
             if value is not None:
                 training_metrics[key] = value
