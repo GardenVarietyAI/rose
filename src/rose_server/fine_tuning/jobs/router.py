@@ -11,7 +11,6 @@ from rose_server.schemas.fine_tuning import (
     FineTuningJobCreateRequest,
     FineTuningJobResponse,
     Hyperparameters,
-    SupervisedMethod,
 )
 
 router = APIRouter(prefix="/jobs")
@@ -22,10 +21,6 @@ logger = logging.getLogger(__name__)
 async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTuningJobResponse:
     """Create a fine-tuning job."""
     try:
-        # Ensure method is set (default to supervised if not provided)
-        if not request.method:
-            request.method = SupervisedMethod()
-
         # Extract hyperparameters from method using dynamic access
         method_config = getattr(request.method, request.method.type, None)
         if method_config and method_config.hyperparameters:
