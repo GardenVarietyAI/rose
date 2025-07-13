@@ -88,6 +88,7 @@ async def update_job_status(
     error: Optional[Dict[str, Any]] = None,
     fine_tuned_model: Optional[str] = None,
     trained_tokens: Optional[int] = None,
+    training_metrics: Optional[Dict[str, Any]] = None,
 ) -> Optional[FineTuningJob]:
     """Update job status."""
 
@@ -104,6 +105,9 @@ async def update_job_status(
 
         if error:
             job.error = error
+
+        if training_metrics:
+            job.training_metrics = training_metrics
 
         job.status = status
         if status in ["succeeded", "failed", "cancelled"]:
