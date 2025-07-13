@@ -57,7 +57,7 @@ async def list_jobs(
     limit: int = 20, after: Optional[str] = None, metadata_filters: Optional[Dict[str, Any]] = None
 ) -> List[FineTuningJob]:
     """List jobs with optional metadata filtering."""
-    statement = select(FineTuningJob).order_by(FineTuningJob.created_at.desc())  # type: ignore[attr-defined]
+    statement = select(FineTuningJob).order_by(FineTuningJob.created_at.desc())
     if metadata_filters:
         for key, value in metadata_filters.items():
             statement = statement.where(FineTuningJob.meta.op("JSON_EXTRACT")(f"$.{key}") == value)
@@ -67,7 +67,7 @@ async def list_jobs(
 
     async with get_session(read_only=True) as session:
         jobs = (await session.execute(statement)).scalars().all()
-        return jobs
+        return list(jobs)
 
 
 async def update_job_status(
