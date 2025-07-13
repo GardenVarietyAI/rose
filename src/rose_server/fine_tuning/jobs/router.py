@@ -66,7 +66,6 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
             hyperparameters["n_epochs"] = 3
 
         job = await create_job(
-            status="queued",
             model=request.model,
             training_file=request.training_file,
             hyperparameters=hyperparameters,
