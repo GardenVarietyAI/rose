@@ -10,51 +10,13 @@ from rose_server.entities.fine_tuning import FineTuningEvent, FineTuningJob
 logger = logging.getLogger(__name__)
 
 
-async def create_job(
-    model: str,
-    training_file: str,
-    hyperparameters: Optional[Dict[str, Any]] = None,
-    suffix: Optional[str] = None,
-    validation_file: Optional[str] = None,
-    seed: Optional[int] = None,
-    metadata: Optional[Dict[str, Any]] = None,
-    method: Optional[Dict[str, Any]] = None,
-    trainer: str = "huggingface",
-) -> FineTuningJob:
-    hp = hyperparameters or {}
-
-    # Use provided method or default to supervised
-    if method:
-        method_config = method
-        training_method = method.get("type", "supervised")
-    else:
-        training_method = "supervised"
-        method_config = {"type": training_method, training_method: {"hyperparameters": hp}}
-
-    logger.info(f"Using method '{training_method}' with hyperparameters: {hp}")
-
-    # TODO: We skip the "validating_files" status for now since we don't actually validate the JSONL format.
-    # In the future, we should validate that the file exists and contains properly formatted training data.
-    job = FineTuningJob(
-        model=model,
-        status="queued",
-        training_file=training_file,
-        validation_file=validation_file,
-        created_at=current_timestamp(),
-        seed=seed or 42,
-        suffix=suffix,
-        meta=metadata,
-        hyperparameters=hp,
-        method=method_config,
-        trainer=trainer,
-    )
-
+async def create_job(ft_job: FineTuningJob) -> FineTuningJob:
     async with get_session() as session:
-        session.add(job)
+        session.add(ft_job)
         await session.commit()
-        await session.refresh(job)
-        logger.info(f"Created fine-tuning job: {job.id} with method config stored as JSON")
-        return job
+        await session.refresh(ft_job)
+        logger.info(f"Created fine-tuning job: {ft_job.id} with method config stored as JSON")
+        return ft_job
 
 
 async def get_job(job_id: str) -> Optional[FineTuningJob]:

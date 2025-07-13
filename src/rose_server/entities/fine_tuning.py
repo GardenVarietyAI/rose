@@ -10,7 +10,7 @@ class FineTuningJob(SQLModel, table=True):
     __tablename__ = "fine_tuning_jobs"
 
     id: str = Field(primary_key=True, default_factory=lambda: f"ftjob-{uuid.uuid4().hex[:24]}")
-    created_at: int
+    created_at: int = Field(default_factory=lambda: int(time.time()))
     finished_at: Optional[int] = None
     model: str
     fine_tuned_model: Optional[str] = None

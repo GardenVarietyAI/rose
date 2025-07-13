@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, HTTPException, Query
 
 from rose_server.config.settings import settings
+from rose_server.entities.fine_tuning import FineTuningJob
 from rose_server.fine_tuning.jobs.store import create_job, get_job, list_jobs, update_job_status
 from rose_server.queues.store import enqueue, find_job_by_payload_field, request_cancel, request_pause
 from rose_server.schemas.fine_tuning import FineTuningJobCreateRequest, FineTuningJobResponse
@@ -106,16 +107,21 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
         if "seed" not in hyperparameters:
             hyperparameters["seed"] = request.seed or 42
 
+        # TODO: We skip the "validating_files" status for now since we don't actually validate the JSONL format.
+        # In the future, we should validate that the file exists and contains properly formatted training data.
         job = await create_job(
-            model=request.model,
-            training_file=request.training_file,
-            hyperparameters=hyperparameters,
-            suffix=request.suffix,
-            validation_file=request.validation_file,
-            seed=request.seed,
-            metadata=request.metadata,
-            method=request.method,
-            trainer=request.trainer or "huggingface",  # Default to huggingface if not specified
+            FineTuningJob(
+                model=request.model,
+                status="queued",
+                training_file=request.training_file,
+                validation_file=request.validation_file,
+                seed=request.seed or 42,
+                suffix=request.suffix,
+                meta=request.metadata,
+                hyperparameters=hyperparameters,
+                method=request.method,
+                trainer=request.trainer or "huggingface",
+            )
         )
 
         await enqueue(
