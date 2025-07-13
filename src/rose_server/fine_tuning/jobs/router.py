@@ -7,7 +7,12 @@ from rose_server.config.settings import settings
 from rose_server.entities.fine_tuning import FineTuningJob
 from rose_server.fine_tuning.jobs.store import create_job, get_job, list_jobs, update_job_status
 from rose_server.queues.store import enqueue, find_job_by_payload_field, request_cancel, request_pause
-from rose_server.schemas.fine_tuning import FineTuningJobCreateRequest, FineTuningJobResponse, Hyperparameters
+from rose_server.schemas.fine_tuning import (
+    FineTuningJobCreateRequest,
+    FineTuningJobResponse,
+    Hyperparameters,
+    SupervisedMethod,
+)
 
 router = APIRouter(prefix="/jobs")
 logger = logging.getLogger(__name__)
@@ -17,25 +22,25 @@ logger = logging.getLogger(__name__)
 async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTuningJobResponse:
     """Create a fine-tuning job."""
     try:
-        # Extract hyperparameters from method if provided
-        hyperparameters = request.hyperparameters
-        if request.method:
-            method_type = request.method.get("type", "supervised")
-            if method_type not in ["supervised", "dpo"]:
-                raise HTTPException(status_code=400, detail=f"Unsupported fine-tuning method type: {method_type}.")
+        # Ensure method is set (default to supervised if not provided)
+        if not request.method:
+            request.method = SupervisedMethod()
 
-            # Check if method contains nested hyperparameters
-            if method_type in request.method and isinstance(request.method[method_type], dict):
-                method_config = request.method[method_type]
-                if "hyperparameters" in method_config:
-                    hyperparameters = method_config["hyperparameters"]
+        # Extract hyperparameters from method using dynamic access
+        method_config = getattr(request.method, request.method.type, None)
+        if method_config and method_config.hyperparameters:
+            hyperparameters_obj = method_config.hyperparameters
+        elif request.hyperparameters:
+            # Fall back to top-level hyperparameters
+            try:
+                hyperparameters_obj = Hyperparameters(**request.hyperparameters)
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+        else:
+            hyperparameters_obj = Hyperparameters()
 
-        try:
-            validated = Hyperparameters(**hyperparameters if hyperparameters else {})
-            # Convert back to dict with resolved auto values
-            hyperparameters = validated.model_dump(exclude_none=True)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+        # Convert to dict with resolved auto values
+        hyperparameters = hyperparameters_obj.model_dump(exclude_none=True)
 
         # Apply training defaults
         training_defaults = {
@@ -68,7 +73,7 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
                 suffix=request.suffix,
                 meta=request.metadata,
                 hyperparameters=hyperparameters,
-                method=request.method,
+                method=request.method.model_dump() if request.method else None,
                 trainer=request.trainer or "huggingface",
             )
         )

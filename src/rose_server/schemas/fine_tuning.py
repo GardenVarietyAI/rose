@@ -70,27 +70,21 @@ class Hyperparameters(BaseModel):
             self.learning_rate = self.base_learning_rate * self.learning_rate_multiplier
 
 
-class SupervisedHyperparameters(BaseModel):
+class SupervisedHyperparameters(Hyperparameters):
     """Hyperparameters for supervised fine-tuning (SFT)."""
 
-    batch_size: Optional[Union[Literal["auto"], int]] = Field(None, description="Number of examples in each batch")
-    learning_rate_multiplier: Optional[Union[Literal["auto"], float]] = Field(
-        None, description="Scaling factor for the learning rate"
-    )
-    n_epochs: Optional[Union[Literal["auto"], int]] = Field(None, description="Number of epochs to train for")
+    # Inherits all fields and validators from Hyperparameters
+    pass
 
 
-class DpoHyperparameters(BaseModel):
+class DpoHyperparameters(Hyperparameters):
     """Hyperparameters for Direct Preference Optimization (DPO)."""
 
-    batch_size: Optional[Union[Literal["auto"], int]] = Field(None, description="Number of examples in each batch")
+    # Inherits all fields and validators from Hyperparameters
+    # Add DPO-specific fields
     beta: Optional[Union[Literal["auto"], float]] = Field(
         0.1, description="The beta value for DPO - higher values increase penalty weight"
     )
-    learning_rate_multiplier: Optional[Union[Literal["auto"], float]] = Field(
-        None, description="Scaling factor for the learning rate"
-    )
-    n_epochs: Optional[Union[Literal["auto"], int]] = Field(None, description="Number of epochs to train for")
 
 
 class DpoConfig(BaseModel):
@@ -128,7 +122,9 @@ class FineTuningJobCreateRequest(BaseModel):
     model: str = Field(..., description="The name of the model to fine-tune")
     training_file: str = Field(..., description="The ID of the uploaded file for training")
     hyperparameters: Optional[Dict[str, Any]] = Field(default=None, description="Hyperparameters for training")
-    method: Optional[Dict[str, Any]] = Field(default=None, description="Fine-tuning method configuration")
+    method: Optional[Method] = Field(
+        default_factory=lambda: SupervisedMethod(), description="Fine-tuning method configuration"
+    )
     suffix: Optional[str] = Field(default=None, description="Suffix for the fine-tuned model")
     validation_file: Optional[str] = Field(default=None, description="The ID of the uploaded file for validation")
     seed: Optional[int] = Field(default=None, description="Random seed for reproducibility")
