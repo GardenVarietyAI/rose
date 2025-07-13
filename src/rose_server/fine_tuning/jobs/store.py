@@ -34,9 +34,8 @@ async def create_job(
 
     logger.info(f"Using method '{training_method}' with hyperparameters: {hp}")
 
-    # TODO: We skip the "validating_files" status for now since we don't
-    # actually validate the JSONL format. In the future, we should validate
-    # that the file exists and contains properly formatted training data.
+    # TODO: We skip the "validating_files" status for now since we don't actually validate the JSONL format.
+    # In the future, we should validate that the file exists and contains properly formatted training data.
     job = FineTuningJob(
         model=model,
         status="queued",
