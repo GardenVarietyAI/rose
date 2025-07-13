@@ -107,7 +107,7 @@ class FineTuningJobCreateRequest(BaseModel):
 
 
 class FineTuningJobResponse(BaseModel):
-    """Response model for fine-tuning jobs"""
+    """Response model for fine-tuning jobs."""
 
     id: str
     created_at: int
@@ -163,7 +163,7 @@ class FineTuningJobResponse(BaseModel):
 
 
 class FineTuningJobEventResponse(BaseModel):
-    """Response model for fine-tuning job events"""
+    """Response model for fine-tuning job events."""
 
     id: str
     created_at: int

@@ -20,7 +20,11 @@ async def list_fine_tuning_events(
     events = await get_events(job_id, limit=limit, after=after)
 
     if not events:
-        raise HTTPException(status_code=404, detail=f"Events for fine-tuning job {job_id} not found")
+        return {
+            "object": "list",
+            "data": [],
+            "has_more": False,
+        }
 
     return {
         "object": "list",
