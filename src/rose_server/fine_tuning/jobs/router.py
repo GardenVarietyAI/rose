@@ -51,16 +51,11 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
                 try:
                     lr_multiplier = float(multiplier)
                     if lr_multiplier <= 0:
-                        raise HTTPException(
-                            status_code=400, detail=f"learning_rate_multiplier must be positive, got {lr_multiplier}"
-                        )
+                        raise ValueError("must be positive")
                     hyperparameters["learning_rate_multiplier"] = lr_multiplier
                     hyperparameters["learning_rate"] = settings.fine_tuning_base_learning_rate * lr_multiplier
                 except (ValueError, TypeError):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Invalid learning_rate_multiplier: {multiplier!r} must be a number or 'auto'",
-                    )
+                    raise HTTPException(status_code=400, detail=f"Invalid learning_rate_multiplier: {multiplier!r}")
 
         # Validate and resolve batch_size
         if "batch_size" in hyperparameters:
@@ -71,15 +66,10 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
                 try:
                     batch_size_int = int(batch_size)
                     if batch_size_int <= 0:
-                        raise HTTPException(
-                            status_code=400, detail=f"batch_size must be positive, got {batch_size_int}"
-                        )
+                        raise ValueError("must be positive")
                     hyperparameters["batch_size"] = batch_size_int
                 except (ValueError, TypeError):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Invalid batch_size: {batch_size!r} must be a positive integer or 'auto'",
-                    )
+                    raise HTTPException(status_code=400, detail=f"Invalid batch_size: {batch_size!r}")
 
         # Validate and resolve n_epochs
         if "n_epochs" in hyperparameters:
@@ -90,12 +80,10 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
                 try:
                     n_epochs_int = int(n_epochs)
                     if n_epochs_int <= 0:
-                        raise HTTPException(status_code=400, detail=f"n_epochs must be positive, got {n_epochs_int}")
+                        raise ValueError("must be positive")
                     hyperparameters["n_epochs"] = n_epochs_int
                 except (ValueError, TypeError):
-                    raise HTTPException(
-                        status_code=400, detail=f"Invalid n_epochs: {n_epochs!r} must be a positive integer or 'auto'"
-                    )
+                    raise HTTPException(status_code=400, detail=f"Invalid n_epochs: {n_epochs!r}")
 
         # Populate ROSE-specific hyperparameters with defaults if not provided
         # These are not part of OpenAI's API but are used by our trainer
