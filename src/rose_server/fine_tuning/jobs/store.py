@@ -48,6 +48,7 @@ async def create_job(
         meta=metadata,
         hyperparameters=hp,
         method=method_config,
+        trainer=trainer,
     )
 
     async with get_session() as session:
