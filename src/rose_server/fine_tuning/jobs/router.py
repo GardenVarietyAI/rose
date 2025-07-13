@@ -64,6 +64,7 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
             validation_file=request.validation_file,
             seed=request.seed,
             metadata=request.metadata,
+            method=request.method,
         )
 
         await enqueue(

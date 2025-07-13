@@ -18,11 +18,19 @@ async def create_job(
     validation_file: Optional[str] = None,
     seed: Optional[int] = None,
     metadata: Optional[Dict[str, Any]] = None,
+    method: Optional[Dict[str, Any]] = None,
 ) -> FineTuningJob:
     """Create a new fine-tuning job with normalized method storage."""
     hp = hyperparameters or {}
-    training_method = "supervised"
-    method_config = {"type": training_method, training_method: {"hyperparameters": hp}}
+
+    # Use provided method or default to supervised
+    if method:
+        method_config = method
+        training_method = method.get("type", "supervised")
+    else:
+        training_method = "supervised"
+        method_config = {"type": training_method, training_method: {"hyperparameters": hp}}
+
     logger.info(f"Using method '{training_method}' with hyperparameters: {hp}")
 
     # TODO: We skip the "validating_files" status for now since we don't
