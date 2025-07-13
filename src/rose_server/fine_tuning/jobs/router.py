@@ -25,7 +25,10 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
                 if "hyperparameters" in method_config:
                     hyperparameters = method_config["hyperparameters"]
             if method_type not in ["supervised", "dpo"]:
-                logger.warning(f"Unsupported fine-tuning method type: {method_type}, using supervised")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unsupported fine-tuning method type: {method_type}. Supported types: supervised, dpo",
+                )
 
         if not hyperparameters:
             hyperparameters = {
@@ -45,16 +48,75 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
                     settings.fine_tuning_base_learning_rate * settings.fine_tuning_auto_learning_rate_multiplier
                 )
             else:
-                hyperparameters["learning_rate_multiplier"] = float(multiplier)
-                hyperparameters["learning_rate"] = settings.fine_tuning_base_learning_rate * float(multiplier)
+                try:
+                    lr_multiplier = float(multiplier)
+                    if lr_multiplier <= 0:
+                        raise HTTPException(
+                            status_code=400, detail=f"learning_rate_multiplier must be positive, got {lr_multiplier}"
+                        )
+                    hyperparameters["learning_rate_multiplier"] = lr_multiplier
+                    hyperparameters["learning_rate"] = settings.fine_tuning_base_learning_rate * lr_multiplier
+                except (ValueError, TypeError):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid learning_rate_multiplier: {multiplier!r} must be a number or 'auto'",
+                    )
 
-        # Resolve "auto" batch_size
-        if hyperparameters.get("batch_size") == "auto":
-            hyperparameters["batch_size"] = settings.fine_tuning_auto_batch_size
+        # Validate and resolve batch_size
+        if "batch_size" in hyperparameters:
+            batch_size = hyperparameters["batch_size"]
+            if batch_size == "auto":
+                hyperparameters["batch_size"] = settings.fine_tuning_auto_batch_size
+            else:
+                try:
+                    batch_size_int = int(batch_size)
+                    if batch_size_int <= 0:
+                        raise HTTPException(
+                            status_code=400, detail=f"batch_size must be positive, got {batch_size_int}"
+                        )
+                    hyperparameters["batch_size"] = batch_size_int
+                except (ValueError, TypeError):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid batch_size: {batch_size!r} must be a positive integer or 'auto'",
+                    )
 
-        # Resolve "auto" n_epochs
-        if hyperparameters.get("n_epochs") == "auto":
-            hyperparameters["n_epochs"] = settings.fine_tuning_auto_epochs
+        # Validate and resolve n_epochs
+        if "n_epochs" in hyperparameters:
+            n_epochs = hyperparameters["n_epochs"]
+            if n_epochs == "auto":
+                hyperparameters["n_epochs"] = settings.fine_tuning_auto_epochs
+            else:
+                try:
+                    n_epochs_int = int(n_epochs)
+                    if n_epochs_int <= 0:
+                        raise HTTPException(status_code=400, detail=f"n_epochs must be positive, got {n_epochs_int}")
+                    hyperparameters["n_epochs"] = n_epochs_int
+                except (ValueError, TypeError):
+                    raise HTTPException(
+                        status_code=400, detail=f"Invalid n_epochs: {n_epochs!r} must be a positive integer or 'auto'"
+                    )
+
+        # Populate ROSE-specific hyperparameters with defaults if not provided
+        # These are not part of OpenAI's API but are used by our trainer
+        if "max_length" not in hyperparameters:
+            hyperparameters["max_length"] = 512
+        if "gradient_accumulation_steps" not in hyperparameters:
+            hyperparameters["gradient_accumulation_steps"] = 1
+        if "validation_split" not in hyperparameters:
+            hyperparameters["validation_split"] = 0.1
+        if "early_stopping_patience" not in hyperparameters:
+            hyperparameters["early_stopping_patience"] = 3
+        if "warmup_ratio" not in hyperparameters:
+            hyperparameters["warmup_ratio"] = 0.1
+        if "scheduler_type" not in hyperparameters:
+            hyperparameters["scheduler_type"] = "cosine"
+        if "min_lr_ratio" not in hyperparameters:
+            hyperparameters["min_lr_ratio"] = 0.1
+        if "use_lora" not in hyperparameters:
+            hyperparameters["use_lora"] = True
+        if "seed" not in hyperparameters:
+            hyperparameters["seed"] = request.seed or 42
 
         job = await create_job(
             model=request.model,
