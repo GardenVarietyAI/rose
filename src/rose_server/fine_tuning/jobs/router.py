@@ -18,8 +18,11 @@ FINE_TUNING_DEFAULT_EPOCHS = 3
 FINE_TUNING_DEFAULT_BATCH_SIZE = "auto"
 FINE_TUNING_DEFAULT_LEARNING_RATE_MULTIPLIER = "auto"
 
-# Base learning rate for OpenAI-compatible multiplier
-BASE_LEARNING_RATE = 2e-5
+# Base learning rate for OpenAI-compatible multiplier.
+# The value 2e-5 is a commonly used default for fine-tuning transformer models, 
+# as it often provides a good balance between convergence speed and stability.
+# This value can be overridden via the settings module if needed.
+BASE_LEARNING_RATE = settings.get("BASE_LEARNING_RATE", 2e-5)
 
 
 @router.post("/fine_tuning/jobs", response_model=FineTuningJobResponse)
