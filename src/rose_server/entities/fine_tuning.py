@@ -10,7 +10,7 @@ class FineTuningJob(SQLModel, table=True):
     __tablename__ = "fine_tuning_jobs"
 
     id: str = Field(primary_key=True, default_factory=lambda: f"ftjob-{uuid.uuid4().hex[:24]}")
-    created_at: int
+    created_at: int = Field(default_factory=lambda: int(time.time()))
     finished_at: Optional[int] = None
     model: str
     fine_tuned_model: Optional[str] = None
@@ -28,6 +28,7 @@ class FineTuningJob(SQLModel, table=True):
     hyperparameters: Dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
     method: Optional[Dict[str, Any]] = Field(default=None, sa_type=JSON)
     trainer: str = Field(default="huggingface")  # "huggingface" or "torchtune"
+    training_metrics: Optional[Dict[str, Any]] = Field(default=None, sa_type=JSON)
 
     __table_args__ = (
         Index("idx_ft_jobs_status", "status"),

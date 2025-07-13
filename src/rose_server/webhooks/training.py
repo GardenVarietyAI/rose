@@ -65,12 +65,28 @@ async def _handle_training_completed(event: WebhookEvent, registry) -> None:
 
         logger.info(f"Registered fine-tuned model {fine_tuned_model} with ID {created_model.id} in database")
 
+        # Extract training metrics - only include non-None values
+        training_metrics = {}
+        metric_keys = [
+            "final_loss",
+            "steps",
+            "trained_tokens",
+            "final_perplexity",
+            "cuda_peak_memory_gb",
+            "mps_peak_memory_gb",
+        ]
+        for key in metric_keys:
+            value = event.data.get(key)
+            if value is not None:
+                training_metrics[key] = value
+
         # Update job with the UUID instead of the timestamp-based name
         await update_job_status(
             event.object_id,
             status="succeeded",
             fine_tuned_model=created_model.id,  # Use UUID here
             trained_tokens=event.data.get("trained_tokens", 0),
+            training_metrics=training_metrics if training_metrics else None,
         )
 
         await _update_queue_job_completed(event)

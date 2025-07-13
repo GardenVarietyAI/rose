@@ -66,6 +66,12 @@ def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceCl
         if result.get("final_perplexity") is not None:
             webhook_data["final_perplexity"] = result["final_perplexity"]
 
+        # Include peak memory metrics if available
+        if result.get("cuda_peak_memory_gb") is not None:
+            webhook_data["cuda_peak_memory_gb"] = result["cuda_peak_memory_gb"]
+        if result.get("mps_peak_memory_gb") is not None:
+            webhook_data["mps_peak_memory_gb"] = result["mps_peak_memory_gb"]
+
         client.post_webhook(
             "job.completed",
             "training",

@@ -2,24 +2,10 @@
 
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
+from rose_server.config.settings import settings
 from rose_server.entities.fine_tuning import FineTuningEvent, FineTuningJob
-
-__all__ = [
-    "FineTuningJobCreateRequest",
-    "FineTuningJobResponse",
-    "FineTuningJobEventResponse",
-    "SupervisedHyperparameters",
-    "DpoHyperparameters",
-    "SupervisedConfig",
-    "SupervisedMethod",
-    "DpoConfig",
-    "DpoMethod",
-    "Method",
-    "Error",
-    "Hyperparameters",
-]
 
 
 class Error(BaseModel):
@@ -31,37 +17,74 @@ class Error(BaseModel):
 
 
 class Hyperparameters(BaseModel):
-    """Hyperparameters for fine-tuning."""
+    """Hyperparameters for fine-tuning with auto value resolution."""
 
-    batch_size: Optional[Union[Literal["auto"], int]] = None
-    learning_rate_multiplier: Optional[Union[Literal["auto"], float]] = None
-    n_epochs: Optional[Union[Literal["auto"], int]] = None
+    batch_size: Optional[Union[Literal["auto"], int]] = Field(
+        default_factory=lambda: settings.fine_tuning_default_batch_size
+    )
+    learning_rate_multiplier: Optional[Union[Literal["auto"], float]] = Field(
+        default_factory=lambda: settings.fine_tuning_default_learning_rate_multiplier
+    )
+    n_epochs: Optional[Union[Literal["auto"], int]] = Field(default_factory=lambda: settings.fine_tuning_default_epochs)
     # Additional fields from normalized hyperparameters
     learning_rate: Optional[float] = None
     base_learning_rate: Optional[float] = None
 
+    @field_validator("batch_size")
+    @classmethod
+    def validate_batch_size(cls, v: Optional[Union[str, int]]) -> Optional[int]:
+        if v is None:
+            return None
+        if v == "auto":
+            return settings.fine_tuning_auto_batch_size
+        if isinstance(v, int) and v > 0:
+            return v
+        raise ValueError(f"batch_size must be 'auto' or positive integer, got {v}")
 
-class SupervisedHyperparameters(BaseModel):
+    @field_validator("n_epochs")
+    @classmethod
+    def validate_n_epochs(cls, v: Optional[Union[str, int]]) -> Optional[int]:
+        if v is None:
+            return None
+        if v == "auto":
+            return settings.fine_tuning_auto_epochs
+        if isinstance(v, int) and v > 0:
+            return v
+        raise ValueError(f"n_epochs must be 'auto' or positive integer, got {v}")
+
+    @field_validator("learning_rate_multiplier")
+    @classmethod
+    def validate_learning_rate_multiplier(cls, v: Optional[Union[str, float]]) -> Optional[float]:
+        if v is None:
+            return None
+        if v == "auto":
+            return settings.fine_tuning_auto_learning_rate_multiplier
+        if isinstance(v, (int, float)) and v > 0:
+            return float(v)
+        raise ValueError(f"learning_rate_multiplier must be 'auto' or positive number, got {v}")
+
+    def model_post_init(self, __context: Any) -> None:
+        """Compute derived fields after validation."""
+        if self.learning_rate_multiplier is not None:
+            self.base_learning_rate = settings.fine_tuning_base_learning_rate
+            self.learning_rate = self.base_learning_rate * self.learning_rate_multiplier
+
+
+class SupervisedHyperparameters(Hyperparameters):
     """Hyperparameters for supervised fine-tuning (SFT)."""
 
-    batch_size: Optional[Union[Literal["auto"], int]] = Field(None, description="Number of examples in each batch")
-    learning_rate_multiplier: Optional[Union[Literal["auto"], float]] = Field(
-        None, description="Scaling factor for the learning rate"
-    )
-    n_epochs: Optional[Union[Literal["auto"], int]] = Field(None, description="Number of epochs to train for")
+    # Inherits all fields and validators from Hyperparameters
+    pass
 
 
-class DpoHyperparameters(BaseModel):
+class DpoHyperparameters(Hyperparameters):
     """Hyperparameters for Direct Preference Optimization (DPO)."""
 
-    batch_size: Optional[Union[Literal["auto"], int]] = Field(None, description="Number of examples in each batch")
+    # Inherits all fields and validators from Hyperparameters
+    # Add DPO-specific fields
     beta: Optional[Union[Literal["auto"], float]] = Field(
         0.1, description="The beta value for DPO - higher values increase penalty weight"
     )
-    learning_rate_multiplier: Optional[Union[Literal["auto"], float]] = Field(
-        None, description="Scaling factor for the learning rate"
-    )
-    n_epochs: Optional[Union[Literal["auto"], int]] = Field(None, description="Number of epochs to train for")
 
 
 class DpoConfig(BaseModel):
@@ -99,7 +122,9 @@ class FineTuningJobCreateRequest(BaseModel):
     model: str = Field(..., description="The name of the model to fine-tune")
     training_file: str = Field(..., description="The ID of the uploaded file for training")
     hyperparameters: Optional[Dict[str, Any]] = Field(default=None, description="Hyperparameters for training")
-    method: Optional[Dict[str, Any]] = Field(default=None, description="Fine-tuning method configuration")
+    method: Optional[Method] = Field(
+        default_factory=lambda: SupervisedMethod(), description="Fine-tuning method configuration"
+    )
     suffix: Optional[str] = Field(default=None, description="Suffix for the fine-tuned model")
     validation_file: Optional[str] = Field(default=None, description="The ID of the uploaded file for validation")
     seed: Optional[int] = Field(default=None, description="Random seed for reproducibility")

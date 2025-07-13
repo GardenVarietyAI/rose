@@ -10,52 +10,13 @@ from rose_server.entities.fine_tuning import FineTuningEvent, FineTuningJob
 logger = logging.getLogger(__name__)
 
 
-async def create_job(
-    model: str,
-    training_file: str,
-    hyperparameters: Optional[Dict[str, Any]] = None,
-    suffix: Optional[str] = None,
-    validation_file: Optional[str] = None,
-    seed: Optional[int] = None,
-    metadata: Optional[Dict[str, Any]] = None,
-    method: Optional[Dict[str, Any]] = None,
-    trainer: str = "huggingface",
-) -> FineTuningJob:
-    """Create a new fine-tuning job with normalized method storage."""
-    hp = hyperparameters or {}
-
-    # Use provided method or default to supervised
-    if method:
-        method_config = method
-        training_method = method.get("type", "supervised")
-    else:
-        training_method = "supervised"
-        method_config = {"type": training_method, training_method: {"hyperparameters": hp}}
-
-    logger.info(f"Using method '{training_method}' with hyperparameters: {hp}")
-
-    # TODO: We skip the "validating_files" status for now since we don't
-    # actually validate the JSONL format. In the future, we should validate
-    # that the file exists and contains properly formatted training data.
-    job = FineTuningJob(
-        model=model,
-        status="queued",
-        training_file=training_file,
-        validation_file=validation_file,
-        created_at=current_timestamp(),
-        seed=seed or 42,
-        suffix=suffix,
-        meta=metadata,
-        hyperparameters=hp,
-        method=method_config,
-    )
-
+async def create_job(ft_job: FineTuningJob) -> FineTuningJob:
     async with get_session() as session:
-        session.add(job)
+        session.add(ft_job)
         await session.commit()
-        await session.refresh(job)
-        logger.info(f"Created fine-tuning job: {job.id} with method config stored as JSON")
-        return job
+        await session.refresh(ft_job)
+        logger.info(f"Created fine-tuning job: {ft_job.id} with method config stored as JSON")
+        return ft_job
 
 
 async def get_job(job_id: str) -> Optional[FineTuningJob]:
@@ -88,9 +49,8 @@ async def update_job_status(
     error: Optional[Dict[str, Any]] = None,
     fine_tuned_model: Optional[str] = None,
     trained_tokens: Optional[int] = None,
+    training_metrics: Optional[Dict[str, Any]] = None,
 ) -> Optional[FineTuningJob]:
-    """Update job status."""
-
     async with get_session() as session:
         job = await session.get(FineTuningJob, job_id)
         if not job:
@@ -104,6 +64,9 @@ async def update_job_status(
 
         if error:
             job.error = error
+
+        if training_metrics:
+            job.training_metrics = training_metrics
 
         job.status = status
         if status in ["succeeded", "failed", "cancelled"]:
@@ -119,8 +82,6 @@ async def update_job_status(
 
 
 async def delete_job(job_id: str) -> bool:
-    """Delete a fine-tuning job and all associated events."""
-
     async with get_session() as session:
         event_count_result = await session.execute(
             select(func.count(FineTuningEvent.id)).where(FineTuningEvent.job_id == job_id)
@@ -140,8 +101,6 @@ async def delete_job(job_id: str) -> bool:
 
 
 async def update_job_result_files(job_id: str, result_files: List[str]) -> Optional[FineTuningJob]:
-    """Update job with result file IDs."""
-
     async with get_session() as session:
         job = await session.get(FineTuningJob, job_id)
         if not job:
@@ -155,8 +114,6 @@ async def update_job_result_files(job_id: str, result_files: List[str]) -> Optio
 
 
 async def mark_job_failed(job_id: str, error: str) -> Optional[FineTuningJob]:
-    """Mark a job as failed with error message."""
-
     async with get_session() as session:
         job = await session.get(FineTuningJob, job_id)
         if not job:
