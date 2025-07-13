@@ -7,7 +7,6 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from openai.types.fine_tuning import FineTuningJob
 
 from rose_server.config.settings import settings
-from rose_server.fine_tuning.events.store import get_events
 from rose_server.fine_tuning.jobs.store import create_job, get_job, list_jobs, update_job_status
 from rose_server.queues.store import enqueue, find_job_by_payload_field, request_cancel, request_pause
 
@@ -129,20 +128,6 @@ async def cancel_fine_tuning_job(job_id: str) -> FineTuningJob:
     updated_job = await get_job(job_id)
 
     return updated_job.to_openai()
-
-
-@router.get("/fine_tuning/jobs/{job_id}/events", response_model=dict)
-async def list_fine_tuning_events(
-    job_id: str,
-    limit: int = Query(default=20, ge=1, le=100, description="Number of events to retrieve"),
-    after: Optional[str] = Query(default=None, description="Pagination cursor"),
-) -> Dict[str, Any]:
-    """List events for a fine-tuning job."""
-    job = await get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
-    events = await get_events(job_id, limit=limit, after=after)
-    return {"object": "list", "data": [event.to_openai() for event in events], "has_more": len(events) == limit}
 
 
 @router.get("/fine_tuning/jobs/{job_id}/checkpoints", response_model=dict)
