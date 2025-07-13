@@ -151,7 +151,7 @@ class FineTuningJobResponse(BaseModel):
         for field in internal_fields:
             data.pop(field, None)
 
-        status_mapping = {"cancelling": "cancelled", "pausing": "cancelled"}
+        status_mapping = {"cancelling": "cancelled", "pausing": "queued"}
         if data["status"] in status_mapping:
             data["status"] = status_mapping[data["status"]]
 
