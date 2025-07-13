@@ -40,20 +40,21 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
             hyperparameters["base_learning_rate"] = settings.fine_tuning_base_learning_rate
 
             if multiplier == "auto":
-                # For auto, we use 1.0 as the multiplier
-                hyperparameters["learning_rate_multiplier"] = 1.0
-                hyperparameters["learning_rate"] = settings.fine_tuning_base_learning_rate
+                hyperparameters["learning_rate_multiplier"] = settings.fine_tuning_auto_learning_rate_multiplier
+                hyperparameters["learning_rate"] = (
+                    settings.fine_tuning_base_learning_rate * settings.fine_tuning_auto_learning_rate_multiplier
+                )
             else:
                 hyperparameters["learning_rate_multiplier"] = float(multiplier)
                 hyperparameters["learning_rate"] = settings.fine_tuning_base_learning_rate * float(multiplier)
 
         # Resolve "auto" batch_size
         if hyperparameters.get("batch_size") == "auto":
-            hyperparameters["batch_size"] = 4
+            hyperparameters["batch_size"] = settings.fine_tuning_auto_batch_size
 
         # Resolve "auto" n_epochs
         if hyperparameters.get("n_epochs") == "auto":
-            hyperparameters["n_epochs"] = 3
+            hyperparameters["n_epochs"] = settings.fine_tuning_auto_epochs
 
         job = await create_job(
             model=request.model,
