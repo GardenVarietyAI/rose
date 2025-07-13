@@ -107,7 +107,7 @@ class FineTuningJobCreateRequest(BaseModel):
 
 
 class FineTuningJobResponse(BaseModel):
-    """Response model for fine-tuning jobs"""
+    """Response model for fine-tuning jobs."""
 
     id: str
     created_at: int
