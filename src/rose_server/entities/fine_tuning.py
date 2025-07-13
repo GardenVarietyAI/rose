@@ -27,6 +27,7 @@ class FineTuningJob(SQLModel, table=True):
     suffix: Optional[str] = None
     hyperparameters: Dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
     method: Optional[Dict[str, Any]] = Field(default=None, sa_type=JSON)
+    trainer: str = Field(default="huggingface")  # "huggingface" or "torchtune"
 
     __table_args__ = (
         Index("idx_ft_jobs_status", "status"),
