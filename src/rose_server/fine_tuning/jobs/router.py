@@ -11,17 +11,6 @@ from rose_server.schemas.fine_tuning import FineTuningJobCreateRequest, FineTuni
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# Default hyperparameters for fine-tuning
-FINE_TUNING_DEFAULT_EPOCHS = 3
-FINE_TUNING_DEFAULT_BATCH_SIZE = "auto"
-FINE_TUNING_DEFAULT_LEARNING_RATE_MULTIPLIER = "auto"
-
-# Base learning rate for OpenAI-compatible multiplier.
-# The value 2e-5 is a commonly used default for fine-tuning transformer models,
-# as it often provides a good balance between convergence speed and stability.
-# This value can be overridden via the settings module if needed.
-BASE_LEARNING_RATE = settings.get("BASE_LEARNING_RATE", 2e-5)
-
 
 @router.post("/fine_tuning/jobs", response_model=FineTuningJobResponse)
 async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTuningJobResponse:
@@ -40,23 +29,23 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
 
         if not hyperparameters:
             hyperparameters = {
-                "n_epochs": FINE_TUNING_DEFAULT_EPOCHS,
-                "batch_size": FINE_TUNING_DEFAULT_BATCH_SIZE,
-                "learning_rate_multiplier": FINE_TUNING_DEFAULT_LEARNING_RATE_MULTIPLIER,
+                "n_epochs": settings.fine_tuning_default_epochs,
+                "batch_size": settings.fine_tuning_default_batch_size,
+                "learning_rate_multiplier": settings.fine_tuning_default_learning_rate_multiplier,
             }
 
         # Normalize hyperparameters before storing
         if "learning_rate_multiplier" in hyperparameters:
             multiplier = hyperparameters["learning_rate_multiplier"]
-            hyperparameters["base_learning_rate"] = BASE_LEARNING_RATE
+            hyperparameters["base_learning_rate"] = settings.fine_tuning_base_learning_rate
 
             if multiplier == "auto":
                 # For auto, we use 1.0 as the multiplier
                 hyperparameters["learning_rate_multiplier"] = 1.0
-                hyperparameters["learning_rate"] = BASE_LEARNING_RATE
+                hyperparameters["learning_rate"] = settings.fine_tuning_base_learning_rate
             else:
                 hyperparameters["learning_rate_multiplier"] = float(multiplier)
-                hyperparameters["learning_rate"] = BASE_LEARNING_RATE * float(multiplier)
+                hyperparameters["learning_rate"] = settings.fine_tuning_base_learning_rate * float(multiplier)
 
         # Resolve "auto" batch_size
         if hyperparameters.get("batch_size") == "auto":
