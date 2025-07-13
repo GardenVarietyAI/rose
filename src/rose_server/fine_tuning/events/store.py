@@ -24,7 +24,7 @@ async def add_event(job_id: str, level: str, message: str, data: Optional[Dict[s
         await session.commit()
         await session.refresh(event)
         logger.debug(f"Added event to job {job_id}: {message}")
-        return event.id
+        return str(event.id)
 
 
 async def get_events(job_id: str, limit: int = 20, after: Optional[str] = None) -> List[FineTuningEvent]:
@@ -34,4 +34,4 @@ async def get_events(job_id: str, limit: int = 20, after: Optional[str] = None) 
     )
     async with get_session(read_only=True) as session:
         events = (await session.execute(statement)).scalars().all()
-        return events
+        return list(events)

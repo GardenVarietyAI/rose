@@ -23,20 +23,24 @@ class HyperParams:
 
     @classmethod
     def resolve(cls, raw: Dict[str, Any]) -> "HyperParams":
-        """Create HyperParams from raw dict."""
+        """Create HyperParams from raw dict.
+
+        Note: All values should be provided by the API layer.
+        This method expects a complete configuration.
+        """
         return cls(
-            batch_size=int(raw.get("batch_size", 1)),
-            max_length=int(raw.get("max_length", 512)),
-            n_epochs=int(raw.get("n_epochs", 3)),
-            learning_rate=float(raw.get("learning_rate", 5e-5)),
-            gradient_accumulation_steps=int(raw.get("gradient_accumulation_steps", 1)),
-            validation_split=float(raw.get("validation_split", 0.1)),
-            early_stopping_patience=int(raw.get("early_stopping_patience", 3)),
-            warmup_ratio=float(raw.get("warmup_ratio", 0.1)),
-            scheduler_type=raw.get("scheduler_type", "cosine"),
-            min_lr_ratio=float(raw.get("min_lr_ratio", 0.1)),
-            use_lora=bool(raw.get("use_lora", True)),
-            lora_config=raw.get("lora_config"),
-            seed=int(raw.get("seed", 42)),
-            suffix=raw.get("suffix", "custom"),
+            batch_size=raw["batch_size"],
+            max_length=raw["max_length"],
+            n_epochs=raw["n_epochs"],
+            learning_rate=raw["learning_rate"],
+            gradient_accumulation_steps=raw["gradient_accumulation_steps"],
+            validation_split=raw["validation_split"],
+            early_stopping_patience=raw["early_stopping_patience"],
+            warmup_ratio=raw["warmup_ratio"],
+            scheduler_type=raw["scheduler_type"],
+            min_lr_ratio=raw["min_lr_ratio"],
+            use_lora=raw["use_lora"],
+            lora_config=raw.get("lora_config"),  # Optional field
+            seed=raw["seed"],
+            suffix=raw["suffix"],
         )

@@ -34,6 +34,19 @@ class Settings(BaseSettings):
     fine_tuning_checkpoint_interval: int = Field(default=10, description="Steps between checkpoints")
     fine_tuning_max_checkpoints: int = Field(default=5, description="Maximum checkpoints to keep")
     fine_tuning_eval_batch_size: int = Field(default=1, description="Evaluation batch size")
+    fine_tuning_default_epochs: int = Field(default=3, description="Default number of epochs for fine-tuning")
+    fine_tuning_default_batch_size: str = Field(default="auto", description="Default batch size for fine-tuning")
+    fine_tuning_default_learning_rate_multiplier: str = Field(
+        default="auto", description="Default learning rate multiplier"
+    )
+    fine_tuning_base_learning_rate: float = Field(
+        default=2e-5, description="Base learning rate for OpenAI-compatible multiplier"
+    )
+    fine_tuning_auto_batch_size: int = Field(default=4, description="Batch size to use when 'auto' is specified")
+    fine_tuning_auto_epochs: int = Field(default=3, description="Number of epochs to use when 'auto' is specified")
+    fine_tuning_auto_learning_rate_multiplier: float = Field(
+        default=1.0, description="Learning rate multiplier to use when 'auto' is specified"
+    )
     training_interval: int = Field(default=30, description="Training job check interval in seconds")
 
     # Inference settings

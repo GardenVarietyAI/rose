@@ -11,13 +11,13 @@ from rose_server.entities.models import LanguageModel
 
 
 async def _generate_model_id(is_fine_tuned: bool, base_model: str, model_name: str, suffix: str = "") -> str:
-    """Generate model ID based on OpenAI format."""
+    """Generate model ID."""
     if not is_fine_tuned:
-        return model_name.replace("/", "_")
+        return model_name.replace("/", "--")
 
     unique_hash = uuid.uuid4().hex[:6]
     suffix_part = suffix if suffix else "default"
-    safe_base_model = base_model.replace("/", "_")
+    safe_base_model = base_model.replace("/", "--")
     return f"ft:{safe_base_model}:user:{suffix_part}:{unique_hash}"
 
 

@@ -18,16 +18,28 @@ async def create_job(
     validation_file: Optional[str] = None,
     seed: Optional[int] = None,
     metadata: Optional[Dict[str, Any]] = None,
+    method: Optional[Dict[str, Any]] = None,
+    trainer: str = "huggingface",
 ) -> FineTuningJob:
     """Create a new fine-tuning job with normalized method storage."""
     hp = hyperparameters or {}
-    training_method = "supervised"
-    method_config = {"type": training_method, training_method: {"hyperparameters": hp}}
+
+    # Use provided method or default to supervised
+    if method:
+        method_config = method
+        training_method = method.get("type", "supervised")
+    else:
+        training_method = "supervised"
+        method_config = {"type": training_method, training_method: {"hyperparameters": hp}}
+
     logger.info(f"Using method '{training_method}' with hyperparameters: {hp}")
 
+    # TODO: We skip the "validating_files" status for now since we don't
+    # actually validate the JSONL format. In the future, we should validate
+    # that the file exists and contains properly formatted training data.
     job = FineTuningJob(
         model=model,
-        status="validating_files",
+        status="queued",
         training_file=training_file,
         validation_file=validation_file,
         created_at=current_timestamp(),
@@ -57,7 +69,7 @@ async def list_jobs(
     limit: int = 20, after: Optional[str] = None, metadata_filters: Optional[Dict[str, Any]] = None
 ) -> List[FineTuningJob]:
     """List jobs with optional metadata filtering."""
-    statement = select(FineTuningJob).order_by(FineTuningJob.created_at.desc())  # type: ignore[attr-defined]
+    statement = select(FineTuningJob).order_by(FineTuningJob.created_at.desc())
     if metadata_filters:
         for key, value in metadata_filters.items():
             statement = statement.where(FineTuningJob.meta.op("JSON_EXTRACT")(f"$.{key}") == value)
@@ -67,7 +79,7 @@ async def list_jobs(
 
     async with get_session(read_only=True) as session:
         jobs = (await session.execute(statement)).scalars().all()
-        return jobs
+        return list(jobs)
 
 
 async def update_job_status(
