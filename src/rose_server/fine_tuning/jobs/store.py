@@ -21,7 +21,6 @@ async def create_job(
     method: Optional[Dict[str, Any]] = None,
     trainer: str = "huggingface",
 ) -> FineTuningJob:
-    """Create a new fine-tuning job with normalized method storage."""
     hp = hyperparameters or {}
 
     # Use provided method or default to supervised
@@ -90,8 +89,6 @@ async def update_job_status(
     trained_tokens: Optional[int] = None,
     training_metrics: Optional[Dict[str, Any]] = None,
 ) -> Optional[FineTuningJob]:
-    """Update job status."""
-
     async with get_session() as session:
         job = await session.get(FineTuningJob, job_id)
         if not job:
@@ -123,8 +120,6 @@ async def update_job_status(
 
 
 async def delete_job(job_id: str) -> bool:
-    """Delete a fine-tuning job and all associated events."""
-
     async with get_session() as session:
         event_count_result = await session.execute(
             select(func.count(FineTuningEvent.id)).where(FineTuningEvent.job_id == job_id)
@@ -144,8 +139,6 @@ async def delete_job(job_id: str) -> bool:
 
 
 async def update_job_result_files(job_id: str, result_files: List[str]) -> Optional[FineTuningJob]:
-    """Update job with result file IDs."""
-
     async with get_session() as session:
         job = await session.get(FineTuningJob, job_id)
         if not job:
@@ -159,8 +152,6 @@ async def update_job_result_files(job_id: str, result_files: List[str]) -> Optio
 
 
 async def mark_job_failed(job_id: str, error: str) -> Optional[FineTuningJob]:
-    """Mark a job as failed with error message."""
-
     async with get_session() as session:
         job = await session.get(FineTuningJob, job_id)
         if not job:
