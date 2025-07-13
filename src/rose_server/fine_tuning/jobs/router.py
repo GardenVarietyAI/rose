@@ -3,12 +3,12 @@
 import logging
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Body, HTTPException, Query
-from openai.types.fine_tuning import FineTuningJob
+from fastapi import APIRouter, HTTPException, Query
 
 from rose_server.config.settings import settings
 from rose_server.fine_tuning.jobs.store import create_job, get_job, list_jobs, update_job_status
 from rose_server.queues.store import enqueue, find_job_by_payload_field, request_cancel, request_pause
+from rose_server.schemas.fine_tuning import FineTuningJobCreateRequest, FineTuningJobResponse
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -18,24 +18,20 @@ FINE_TUNING_DEFAULT_EPOCHS = 3
 FINE_TUNING_DEFAULT_BATCH_SIZE = "auto"
 FINE_TUNING_DEFAULT_LEARNING_RATE_MULTIPLIER = "auto"
 
+# Base learning rate for OpenAI-compatible multiplier
+BASE_LEARNING_RATE = 2e-5
 
-@router.post("/fine_tuning/jobs", response_model=FineTuningJob)
-async def create_fine_tuning_job(
-    model: str = Body(..., description="The name of the model to fine-tune"),
-    training_file: str = Body(..., description="The ID of the uploaded file for training"),
-    hyperparameters: Optional[dict] = Body(default=None, description="Hyperparameters for training"),
-    method: Optional[dict] = Body(default=None, description="Fine-tuning method configuration"),
-    suffix: Optional[str] = Body(default=None, description="Suffix for the fine-tuned model"),
-    validation_file: Optional[str] = Body(default=None, description="The ID of the uploaded file for validation"),
-    seed: Optional[int] = Body(default=None, description="Random seed for reproducibility"),
-    metadata: Optional[dict] = Body(default=None, description="Set of 16 key-value pairs for job metadata"),
-) -> FineTuningJob:
+
+@router.post("/fine_tuning/jobs", response_model=FineTuningJobResponse)
+async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTuningJobResponse:
     """Create a fine-tuning job."""
     try:
-        if method:
-            method_type = method.get("type", "supervised")
-            if method_type in method and isinstance(method[method_type], dict):
-                method_config = method[method_type]
+        hyperparameters = request.hyperparameters
+
+        if request.method:
+            method_type = request.method.get("type", "supervised")
+            if method_type in request.method and isinstance(request.method[method_type], dict):
+                method_config = request.method[method_type]
                 if "hyperparameters" in method_config:
                     hyperparameters = method_config["hyperparameters"]
             if method_type not in ["supervised", "dpo"]:
@@ -48,26 +44,46 @@ async def create_fine_tuning_job(
                 "learning_rate_multiplier": FINE_TUNING_DEFAULT_LEARNING_RATE_MULTIPLIER,
             }
 
-        job = await create_job(
-            model=model,
-            training_file=training_file,
-            hyperparameters=hyperparameters,
-            suffix=suffix,
-            validation_file=validation_file,
-            seed=seed,
-            metadata=metadata,
-        )
+        # Normalize hyperparameters before storing
+        if "learning_rate_multiplier" in hyperparameters:
+            multiplier = hyperparameters["learning_rate_multiplier"]
+            hyperparameters["base_learning_rate"] = BASE_LEARNING_RATE
 
-        await update_job_status(job.id, "queued")
+            if multiplier == "auto":
+                # For auto, we use 1.0 as the multiplier
+                hyperparameters["learning_rate_multiplier"] = 1.0
+                hyperparameters["learning_rate"] = BASE_LEARNING_RATE
+            else:
+                hyperparameters["learning_rate_multiplier"] = float(multiplier)
+                hyperparameters["learning_rate"] = BASE_LEARNING_RATE * float(multiplier)
+
+        # Resolve "auto" batch_size
+        if hyperparameters.get("batch_size") == "auto":
+            hyperparameters["batch_size"] = 4
+
+        # Resolve "auto" n_epochs
+        if hyperparameters.get("n_epochs") == "auto":
+            hyperparameters["n_epochs"] = 3
+
+        job = await create_job(
+            status="queued",
+            model=request.model,
+            training_file=request.training_file,
+            hyperparameters=hyperparameters,
+            suffix=request.suffix,
+            validation_file=request.validation_file,
+            seed=request.seed,
+            metadata=request.metadata,
+        )
 
         await enqueue(
             job_type="training",
             payload={
-                "model": model,
-                "training_file": training_file,
+                "model": request.model,
+                "training_file": request.training_file,
                 "job_id": job.id,
                 "hyperparameters": hyperparameters,
-                "suffix": suffix or "custom",
+                "suffix": request.suffix or "custom",
                 "config": {
                     "data_dir": settings.data_dir,
                     "checkpoint_dir": settings.fine_tuning_checkpoint_dir,
@@ -79,7 +95,7 @@ async def create_fine_tuning_job(
             max_attempts=3,
         )
 
-        return job.to_openai()
+        return FineTuningJobResponse.from_entity(job)
     except Exception as e:
         logger.error(f"Error creating fine-tuning job: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -94,22 +110,22 @@ async def list_fine_tuning_jobs(
     jobs = await list_jobs(limit=limit, after=after)
     return {
         "object": "list",
-        "data": [job.to_openai() for job in jobs],
+        "data": [FineTuningJobResponse.from_entity(job) for job in jobs],
         "has_more": len(jobs) == limit,
     }
 
 
-@router.get("/fine_tuning/jobs/{job_id}", response_model=FineTuningJob)
-async def retrieve_fine_tuning_job(job_id: str) -> FineTuningJob:
+@router.get("/fine_tuning/jobs/{job_id}", response_model=FineTuningJobResponse)
+async def retrieve_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
     """Retrieve a fine-tuning job."""
     job = await get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
-    return job.to_openai()
+    return FineTuningJobResponse.from_entity(job)
 
 
-@router.post("/fine_tuning/jobs/{job_id}/cancel", response_model=FineTuningJob)
-async def cancel_fine_tuning_job(job_id: str) -> FineTuningJob:
+@router.post("/fine_tuning/jobs/{job_id}/cancel", response_model=FineTuningJobResponse)
+async def cancel_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
     """Cancel a fine-tuning job."""
     job = await get_job(job_id)
     if not job:
@@ -127,7 +143,7 @@ async def cancel_fine_tuning_job(job_id: str) -> FineTuningJob:
             await update_job_status(job_id, "cancelled")
     updated_job = await get_job(job_id)
 
-    return updated_job.to_openai()
+    return FineTuningJobResponse.from_entity(updated_job)
 
 
 @router.get("/fine_tuning/jobs/{job_id}/checkpoints", response_model=dict)
@@ -139,8 +155,8 @@ async def list_fine_tuning_job_checkpoints(job_id: str) -> Dict[str, Any]:
     return {"object": "list", "data": [], "has_more": False}
 
 
-@router.post("/fine_tuning/jobs/{job_id}/pause", response_model=FineTuningJob)
-async def pause_fine_tuning_job(job_id: str) -> FineTuningJob:
+@router.post("/fine_tuning/jobs/{job_id}/pause", response_model=FineTuningJobResponse)
+async def pause_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
     """Pause a fine-tuning job."""
     job = await get_job(job_id)
     if not job:
@@ -156,28 +172,28 @@ async def pause_fine_tuning_job(job_id: str) -> FineTuningJob:
 
     updated_job = await get_job(job_id)
 
-    return updated_job.to_openai()
+    return FineTuningJobResponse.from_entity(updated_job)
 
 
-@router.post("/fine_tuning/jobs/{job_id}/resume", response_model=FineTuningJob)
-async def resume_fine_tuning_job(job_id: str) -> FineTuningJob:
+@router.post("/fine_tuning/jobs/{job_id}/resume", response_model=FineTuningJobResponse)
+async def resume_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
     """Resume a paused fine-tuning job."""
 
     job = await get_job(job_id)
     if not job:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Fine-tuning job {job_id} not found",
-        )
+        raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
 
     if job.status == "queued":
+        # Use the already normalized hyperparameters from the job
+        hyperparameters = job.hyperparameters if job.hyperparameters else {}
+
         await enqueue(
             job_type="training",
             payload={
                 "model": job.model,
                 "training_file": job.training_file,
                 "job_id": job.id,
-                "hyperparameters": job.hyperparameters if job.hyperparameters else {},
+                "hyperparameters": hyperparameters,
                 "suffix": job.suffix or "custom",
                 "config": {
                     "data_dir": settings.data_dir,
@@ -195,4 +211,4 @@ async def resume_fine_tuning_job(job_id: str) -> FineTuningJob:
 
     updated_job = await get_job(job_id)
 
-    return updated_job.to_openai()
+    return FineTuningJobResponse.from_entity(updated_job)

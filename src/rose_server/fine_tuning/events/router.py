@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, HTTPException, Query
 
 from rose_server.fine_tuning.events.store import get_events
+from rose_server.schemas.fine_tuning import FineTuningJobEventResponse
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -25,6 +26,6 @@ async def list_fine_tuning_events(
 
     return {
         "object": "list",
-        "data": [event.to_openai() for event in events],
+        "data": [FineTuningJobEventResponse.from_entity(event) for event in events],
         "has_more": len(events) == limit,
     }

@@ -2,10 +2,6 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
-from openai.types.fine_tuning import (
-    FineTuningJob as OpenAIFineTuningJob,
-    FineTuningJobEvent as OpenAIFineTuningJobEvent,
-)
 from sqlalchemy import JSON, Index
 from sqlmodel import Field, SQLModel
 
@@ -37,27 +33,6 @@ class FineTuningJob(SQLModel, table=True):
         Index("idx_ft_jobs_created", "created_at"),
     )
 
-    def to_openai(self) -> OpenAIFineTuningJob:
-        data = self.model_dump()
-
-        data["object"] = "fine_tuning.job"
-
-        if "hyperparameters" not in data or data["hyperparameters"] is None:
-            data["hyperparameters"] = {}
-
-        data["metadata"] = data.pop("meta", None)
-
-        internal_fields = ["started_at"]
-        for field in internal_fields:
-            data.pop(field, None)
-
-        # Map internal statuses to valid OpenAI statuses
-        status_mapping = {"cancelling": "cancelled", "pausing": "cancelled"}
-        if data["status"] in status_mapping:
-            data["status"] = status_mapping[data["status"]]
-
-        return OpenAIFineTuningJob(**data)
-
 
 class FineTuningEvent(SQLModel, table=True):
     __tablename__ = "fine_tuning_events"
@@ -74,6 +49,3 @@ class FineTuningEvent(SQLModel, table=True):
         Index("idx_events_job_id", "job_id"),
         Index("idx_events_created", "created_at"),
     )
-
-    def to_openai(self) -> OpenAIFineTuningJobEvent:
-        return OpenAIFineTuningJobEvent(**self.model_dump())
