@@ -8,11 +8,11 @@ from rose_server.fine_tuning.jobs.store import create_job, get_job, list_jobs, u
 from rose_server.queues.store import enqueue, find_job_by_payload_field, request_cancel, request_pause
 from rose_server.schemas.fine_tuning import FineTuningJobCreateRequest, FineTuningJobResponse
 
-router = APIRouter()
+router = APIRouter(prefix="/jobs")
 logger = logging.getLogger(__name__)
 
 
-@router.post("/fine_tuning/jobs", response_model=FineTuningJobResponse)
+@router.post("", response_model=FineTuningJobResponse)
 async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTuningJobResponse:
     """Create a fine-tuning job."""
     try:
@@ -144,7 +144,7 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/fine_tuning/jobs", response_model=dict)
+@router.get("", response_model=dict)
 async def list_fine_tuning_jobs(
     limit: int = Query(default=20, ge=1, le=100, description="Number of jobs to retrieve"),
     after: Optional[str] = Query(default=None, description="Pagination cursor"),
@@ -158,7 +158,7 @@ async def list_fine_tuning_jobs(
     }
 
 
-@router.get("/fine_tuning/jobs/{job_id}", response_model=FineTuningJobResponse)
+@router.get("/{job_id}", response_model=FineTuningJobResponse)
 async def retrieve_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
     """Retrieve a fine-tuning job."""
     job = await get_job(job_id)
@@ -167,7 +167,7 @@ async def retrieve_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
     return FineTuningJobResponse.from_entity(job)
 
 
-@router.post("/fine_tuning/jobs/{job_id}/cancel", response_model=FineTuningJobResponse)
+@router.post("/{job_id}/cancel", response_model=FineTuningJobResponse)
 async def cancel_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
     """Cancel a fine-tuning job."""
     job = await get_job(job_id)
@@ -189,7 +189,7 @@ async def cancel_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
     return FineTuningJobResponse.from_entity(updated_job)
 
 
-@router.get("/fine_tuning/jobs/{job_id}/checkpoints", response_model=dict)
+@router.get("/{job_id}/checkpoints", response_model=dict)
 async def list_fine_tuning_job_checkpoints(job_id: str) -> Dict[str, Any]:
     """List checkpoints for a fine-tuning job."""
     job = await get_job(job_id)
@@ -198,7 +198,7 @@ async def list_fine_tuning_job_checkpoints(job_id: str) -> Dict[str, Any]:
     return {"object": "list", "data": [], "has_more": False}
 
 
-@router.post("/fine_tuning/jobs/{job_id}/pause", response_model=FineTuningJobResponse)
+@router.post("/{job_id}/pause", response_model=FineTuningJobResponse)
 async def pause_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
     """Pause a fine-tuning job."""
     job = await get_job(job_id)
@@ -218,7 +218,7 @@ async def pause_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
     return FineTuningJobResponse.from_entity(updated_job)
 
 
-@router.post("/fine_tuning/jobs/{job_id}/resume", response_model=FineTuningJobResponse)
+@router.post("/{job_id}/resume", response_model=FineTuningJobResponse)
 async def resume_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
     """Resume a paused fine-tuning job."""
 
