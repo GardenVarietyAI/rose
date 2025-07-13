@@ -19,6 +19,7 @@ async def create_job(
     seed: Optional[int] = None,
     metadata: Optional[Dict[str, Any]] = None,
     method: Optional[Dict[str, Any]] = None,
+    trainer: str = "huggingface",
 ) -> FineTuningJob:
     """Create a new fine-tuning job with normalized method storage."""
     hp = hyperparameters or {}

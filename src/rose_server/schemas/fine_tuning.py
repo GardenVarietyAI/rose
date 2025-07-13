@@ -104,6 +104,10 @@ class FineTuningJobCreateRequest(BaseModel):
     validation_file: Optional[str] = Field(default=None, description="The ID of the uploaded file for validation")
     seed: Optional[int] = Field(default=None, description="Random seed for reproducibility")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Set of 16 key-value pairs for job metadata")
+    # ROSE-specific extension
+    trainer: Optional[Literal["huggingface", "torchtune"]] = Field(
+        default=None, description="Training backend to use (ROSE-specific extension)"
+    )
 
 
 class FineTuningJobResponse(BaseModel):

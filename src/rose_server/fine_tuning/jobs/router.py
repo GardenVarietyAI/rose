@@ -65,6 +65,7 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
             seed=request.seed,
             metadata=request.metadata,
             method=request.method,
+            trainer=request.trainer or "huggingface",  # Default to huggingface if not specified
         )
 
         await enqueue(
@@ -75,6 +76,7 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
                 "job_id": job.id,
                 "hyperparameters": hyperparameters,
                 "suffix": request.suffix or "custom",
+                "trainer": job.trainer,  # Pass the trainer from the created job
                 "config": {
                     "data_dir": settings.data_dir,
                     "checkpoint_dir": settings.fine_tuning_checkpoint_dir,
