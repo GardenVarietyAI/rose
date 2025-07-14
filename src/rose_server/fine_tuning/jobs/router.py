@@ -46,8 +46,10 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
             "warmup_ratio": 0.1,
             "scheduler_type": "cosine",
             "min_lr_ratio": 0.1,
+            "weight_decay": 0.01,
             "use_lora": True,
             "seed": request.seed or 42,
+            "suffix": request.suffix or "custom",
             # Use from settings if available
             "eval_batch_size": settings.fine_tuning_eval_batch_size,
         }

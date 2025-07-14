@@ -16,9 +16,9 @@ from transformers.training_args import TrainingArguments
 
 from rose_trainer.client import ServiceClient
 from rose_trainer.fine_tuning.callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
-from rose_trainer.fine_tuning.hyperparams import HyperParams
 from rose_trainer.fine_tuning.metrics import compute_perplexity
 from rose_trainer.models import get_optimal_device, get_tokenizer, load_hf_model
+from rose_trainer.types.fine_tuning import Hyperparameters
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def train(
     job_id: str,
     model_name: str,
     training_file_path: Path,
-    hyperparameters: Dict[str, Any],
+    hyperparameters: Hyperparameters,
     client: ServiceClient,
     check_cancel_callback: Optional[Callable[[], str]] = None,
     event_callback: Optional[Callable[[str, str, Dict[str, Any]], None]] = None,
@@ -44,11 +44,11 @@ def train(
         )
         raise ValueError(f"Model '{model_name}' not found")
 
-    hp = HyperParams.resolve(hyperparameters)
-    torch.manual_seed(hp.seed)
-    np.random.seed(hp.seed)
+    # Use the hyperparameters directly - no need to resolve
+    torch.manual_seed(hyperparameters.seed)
+    np.random.seed(hyperparameters.seed)
     if torch.cuda.is_available():
-        torch.cuda.manual_seed(hp.seed)
+        torch.cuda.manual_seed(hyperparameters.seed)
 
     # Use the actual HuggingFace model name from the database
     hf_model_name = model_info.get("model_name", model_name)
@@ -60,8 +60,8 @@ def train(
     model_config = {"lora_target_modules": model_info.get("lora_target_modules", [])}
     is_peft_model = False
 
-    if hp.use_lora:
-        lora_cfg = hp.lora_config or {}
+    if hyperparameters.use_lora:
+        lora_cfg = hyperparameters.lora_config or {}
         target_modules = lora_cfg.get("target_modules")
         if not target_modules:
             target_modules = model_config.get("lora_target_modules", ["q_proj", "k_proj", "v_proj", "o_proj"])
@@ -92,8 +92,8 @@ def train(
     if check_cancel_callback:
         checkpoint_dir_config = config.get("checkpoint_dir", "data/checkpoints")
         callbacks.append(CancellationCallback(check_cancel_callback, job_id, checkpoint_dir=checkpoint_dir_config))
-    if hp.validation_split > 0:
-        callbacks.append(EarlyStoppingCallback(early_stopping_patience=hp.early_stopping_patience))
+    if hyperparameters.validation_split > 0:
+        callbacks.append(EarlyStoppingCallback(early_stopping_patience=hyperparameters.early_stopping_patience))
 
     # Load dataset and tokenize
     try:
@@ -121,7 +121,7 @@ def train(
             text = "\n".join(text_parts)
         else:
             text = tokenizer.apply_chat_template(example["messages"], tokenize=False)
-        result: BatchEncoding = tokenizer(str(text), truncation=True, max_length=hp.max_length)
+        result: BatchEncoding = tokenizer(str(text), truncation=True, max_length=hyperparameters.max_length)
         return result
 
     checkpoint_base_dir = config.get("checkpoint_dir", "data/checkpoints")
@@ -131,33 +131,34 @@ def train(
     tokenized_dataset = raw_dataset.map(tokenize_example, remove_columns=raw_dataset.column_names)
 
     n_samples = len(tokenized_dataset)
-    per_device = hp.batch_size
+    per_device = hyperparameters.batch_size
     steps_per_epoch = max(n_samples // per_device, 1)
-    total_steps = steps_per_epoch // hp.gradient_accumulation_steps * hp.n_epochs
+    total_steps = steps_per_epoch // hyperparameters.gradient_accumulation_steps * hyperparameters.n_epochs
     device = get_optimal_device()
 
     args = TrainingArguments(
         output_dir=str(checkpoint_dir),
-        num_train_epochs=hp.n_epochs,
+        num_train_epochs=hyperparameters.n_epochs,
         per_device_train_batch_size=per_device,
-        per_device_eval_batch_size=1,  # Default eval batch size
-        gradient_accumulation_steps=hp.gradient_accumulation_steps,
-        learning_rate=hp.learning_rate,
-        warmup_steps=int(total_steps * hp.warmup_ratio),
-        lr_scheduler_type=hp.scheduler_type,
-        eval_strategy="epoch" if hp.validation_split else "no",
+        per_device_eval_batch_size=hyperparameters.eval_batch_size or 1,
+        gradient_accumulation_steps=hyperparameters.gradient_accumulation_steps,
+        learning_rate=hyperparameters.learning_rate,
+        warmup_steps=int(total_steps * hyperparameters.warmup_ratio),
+        lr_scheduler_type=hyperparameters.scheduler_type,
+        eval_strategy="epoch" if hyperparameters.validation_split else "no",
         save_strategy="epoch",
         save_total_limit=3,
-        load_best_model_at_end=bool(hp.validation_split),
+        load_best_model_at_end=bool(hyperparameters.validation_split),
         metric_for_best_model="eval_loss",  # Will be used to compute perplexity
         greater_is_better=False,
         optim="adamw_torch",
+        weight_decay=hyperparameters.weight_decay,
         logging_dir=str(checkpoint_dir / "logs"),
         logging_steps=10,
         log_level="info",
         disable_tqdm=True,
-        fp16=(device == "cuda"),
-        seed=hp.seed,
+        fp16=hyperparameters.fp16 if hyperparameters.fp16 is not None else (device == "cuda"),
+        seed=hyperparameters.seed,
         auto_find_batch_size=True,
         remove_unused_columns=False,
         report_to=[],
@@ -169,8 +170,8 @@ def train(
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8)
 
     # Build train / validation split
-    if hp.validation_split > 0:
-        split = tokenized_dataset.train_test_split(hp.validation_split, seed=42)
+    if hyperparameters.validation_split > 0:
+        split = tokenized_dataset.train_test_split(hyperparameters.validation_split, seed=42)
         train_ds = split["train"]
         eval_ds = split["test"]
     else:
@@ -196,8 +197,8 @@ def train(
 
     ts = int(time.time())
     model_id = f"{model_name}-ft-{ts}"
-    if hp.suffix:
-        model_id = f"{model_id}-{hp.suffix}"
+    if hyperparameters.suffix:
+        model_id = f"{model_id}-{hyperparameters.suffix}"
 
     out_dir = Path(config.get("data_dir", "./data")) / "models" / model_id
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -225,7 +226,7 @@ def train(
     # Calculate perplexity from validation loss when available
     final_perplexity = None
 
-    if hp.validation_split > 0 and eval_ds is not None:
+    if hyperparameters.validation_split > 0 and eval_ds is not None:
         # The trainer.train() result doesn't include eval_loss in its metrics,
         # so we need to run evaluation to get the final validation loss
         eval_metrics = trainer.evaluate()

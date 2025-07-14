@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 from rose_trainer.client import ServiceClient
 from rose_trainer.fine_tuning.fine_tuner import train
 from rose_trainer.models import unload_model
+from rose_trainer.types.fine_tuning import Hyperparameters
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +45,13 @@ def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceCl
         data_dir = config.get("data_dir", "./data")
         training_file_path = Path(data_dir) / "uploads" / training_file
 
+        hp = Hyperparameters(**hyperparameters)
+
         result = train(
             job_id=ft_job_id,
             model_name=model_name,
             training_file_path=training_file_path,
-            hyperparameters=hyperparameters,
+            hyperparameters=hp,
             client=client,
             check_cancel_callback=check_cancel_callback,
             event_callback=event_callback,
