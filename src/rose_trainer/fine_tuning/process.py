@@ -4,9 +4,12 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from pydantic import ValidationError
+
 from rose_trainer.client import ServiceClient
 from rose_trainer.fine_tuning.fine_tuner import train
 from rose_trainer.models import unload_model
+from rose_trainer.types.fine_tuning import Hyperparameters
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +47,24 @@ def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceCl
         data_dir = config.get("data_dir", "./data")
         training_file_path = Path(data_dir) / "uploads" / training_file
 
+        try:
+            hp = Hyperparameters(**hyperparameters)
+        except ValidationError as ve:
+            logger.error(f"Validation error for hyperparameters: {ve}")
+            client.post_webhook(
+                "job.failed",
+                "training",
+                job_id,
+                ft_job_id,
+                {"error": {"message": f"Validation error: {ve}", "code": "validation_error"}},
+            )
+            raise
+
         result = train(
             job_id=ft_job_id,
             model_name=model_name,
             training_file_path=training_file_path,
-            hyperparameters=hyperparameters,
+            hyperparameters=hp,
             client=client,
             check_cancel_callback=check_cancel_callback,
             event_callback=event_callback,
