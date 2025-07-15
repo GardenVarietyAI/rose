@@ -44,7 +44,6 @@ def train(
         )
         raise ValueError(f"Model '{model_name}' not found")
 
-    # Use the hyperparameters directly - no need to resolve
     torch.manual_seed(hyperparameters.seed)
     np.random.seed(hyperparameters.seed)
     if torch.cuda.is_available():
