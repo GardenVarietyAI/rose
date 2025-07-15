@@ -45,7 +45,18 @@ def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceCl
         data_dir = config.get("data_dir", "./data")
         training_file_path = Path(data_dir) / "uploads" / training_file
 
-        hp = Hyperparameters(**hyperparameters)
+        try:
+            hp = Hyperparameters(**hyperparameters)
+        except ValidationError as ve:
+            logger.error(f"Validation error for hyperparameters: {ve}")
+            client.post_webhook(
+                "job.failed",
+                "training",
+                job_id,
+                ft_job_id,
+                {"error": {"message": f"Validation error: {ve}", "code": "validation_error"}},
+            )
+            raise
 
         result = train(
             job_id=ft_job_id,
