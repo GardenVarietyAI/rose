@@ -4,6 +4,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from pydantic import ValidationError
+
 from rose_trainer.client import ServiceClient
 from rose_trainer.fine_tuning.fine_tuner import train
 from rose_trainer.models import unload_model
