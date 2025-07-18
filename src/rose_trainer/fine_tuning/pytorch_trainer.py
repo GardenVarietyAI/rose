@@ -4,7 +4,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import torch
 from datasets import Dataset
@@ -93,6 +93,24 @@ class PyTorchTrainer:
 
         self.model.train()
         self.start_time = time.time()
+
+    def _create_dataloader(self, dataset: Dataset, shuffle: bool = True) -> DataLoader[Any]:
+        """Create a DataLoader with consistent settings.
+
+        Args:
+            dataset: Dataset to load
+            shuffle: Whether to shuffle the data
+
+        Returns:
+            Configured DataLoader
+        """
+        pad_to_multiple = 8 if self.hyperparams.batch_size > 1 else None
+        return DataLoader(
+            dataset,
+            batch_size=self.hyperparams.batch_size,
+            shuffle=shuffle,
+            collate_fn=DataCollatorForLanguageModeling(self.tokenizer, mlm=False, pad_to_multiple_of=pad_to_multiple),
+        )
 
     def load_checkpoint(self, checkpoint_path: Path) -> int:
         """Load training state from checkpoint.
@@ -247,15 +265,8 @@ class PyTorchTrainer:
 
     def train(self, dataset: Dataset) -> None:
         """Main training loop."""
-
         # Create dataloader
-        pad_to_multiple = 8 if self.hyperparams.batch_size > 1 else None
-        dataloader = DataLoader(
-            dataset,
-            batch_size=self.hyperparams.batch_size,
-            shuffle=True,
-            collate_fn=DataCollatorForLanguageModeling(self.tokenizer, mlm=False, pad_to_multiple_of=pad_to_multiple),
-        )
+        dataloader = self._create_dataloader(dataset, shuffle=True)
 
         # Setup optimizer and scheduler
         self.prepare_training(dataloader)
@@ -267,11 +278,61 @@ class PyTorchTrainer:
                 return
             self.run_epoch(dataloader, epoch)
 
+            # Clear GPU cache after each epoch
+            if self.device.startswith("cuda"):
+                torch.cuda.empty_cache()
+
+    def evaluate(self, eval_dataset: Dataset, metric_names: Optional[List[str]] = None) -> Dict[str, float]:
+        """Run evaluation on dataset.
+
+        Args:
+            eval_dataset: Dataset to evaluate on
+            metric_names: List of metric names to compute (e.g., ["bleu", "rouge"])
+                         If None, only computes loss and perplexity
+
+        Returns:
+            Dict with evaluation metrics
+        """
+        self.model.eval()
+
+        # Create eval dataloader
+        eval_dataloader = self._create_dataloader(eval_dataset, shuffle=False)
+
+        total_loss = 0.0
+        total_batches = 0
+
+        # Compute loss
+        with torch.no_grad():
+            for batch in eval_dataloader:
+                batch = {k: v.to(self.device) for k, v in batch.items()}
+                outputs = self.model(**batch)
+                total_loss += outputs.loss.item()
+                total_batches += 1
+
+        avg_loss = total_loss / total_batches
+        perplexity = torch.exp(torch.tensor(avg_loss)).item()
+
+        metrics = {
+            "eval_loss": avg_loss,
+            "eval_perplexity": perplexity,
+        }
+
+        # TODO: Add HF evaluate metrics computation if metric_names provided
+        # This would require generating text and comparing to references
+
+        self.model.train()
+        return metrics
+
     def save(self, output_dir: Path, base_model_id: str) -> Dict[str, Any]:
         """Save model and return training metadata."""
         # Calculate final metrics
         final_loss = self.total_loss / self.total_batches if self.total_batches > 0 else 0
         training_time = time.time() - self.start_time if self.start_time else 0
+
+        # Log training completion with time
+        self.event_callback(
+            "info", f"Training completed in {training_time:.1f} seconds ({training_time/60:.1f} minutes)", None
+        )
 
         # Save metadata
         metadata = {
