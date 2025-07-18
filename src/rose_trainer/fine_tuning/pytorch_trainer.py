@@ -94,9 +94,36 @@ class PyTorchTrainer:
         self.model.train()
         self.start_time = time.time()
 
+    def load_checkpoint(self, checkpoint_path: Path) -> int:
+        """Load training state from checkpoint.
+
+        Returns:
+            Starting epoch number
+        """
+        state_path = checkpoint_path / "training_state.pt"
+        if not state_path.exists():
+            raise ValueError(f"No training state found at {state_path}")
+
+        state = torch.load(state_path, map_location=self.device)
+
+        # Restore training state
+        self.global_step = state["global_step"]
+        self.best_loss = state["loss"]
+
+        if self.optimizer and state["optimizer_state"]:
+            self.optimizer.load_state_dict(state["optimizer_state"])
+        if self.scheduler and state["scheduler_state"]:
+            self.scheduler.load_state_dict(state["scheduler_state"])
+
+        self.event_callback(
+            "info", f"Resumed from checkpoint at epoch {state['epoch'] + 1}, step {self.global_step}", None
+        )
+
+        return state["epoch"] + 1
+
     def _save_checkpoint(self, epoch: int, loss: float) -> None:
         """Save training checkpoint."""
-        checkpoint_path = self.checkpoint_dir / f"checkpoint-epoch-{epoch+1}"
+        checkpoint_path = self.checkpoint_dir / f"checkpoint-epoch-{epoch + 1}"
         checkpoint_path.mkdir(parents=True, exist_ok=True)
 
         # Save model state
@@ -115,7 +142,7 @@ class PyTorchTrainer:
             checkpoint_path / "training_state.pt",
         )
 
-        self.event_callback("info", f"Saved checkpoint at epoch {epoch+1} with loss {loss:.4f}", None)
+        self.event_callback("info", f"Saved checkpoint at epoch {epoch + 1} with loss {loss:.4f}", None)
 
     def _optimizer_step(self, max_grad_norm: float = 1.0) -> None:
         """Perform single optimizer step with gradient clipping."""
@@ -176,6 +203,7 @@ class PyTorchTrainer:
             epoch_loss += batch_loss
 
             # Update weights if gradient accumulation is complete
+            # The or condition handles the final step if it doesn’t align with gradient_accumulation_steps
             if (i + 1) % self.hyperparams.gradient_accumulation_steps == 0 or (i + 1) == len(dataloader):
                 self._optimizer_step()
 

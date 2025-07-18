@@ -38,6 +38,17 @@ def resolve_training_file_path(data_dir: str, training_file: str) -> Path:
     return file_path
 
 
+def resolve_checkpoint_dir(data_dir: str, job_id: str) -> Path:
+    """Resolve the checkpoint directory for a training job."""
+    checkpoints_base = Path(data_dir) / "checkpoints"
+    if not checkpoints_base.exists():
+        raise ValueError(f"Checkpoints directory '{checkpoints_base}' does not exist")
+
+    checkpoint_dir = checkpoints_base / job_id
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    return checkpoint_dir
+
+
 def generate_name(model_id: str, suffix: Optional[str] = None) -> str:
     """Generate a unique model name with timestamp."""
     ts = int(time.time())
@@ -277,12 +288,14 @@ def train(
             is_peft = True
 
         # Create and run trainer
+        checkpoint_dir = resolve_checkpoint_dir(data_dir, job_id)
         pytorch_trainer = PyTorchTrainer(
             model=model,
             tokenizer=tokenizer,
             is_peft=is_peft,
             hyperparams=hyperparameters,
             device=device,
+            checkpoint_dir=checkpoint_dir,
             event_callback=event_callback,
             check_cancel_callback=check_cancel_callback,
         )
