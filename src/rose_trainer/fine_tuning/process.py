@@ -22,7 +22,8 @@ def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceCl
     hyperparameters: Dict[str, Any] = payload.get("hyperparameters", {})
     suffix: Optional[str] = payload["suffix"]
     config: Dict[str, Any] = payload.get("config", {})
-    logger.info(f"Starting training job {job_id} for fine-tuning {ft_job_id}")
+    trainer: Optional[str] = payload.get("trainer")
+    logger.info(f"Starting training job {job_id} for fine-tuning {ft_job_id} with trainer: {trainer or 'huggingface'}")
 
     # Create event callback for progress reporting
     def event_callback(level: str, msg: str, data: Dict[str, Any] | None = None) -> None:
@@ -64,11 +65,13 @@ def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceCl
             job_id=ft_job_id,
             model_name=model_name,
             training_file_path=training_file_path,
+            training_file=training_file,
             hyperparameters=hp,
             client=client,
             check_cancel_callback=check_cancel_callback,
             event_callback=event_callback,
             config=config,
+            trainer=trainer,
         )
 
         webhook_data = {

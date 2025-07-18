@@ -7,6 +7,8 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
+from rose_trainer.types.fine_tuning import ModelConfig
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 30.0
@@ -52,12 +54,13 @@ class ServiceClient:
             json={"status": status, "result": result},
         )
 
-    def get_model(self, model_id: str) -> Optional[Dict[str, Any]]:
+    def get_model(self, model_id: str) -> Optional[ModelConfig]:
         """Get model information from the API."""
         try:
             response = self._request("GET", f"/v1/models/{model_id}")
             result: Dict[str, Any] = response.json()
-            return result
+            model: ModelConfig = ModelConfig.model_validate(result)
+            return model
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 return None

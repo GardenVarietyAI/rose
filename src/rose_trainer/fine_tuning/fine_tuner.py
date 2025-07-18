@@ -1,258 +1,320 @@
+"""Fine-tuning orchestrator that routes to appropriate trainer implementation."""
+
 import logging
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional, Union, cast
 
 import numpy as np
 import torch
 from datasets import Dataset, load_dataset
 from peft import LoraConfig, TaskType, get_peft_model
 from peft.peft_model import PeftModel
-from transformers.data.data_collator import DataCollatorForLanguageModeling
-from transformers.tokenization_utils_base import BatchEncoding
-from transformers.trainer import Trainer
-from transformers.trainer_callback import EarlyStoppingCallback, TrainerCallback
-from transformers.training_args import TrainingArguments
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers.modeling_utils import PreTrainedModel
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
 from rose_trainer.client import ServiceClient
-from rose_trainer.fine_tuning.callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
-from rose_trainer.fine_tuning.metrics import compute_perplexity
-from rose_trainer.models import get_optimal_device, get_tokenizer, load_hf_model
-from rose_trainer.types.fine_tuning import Hyperparameters
+from rose_trainer.fine_tuning.huggingface_trainer import train as train_huggingface
+from rose_trainer.fine_tuning.pytorch_trainer import PyTorchTrainer
+from rose_trainer.types.fine_tuning import Hyperparameters, LoraModelConfig, ModelConfig
 
 logger = logging.getLogger(__name__)
+
+
+def resolve_model_path(data_dir: str, model_id: str) -> Path:
+    """Resolve model path and verify it exists."""
+    model_path = Path(data_dir) / "models" / model_id
+    if not model_path.exists():
+        raise ValueError(f"Model path '{model_path}' does not exist")
+    return model_path
+
+
+def resolve_training_file_path(data_dir: str, training_file: str) -> Path:
+    """Resolve training file path and verify it exists."""
+    file_path = Path(data_dir) / "uploads" / training_file
+    if not file_path.exists():
+        raise ValueError(f"Training file '{file_path}' not found")
+    return file_path
+
+
+def generate_name(model_id: str, suffix: Optional[str] = None) -> str:
+    """Generate a unique model name with timestamp."""
+    ts = int(time.time())
+    ft_model_id = f"{model_id}-ft-{ts}"
+    if suffix:
+        ft_model_id = f"{ft_model_id}-{suffix}"
+    return ft_model_id
+
+
+def create_output_dir(data_dir: str, model_id: str) -> Path:
+    """Create output directory for fine-tuned model."""
+    output_dir = Path(data_dir) / "models" / model_id
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return output_dir
+
+
+def get_optimal_device() -> str:
+    """Get the optimal device for model inference/training."""
+    if torch.cuda.is_available():
+        return "cuda"
+    elif torch.backends.mps.is_available():
+        return "mps"
+    else:
+        return "cpu"
+
+
+def set_random_seed(seed: int = 42) -> None:
+    """Set random seed for reproducibility."""
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+
+
+def get_tokenizer(local_model_path: str) -> PreTrainedTokenizerBase:
+    """Setup tokenizer with proper padding token."""
+    logger.info(f"Loading tokenizer from local path: {local_model_path}")
+    tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(local_model_path, local_files_only=True)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    # Ensure pad_token_id is set
+    if tokenizer.pad_token_id is None:
+        tokenizer.pad_token_id = tokenizer.eos_token_id
+
+    # Log tokenizer config for debugging
+    logger.info(f"Tokenizer config: pad_token_id={tokenizer.pad_token_id}, eos_token_id={tokenizer.eos_token_id}")
+
+    return tokenizer
+
+
+def get_model(
+    model_info: ModelConfig,
+    local_model_path: str,
+    trust_remote_code: bool = True,  # Required for phi-2, Mistral, etc.
+    torch_dtype: Optional[torch.dtype] = None,
+) -> PreTrainedModel:
+    logger.info(f"Loading model from local path: {local_model_path}")
+    if torch_dtype is None:
+        torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+
+    model: PreTrainedModel = AutoModelForCausalLM.from_pretrained(  # type: ignore
+        local_model_path,
+        torch_dtype=torch_dtype,
+        low_cpu_mem_usage=True,
+        trust_remote_code=trust_remote_code,
+        local_files_only=True,
+    )
+
+    logger.info(f"Successfully loaded model: {model_info.id}")
+    return model
+
+
+def apply_lora(model: PreTrainedModel, model_info: ModelConfig, lora_cfg: LoraModelConfig) -> PeftModel:
+    """Apply LoRA configuration to model."""
+    target_modules = (
+        lora_cfg.target_modules or model_info.lora_target_modules or ["q_proj", "k_proj", "v_proj", "o_proj"]
+    )
+
+    peft_config = LoraConfig(
+        r=lora_cfg.r,
+        lora_alpha=lora_cfg.lora_alpha,
+        target_modules=target_modules,
+        lora_dropout=lora_cfg.lora_dropout,
+        bias=lora_cfg.bias,
+        task_type=TaskType.CAUSAL_LM,
+    )
+
+    lora_model = get_peft_model(model, peft_config)  # type: ignore[arg-type]
+    lora_model.print_trainable_parameters()
+    return lora_model  # type: ignore[return-value]
+
+
+def prepare_dataset(tokenizer: PreTrainedTokenizerBase, training_file_path: Path, max_length: int) -> Dataset:
+    """Load and tokenize dataset."""
+    dataset = load_dataset("json", data_files=str(training_file_path), split="train")
+
+    def tokenize_function(samples: Dict[str, Any]) -> Dict[str, Any]:
+        texts = []
+        if "messages" in samples:
+            for messages in samples["messages"]:
+                if tokenizer.chat_template:
+                    text = tokenizer.apply_chat_template(messages, tokenize=False)
+                else:
+                    # Simple fallback
+                    text = "\n".join(f"{m['role']}: {m['content']}" for m in messages)
+                texts.append(text)
+        else:
+            texts = samples.get("text", samples.get("prompt", []))
+
+        result = tokenizer(texts, truncation=True, max_length=max_length)
+        result["real_lengths"] = [len(ids) for ids in result["input_ids"]]
+        return dict(result)
+
+    return dataset.map(tokenize_function, batched=True, remove_columns=dataset.column_names)
+
+
+def validate_batch(batch: Dict[str, Any], tokenizer_pad_id: int) -> None:
+    """Validate batch to catch tokenizer issues early."""
+    if "labels" in batch:
+        # Check if padding is dominating the loss
+        labels = batch["labels"]
+        pad_count = (labels == -100).sum().item()
+        total_count = labels.numel()
+        pad_ratio = pad_count / total_count if total_count > 0 else 0
+
+        if pad_ratio > 0.9:
+            logger.warning(f"High padding ratio in batch: {pad_ratio:.2%} tokens are padding")
+
+    # Check attention mask alignment
+    if "attention_mask" in batch and "input_ids" in batch:
+        input_ids = batch["input_ids"]
+        attention_mask = batch["attention_mask"]
+
+        # Verify shapes match
+        if input_ids.shape != attention_mask.shape:
+            logger.error(f"Shape mismatch: input_ids {input_ids.shape} vs attention_mask {attention_mask.shape}")
+
+
+def save_model(
+    model: Union[PreTrainedModel, PeftModel],
+    tokenizer: PreTrainedTokenizerBase,
+    output_dir: Path,
+    is_peft: bool,
+) -> None:
+    """Save fine-tuned model."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if is_peft and not torch.backends.mps.is_available() and hasattr(model, "merge_and_unload"):
+        # Merge LoRA weights for non-MPS devices
+        model = model.merge_and_unload()  # type: ignore
+
+    model.save_pretrained(str(output_dir))
+    tokenizer.save_pretrained(str(output_dir))
 
 
 def train(
     job_id: str,
     model_name: str,
     training_file_path: Path,
+    training_file: str,
     hyperparameters: Hyperparameters,
     client: ServiceClient,
+    event_callback: Callable[[str, str, Optional[Dict[str, Any]]], None],
     check_cancel_callback: Optional[Callable[[], str]] = None,
-    event_callback: Optional[Callable[[str, str, Dict[str, Any]], None]] = None,
     config: Optional[Dict[str, Any]] = None,
+    trainer: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Run a fine-tuning job and return a result dict."""
+    """
+    Main training entry point that routes to appropriate trainer.
 
-    # Fetch model info from API
-    model_info = client.get_model(model_name)
-    if not model_info:
-        logger.error(
-            f"Model '{model_name}' not found in models database. "
-            "Please ensure the model is registered before fine-tuning."
+    Args:
+        job_id: Fine-tuning job ID
+        model_name: Base model name
+        training_file_path: Path to training data file
+        hyperparameters: Training hyperparameters
+        client: Service client for API communication
+        check_cancel_callback: Function to check if job should be cancelled
+        event_callback: Function to report training events
+        config: Additional configuration (data_dir, checkpoint_dir, etc.)
+        trainer: Trainer to use ("huggingface" or "pytorch"). Defaults to "huggingface"
+
+    Returns:
+        Dict containing training results
+    """
+    # Default to HuggingFace trainer if not specified
+    if trainer is None:
+        trainer = "huggingface"
+
+    logger.info(f"Starting training with {trainer} trainer for job {job_id}")
+
+    if trainer == "huggingface":
+        result = train_huggingface(
+            job_id=job_id,
+            model_name=model_name,
+            training_file_path=training_file_path,
+            training_file=training_file,
+            hyperparameters=hyperparameters,
+            client=client,
+            check_cancel_callback=check_cancel_callback,
+            event_callback=event_callback,
+            config=config,
         )
-        raise ValueError(f"Model '{model_name}' not found")
+        return cast(Dict[str, Any], result)
+    elif trainer == "pytorch":
+        # Fetch model info from API
+        model_info: ModelConfig = client.get_model(model_name)
+        if not model_info:
+            logger.error(f"Model '{model_name}' not found in models database.")
+            raise ValueError(f"Model '{model_name}' not found")
 
-    torch.manual_seed(hyperparameters.seed)
-    np.random.seed(hyperparameters.seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(hyperparameters.seed)
+        # Resolve paths and device
+        if not config or "data_dir" not in config:
+            raise ValueError("'data_dir' must be set")
+        data_dir = config["data_dir"]
 
-    # Use the actual HuggingFace model name from the database
-    hf_model_name = model_info.get("model_name", model_name)
-    config = config or {}
-    model = load_hf_model(model_id=hf_model_name, config=config)
-    tokenizer = get_tokenizer(hf_model_name, data_dir=config.get("data_dir", "./data"))
+        local_model_path = resolve_model_path(data_dir, model_info.id)
+        training_file_path = resolve_training_file_path(data_dir, training_file)
+        ft_model_id = generate_name(model_info.id, hyperparameters.suffix)
+        output_dir = create_output_dir(data_dir, ft_model_id)
+        device = get_optimal_device()
 
-    # Extract config from model info
-    model_config = {"lora_target_modules": model_info.get("lora_target_modules", [])}
-    is_peft_model = False
+        # Set random seed for reproducibility
+        set_random_seed(hyperparameters.seed)
 
-    if hyperparameters.use_lora:
-        lora_cfg = hyperparameters.lora_config or {}
-        target_modules = lora_cfg.get("target_modules")
-        if not target_modules:
-            target_modules = model_config.get("lora_target_modules", ["q_proj", "k_proj", "v_proj", "o_proj"])
+        # Load model and tokenizer
+        event_callback("info", f"Loading model {model_info.id}", None)
+        model = get_model(model_info, str(local_model_path))
+        tokenizer = get_tokenizer(str(local_model_path))
+        model = model.to(device)  # type: ignore
 
-        peft_model = get_peft_model(
-            model,
-            LoraConfig(
-                r=lora_cfg.get("r", 16),
-                lora_alpha=lora_cfg.get("lora_alpha", 32),
-                target_modules=target_modules,
-                lora_dropout=lora_cfg.get("lora_dropout", 0.05),
-                bias="none",
-                task_type=TaskType.CAUSAL_LM,
-            ),
+        # Apply LoRA if enabled
+        is_peft = False
+        if hyperparameters.use_lora:
+            lora_config = hyperparameters.lora_config or LoraModelConfig()
+            model = apply_lora(model, model_info, lora_config)  # type: ignore[assignment]
+            is_peft = True
+
+        # Create and run trainer
+        pytorch_trainer = PyTorchTrainer(
+            model=model,
+            tokenizer=tokenizer,
+            is_peft=is_peft,
+            hyperparams=hyperparameters,
+            device=device,
+            event_callback=event_callback,
+            check_cancel_callback=check_cancel_callback,
         )
 
-        if not isinstance(peft_model, PeftModel):
-            raise TypeError(f"Expected {type(peft_model).__name__} to be an instance of 'PeftModel'.")
+        try:
+            # Prepare dataset
+            event_callback("info", "Loading dataset", None)
+            dataset = prepare_dataset(tokenizer, training_file_path, hyperparameters.max_length)
 
-        peft_model.print_trainable_parameters()
+            # Run training
+            pytorch_trainer.train(dataset)
 
-        model = peft_model
-        is_peft_model = True
+            # Check if cancelled
+            if check_cancel_callback and check_cancel_callback() in ["cancelled", "cancelling"]:
+                return {
+                    "success": False,
+                    "cancelled": True,
+                    "steps": pytorch_trainer.global_step,
+                    "tokens_processed": pytorch_trainer.total_tokens,
+                }
 
-    # Build training components
-    hardware_monitor = HardwareMonitorCallback(event_callback)
-    callbacks: List[TrainerCallback] = [EventCallback(event_callback), hardware_monitor]
-    if check_cancel_callback:
-        checkpoint_dir_config = config.get("checkpoint_dir", "data/checkpoints")
-        callbacks.append(CancellationCallback(check_cancel_callback, job_id, checkpoint_dir=checkpoint_dir_config))
-    if hyperparameters.validation_split > 0:
-        callbacks.append(EarlyStoppingCallback(early_stopping_patience=hyperparameters.early_stopping_patience))
+            # Save model
+            event_callback("info", f"Saving model to {output_dir}", None)
+            save_model(model, tokenizer, output_dir, is_peft)
 
-    # Load dataset and tokenize
-    try:
-        raw_dataset: Dataset = load_dataset("json", data_files=str(training_file_path), split="train")
-    except Exception as e:
-        raise ValueError(
-            "Failed to load training data: Invalid JSONL format. Each line must be a valid JSON object."
-        ) from e
+            # Get training results
+            result = pytorch_trainer.save(output_dir, model_info.id)
+            result["model_name"] = ft_model_id
+            return cast(Dict[str, Any], result)
 
-    def tokenize_example(example: Dict[str, Any]) -> "BatchEncoding":
-        # Check if tokenizer has a chat template
-        if tokenizer.chat_template is None:
-            # Fallback for models without chat templates (like phi-1.5)
-            messages = example["messages"]
-            text_parts = []
-            for msg in messages:
-                role = msg.get("role", "")
-                content = msg.get("content", "")
-                if role == "system":
-                    text_parts.append(f"System: {content}")
-                elif role == "user":
-                    text_parts.append(f"User: {content}")
-                elif role == "assistant":
-                    text_parts.append(f"Assistant: {content}")
-            text = "\n".join(text_parts)
-        else:
-            text = tokenizer.apply_chat_template(example["messages"], tokenize=False)
-        result: BatchEncoding = tokenizer(str(text), truncation=True, max_length=hyperparameters.max_length)
-        return result
-
-    checkpoint_base_dir = config.get("checkpoint_dir", "data/checkpoints")
-    checkpoint_dir = Path(checkpoint_base_dir) / job_id
-    checkpoint_dir.mkdir(parents=True, exist_ok=True)
-
-    tokenized_dataset = raw_dataset.map(tokenize_example, remove_columns=raw_dataset.column_names)
-
-    n_samples = len(tokenized_dataset)
-    per_device = hyperparameters.batch_size
-    steps_per_epoch = max(n_samples // per_device, 1)
-    total_steps = steps_per_epoch // hyperparameters.gradient_accumulation_steps * hyperparameters.n_epochs
-    device = get_optimal_device()
-
-    args = TrainingArguments(
-        output_dir=str(checkpoint_dir),
-        num_train_epochs=hyperparameters.n_epochs,
-        per_device_train_batch_size=per_device,
-        per_device_eval_batch_size=hyperparameters.eval_batch_size or 1,
-        gradient_accumulation_steps=hyperparameters.gradient_accumulation_steps,
-        learning_rate=hyperparameters.learning_rate,
-        warmup_steps=int(total_steps * hyperparameters.warmup_ratio),
-        lr_scheduler_type=hyperparameters.scheduler_type,
-        eval_strategy="epoch" if hyperparameters.validation_split else "no",
-        save_strategy="epoch",
-        save_total_limit=3,
-        load_best_model_at_end=bool(hyperparameters.validation_split),
-        metric_for_best_model="eval_loss",  # Will be used to compute perplexity
-        greater_is_better=False,
-        optim="adamw_torch",
-        weight_decay=hyperparameters.weight_decay,
-        logging_dir=str(checkpoint_dir / "logs"),
-        logging_steps=10,
-        log_level="info",
-        disable_tqdm=True,
-        fp16=hyperparameters.fp16 if hyperparameters.fp16 is not None else (device == "cuda"),
-        seed=hyperparameters.seed,
-        auto_find_batch_size=True,
-        remove_unused_columns=False,
-        report_to=[],
-        dataloader_pin_memory=(device == "cuda"),
-        include_num_input_tokens_seen=True,
-    )
-
-    # tokenization
-    data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8)
-
-    # Build train / validation split
-    if hyperparameters.validation_split > 0:
-        split = tokenized_dataset.train_test_split(hyperparameters.validation_split, seed=hyperparameters.seed)
-        train_ds = split["train"]
-        eval_ds = split["test"]
+        except Exception as e:
+            logger.error(f"PyTorch training failed for job {job_id}: {str(e)}")
+            raise
     else:
-        train_ds = tokenized_dataset
-        eval_ds = None
-
-    trainer = Trainer(
-        model=model,
-        args=args,
-        train_dataset=train_ds,
-        eval_dataset=eval_ds,
-        processing_class=tokenizer,
-        data_collator=data_collator,
-        callbacks=callbacks,
-    )
-
-    latest = max(
-        (p for p in checkpoint_dir.glob("checkpoint-*") if p.is_dir()),
-        default=None,
-        key=lambda p: int(p.name.split("-")[1]),
-    )
-    result = trainer.train(resume_from_checkpoint=str(latest) if latest else None)
-
-    ts = int(time.time())
-    model_id = f"{model_name}-ft-{ts}"
-    if hyperparameters.suffix:
-        model_id = f"{model_id}-{hyperparameters.suffix}"
-
-    out_dir = Path(config.get("data_dir", "./data")) / "models" / model_id
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    # Check if this is a PEFT model
-    if is_peft_model:
-        if torch.backends.mps.is_available():
-            logger.info("Saving LoRA adapter separately on Apple Silicon...")
-            # Save only the PEFT adapter, not the full model
-            trainer.model.save_pretrained(str(out_dir))
-            # Also save the tokenizer so it can be loaded with the adapter
-            tokenizer.save_pretrained(str(out_dir))
-            logger.info("Successfully saved LoRA adapter")
-        else:
-            logger.info("Merging LoRA adapters into base model...")
-            merged_model = trainer.model.merge_and_unload()
-            merged_model.save_pretrained(str(out_dir))
-            # Save tokenizer with the merged model
-            tokenizer.save_pretrained(str(out_dir))
-            logger.info("Successfully merged and saved model")
-    else:
-        # Not a PEFT model, save normally
-        trainer.save_model(str(out_dir))
-
-    # Calculate perplexity from validation loss when available
-    final_perplexity = None
-
-    if hyperparameters.validation_split > 0 and eval_ds is not None:
-        # The trainer.train() result doesn't include eval_loss in its metrics,
-        # so we need to run evaluation to get the final validation loss
-        eval_metrics = trainer.evaluate()
-
-        if "eval_loss" in eval_metrics:
-            final_perplexity = compute_perplexity(eval_metrics["eval_loss"])
-            logger.info(f"Final validation perplexity: {final_perplexity:.4f} (loss: {eval_metrics['eval_loss']:.4f})")
-        else:
-            logger.error(
-                f"Expected eval_loss in evaluation metrics but found: {list(eval_metrics.keys())}. "
-                "This indicates a potential issue with the evaluation dataset or configuration."
-            )
-
-    # Get peak memory usage from hardware monitor
-    peak_memory = hardware_monitor.get_peak_memory_gb()
-
-    result_dict = {
-        "success": True,
-        "final_loss": result.metrics.get("train_loss"),
-        "final_perplexity": final_perplexity,
-        "steps": trainer.state.global_step,
-        "tokens_processed": trainer.state.num_input_tokens_seen,
-        "model_path": str(out_dir),
-        "model_name": out_dir.name,
-    }
-
-    # Add peak memory metrics if available
-    result_dict.update(peak_memory)
-
-    return result_dict
+        raise ValueError(f"Unknown trainer: {trainer}")

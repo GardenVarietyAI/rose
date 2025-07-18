@@ -26,16 +26,38 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
         if method_config and method_config.hyperparameters:
             hyperparameters_obj = method_config.hyperparameters
         elif request.hyperparameters:
-            # Fall back to top-level hyperparameters
+            # Process hyperparameters, converting "auto" values
+            hp_dict = (
+                request.hyperparameters
+                if isinstance(request.hyperparameters, dict)
+                else request.hyperparameters.model_dump()
+            )
+
+            # Convert "auto" values to actual values
+            if hp_dict.get("batch_size") == "auto":
+                hp_dict["batch_size"] = settings.fine_tuning_auto_batch_size
+            if hp_dict.get("learning_rate_multiplier") == "auto":
+                hp_dict["learning_rate_multiplier"] = settings.fine_tuning_auto_learning_rate_multiplier
+            if hp_dict.get("n_epochs") == "auto":
+                hp_dict["n_epochs"] = settings.fine_tuning_auto_epochs
+
+            # Create Hyperparameters object
             try:
-                hyperparameters_obj = Hyperparameters(**request.hyperparameters)
+                hyperparameters_obj = Hyperparameters(**hp_dict)
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
         else:
             hyperparameters_obj = Hyperparameters()
 
-        # Convert to dict with resolved auto values
+        # Convert to dict
         hyperparameters = hyperparameters_obj.model_dump(exclude_none=True)
+
+        # Calculate learning rate if using multiplier
+        if hyperparameters.get("learning_rate_multiplier") is not None and "learning_rate" not in hyperparameters:
+            hyperparameters["base_learning_rate"] = settings.fine_tuning_base_learning_rate
+            hyperparameters["learning_rate"] = (
+                hyperparameters["base_learning_rate"] * hyperparameters["learning_rate_multiplier"]
+            )
 
         # Apply training defaults
         training_defaults = {
