@@ -170,7 +170,7 @@ def train(
 
     # Build train / validation split
     if hyperparameters.validation_split > 0:
-        split = tokenized_dataset.train_test_split(hyperparameters.validation_split, seed=42)
+        split = tokenized_dataset.train_test_split(hyperparameters.validation_split, seed=hyperparameters.seed)
         train_ds = split["train"]
         eval_ds = split["test"]
     else:
