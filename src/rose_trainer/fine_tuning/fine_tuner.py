@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union, cast
 
+import mlflow
 import numpy as np
 import torch
 from datasets import Dataset, load_dataset
@@ -296,50 +297,56 @@ def train(
         if hyperparameters.validation_split > 0:
             callbacks.append(EarlyStoppingCallback(early_stopping_patience=hyperparameters.early_stopping_patience))
 
-        huggingface_trainer = HuggingfaceTrainer(
-            model=model,
-            tokenizer=tokenizer,
-            is_peft=is_peft,
-            hyperparams=hyperparameters,
-            device=device,
-            checkpoint_dir=checkpoint_dir,
-            callbacks=callbacks,
-        )
-        try:
-            # Prepare dataset
-            event_callback("info", "Loading dataset", None)
-            dataset = prepare_dataset(tokenizer, training_file_path, hyperparameters.max_length)
-
-            # Run training
-            huggingface_trainer.train(dataset)
-
-            # Check if cancelled
-            if check_cancel_callback() in ["cancelled", "cancelling"]:
-                return {
-                    "success": False,
-                    "cancelled": True,
-                    "steps": huggingface_trainer.global_step,
-                    "tokens_processed": huggingface_trainer.total_tokens,
-                }
-
-            # Save model
-            event_callback("info", f"Saving model to {output_dir}", None)
-            save_model(model, tokenizer, output_dir, is_peft)
-
-            # Get training results
-            result = huggingface_trainer.save(output_dir, model_info.id, ft_model_id)
-
-            # Log  completion with time
-            event_callback(
-                "info",
-                f"Training completed in {format_training_time(result['training_time'])}",
-                None,
+        with mlflow.start_run(run_name=ft_model_id):
+            huggingface_trainer = HuggingfaceTrainer(
+                model=model,
+                tokenizer=tokenizer,
+                is_peft=is_peft,
+                hyperparams=hyperparameters,
+                device=device,
+                checkpoint_dir=checkpoint_dir,
+                callbacks=callbacks,
             )
+            try:
+                mlflow.log_params(hyperparameters.model_dump())
 
-            return cast(Dict[str, Any], result)
+                # Prepare dataset
+                event_callback("info", "Loading dataset", None)
+                dataset = prepare_dataset(tokenizer, training_file_path, hyperparameters.max_length)
 
-        except Exception as e:
-            logger.error(f"PyTorch training failed for job {job_id}: {str(e)}")
-            raise
+                # Run training
+                huggingface_trainer.train(dataset)
+
+                # Check if cancelled
+                if check_cancel_callback() in ["cancelled", "cancelling"]:
+                    return {
+                        "success": False,
+                        "cancelled": True,
+                        "steps": huggingface_trainer.global_step,
+                        "tokens_processed": huggingface_trainer.total_tokens,
+                    }
+
+                # Save model
+                event_callback("info", f"Saving model to {output_dir}", None)
+                save_model(model, tokenizer, output_dir, is_peft)
+
+                # Get training results
+                result = huggingface_trainer.save(output_dir, model_info.id, ft_model_id)
+
+                mlflow.log_metrics({"final_loss": result["final_loss"], "training_time": result["training_time"]})
+                mlflow.log_artifacts(str(output_dir))
+
+                # Log completion with time
+                event_callback(
+                    "info",
+                    f"Training completed in {format_training_time(result['training_time'])}",
+                    None,
+                )
+
+                return cast(Dict[str, Any], result)
+
+            except Exception as e:
+                logger.error(f"HuggingFace training failed for job {job_id}: {str(e)}")
+                raise
     else:
         raise ValueError(f"Unknown trainer: {trainer}")
