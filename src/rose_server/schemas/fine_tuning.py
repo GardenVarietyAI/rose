@@ -33,6 +33,7 @@ class Hyperparameters(BaseModel):
     # Additional fields from normalized hyperparameters
     learning_rate: Optional[float] = None
     base_learning_rate: Optional[float] = None
+    eval_metrics: List[str] = Field(default_factory=list)
 
 
 class SupervisedHyperparameters(Hyperparameters):

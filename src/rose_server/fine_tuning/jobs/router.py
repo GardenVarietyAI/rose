@@ -21,33 +21,32 @@ logger = logging.getLogger(__name__)
 async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTuningJobResponse:
     """Create a fine-tuning job."""
     try:
-        # Extract hyperparameters from method using dynamic access
+        # Extract hyperparameters from method or request
         method_config = getattr(request.method, request.method.type, None)
         if method_config and method_config.hyperparameters:
-            hyperparameters_obj = method_config.hyperparameters
+            hp_dict = method_config.hyperparameters.model_dump()
         elif request.hyperparameters:
-            # Process hyperparameters, converting "auto" values
             hp_dict = (
                 request.hyperparameters
                 if isinstance(request.hyperparameters, dict)
                 else request.hyperparameters.model_dump()
             )
-
-            # Convert "auto" values to actual values
-            if hp_dict.get("batch_size") == "auto":
-                hp_dict["batch_size"] = settings.fine_tuning_auto_batch_size
-            if hp_dict.get("learning_rate_multiplier") == "auto":
-                hp_dict["learning_rate_multiplier"] = settings.fine_tuning_auto_learning_rate_multiplier
-            if hp_dict.get("n_epochs") == "auto":
-                hp_dict["n_epochs"] = settings.fine_tuning_auto_epochs
-
-            # Create Hyperparameters object
-            try:
-                hyperparameters_obj = Hyperparameters(**hp_dict)
-            except ValueError as e:
-                raise HTTPException(status_code=400, detail=str(e))
         else:
-            hyperparameters_obj = Hyperparameters()
+            hp_dict = {}
+
+        # Convert "auto" values to actual values
+        if hp_dict.get("batch_size") == "auto":
+            hp_dict["batch_size"] = settings.fine_tuning_auto_batch_size
+        if hp_dict.get("learning_rate_multiplier") == "auto":
+            hp_dict["learning_rate_multiplier"] = settings.fine_tuning_auto_learning_rate_multiplier
+        if hp_dict.get("n_epochs") == "auto":
+            hp_dict["n_epochs"] = settings.fine_tuning_auto_epochs
+
+        # Create Hyperparameters object
+        try:
+            hyperparameters_obj = Hyperparameters(**hp_dict)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
         # Convert to dict
         hyperparameters = hyperparameters_obj.model_dump(exclude_none=True)
@@ -79,6 +78,9 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
         for key, value in training_defaults.items():
             if key not in hyperparameters:
                 hyperparameters[key] = value
+
+        # Preserve eval_metrics from hyperparameters_obj
+        hyperparameters["eval_metrics"] = hyperparameters_obj.eval_metrics
 
         # TODO: We skip the "validating_files" status for now since we don't actually validate the JSONL format.
         # In the future, we should validate that the file exists and contains properly formatted training data.
