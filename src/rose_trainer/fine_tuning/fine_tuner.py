@@ -69,6 +69,12 @@ def create_output_dir(data_dir: str, model_id: str) -> Path:
     return output_dir
 
 
+def set_mlflow_output_dir(data_dir: str) -> None:
+    mlruns_dir = Path(data_dir) / "mlruns"
+    mlruns_dir.mkdir(parents=True, exist_ok=True)
+    mlflow.set_tracking_uri(f"file://{mlruns_dir.absolute()}")
+
+
 def format_training_time(seconds: float) -> str:
     """Format training time in human-readable format."""
     if seconds < 60:
@@ -297,6 +303,8 @@ def train(
         if hyperparameters.validation_split > 0:
             callbacks.append(EarlyStoppingCallback(early_stopping_patience=hyperparameters.early_stopping_patience))
 
+        set_mlflow_output_dir(data_dir)
+        mlflow.set_experiment("rose-finetuning")
         with mlflow.start_run(run_name=ft_model_id):
             huggingface_trainer = HuggingfaceTrainer(
                 model=model,
