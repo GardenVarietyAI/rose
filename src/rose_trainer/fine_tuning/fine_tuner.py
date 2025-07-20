@@ -172,8 +172,12 @@ def prepare_dataset(tokenizer: PreTrainedTokenizerBase, training_file_path: Path
                     # Simple fallback
                     text = "\n".join(f"{m['role']}: {m['content']}" for m in messages)
                 texts.append(text)
+        elif "text" in samples:
+            texts = samples["text"]
+        elif "prompt" in samples:
+            texts = samples["prompt"]
         else:
-            texts = samples.get("text", samples.get("prompt", []))
+            raise ValueError("Dataset must contain 'messages', 'text', or 'prompt' fields.")
 
         result = tokenizer(texts, truncation=True, max_length=max_length)
         result["real_lengths"] = [len(ids) for ids in result["input_ids"]]
@@ -230,7 +234,7 @@ def train(
     event_callback: Callable[[str, str, Optional[Dict[str, Any]]], None],
     check_cancel_callback: Callable[[], str],
     config: Optional[Dict[str, Any]] = None,
-    trainer: Optional[str] = None,
+    trainer: Optional[str] = "huggingface",
 ) -> Dict[str, Any]:
     """
     Main training entry point that routes to appropriate trainer.
@@ -323,7 +327,7 @@ def train(
             save_model(model, tokenizer, output_dir, is_peft)
 
             # Get training results
-            result = huggingface_trainer.save(output_dir, model_info.id)
+            result = huggingface_trainer.save(output_dir, model_info.id, ft_model_id)
 
             # Log  completion with time
             event_callback(
