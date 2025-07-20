@@ -2,9 +2,8 @@
 
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
-from rose_server.config.settings import settings
 from rose_server.entities.fine_tuning import FineTuningEvent, FineTuningJob
 
 
@@ -17,57 +16,24 @@ class Error(BaseModel):
 
 
 class Hyperparameters(BaseModel):
-    """Hyperparameters for fine-tuning with auto value resolution."""
+    """Hyperparameters for fine-tuning."""
 
-    batch_size: Optional[Union[Literal["auto"], int]] = Field(
-        default_factory=lambda: settings.fine_tuning_default_batch_size
+    batch_size: Optional[int] = Field(
+        default=4,  # Default batch size
+        description="Number of examples in each batch",
     )
-    learning_rate_multiplier: Optional[Union[Literal["auto"], float]] = Field(
-        default_factory=lambda: settings.fine_tuning_default_learning_rate_multiplier
+    learning_rate_multiplier: Optional[float] = Field(
+        default=1.0,  # Default multiplier
+        description="Scaling factor for the learning rate",
     )
-    n_epochs: Optional[Union[Literal["auto"], int]] = Field(default_factory=lambda: settings.fine_tuning_default_epochs)
+    n_epochs: Optional[int] = Field(
+        default=3,  # Default epochs
+        description="Number of epochs to train for",
+    )
     # Additional fields from normalized hyperparameters
     learning_rate: Optional[float] = None
     base_learning_rate: Optional[float] = None
-
-    @field_validator("batch_size")
-    @classmethod
-    def validate_batch_size(cls, v: Optional[Union[str, int]]) -> Optional[int]:
-        if v is None:
-            return None
-        if v == "auto":
-            return settings.fine_tuning_auto_batch_size
-        if isinstance(v, int) and v > 0:
-            return v
-        raise ValueError(f"batch_size must be 'auto' or positive integer, got {v}")
-
-    @field_validator("n_epochs")
-    @classmethod
-    def validate_n_epochs(cls, v: Optional[Union[str, int]]) -> Optional[int]:
-        if v is None:
-            return None
-        if v == "auto":
-            return settings.fine_tuning_auto_epochs
-        if isinstance(v, int) and v > 0:
-            return v
-        raise ValueError(f"n_epochs must be 'auto' or positive integer, got {v}")
-
-    @field_validator("learning_rate_multiplier")
-    @classmethod
-    def validate_learning_rate_multiplier(cls, v: Optional[Union[str, float]]) -> Optional[float]:
-        if v is None:
-            return None
-        if v == "auto":
-            return settings.fine_tuning_auto_learning_rate_multiplier
-        if isinstance(v, (int, float)) and v > 0:
-            return float(v)
-        raise ValueError(f"learning_rate_multiplier must be 'auto' or positive number, got {v}")
-
-    def model_post_init(self, __context: Any) -> None:
-        """Compute derived fields after validation."""
-        if self.learning_rate_multiplier is not None:
-            self.base_learning_rate = settings.fine_tuning_base_learning_rate
-            self.learning_rate = self.base_learning_rate * self.learning_rate_multiplier
+    eval_metrics: List[str] = Field(default_factory=list)
 
 
 class SupervisedHyperparameters(Hyperparameters):
@@ -116,12 +82,24 @@ class DpoMethod(BaseModel):
 Method = Union[SupervisedMethod, DpoMethod]
 
 
+class HyperparameterInput(BaseModel):
+    """Input hyperparameters that can accept 'auto' strings."""
+
+    batch_size: Optional[Union[Literal["auto"], int]] = None
+    learning_rate_multiplier: Optional[Union[Literal["auto"], float]] = None
+    n_epochs: Optional[Union[Literal["auto"], int]] = None
+    # Direct learning rate (not multiplier)
+    learning_rate: Optional[float] = None
+
+
 class FineTuningJobCreateRequest(BaseModel):
     """Request body for creating a fine-tuning job."""
 
     model: str = Field(..., description="The name of the model to fine-tune")
     training_file: str = Field(..., description="The ID of the uploaded file for training")
-    hyperparameters: Optional[Dict[str, Any]] = Field(default=None, description="Hyperparameters for training")
+    hyperparameters: Optional[Union[Dict[str, Any], HyperparameterInput]] = Field(
+        default=None, description="Hyperparameters for training"
+    )
     method: Optional[Method] = Field(
         default_factory=lambda: SupervisedMethod(), description="Fine-tuning method configuration"
     )
@@ -130,7 +108,7 @@ class FineTuningJobCreateRequest(BaseModel):
     seed: Optional[int] = Field(default=None, description="Random seed for reproducibility")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Set of 16 key-value pairs for job metadata")
     # ROSE-specific extension
-    trainer: Optional[Literal["huggingface", "torchtune"]] = Field(
+    trainer: Optional[Literal["huggingface", "pytorch"]] = Field(
         default=None, description="Training backend to use (ROSE-specific extension)"
     )
 

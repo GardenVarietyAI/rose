@@ -11,7 +11,7 @@ from rose_trainer.fine_tuning.callbacks.base import _BaseCallback
 logger = logging.getLogger(__name__)
 
 
-class HardwareMonitorCallback(_BaseCallback):
+class HardwareMonitorCallback(_BaseCallback):  # type: ignore[misc]
     """Simple hardware monitoring callback."""
 
     def __init__(self, event_cb: Optional[Callable[[str, str, Dict[str, Any]], None]] = None) -> None:

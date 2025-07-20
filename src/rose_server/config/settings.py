@@ -42,16 +42,15 @@ class Settings(BaseSettings):
     fine_tuning_base_learning_rate: float = Field(
         default=2e-5, description="Base learning rate for OpenAI-compatible multiplier"
     )
-    fine_tuning_auto_batch_size: int = Field(default=4, description="Batch size to use when 'auto' is specified")
-    fine_tuning_auto_epochs: int = Field(default=3, description="Number of epochs to use when 'auto' is specified")
+    fine_tuning_auto_batch_size: int = Field(default=4, description="Batch size when 'auto' is specified")
+    fine_tuning_auto_epochs: int = Field(default=3, description="Number of epochs when 'auto' is specified")
     fine_tuning_auto_learning_rate_multiplier: float = Field(
-        default=1.0, description="Learning rate multiplier to use when 'auto' is specified"
+        default=0.1, description="Learning rate multiplier when 'auto' is specified"
     )
     training_interval: int = Field(default=30, description="Training job check interval in seconds")
 
     # Inference settings
     inference_uri: str = Field(default="ws://localhost:8005", description="WebSocket URI for inference worker")
-    default_model: str = Field(default="qwen2.5-0.5b", description="Default model for inference")
     inference_timeout: int = Field(default=300, description="Inference timeout in seconds")
     max_concurrent_inference: int = Field(default=1, description="Maximum concurrent inference requests")
 

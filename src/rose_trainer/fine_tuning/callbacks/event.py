@@ -10,7 +10,7 @@ from rose_trainer.fine_tuning.callbacks.base import _BaseCallback
 logger = logging.getLogger(__name__)
 
 
-class EventCallback(_BaseCallback):
+class EventCallback(_BaseCallback):  # type: ignore[misc]
     """Streams high-level training progress to ``event_callback``."""
 
     def on_train_begin(

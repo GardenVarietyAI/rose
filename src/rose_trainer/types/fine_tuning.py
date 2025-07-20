@@ -1,12 +1,21 @@
 """Fine-tuning type definitions."""
 
-from typing import Any, Dict, Optional
+from typing import List, Literal, Optional
 
-from pydantic.dataclasses import dataclass
+from peft import TaskType
+from pydantic import BaseModel
 
 
-@dataclass
-class Hyperparameters:
+class LoraModelConfig(BaseModel):
+    r: int = 16
+    lora_alpha: int = 32
+    target_modules: List[str] = []
+    lora_dropout: float = 0.05
+    bias: Literal["none"] = "none"
+    task_type: str = TaskType.CAUSAL_LM
+
+
+class Hyperparameters(BaseModel):
     """Training hyperparameters."""
 
     # Core params (required)
@@ -32,6 +41,14 @@ class Hyperparameters:
     suffix: str
 
     # Optional fields
-    lora_config: Optional[Dict[str, Any]] = None
+    lora_config: Optional[LoraModelConfig] = None
     fp16: Optional[bool] = None
     eval_batch_size: Optional[int] = None
+
+
+class ModelConfig(BaseModel):
+    id: str
+    parent: Optional[str] = None
+    model_name: str
+    lora_target_modules: List[str]
+    quantization: Optional[str] = None

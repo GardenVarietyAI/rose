@@ -1,7 +1,6 @@
 """Training job processor."""
 
 import logging
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 from pydantic import ValidationError
@@ -22,7 +21,8 @@ def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceCl
     hyperparameters: Dict[str, Any] = payload.get("hyperparameters", {})
     suffix: Optional[str] = payload["suffix"]
     config: Dict[str, Any] = payload.get("config", {})
-    logger.info(f"Starting training job {job_id} for fine-tuning {ft_job_id}")
+    trainer: Optional[str] = payload.get("trainer")
+    logger.info(f"Starting training job {job_id} for fine-tuning {ft_job_id} with trainer: {trainer or 'huggingface'}")
 
     # Create event callback for progress reporting
     def event_callback(level: str, msg: str, data: Dict[str, Any] | None = None) -> None:
@@ -44,9 +44,6 @@ def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceCl
             hyperparameters = hyperparameters.copy()
             hyperparameters["suffix"] = suffix
 
-        data_dir = config.get("data_dir", "./data")
-        training_file_path = Path(data_dir) / "uploads" / training_file
-
         try:
             hp = Hyperparameters(**hyperparameters)
         except ValidationError as ve:
@@ -63,12 +60,13 @@ def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceCl
         result = train(
             job_id=ft_job_id,
             model_name=model_name,
-            training_file_path=training_file_path,
+            training_file=training_file,
             hyperparameters=hp,
             client=client,
             check_cancel_callback=check_cancel_callback,
             event_callback=event_callback,
             config=config,
+            trainer=trainer,
         )
 
         webhook_data = {
@@ -88,13 +86,7 @@ def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceCl
         if result.get("mps_peak_memory_gb") is not None:
             webhook_data["mps_peak_memory_gb"] = result["mps_peak_memory_gb"]
 
-        client.post_webhook(
-            "job.completed",
-            "training",
-            job_id,
-            ft_job_id,
-            webhook_data,
-        )
+        client.post_webhook("job.completed", "training", job_id, ft_job_id, webhook_data)
 
         # Handle cancellation
         if result.get("cancelled"):
