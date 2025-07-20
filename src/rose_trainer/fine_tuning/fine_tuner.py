@@ -3,7 +3,7 @@
 import logging
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Union, cast
+from typing import Any, Callable, Dict, List, Optional, Union, cast
 
 import numpy as np
 import torch
@@ -13,10 +13,13 @@ from peft.peft_model import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.modeling_utils import PreTrainedModel
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+from transformers.trainer_callback import EarlyStoppingCallback, TrainerCallback
 
 from rose_trainer.client import ServiceClient
-from rose_trainer.fine_tuning.huggingface_trainer import train as train_huggingface
-from rose_trainer.fine_tuning.pytorch_trainer import PyTorchTrainer
+from rose_trainer.fine_tuning.callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
+from rose_trainer.fine_tuning.huggingface_trainer import (
+    HuggingfaceTrainer,
+)
 from rose_trainer.types.fine_tuning import Hyperparameters, LoraModelConfig, ModelConfig
 
 logger = logging.getLogger(__name__)
@@ -63,6 +66,19 @@ def create_output_dir(data_dir: str, model_id: str) -> Path:
     output_dir = Path(data_dir) / "models" / model_id
     output_dir.mkdir(parents=True, exist_ok=True)
     return output_dir
+
+
+def format_training_time(seconds: float) -> str:
+    """Format training time in human-readable format."""
+    if seconds < 60:
+        return f"{seconds:.1f} seconds"
+    elif seconds < 3600:
+        minutes = seconds / 60
+        return f"{minutes:.1f} minutes"
+    else:
+        hours = seconds / 3600
+        minutes = (seconds % 3600) / 60
+        return f"{hours:.0f}h {minutes:.0f}m"
 
 
 def get_optimal_device() -> str:
@@ -208,12 +224,11 @@ def save_model(
 def train(
     job_id: str,
     model_name: str,
-    training_file_path: Path,
     training_file: str,
     hyperparameters: Hyperparameters,
     client: ServiceClient,
     event_callback: Callable[[str, str, Optional[Dict[str, Any]]], None],
-    check_cancel_callback: Optional[Callable[[], str]] = None,
+    check_cancel_callback: Callable[[], str],
     config: Optional[Dict[str, Any]] = None,
     trainer: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -223,42 +238,27 @@ def train(
     Args:
         job_id: Fine-tuning job ID
         model_name: Base model name
-        training_file_path: Path to training data file
         hyperparameters: Training hyperparameters
         client: Service client for API communication
         check_cancel_callback: Function to check if job should be cancelled
         event_callback: Function to report training events
         config: Additional configuration (data_dir, checkpoint_dir, etc.)
-        trainer: Trainer to use ("huggingface" or "pytorch"). Defaults to "huggingface"
+        trainer: Trainer to use. Defaults to "huggingface"
 
     Returns:
         Dict containing training results
     """
-    # Default to HuggingFace trainer if not specified
-    if trainer is None:
-        trainer = "huggingface"
-
     logger.info(f"Starting training with {trainer} trainer for job {job_id}")
 
     if trainer == "huggingface":
-        result = train_huggingface(
-            job_id=job_id,
-            model_name=model_name,
-            training_file_path=training_file_path,
-            training_file=training_file,
-            hyperparameters=hyperparameters,
-            client=client,
-            check_cancel_callback=check_cancel_callback,
-            event_callback=event_callback,
-            config=config,
-        )
-        return cast(Dict[str, Any], result)
-    elif trainer == "pytorch":
         # Fetch model info from API
         model_info: ModelConfig = client.get_model(model_name)
         if not model_info:
             logger.error(f"Model '{model_name}' not found in models database.")
             raise ValueError(f"Model '{model_name}' not found")
+
+        # Set random seed for reproducibility
+        set_random_seed(hyperparameters.seed)
 
         # Resolve paths and device
         if not config or "data_dir" not in config:
@@ -269,10 +269,8 @@ def train(
         training_file_path = resolve_training_file_path(data_dir, training_file)
         ft_model_id = generate_name(model_info.id, hyperparameters.suffix)
         output_dir = create_output_dir(data_dir, ft_model_id)
+        checkpoint_dir = resolve_checkpoint_dir(data_dir, job_id)
         device = get_optimal_device()
-
-        # Set random seed for reproducibility
-        set_random_seed(hyperparameters.seed)
 
         # Load model and tokenizer
         event_callback("info", f"Loading model {model_info.id}", None)
@@ -287,34 +285,37 @@ def train(
             model = apply_lora(model, model_info, lora_config)  # type: ignore[assignment]
             is_peft = True
 
-        # Create and run trainer
-        checkpoint_dir = resolve_checkpoint_dir(data_dir, job_id)
-        pytorch_trainer = PyTorchTrainer(
+        # Build training components
+        hardware_monitor = HardwareMonitorCallback(event_callback)
+        callbacks: List[TrainerCallback] = [EventCallback(event_callback), hardware_monitor]
+        callbacks.append(CancellationCallback(check_cancel_callback, job_id, checkpoint_dir=checkpoint_dir))
+        if hyperparameters.validation_split > 0:
+            callbacks.append(EarlyStoppingCallback(early_stopping_patience=hyperparameters.early_stopping_patience))
+
+        huggingface_trainer = HuggingfaceTrainer(
             model=model,
             tokenizer=tokenizer,
             is_peft=is_peft,
             hyperparams=hyperparameters,
             device=device,
             checkpoint_dir=checkpoint_dir,
-            event_callback=event_callback,
-            check_cancel_callback=check_cancel_callback,
+            callbacks=callbacks,
         )
-
         try:
             # Prepare dataset
             event_callback("info", "Loading dataset", None)
             dataset = prepare_dataset(tokenizer, training_file_path, hyperparameters.max_length)
 
             # Run training
-            pytorch_trainer.train(dataset)
+            huggingface_trainer.train(dataset)
 
             # Check if cancelled
-            if check_cancel_callback and check_cancel_callback() in ["cancelled", "cancelling"]:
+            if check_cancel_callback() in ["cancelled", "cancelling"]:
                 return {
                     "success": False,
                     "cancelled": True,
-                    "steps": pytorch_trainer.global_step,
-                    "tokens_processed": pytorch_trainer.total_tokens,
+                    "steps": huggingface_trainer.global_step,
+                    "tokens_processed": huggingface_trainer.total_tokens,
                 }
 
             # Save model
@@ -322,8 +323,15 @@ def train(
             save_model(model, tokenizer, output_dir, is_peft)
 
             # Get training results
-            result = pytorch_trainer.save(output_dir, model_info.id)
-            result["model_name"] = ft_model_id
+            result = huggingface_trainer.save(output_dir, model_info.id)
+
+            # Log  completion with time
+            event_callback(
+                "info",
+                f"Training completed in {format_training_time(result['training_time'])}",
+                None,
+            )
+
             return cast(Dict[str, Any], result)
 
         except Exception as e:
