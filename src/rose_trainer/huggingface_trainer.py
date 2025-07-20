@@ -14,7 +14,7 @@ from transformers.trainer import Trainer
 from transformers.trainer_callback import TrainerCallback
 from transformers.training_args import TrainingArguments
 
-from rose_trainer.types.fine_tuning import Hyperparameters
+from rose_trainer.types import Hyperparameters
 
 logger = logging.getLogger(__name__)
 

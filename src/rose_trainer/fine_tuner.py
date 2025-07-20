@@ -16,12 +16,12 @@ from transformers.modeling_utils import PreTrainedModel
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer_callback import EarlyStoppingCallback, TrainerCallback
 
+from rose_trainer.callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
 from rose_trainer.client import ServiceClient
-from rose_trainer.fine_tuning.callbacks import CancellationCallback, EventCallback, HardwareMonitorCallback
-from rose_trainer.fine_tuning.huggingface_trainer import (
+from rose_trainer.huggingface_trainer import (
     HuggingfaceTrainer,
 )
-from rose_trainer.types.fine_tuning import Hyperparameters, LoraModelConfig, ModelConfig
+from rose_trainer.types import Hyperparameters, LoraModelConfig, ModelConfig
 
 logger = logging.getLogger(__name__)
 
@@ -264,9 +264,6 @@ def train(
     if trainer == "huggingface":
         # Fetch model info from API
         model_info: ModelConfig = client.get_model(model_name)
-        if not model_info:
-            logger.error(f"Model '{model_name}' not found in models database.")
-            raise ValueError(f"Model '{model_name}' not found")
 
         # Set random seed for reproducibility
         set_random_seed(hyperparameters.seed)

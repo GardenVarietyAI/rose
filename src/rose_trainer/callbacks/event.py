@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 from transformers.trainer_callback import TrainerControl, TrainerState
 from transformers.training_args import TrainingArguments
 
-from rose_trainer.fine_tuning.callbacks.base import _BaseCallback
+from rose_trainer.callbacks.base import _BaseCallback
 
 logger = logging.getLogger(__name__)
 

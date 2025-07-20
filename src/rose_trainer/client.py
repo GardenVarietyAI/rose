@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from rose_trainer.types.fine_tuning import ModelConfig
+from rose_trainer.types import ModelConfig
 
 logger = logging.getLogger(__name__)
 
@@ -18,13 +18,8 @@ class ServiceClient:
     """HTTP client for worker→server communication."""
 
     def __init__(self, base_url: Optional[str] = None, timeout: float = DEFAULT_TIMEOUT):
-        # Get base URL from environment or use default
-        if base_url is None:
-            base_url = os.getenv("ROSE_SERVER_URL", "http://127.0.0.1:8004")
-        self.base_url = base_url
+        self.base_url = os.getenv("ROSE_SERVER_URL", "http://127.0.0.1:8004")
         self.timeout = timeout
-
-        # Always set auth header
         token = os.getenv("ROSE_API_KEY") or ""
         headers = {"Authorization": f"Bearer {token}"}
 
@@ -48,13 +43,9 @@ class ServiceClient:
 
     def update_job_status(self, job_id: int, status: str, result: Optional[Dict[str, Any]] = None) -> None:
         """Update job status in the API."""
-        self._request(
-            "PATCH",
-            f"/v1/jobs/{job_id}",
-            json={"status": status, "result": result},
-        )
+        self._request("PATCH", f"/v1/jobs/{job_id}", json={"status": status, "result": result})
 
-    def get_model(self, model_id: str) -> Optional[ModelConfig]:
+    def get_model(self, model_id: str) -> ModelConfig:
         """Get model information from the API."""
         try:
             response = self._request("GET", f"/v1/models/{model_id}")
@@ -75,28 +66,22 @@ class ServiceClient:
         data: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Post a webhook event to the server."""
-        payload = {
-            "event": event,
-            "object": object_type,
-            "job_id": job_id,
-            "object_id": object_id,
-            "created_at": int(time.time()),
-            "data": data or {},
-        }
-
-        self._request("POST", "/v1/webhooks/jobs", json=payload)
+        self._request(
+            "POST",
+            "/v1/webhooks/jobs",
+            json={
+                "event": event,
+                "object": object_type,
+                "job_id": job_id,
+                "object_id": object_id,
+                "created_at": int(time.time()),
+                "data": data or {},
+            },
+        )
 
     def get_queued_jobs(self, job_type: str, limit: int = 10) -> List[Dict[str, Any]]:
         """Get queued jobs of a specific type."""
-        response = self._request(
-            "GET",
-            "/v1/jobs",
-            params={
-                "type": job_type,
-                "status": "queued",
-                "limit": limit,
-            },
-        )
+        response = self._request("GET", "/v1/jobs", params={"type": job_type, "status": "queued", "limit": limit})
         data: Dict[str, Any] = response.json()
         jobs: List[Dict[str, Any]] = data.get("data", [])
         return jobs
