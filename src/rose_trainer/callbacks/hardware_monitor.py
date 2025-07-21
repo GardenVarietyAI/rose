@@ -58,14 +58,14 @@ class HardwareMonitorCallback(_BaseCallback):  # type: ignore[misc]
                 current_memory_gb = torch.mps.current_allocated_memory() / 1e9
                 metrics["mps_memory_gb"] = round(current_memory_gb, 2)
                 self._peak_memory_gb = max(self._peak_memory_gb, current_memory_gb)
-        except Exception:
+        except (RuntimeError, AttributeError):
             pass
 
         if self._process:
             metrics["cpu_percent"] = self._process.cpu_percent()
             metrics["ram_gb"] = round(self._process.memory_info().rss / 1024**3, 2)
 
-        self._send("debug", "Hardware metrics", metrics)
+        self._send("info", "Hardware metrics", metrics)
 
     def get_peak_memory_gb(self) -> Dict[str, float]:
         """Return peak memory usage for the device used during training."""

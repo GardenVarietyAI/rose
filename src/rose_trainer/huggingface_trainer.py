@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional, Union
 
 from datasets import Dataset
 from peft.peft_model import PeftModel
-from torch.optim import Optimizer
 from transformers.data.data_collator import DataCollatorForLanguageModeling
 from transformers.modeling_utils import PreTrainedModel
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
@@ -14,6 +13,7 @@ from transformers.trainer import Trainer
 from transformers.trainer_callback import TrainerCallback
 from transformers.training_args import TrainingArguments
 
+from rose_trainer.perplexity import compute_perplexity
 from rose_trainer.types import Hyperparameters
 
 logger = logging.getLogger(__name__)
@@ -39,16 +39,39 @@ class HuggingfaceTrainer:
         self.callbacks = callbacks
 
         # Training components (initialized in prepare_training)
-        self.optimizer: Optional[Optimizer] = None
-        self.scheduler: Optional[Any] = None
+        self.optimizer: str = "adamw_torch"
+        self.default_collator: DataCollatorForLanguageModeling = DataCollatorForLanguageModeling(
+            tokenizer=self.tokenizer, mlm=False
+        )
 
         # Training state
         self.global_step: int = 0
         self.total_tokens: int = 0
-        self.total_steps: int = 0
         self.start_time: Optional[float] = None
         self.final_loss = 0.0
+        self.final_perplexity = None
         self.success: bool = False
+
+    def _validate_batch(self, batch: Dict[str, Any], tokenizer_pad_id: int) -> None:
+        """Validate batch to catch tokenizer issues early."""
+        if "labels" in batch:
+            # Check if padding is dominating the loss
+            labels = batch["labels"]
+            pad_count = (labels == -100).sum().item()
+            total_count = labels.numel()
+            pad_ratio = pad_count / total_count if total_count > 0 else 0
+
+            if pad_ratio > 0.9:
+                logger.warning(f"High padding ratio in batch: {pad_ratio:.2%} tokens are padding")
+
+        # Check attention mask alignment
+        if "attention_mask" in batch and "input_ids" in batch:
+            input_ids = batch["input_ids"]
+            attention_mask = batch["attention_mask"]
+
+            # Verify shapes match
+            if input_ids.shape != attention_mask.shape:
+                logger.error(f"Shape mismatch: input_ids {input_ids.shape} vs attention_mask {attention_mask.shape}")
 
     def train(self, dataset: Dataset) -> None:
         """Train the model on the dataset."""
@@ -70,7 +93,6 @@ class HuggingfaceTrainer:
         steps_per_epoch = max(n_samples // per_device, 1)
         total_steps = steps_per_epoch // self.hyperparams.gradient_accumulation_steps * self.hyperparams.n_epochs
 
-        # Training args
         args = TrainingArguments(
             output_dir=str(self.checkpoint_dir),
             num_train_epochs=self.hyperparams.n_epochs,
@@ -86,7 +108,7 @@ class HuggingfaceTrainer:
             load_best_model_at_end=bool(self.hyperparams.validation_split),
             metric_for_best_model="eval_loss",  # Will be used to compute perplexity
             greater_is_better=False,
-            optim="adamw_torch",
+            optim=self.optimizer,
             weight_decay=self.hyperparams.weight_decay,
             logging_dir=str(self.checkpoint_dir / "logs"),
             logging_steps=10,
@@ -101,18 +123,21 @@ class HuggingfaceTrainer:
             include_num_input_tokens_seen=True,
         )
 
-        # Create trainer
+        def validating_collator(*args, **kwargs):
+            batch = self.default_collator(*args, **kwargs)
+            self._validate_batch(batch, self.tokenizer.pad_token_id)
+            return batch
+
         trainer = Trainer(
             model=self.model,
             args=args,
             train_dataset=train_ds,
             eval_dataset=eval_ds,
             processing_class=self.tokenizer,
-            data_collator=DataCollatorForLanguageModeling(tokenizer=self.tokenizer, mlm=False),
+            data_collator=validating_collator,
             callbacks=self.callbacks,
         )
 
-        # Train
         result = trainer.train()
 
         # Validate training actually succeeded
@@ -132,13 +157,17 @@ class HuggingfaceTrainer:
         # Training succeeded
         self.success = True
         self.final_loss = final_loss
+        # Calculate perplexity from eval_loss if available
+        eval_loss = result.metrics.get("eval_loss")
+        self.final_perplexity = compute_perplexity(eval_loss) if eval_loss else None
         self.global_step = trainer.state.global_step
         self.total_tokens = trainer.state.num_input_tokens_seen or 0
 
     def save(self, output_dir: Path, base_model_id: str, model_name: str) -> Dict[str, Any]:
         """Save model and return training metadata."""
         # Calculate final metrics
-        training_time = time.time() - self.start_time if self.start_time else 0
+        finish_time = time.time()
+        training_time = finish_time - self.start_time if self.start_time else 0
 
         # Save metadata
         metadata = {
@@ -148,6 +177,9 @@ class HuggingfaceTrainer:
             "training_time": training_time,
             "global_steps": self.global_step,
             "final_loss": self.final_loss,
+            "final_perplexity": self.final_perplexity,
+            "start_time": self.start_time,
+            "finish_time": finish_time,
             "steps": self.global_step,
             "tokens_processed": self.total_tokens,
             "model_path": str(output_dir),

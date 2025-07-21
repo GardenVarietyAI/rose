@@ -12,9 +12,8 @@ class _BaseCallback(TrainerCallback):
 
     def __init__(self, event_cb: Optional[Callable[[str, str, Dict[str, Any]], None]] = None) -> None:
         self.event_cb = event_cb
-        self._t0: float | None = None
 
-    def _send(self, level: str, msg: str, data: Dict[str, Any] | None = None) -> None:
+    def _send(self, level: str, msg: str, data: Optional[Dict[str, Any]] = None) -> None:
         if self.event_cb:
             self.event_cb(level, msg, data or {})
 

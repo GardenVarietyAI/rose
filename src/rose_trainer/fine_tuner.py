@@ -36,7 +36,11 @@ def resolve_model_path(data_dir: str, model_id: str) -> Path:
 
 def resolve_training_file_path(data_dir: str, training_file: str) -> Path:
     """Resolve training file path and verify it exists."""
-    file_path = Path(data_dir) / "uploads" / training_file
+    uploads_dir = Path(data_dir) / "uploads"
+    if not uploads_dir.exists():
+        raise ValueError(f"Uploads directory '{uploads_dir}' does not exist")
+
+    file_path = uploads_dir / training_file
     if not file_path.exists():
         raise ValueError(f"Training file '{file_path}' not found")
     return file_path
@@ -193,28 +197,6 @@ def prepare_dataset(tokenizer: PreTrainedTokenizerBase, training_file_path: Path
     return dataset.map(tokenize_function, batched=True, remove_columns=dataset.column_names)
 
 
-def validate_batch(batch: Dict[str, Any], tokenizer_pad_id: int) -> None:
-    """Validate batch to catch tokenizer issues early."""
-    if "labels" in batch:
-        # Check if padding is dominating the loss
-        labels = batch["labels"]
-        pad_count = (labels == -100).sum().item()
-        total_count = labels.numel()
-        pad_ratio = pad_count / total_count if total_count > 0 else 0
-
-        if pad_ratio > 0.9:
-            logger.warning(f"High padding ratio in batch: {pad_ratio:.2%} tokens are padding")
-
-    # Check attention mask alignment
-    if "attention_mask" in batch and "input_ids" in batch:
-        input_ids = batch["input_ids"]
-        attention_mask = batch["attention_mask"]
-
-        # Verify shapes match
-        if input_ids.shape != attention_mask.shape:
-            logger.error(f"Shape mismatch: input_ids {input_ids.shape} vs attention_mask {attention_mask.shape}")
-
-
 def save_model(
     model: Union[PreTrainedModel, PeftModel],
     tokenizer: PreTrainedTokenizerBase,
@@ -284,7 +266,7 @@ def train(
         event_callback("info", f"Loading model {model_info.id}", None)
         model = get_model(model_info, str(local_model_path))
         tokenizer = get_tokenizer(str(local_model_path))
-        model = model.to(device)  # type: ignore
+        model = model.to(device)
 
         # Apply LoRA if enabled
         is_peft = False
@@ -295,8 +277,11 @@ def train(
 
         # Build training components
         hardware_monitor = HardwareMonitorCallback(event_callback)
-        callbacks: List[TrainerCallback] = [EventCallback(event_callback), hardware_monitor]
-        callbacks.append(CancellationCallback(check_cancel_callback, job_id, checkpoint_dir=checkpoint_dir))
+        callbacks: List[TrainerCallback] = [
+            EventCallback(event_callback),
+            hardware_monitor,
+            CancellationCallback(check_cancel_callback, job_id, checkpoint_dir=checkpoint_dir),
+        ]
         if hyperparameters.validation_split > 0:
             callbacks.append(EarlyStoppingCallback(early_stopping_patience=hyperparameters.early_stopping_patience))
 
@@ -338,19 +323,30 @@ def train(
                 # Get training results
                 result = huggingface_trainer.save(output_dir, model_info.id, ft_model_id)
 
-                mlflow.log_metrics({"final_loss": result["final_loss"], "training_time": result["training_time"]})
+                # Log comprehensive metrics to MLflow
+                metrics_to_log = {
+                    "final_loss": result["final_loss"],
+                    "training_time": result["training_time"],
+                    "global_steps": result["global_steps"],
+                    "tokens_processed": result["tokens_processed"],
+                }
+                if result.get("final_perplexity"):
+                    metrics_to_log["final_perplexity"] = result["final_perplexity"]
+
+                # Add hardware metrics if available
+                peak_memory = hardware_monitor.get_peak_memory_gb()
+                if peak_memory:
+                    metrics_to_log.update(peak_memory)
+
+                mlflow.log_metrics(metrics_to_log)
                 mlflow.log_artifacts(str(output_dir))
 
                 # Log completion with time
-                event_callback(
-                    "info",
-                    f"Training completed in {format_training_time(result['training_time'])}",
-                    None,
-                )
+                event_callback("info", f"Training completed in {format_training_time(result['training_time'])}", None)
 
                 return cast(Dict[str, Any], result)
 
-            except Exception as e:
+            except (RuntimeError, ValueError, OSError) as e:
                 logger.error(f"HuggingFace training failed for job {job_id}: {str(e)}")
                 raise
     else:
