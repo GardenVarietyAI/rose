@@ -7,7 +7,6 @@ from typing import Any, Dict, Optional
 
 import torch
 from peft import PeftModel
-from torch import quantization
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 logger = logging.getLogger(__name__)
@@ -50,22 +49,6 @@ async def load_model(config: Dict[str, Any]) -> Dict[str, Any]:
     # Load tokenizer
     tokenizer = load_tokenizer(model_name, config.get("data_dir", "./data"))
 
-    # Apply INT8 quantization if requested
-    if config.get("quantization") == "int8":
-        if torch.backends.mps.is_available():
-            logger.warning("Skipping INT8 dynamic quantization on Apple Silicon")
-        elif torch.cuda.is_available():
-            logger.warning("Skipping INT8 dynamic quantization on CUDA, install bitsandbytes")
-        else:
-            # Use PyTorch's dynamic quantization for CPU
-            # This converts weights to INT8 and uses INT8 compute where possible
-            model = quantization.quantize_dynamic(  # type: ignore[attr-defined]
-                model,
-                {torch.nn.Linear},  # Quantize Linear layers
-                dtype=torch.qint8,
-            )
-            logger.info(f"INT8 quantization requested for {model_name} on CPU")
-
     # Return model info
     return {
         "name": model_name,
@@ -74,7 +57,7 @@ async def load_model(config: Dict[str, Any]) -> Dict[str, Any]:
         "config": config,
         "device": str(model.device) if hasattr(model, "device") else "cpu",
         "dtype": str(next(model.parameters()).dtype) if hasattr(model, "parameters") else "unknown",
-        "quantized": config.get("quantization") == "int8" and not torch.backends.mps.is_available(),
+        "quantized": False,
     }
 
 
@@ -107,7 +90,7 @@ def load_hf_model(model_id: str, torch_dtype: Optional[str] = None) -> Any:
         model_id,
         torch_dtype=dtype,
         device_map="auto" if device == "cuda" else None,
-        local_files_only=False,  # Allow downloading if needed
+        local_files_only=False,
     )
 
     if device == "mps":
@@ -164,9 +147,6 @@ def unload_model(model: Optional[Any] = None) -> None:
             # Regular model cleanup
             logger.info("Cleaning up regular model")
             del model
-
-    # Force garbage collection
-    gc.collect()
 
     # GPU memory cleanup
     if torch.cuda.is_available():
