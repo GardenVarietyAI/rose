@@ -3,7 +3,7 @@ import uvicorn
 from rose_server.config.settings import settings
 
 
-def main():
+def main() -> None:
     uvicorn.run(
         "rose_server.app:app",
         host=settings.host,
