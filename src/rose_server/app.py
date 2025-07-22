@@ -78,7 +78,7 @@ def create_app() -> FastAPI:
     if settings.auth_enabled:
         app.add_middleware(AuthMiddleware)
     else:
-        logger.warning("⚠️  API authentication is DISABLED. Set ROSE_SERVER_AUTH_ENABLED=true to enable.")
+        logger.warning("⚠️ API authentication is DISABLED. Set ROSE_SERVER_AUTH_ENABLED=true to enable.")
 
     app.include_router(router)
 
