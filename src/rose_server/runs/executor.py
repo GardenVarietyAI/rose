@@ -5,6 +5,7 @@ from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 
 from sse_starlette import ServerSentEvent
 
+from rose_server.chroma import Chroma
 from rose_server.database import current_timestamp
 from rose_server.entities.messages import Message
 from rose_server.entities.run_steps import RunStep
@@ -76,6 +77,7 @@ async def handle_tool_calls(
     response_text: str,
     step: RunStepResponse,
     tools: Optional[List[Any]] = None,
+    chroma: Chroma = None,
 ) -> Optional[Tuple[ServerSentEvent, ...]]:
     if not tools:
         return None
@@ -89,6 +91,7 @@ async def handle_tool_calls(
         run_id=run_id,
         assistant_id=assistant_id,
         thread_id=thread_id,
+        chroma=chroma,
     )
 
     if builtin_result:
@@ -171,6 +174,7 @@ async def handle_tool_calls(
 async def execute_assistant_run_streaming(
     run: RunResponse,
     assistant: AssistantResponse,
+    chroma: Chroma = None,
 ) -> AsyncGenerator[ServerSentEvent, None]:
     """
     Execute run events as a server-sent event (SSE) compatible async generator.
@@ -271,6 +275,7 @@ async def execute_assistant_run_streaming(
         response_text=response_text,
         step=step,
         tools=assistant.tools,
+        chroma=chroma,
     )
     if tool_events:
         for evt in tool_events:

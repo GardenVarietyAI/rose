@@ -4,16 +4,17 @@ import json
 import logging
 from typing import Any, Dict, Optional, Tuple
 
-from rose_server import chroma
+from rose_server.chroma import Chroma
 from rose_server.embeddings.embedding import generate_embeddings
 
 logger = logging.getLogger(__name__)
 
 
-async def handle_file_search_tool_call(assistant_id: str, query: str) -> str:
+async def handle_file_search_tool_call(chroma: Chroma, assistant_id: str, query: str) -> str:
     """Handle the built-in file search tool call.
 
     Args:
+        chroma: The shared Chroma instance
         assistant_id: The assistant ID to search documents for
         query: The search query
     Returns:
@@ -50,10 +51,13 @@ async def handle_file_search_tool_call(assistant_id: str, query: str) -> str:
         return f"Error searching documents: {str(e)}"
 
 
-async def intercept_file_search_tool_call(tool_call: Dict[str, Any], assistant_id: str) -> Optional[Tuple[str, str]]:
+async def intercept_file_search_tool_call(
+    chroma: Chroma, tool_call: Dict[str, Any], assistant_id: str
+) -> Optional[Tuple[str, str]]:
     """Intercept and handle file search tool calls internally.
 
     Args:
+        chroma: The shared Chroma instance
         tool_call: The parsed tool call dict with 'tool' and 'arguments' keys
         assistant_id: The assistant ID to search documents for
     Returns:
@@ -70,7 +74,7 @@ async def intercept_file_search_tool_call(tool_call: Dict[str, Any], assistant_i
         query = args.get("query", "")
         if not query:
             return ("file_search", "Error: No query provided for file search")
-        result = await handle_file_search_tool_call(assistant_id=assistant_id, query=query)
+        result = await handle_file_search_tool_call(chroma=chroma, assistant_id=assistant_id, query=query)
         logger.info(f"File search for assistant {assistant_id} with query: {query}")
         return (tool_name, result)
     except Exception as e:

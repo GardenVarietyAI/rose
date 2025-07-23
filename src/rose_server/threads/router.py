@@ -25,6 +25,7 @@ from rose_server.threads.store import (
     list_threads as list_threads_store,
     update_thread,
 )
+from rose_server.vector_stores.deps import VectorManager
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
@@ -97,7 +98,9 @@ async def create(request: ThreadCreateRequest = Body(...)) -> ThreadResponse:
 
 
 @router.post("/threads/runs")
-async def create_thread_and_run(request: Dict[str, Any] = Body(...)) -> JSONResponse:
+async def create_thread_and_run(
+    request: Dict[str, Any] = Body(...), vector: VectorManager = VectorManager
+) -> JSONResponse:
     """Create a thread and immediately run it with an assistant."""
     try:
         assistant_id = request.get("assistant_id")
@@ -185,10 +188,10 @@ async def create_thread_and_run(request: Dict[str, Any] = Body(...)) -> JSONResp
         run = await create_run(run)
 
         if run_request.stream:
-            return EventSourceResponse(execute_assistant_run_streaming(run, assistant))
+            return EventSourceResponse(execute_assistant_run_streaming(run, assistant, vector))
         else:
             events = []
-            async for event in execute_assistant_run_streaming(run, assistant):
+            async for event in execute_assistant_run_streaming(run, assistant, vector):
                 events.append(event)
             updated_run = await get_run(run.id)
             return JSONResponse(content=RunResponse(**updated_run.model_dump()).model_dump())

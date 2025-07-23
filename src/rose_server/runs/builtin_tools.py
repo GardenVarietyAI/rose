@@ -4,6 +4,7 @@ import logging
 import uuid
 from typing import Any, Dict, Optional, Tuple
 
+from rose_server.chroma import Chroma
 from rose_server.database import current_timestamp
 from rose_server.entities.run_steps import RunStep
 from rose_server.runs.steps.store import create_run_step, update_run_step
@@ -20,6 +21,7 @@ async def execute_builtin_tool(
     run_id: str,
     assistant_id: str,
     thread_id: str,
+    chroma: Chroma = None,
 ) -> Optional[Tuple[RunStepResponse, str]]:
     """Execute a built-in tool and return the step and output.
 
@@ -76,7 +78,7 @@ async def execute_builtin_tool(
     # Execute the tool
     try:
         if tool_type == "file_search":
-            result = await intercept_file_search_tool_call(tool_call, assistant_id)
+            result = await intercept_file_search_tool_call(chroma, tool_call, assistant_id)
 
             if result:
                 _, output = result
