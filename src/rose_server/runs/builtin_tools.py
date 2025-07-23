@@ -4,13 +4,13 @@ import logging
 import uuid
 from typing import Any, Dict, Optional, Tuple
 
-from rose_server.chroma import Chroma
 from rose_server.database import current_timestamp
 from rose_server.entities.run_steps import RunStep
 from rose_server.runs.steps.store import create_run_step, update_run_step
 from rose_server.schemas.runs import RunStepResponse
 from rose_server.tools.handlers.file_search import intercept_file_search_tool_call
 from rose_server.tools.toolbox import BUILTIN_TOOLS
+from rose_server.vector_stores.chroma import Chroma
 
 logger = logging.getLogger(__name__)
 

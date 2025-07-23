@@ -5,7 +5,6 @@ from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 
 from sse_starlette import ServerSentEvent
 
-from rose_server.chroma import Chroma
 from rose_server.database import current_timestamp
 from rose_server.entities.messages import Message
 from rose_server.entities.run_steps import RunStep
@@ -24,6 +23,7 @@ from rose_server.threads.messages.store import create_message, get_messages
 from rose_server.tools import parse_xml_tool_call
 from rose_server.types.models import ModelConfig
 from rose_server.types.runs import ResponseUsage
+from rose_server.vector_stores.chroma import Chroma
 
 logger = logging.getLogger(__name__)
 

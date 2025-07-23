@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 
-from rose_server.chroma import Chroma
+from rose_server.vector_stores.chroma import Chroma
 
 
 def get_vector_manager(request: Request) -> Chroma:

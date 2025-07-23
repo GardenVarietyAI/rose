@@ -4,8 +4,8 @@ import json
 import logging
 from typing import Any, Dict, Optional, Tuple
 
-from rose_server.chroma import Chroma
 from rose_server.embeddings.embedding import generate_embeddings
+from rose_server.vector_stores.chroma import Chroma
 
 logger = logging.getLogger(__name__)
 

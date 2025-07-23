@@ -11,12 +11,12 @@ os.environ["POSTHOG_DISABLED"] = "1"
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from rose_server.chroma import Chroma
 from rose_server.config.settings import settings
 from rose_server.database import create_all_tables
 from rose_server.middleware.auth import AuthMiddleware
 from rose_server.models.registry import ModelRegistry
 from rose_server.router import router
+from rose_server.vector_stores.chroma import Chroma
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["ANONYMIZED_TELEMETRY"] = "false"
