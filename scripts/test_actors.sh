@@ -47,8 +47,8 @@ echo -e "\n---\n"
 
 # Test with different models (if available)
 echo -e "${YELLOW}6. Testing with Different Models${NC}"
-echo -e "${GREEN}Testing file-reader with qwen-coder model:${NC}"
-poetry run rose actors file-reader --model qwen-coder "List files in the current directory"
+echo -e "${GREEN}Testing file-reader with Qwen--Qwen2.5-1.5B-Instruct model:${NC}"
+poetry run rose actors file-reader --model Qwen--Qwen2.5-1.5B-Instruct "List files in the current directory"
 echo -e "\n---\n"
 
 echo -e "${BLUE}=== Test Suite Complete ===${NC}"

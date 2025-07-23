@@ -7,7 +7,7 @@ from rose_cli.utils import console, get_client
 
 def create_job(
     file_id: str = typer.Option(..., "--file", "-f", help="Training file ID"),
-    model: str = typer.Option("qwen-coder", "--model", "-m", help="Base model"),
+    model: str = typer.Option("Qwen--Qwen2.5-1.5B-Instruct", "--model", "-m", help="Base model"),
     suffix: Optional[str] = typer.Option(None, "--suffix", help="Model suffix"),
     epochs: int = typer.Option(3, "--epochs", "-e", help="Number of epochs"),
     batch_size: Optional[int] = typer.Option(None, "--batch-size", "-b", help="Batch size"),
