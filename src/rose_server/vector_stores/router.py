@@ -9,6 +9,7 @@ from chromadb.utils import embedding_functions
 from fastapi import APIRouter, Body, HTTPException, Path
 
 from rose_server.schemas.vector_stores import (
+    Vector,
     VectorSearch,
     VectorSearchResult,
     VectorStoreCreate,
@@ -17,15 +18,14 @@ from rose_server.schemas.vector_stores import (
     VectorStoreUpdate,
 )
 from rose_server.vector_stores.deps import VectorManager
-from rose_server.vector_stores.store import (
-    VectorStoreNotFoundError,
-    delete_vectors as delete_vectors_from_store,
-    search_vectors,
-)
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
 _META_EXCLUDE = {"display_name", "dimensions", "created_at"}
+
+
+class VectorStoreNotFoundError(RuntimeError):
+    pass
 
 
 @router.get("/vector_stores")
@@ -172,8 +172,13 @@ async def delete_vectors(
 ) -> Dict[str, Any]:
     """Delete vectors from a vector store."""
     try:
-        result = await delete_vectors_from_store(vector, vector_store_id, ids)
-        return result
+        if vector_store_id not in vector.list_collections():
+            raise VectorStoreNotFoundError(vector_store_id)
+
+        vector.client.get_collection(vector_store_id).delete(ids=ids)
+        logger.info("Deleted %d vectors from %s", len(ids), vector_store_id)
+
+        return {"object": "list", "data": [{"id": i, "object": "vector.deleted", "deleted": True} for i in ids]}
     except VectorStoreNotFoundError as e:
         logger.error(f"Vector store not found: {str(e)}")
         raise HTTPException(status_code=404, detail=str(e))
@@ -190,8 +195,43 @@ async def search_vector_store(
 ) -> VectorSearchResult:
     """Search for vectors in a vector store (OpenAI-compatible)."""
     try:
-        result = await search_vectors(vector, vector_store_id, request)
-        return result
+        if vector_store_id not in vector.list_collections():
+            raise VectorStoreNotFoundError(vector_store_id)
+
+        col = vector.client.get_collection(vector_store_id)
+
+        # Use ChromaDB's built-in embedding for text queries
+        if isinstance(request.query, str):
+            res = col.query(
+                query_texts=[request.query],
+                n_results=request.max_num_results,
+                where=request.filters,
+                include=["metadatas", "embeddings", "distances"],
+            )
+            # Estimate usage for API compatibility
+            usage = {
+                "prompt_tokens": len(request.query.split()),
+                "total_tokens": len(request.query.split()),
+            }
+        else:
+            # Direct vector query
+            res = col.query(
+                query_embeddings=[request.query],
+                n_results=request.max_num_results,
+                where=request.filters,
+                include=["metadatas", "embeddings", "distances"],
+            )
+            usage = {"prompt_tokens": 0, "total_tokens": 0}
+
+        out = []
+        for i, vec_id in enumerate(res["ids"][0]):
+            meta = (res.get("metadatas") or [[]])[0][i] or {}
+            vec = Vector(id=vec_id, metadata=meta)
+            if request.include_values and "embeddings" in res:
+                vec.values = res["embeddings"][0][i]
+            out.append(vec)
+
+        return VectorSearchResult(data=out, usage=usage)
     except VectorStoreNotFoundError as e:
         logger.error(f"Vector store not found: {str(e)}")
         raise HTTPException(status_code=404, detail=str(e))
