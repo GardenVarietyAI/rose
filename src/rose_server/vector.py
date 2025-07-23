@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 
 import chromadb
 from chromadb.api.models.Collection import Collection
+from chromadb.utils import embedding_functions
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,9 @@ class ChromaDBManager:
         self.port = port or int(os.getenv("CHROMA_PORT", "8003"))
         self.persist_dir = persist_dir or os.getenv("CHROMA_PERSIST_DIR", "./data/chroma")
         self._client: Optional[chromadb.Client] = None
+        self._default_embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
+            model_name="BAAI/bge-small-en-v1.5"
+        )
         self._init_client()
 
     def _init_client(self) -> None:
@@ -56,7 +60,9 @@ class ChromaDBManager:
             logger.debug(f"Retrieved existing collection: {name}")
         except Exception:
             collection = self.client.create_collection(
-                name=name, metadata=metadata or {}, embedding_function=embedding_function
+                name=name,
+                metadata=metadata or {},
+                embedding_function=embedding_function or self._default_embedding_function,
             )
             logger.info(f"Created new collection: {name}")
         return collection
