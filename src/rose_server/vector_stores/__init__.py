@@ -9,11 +9,6 @@ from rose_server.schemas.vector_stores import (
     VectorStoreMetadata,
     VectorStoreUpdate,
 )
-from rose_server.vector_stores.store import (
-    VectorStoreNotFoundError,
-    delete_vectors,
-    search_vectors,
-)
 
 __all__ = [
     "Vector",
@@ -24,6 +19,4 @@ __all__ = [
     "VectorStoreMetadata",
     "VectorStoreList",
     "VectorStoreNotFoundError",
-    "delete_vectors",
-    "search_vectors",
 ]

@@ -9,7 +9,7 @@ from chromadb.utils import embedding_functions
 logger = logging.getLogger(__name__)
 
 
-class ChromaDBManager:
+class Chroma:
     def __init__(self, host: Optional[str] = None, port: Optional[int] = None, persist_dir: Optional[str] = None):
         """Initialize ChromaDB manager.
 

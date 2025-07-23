@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Any, Dict, Optional, Tuple
 
-from rose_server import vector
+from rose_server import chroma
 from rose_server.embeddings.embedding import generate_embeddings
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ async def handle_file_search_tool_call(assistant_id: str, query: str) -> str:
         if not embedding_response["data"]:
             return "Error generating query embedding."
         query_embedding = embedding_response["data"][0]["embedding"]
-        results = vector.query_vectors(
+        results = chroma.query_vectors(
             collection_name=collection_name,
             query_embeddings=[query_embedding],
             n_results=5,

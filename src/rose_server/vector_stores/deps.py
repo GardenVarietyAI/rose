@@ -4,12 +4,12 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 
-from rose_server.vector import ChromaDBManager
+from rose_server.chroma import Chroma
 
 
-def get_vector_manager(request: Request) -> ChromaDBManager:
+def get_vector_manager(request: Request) -> Chroma:
     """Get the vector manager from app state."""
-    return request.app.state.vector
+    return request.app.state.chroma
 
 
-VectorManager = Annotated[ChromaDBManager, Depends(get_vector_manager)]
+VectorManager = Annotated[Chroma, Depends(get_vector_manager)]
