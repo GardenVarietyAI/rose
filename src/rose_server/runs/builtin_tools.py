@@ -1,10 +1,10 @@
 """Built-in tool execution for runs."""
 
 import logging
+import time
 import uuid
 from typing import Any, Dict, Optional, Tuple
 
-from rose_server.database import current_timestamp
 from rose_server.entities.run_steps import RunStep
 from rose_server.runs.steps.store import create_run_step, update_run_step
 from rose_server.schemas.runs import RunStepResponse
@@ -45,7 +45,7 @@ async def execute_builtin_tool(
     if not tool_config.get("supported", False):
         # Return a friendly error for unsupported tools
         step_entity = RunStep(
-            created_at=current_timestamp(),
+            created_at=int(time.time()),
             run_id=run_id,
             assistant_id=assistant_id,
             thread_id=thread_id,
@@ -65,7 +65,7 @@ async def execute_builtin_tool(
 
     # Create tool call step
     step_entity = RunStep(
-        created_at=current_timestamp(),
+        created_at=int(time.time()),
         run_id=run_id,
         assistant_id=assistant_id,
         thread_id=thread_id,

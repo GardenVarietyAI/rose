@@ -1,10 +1,10 @@
 """Tool output processing for runs."""
 
 import logging
+import time
 from typing import Any, Callable, Dict, List
 
 from rose_server.assistants.store import get_assistant
-from rose_server.database import current_timestamp
 from rose_server.entities.messages import Message
 from rose_server.entities.run_steps import RunStep
 from rose_server.events.event_types import ResponseCompleted, ResponseStarted, TokenGenerated
@@ -42,7 +42,7 @@ async def process_tool_outputs(
             },
         )
     continuation_step_entity = RunStep(
-        created_at=current_timestamp(),
+        created_at=int(time.time()),
         run_id=run.id,
         assistant_id=run.assistant_id,
         thread_id=run.thread_id,
@@ -87,7 +87,7 @@ async def process_tool_outputs(
     except Exception as e:
         logger.error(f"Error generating continuation response: {str(e)}")
     message = Message(
-        created_at=current_timestamp(),
+        created_at=int(time.time()),
         thread_id=run.thread_id,
         role="assistant",
         content=[{"type": "text", "text": {"value": response_text, "annotations": []}}],

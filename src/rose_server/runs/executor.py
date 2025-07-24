@@ -1,11 +1,12 @@
 import json
 import logging
+import time
 import uuid
+from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 
 from sse_starlette import ServerSentEvent
 
-from rose_server.database import current_timestamp
 from rose_server.entities.messages import Message
 from rose_server.entities.run_steps import RunStep
 from rose_server.events.event_types import ResponseCompleted, ResponseStarted, TokenGenerated
@@ -22,26 +23,48 @@ from rose_server.schemas.runs import RunResponse, RunStepResponse
 from rose_server.threads.messages.store import create_message, get_messages
 from rose_server.tools import parse_xml_tool_call
 from rose_server.types.models import ModelConfig
-from rose_server.types.runs import ResponseUsage
 from rose_server.vector_stores.chroma import Chroma
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class ResponseUsage:
+    """Track token usage for responses."""
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+
+    @property
+    def total_tokens(self) -> int:
+        return self.prompt_tokens + self.completion_tokens
+
+    def to_dict(self) -> Dict[str, int]:
+        """Convert to dictionary format."""
+        return {
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "total_tokens": self.total_tokens,
+        }
+
+
 async def stream_run_step_event(event_type: str, step: RunStepResponse) -> ServerSentEvent:
     """Create a streaming event for run step updates."""
-    event_data = step.dict()
-    return ServerSentEvent(data=json.dumps(event_data), event=f"thread.run.step.{event_type}")
+    return ServerSentEvent(data=json.dumps(step.model_dump()), event=f"thread.run.step.{event_type}")
 
 
 async def stream_run_status(run_id: str, status: str, **kwargs: Dict[str, Any]) -> ServerSentEvent:
     """Create a streaming event for run status updates."""
-    event_data = {
-        "id": run_id,
-        "object": f"thread.run.{status}",
-        "delta": {"status": status, **kwargs},
-    }
-    return ServerSentEvent(data=json.dumps(event_data), event=f"thread.run.{status}")
+    return ServerSentEvent(
+        data=json.dumps(
+            {
+                "id": run_id,
+                "object": f"thread.run.{status}",
+                "delta": {"status": status, **kwargs},
+            }
+        ),
+        event=f"thread.run.{status}",
+    )
 
 
 async def fail_run(
@@ -59,14 +82,6 @@ async def fail_run(
         step_evt = await stream_run_step_event("failed", step)
         yield step_evt
     yield status_evt
-
-
-async def get_model_for_run(model_name: str) -> ModelConfig:
-    model = await get_language_model(model_name)
-    if not model:
-        raise ValueError(f"Model '{model_name}' not found")
-
-    return ModelConfig.from_language_model(model)
 
 
 async def handle_tool_calls(
@@ -112,7 +127,7 @@ async def handle_tool_calls(
 
         # Create a message with the tool output
         message = Message(
-            created_at=current_timestamp(),
+            created_at=int(time.time()),
             thread_id=thread_id,
             role="assistant",
             content=[{"type": "text", "text": {"value": output, "annotations": []}}],
@@ -149,7 +164,7 @@ async def handle_tool_calls(
     completed_evt = await stream_run_step_event("completed", step)
 
     tool_step_entity = RunStep(
-        created_at=current_timestamp(),
+        created_at=int(time.time()),
         run_id=run_id,
         assistant_id=assistant_id,
         thread_id=thread_id,
@@ -184,7 +199,7 @@ async def execute_assistant_run_streaming(
     yield await stream_run_status(run.id, "in_progress")
     # Create message creation step inline
     step_entity = RunStep(
-        created_at=current_timestamp(),
+        created_at=int(time.time()),
         run_id=run.id,
         assistant_id=assistant.id,
         thread_id=run.thread_id,
@@ -224,7 +239,11 @@ async def execute_assistant_run_streaming(
 
     # Get model
     try:
-        config = await get_model_for_run(run.model or assistant.model)
+        model_name = run.model or assistant.model
+        model = await get_language_model(model_name)
+        if not model:
+            raise ValueError(f"Model '{model_name}' not found")
+        config = ModelConfig.from_language_model(model)
     except Exception as exc:
         async for evt in fail_run(run.id, step, "model_error", str(exc)):
             yield evt
@@ -283,7 +302,7 @@ async def execute_assistant_run_streaming(
         return
 
     message = Message(
-        created_at=current_timestamp(),
+        created_at=int(time.time()),
         thread_id=run.thread_id,
         role="assistant",
         content=[{"type": "text", "text": {"value": response_text, "annotations": []}}],
