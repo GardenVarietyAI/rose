@@ -65,6 +65,8 @@ async def create(thread_id: str, request: RunCreateRequest = Body(...)) -> Union
             final_run = await get_run(run.id)
 
             return RunResponse(**final_run.model_dump())
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error creating run: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error creating run: {str(e)}")
@@ -73,8 +75,8 @@ async def create(thread_id: str, request: RunCreateRequest = Body(...)) -> Union
 @router.get("", response_model=RunListResponse)
 async def index(
     thread_id: str,
-    limit: int = Query(default=20, description="Number of runs to retrieve"),
-    order: str = Query(default="desc", description="Sort order (asc or desc)"),
+    limit: int = Query(default=20, ge=1, le=100, description="Number of runs to retrieve"),
+    order: str = Query(default="desc", pattern="^(asc|desc)$", description="Sort order (asc or desc)"),
 ) -> RunListResponse:
     """List runs in a thread."""
     if not await get_thread(thread_id):

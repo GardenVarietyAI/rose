@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 async def index(
     thread_id: str,
     run_id: str,
-    limit: int = Query(default=20, description="Number of steps to retrieve"),
-    order: str = Query(default="desc", description="Sort order (asc or desc)"),
+    limit: int = Query(default=20, ge=1, le=100, description="Number of steps to retrieve"),
+    order: str = Query(default="desc", pattern="^(asc|desc)$", description="Sort order (asc or desc)"),
 ) -> RunStepListResponse:
     """List steps for a run."""
     try:
