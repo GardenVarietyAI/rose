@@ -6,10 +6,11 @@ from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 
 from sse_starlette import ServerSentEvent
+from tokenizers import Tokenizer
 
 from rose_server.entities.messages import Message
 from rose_server.entities.run_steps import RunStep
-from rose_server.events.event_types import ResponseCompleted, ResponseStarted, TokenGenerated
+from rose_server.events.event_types import TokenGenerated
 from rose_server.events.formatters.runs import RunsFormatter
 from rose_server.events.generator import EventGenerator
 from rose_server.models.store import get as get_language_model
@@ -46,6 +47,16 @@ class ResponseUsage:
             "completion_tokens": self.completion_tokens,
             "total_tokens": self.total_tokens,
         }
+
+    @classmethod
+    def create_with_tokenizer(
+        cls, tokenizer: Tokenizer, prompt_text: str = "", completion_text: str = ""
+    ) -> "ResponseUsage":
+        """Create usage with accurate token counting."""
+        return cls(
+            prompt_tokens=len(tokenizer.encode(prompt_text).ids) if prompt_text else 0,
+            completion_tokens=len(tokenizer.encode(completion_text).ids) if completion_text else 0,
+        )
 
 
 async def stream_run_step_event(event_type: str, step: RunStepResponse) -> ServerSentEvent:
@@ -237,13 +248,16 @@ async def execute_assistant_run_streaming(
         if text_parts:
             chat_messages.append(ChatMessage(role=msg.role, content="".join(text_parts)))
 
-    # Get model
+    # Get model and tokenizer
     try:
         model_name = run.model or assistant.model
         model = await get_language_model(model_name)
         if not model:
             raise ValueError(f"Model '{model_name}' not found")
         config = ModelConfig.from_language_model(model)
+
+        # Initialize tokenizer for accurate token counting
+        tokenizer = Tokenizer.from_pretrained(model_name)
     except Exception as exc:
         async for evt in fail_run(run.id, step, "model_error", str(exc)):
             yield evt
@@ -254,8 +268,13 @@ async def execute_assistant_run_streaming(
     message_id = f"msg_{uuid.uuid4().hex}"
     formatter = RunsFormatter(run.id, run.thread_id, assistant.id, message_id)
 
-    # Track usage for final update
-    usage = ResponseUsage()
+    # Build prompt text for accurate token counting
+    prompt_text = ""
+    for msg in chat_messages:
+        prompt_text += f"{msg.role}: {msg.content}\n"
+
+    # Track usage with accurate initial counting
+    usage = ResponseUsage.create_with_tokenizer(tokenizer, prompt_text=prompt_text)
     response_text = ""
 
     try:
@@ -266,15 +285,9 @@ async def execute_assistant_run_streaming(
             enable_tools=bool(assistant.tools),
             tools=assistant.tools if assistant.tools else None,
         ):
-            # Track usage and response text
-            if isinstance(event, ResponseStarted):
-                usage.prompt_tokens = getattr(event, "prompt_tokens", 0)
-            elif isinstance(event, TokenGenerated):
+            # Track response text and handle events
+            if isinstance(event, TokenGenerated):
                 response_text += event.token
-                usage.completion_tokens += 1
-            elif isinstance(event, ResponseCompleted):
-                if event.output_tokens:
-                    usage.completion_tokens = event.output_tokens
 
             # Format and yield message events
             formatted_event = formatter.format_event(event)
@@ -285,6 +298,9 @@ async def execute_assistant_run_streaming(
         async for evt in fail_run(run.id, step, "execution_error", str(exc)):
             yield evt
         return
+
+    # Update completion tokens with accurate count
+    usage.completion_tokens = len(tokenizer.encode(response_text).ids) if response_text else 0
 
     # Tool call detection/handling
     tool_events = await handle_tool_calls(
