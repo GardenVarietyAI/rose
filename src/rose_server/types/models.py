@@ -39,7 +39,7 @@ class ModelConfig(BaseModel):
         """
         # Start with basic configuration
         config_data = {
-            "model_id": model.id,  # Database ID for caching
+            "model_id": model.id,
             "name": model.name,
             "model_name": model.model_name,
             "temperature": model.temperature or 0.7,
@@ -52,6 +52,9 @@ class ModelConfig(BaseModel):
         if model.is_fine_tuned and model.path:
             config_data["model_path"] = str(Path(settings.data_dir) / model.path)
             config_data["base_model"] = model.parent
+        else:
+            # For base models, construct the expected path where models are stored
+            config_data["model_path"] = str(Path(settings.data_dir) / "models" / model.id)
 
         # Add LoRA modules if present
         if model.get_lora_modules():
