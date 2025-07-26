@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     port: int = Field(default=8004, description="Server port")
     reload: bool = Field(default=True, description="Enable auto-reload in development")
     log_level: str = Field(default="INFO", description="Logging level")
-    auth_enabled: bool = Field(default=True, description="Enable API authentication")
+    auth_enabled: bool = Field(default=False, description="Enable API authentication")
 
     # Data directories
     data_dir: str = Field(default="./data", description="Base data directory")
