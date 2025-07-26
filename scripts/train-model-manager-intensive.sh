@@ -33,12 +33,12 @@ EOF
 
 # === Upload ===
 echo "Uploading training data..."
-FILE_ID=$(poetry run rose files upload "$TRAIN_FILE" --purpose fine-tune)
+FILE_ID=$(uv run rose files upload "$TRAIN_FILE" --purpose fine-tune)
 echo "File ID: $FILE_ID"
 
 # === Fine-tune ===
 echo "Starting fine-tuning job with diverse training set..."
-JOB_ID=$(poetry run rose finetune create \
+JOB_ID=$(uv run rose finetune create \
   --file "$FILE_ID" \
   --model "$MODEL_ID" \
   --suffix "$SUFFIX" \
@@ -51,13 +51,13 @@ echo "Job ID: $JOB_ID"
 # === Monitor ===
 echo "Waiting for fine-tuning to complete..."
 while true; do
-  STATUS=$(poetry run rose finetune get "$JOB_ID" -q)
+  STATUS=$(uv run rose finetune get "$JOB_ID" -q)
   if [ "$STATUS" = "succeeded" ]; then
     echo "\n✓ Fine-tuning completed successfully."
     break
   elif [ "$STATUS" = "failed" ]; then
     echo "\n✗ Fine-tuning failed."
-    poetry run rose finetune get "$JOB_ID"
+    uv run rose finetune get "$JOB_ID"
     exit 1
   fi
   sleep 10
@@ -65,7 +65,7 @@ while true; do
 done
 
 # === Get model ID ===
-MODEL=$(poetry run rose finetune get "$JOB_ID" --model-only)
+MODEL=$(uv run rose finetune get "$JOB_ID" --model-only)
 echo -e "\nFine-tuned model: $MODEL"
 
 # === Evaluation ===
@@ -82,7 +82,7 @@ phrases=(
 
 for input in "${phrases[@]}"; do
   echo -e "\nQuery: $input"
-  OUTPUT=$(ROSE_API_KEY=48028196-b9b6-46b0-ab17-fafcdc5c69af poetry run rose actors model-manager --model "$MODEL" "$input" 2>&1 || echo "ERROR")
+  OUTPUT=$(ROSE_API_KEY=48028196-b9b6-46b0-ab17-fafcdc5c69af uv run rose actors model-manager --model "$MODEL" "$input" 2>&1 || echo "ERROR")
 
   # Check for successful responses
   if [[ "$OUTPUT" == "ERROR" ]] || [[ "$OUTPUT" == *"Error"* ]] || [[ "$OUTPUT" == *"error"* ]]; then
@@ -108,4 +108,4 @@ echo -e "\nTraining complete."
 echo "Model: $MODEL"
 echo "Samples used: $(wc -l < "$TRAIN_FILE")"
 echo "To use the model:"
-echo "poetry run rose actors model-manager --model \"$MODEL\" 'What models are available?'"
+echo "uv run rose actors model-manager --model \"$MODEL\" 'What models are available?'"

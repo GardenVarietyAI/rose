@@ -16,28 +16,28 @@ echo -e "${BLUE}=== Testing Shared Tools ===${NC}\n"
 
 # Test read_file tool (used by file_reader)
 echo -e "${YELLOW}Testing read_file tool:${NC}"
-poetry run rose actors file-reader "Read the file pyproject.toml"
+uv run rose actors file-reader "Read the file pyproject.toml"
 echo -e "\n---\n"
 
 # Test read_file_with_context tool (used by code_reviewer)
 echo -e "${YELLOW}Testing read_file_with_context tool:${NC}"
-poetry run rose actors code-reviewer "Read src/rose_cli/utils.py"
+uv run rose actors code-reviewer "Read src/rose_cli/utils.py"
 echo -e "\n---\n"
 
 # Test list_files tool
 echo -e "${YELLOW}Testing list_files tool:${NC}"
-poetry run rose actors file-reader "What files are in src/rose_cli/actors/"
+uv run rose actors file-reader "What files are in src/rose_cli/actors/"
 echo -e "\n---\n"
 
 # Test analyze_code_metrics tool
 echo -e "${YELLOW}Testing analyze_code_metrics tool:${NC}"
-poetry run rose actors code-reviewer "Analyze the complexity of src/rose_cli/models/download.py"
+uv run rose actors code-reviewer "Analyze the complexity of src/rose_cli/models/download.py"
 echo -e "\n---\n"
 
 # Test write_file tool (if model supports it)
 echo -e "${YELLOW}Testing write_file tool:${NC}"
 echo -e "${GREEN}Note: This requires a model that can properly use the write_file tool${NC}"
-poetry run rose actors code-reviewer "Create a simple test file at test_output.txt with the content 'Hello from ROSE'"
+uv run rose actors code-reviewer "Create a simple test file at test_output.txt with the content 'Hello from ROSE'"
 echo -e "\n---\n"
 
 echo -e "${BLUE}=== Tools Test Complete ===${NC}"
