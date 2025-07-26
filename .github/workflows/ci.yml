@@ -22,7 +22,7 @@ jobs:
           -v ${{ github.workspace }}:/app \
           -w /app \
           rose-server:test \
-          poetry run pytest
+          uv run pytest
 
     - name: Run linting
       run: |
@@ -30,7 +30,7 @@ jobs:
           -v ${{ github.workspace }}:/app \
           -w /app \
           rose-server:test \
-          poetry run ruff check src/
+          uv run ruff check src/
 
     - name: Test API startup
       run: |
