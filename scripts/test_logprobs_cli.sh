@@ -23,22 +23,22 @@ echo
 
 echo "1. Basic test without logprobs (temp=$TEMPERATURE_LOW):"
 echo "------------------------------------------------------"
-poetry run rose chat --model "$MODEL" --temperature $TEMPERATURE_LOW "$PROMPT"
+uv run rose chat --model "$MODEL" --temperature $TEMPERATURE_LOW "$PROMPT"
 
 echo
 echo "2. Test with logprobs enabled (temp=$TEMPERATURE_LOW):"
 echo "-----------------------------------------------------"
-poetry run rose chat --model "$MODEL" --temperature $TEMPERATURE_LOW --logprobs "$PROMPT"
+uv run rose chat --model "$MODEL" --temperature $TEMPERATURE_LOW --logprobs "$PROMPT"
 
 echo
 echo "3. Test with top 3 logprobs (HIGH temp=$TEMPERATURE_HIGH for more variation):"
 echo "----------------------------------------------------------------------------"
-poetry run rose chat --model "$MODEL" --temperature $TEMPERATURE_HIGH --logprobs --top-logprobs 3 "$PROMPT"
+uv run rose chat --model "$MODEL" --temperature $TEMPERATURE_HIGH --logprobs --top-logprobs 3 "$PROMPT"
 
 echo
 echo "4. Simple prompt with high temperature to see probability distribution:"
 echo "----------------------------------------------------------------------"
-poetry run rose chat --model "$MODEL" --temperature $TEMPERATURE_HIGH --logprobs --top-logprobs 5 "The weather today is"
+uv run rose chat --model "$MODEL" --temperature $TEMPERATURE_HIGH --logprobs --top-logprobs 5 "The weather today is"
 
 echo
 echo "Test completed!"

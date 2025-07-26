@@ -9,21 +9,16 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-# Install poetry
-RUN pip install --no-cache-dir poetry==1.8.2
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
 
 WORKDIR /app
 
-# Copy dependency files first (for caching)
-COPY pyproject.toml poetry.lock ./
+COPY pyproject.toml README.md ./
 
-# Install dependencies using poetry
-# This layer will be cached as long as pyproject.toml and poetry.lock don't change
-RUN poetry config virtualenvs.create false && \
-    poetry install --no-interaction --no-ansi
-
-# Copy source code
 COPY src/ ./src/
 
-# Set Python path
+RUN uv sync --no-dev
+
 ENV PYTHONPATH=/app/src

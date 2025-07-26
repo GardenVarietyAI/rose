@@ -60,18 +60,18 @@ EOF
 
 # Upload training data
 echo "Uploading training data..."
-FILE_ID=$(poetry run rose files upload /tmp/support_data.jsonl --purpose fine-tune)
+FILE_ID=$(uv run rose files upload /tmp/support_data.jsonl --purpose fine-tune)
 echo "File ID: $FILE_ID"
 
 # Start fine-tuning
 echo "Starting fine-tune job..."
-JOB_ID=$(poetry run rose finetune create --file $FILE_ID --model Qwen--Qwen2.5-0.5B-Instruct --validation-split 0.1 -q)
+JOB_ID=$(uv run rose finetune create --file $FILE_ID --model Qwen--Qwen2.5-0.5B-Instruct --validation-split 0.1 -q)
 echo "Job ID: $JOB_ID"
 
 # Wait for completion
 echo "Waiting for fine-tuning to complete..."
 while true; do
-    STATUS=$(poetry run rose finetune get $JOB_ID -q)
+    STATUS=$(uv run rose finetune get $JOB_ID -q)
     if [ "$STATUS" = "succeeded" ]; then
         break
     elif [ "$STATUS" = "failed" ]; then
@@ -82,31 +82,31 @@ while true; do
 done
 
 # Get model name
-MODEL=$(poetry run rose finetune get $JOB_ID --model-only)
+MODEL=$(uv run rose finetune get $JOB_ID --model-only)
 echo "Fine-tuned model: $MODEL"
 
 # Test the model
 echo "Testing model..."
-poetry run rose chat --model "$MODEL" "I can't log into my account"
-poetry run rose chat --model "$MODEL" "What's your return policy?"
+uv run rose chat --model "$MODEL" "I can't log into my account"
+uv run rose chat --model "$MODEL" "What's your return policy?"
 
 # Create an assistant
 echo "Creating assistant..."
-ASSISTANT_ID=$(poetry run rose assistants create "Support Bot" --model "$MODEL" --instructions "You are a customer support agent. Be helpful and concise." -q)
+ASSISTANT_ID=$(uv run rose assistants create "Support Bot" --model "$MODEL" --instructions "You are a customer support agent. Be helpful and concise." -q)
 echo "Assistant ID: $ASSISTANT_ID"
 
 # Create a thread
 echo "Creating thread..."
-THREAD_ID=$(poetry run rose threads create -q)
+THREAD_ID=$(uv run rose threads create -q)
 echo "Thread ID: $THREAD_ID"
 
 # Add message
-MESSAGE_ID=$(poetry run rose threads add-message $THREAD_ID "My package was damaged during shipping" -q)
+MESSAGE_ID=$(uv run rose threads add-message $THREAD_ID "My package was damaged during shipping" -q)
 echo "Message ID: $MESSAGE_ID"
 
 # Run the assistant
 echo "Running assistant..."
-RUN_ID=$(poetry run rose runs create $THREAD_ID --assistant-id $ASSISTANT_ID -q)
+RUN_ID=$(uv run rose runs create $THREAD_ID --assistant-id $ASSISTANT_ID -q)
 echo "Run ID: $RUN_ID"
 
 # Cleanup

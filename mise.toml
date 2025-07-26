@@ -1,0 +1,8 @@
+[tools]
+python = "3.13.5"
+rust = "1.88"
+"vfox:cmake" = "3.31.6"
+uv = "0.8.3"
+
+[settings]
+lockfile = true

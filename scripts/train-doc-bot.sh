@@ -28,7 +28,7 @@ cat > "$TRAIN_FILE" << 'EOF'
 {"messages": [{"role": "user", "content": "What is ROSE?"}, {"role": "assistant", "content": "ROSE is a local AI development server that mimics OpenAI's API behavior while allowing full control over inference, fine-tuning, and orchestration. It's designed for homelab use, experimentation, and lightweight production cases."}]}
 {"messages": [{"role": "user", "content": "How does ROSE handle inference requests?"}, {"role": "assistant", "content": "Inference requests come through a FastAPI SSE endpoint. ROSE then routes them to a dedicated inference worker over WebSocket. That worker loads or reuses a model and streams tokens back via SSE to the client."}]}
 {"messages": [{"role": "user", "content": "What's the difference between hot and cold model inference in ROSE?"}, {"role": "assistant", "content": "Cold inference loads the model fresh for each request. Hot inference uses a cached model stored in memory. Cold is slower but safer; hot is faster but limited to one cached model at a time in the current setup."}]}
-{"messages": [{"role": "user", "content": "How do I fine-tune a model with ROSE?"}, {"role": "assistant", "content": "Use the CLI: poetry run rose train. You can pass in training data, select a model, and specify a name. ROSE handles formatting, job creation, and uploads. It currently supports instruction-tuning style datasets."}]}
+{"messages": [{"role": "user", "content": "How do I fine-tune a model with ROSE?"}, {"role": "assistant", "content": "Use the CLI: uv run rose train. You can pass in training data, select a model, and specify a name. ROSE handles formatting, job creation, and uploads. It currently supports instruction-tuning style datasets."}]}
 {"messages": [{"role": "user", "content": "What models does ROSE support?"}, {"role": "assistant", "content": "ROSE supports Hugging Face models by default, including Qwen, Mistral, LLaMA-based models, and LoRA adapters. Quantization (INT8) is available on Apple Silicon."}]}
 {"messages": [{"role": "user", "content": "How does ROSE stream tokens?"}, {"role": "assistant", "content": "ROSE uses EventSourceResponse to send tokens to the client using Server-Sent Events (SSE). Internally, it streams them from the inference worker in real time via WebSocket."}]}
 {"messages": [{"role": "user", "content": "How do I keep a model \"hot\"?"}, {"role": "assistant", "content": "ROSE uses a simple ModelCache class to keep the last used model in memory. You don't need to do anything unless you manually evict it using the /models/evict endpoint."}]}
@@ -101,24 +101,24 @@ EOF
 
 # === Upload training data ===
 echo "Uploading ROSE awareness training data..."
-FILE_ID=$(poetry run rose files upload "$TRAIN_FILE" --purpose fine-tune)
+FILE_ID=$(uv run rose files upload "$TRAIN_FILE" --purpose fine-tune)
 echo "File ID: $FILE_ID"
 
 # === Start fine-tuning ===
 echo "Starting fine-tuning for ROSE-aware model..."
-JOB_ID=$(poetry run rose finetune create   --file "$FILE_ID"   --model "$MODEL_ID"   --suffix "$SUFFIX"   --epochs "$EPOCHS"   --learning-rate-multiplier "$LR_MULTIPLIER"   --batch-size "$BATCH_SIZE"   -q)
+JOB_ID=$(uv run rose finetune create   --file "$FILE_ID"   --model "$MODEL_ID"   --suffix "$SUFFIX"   --epochs "$EPOCHS"   --learning-rate-multiplier "$LR_MULTIPLIER"   --batch-size "$BATCH_SIZE"   -q)
 echo "Job ID: $JOB_ID"
 
 # === Monitor training ===
 echo -n "Monitoring training progress"
 while true; do
-  STATUS=$(poetry run rose finetune get "$JOB_ID" -q)
+  STATUS=$(uv run rose finetune get "$JOB_ID" -q)
   if [ "$STATUS" = "succeeded" ]; then
     echo -e "\n✓ Fine-tuning completed successfully!"
     break
   elif [ "$STATUS" = "failed" ]; then
     echo -e "\n✗ Fine-tuning failed."
-    poetry run rose finetune get "$JOB_ID"
+    uv run rose finetune get "$JOB_ID"
     exit 1
   fi
   sleep 10
@@ -126,7 +126,7 @@ while true; do
 done
 
 # === Get fine-tuned model ID ===
-MODEL=$(poetry run rose finetune get "$JOB_ID" --model-only)
+MODEL=$(uv run rose finetune get "$JOB_ID" --model-only)
 echo -e "\nFine-tuned model: $MODEL"
 
 # === Test the model ===
@@ -145,7 +145,7 @@ test_prompts=(
 for prompt in "${test_prompts[@]}"; do
   echo "Q: $prompt"
   echo -n "A: "
-  poetry run rose chat --model "$MODEL" "$prompt" 2>/dev/null || echo "Error generating response"
+  uv run rose chat --model "$MODEL" "$prompt" 2>/dev/null || echo "Error generating response"
   echo -e "\n"
 done
 
@@ -155,4 +155,4 @@ SAMPLE_COUNT=$(wc -l < "$TRAIN_FILE" || echo "0")
 echo "Training samples: $SAMPLE_COUNT"
 echo ""
 echo "To chat with the ROSE-aware model:"
-echo "poetry run rose chat --model "$MODEL""
+echo "uv run rose chat --model "$MODEL""

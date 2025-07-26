@@ -5,16 +5,16 @@ set -e
 
 echo "Starting ROSE Server..."
 
-# Check if poetry is installed
-if ! command -v poetry &> /dev/null; then
-    echo "Poetry not found. Please install Poetry first."
+# Check if uv is installed
+if ! command -v uv &> /dev/null; then
+    echo "uv not found. Please install uv first."
     exit 1
 fi
 
 # Install dependencies if needed
 if [ ! -d ".venv" ]; then
     echo "Installing dependencies..."
-    poetry install --without dev --without test
+    uv sync --no-dev
 fi
 
 # Function to cleanup on exit
@@ -62,7 +62,7 @@ trap cleanup EXIT SIGINT SIGTERM
 echo ""
 # Generate auth token if not set
 if [ -z "$ROSE_API_KEY" ]; then
-    export ROSE_API_KEY=$(poetry run rose auth generate-token)
+    export ROSE_API_KEY=$(uv run rose auth generate-token)
     echo "Generated API key: $ROSE_API_KEY"
     echo "To use this key in the future, export ROSE_API_KEY=$ROSE_API_KEY"
 else
@@ -72,7 +72,7 @@ echo ""
 
 # Start the service
 echo "Starting API service on http://localhost:8004..."
-poetry run rose-server &
+uv run rose-server &
 SERVICE_PID=$!
 
 # Wait a bit for service to start
@@ -80,7 +80,7 @@ sleep 2
 
 # Start the inference service
 echo "Starting inference service on ws://localhost:8005..."
-poetry run rose-inference &
+uv run rose-inference &
 INFERENCE_PID=$!
 
 # Wait a bit for inference to start
@@ -88,7 +88,7 @@ sleep 2
 
 # Start the trainer
 echo "Starting trainer..."
-poetry run rose-trainer &
+uv run rose-trainer &
 TRAINER_PID=$!
 
 echo "ROSE Server is running!"

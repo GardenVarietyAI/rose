@@ -45,30 +45,31 @@ export OPENAI_BASE_URL=http://localhost:8004/v1
 ### Installation
 
 ```bash
+# Install mise (https://mise.jdx.dev/getting-started.html)
+curl https://mise.run | sh
+
 # Clone the repository
-git clone git@github.com:GardenVarietyAI/rose-server.git
-cd rose-server
+git clone git@github.com:GardenVarietyAI/rose.git
+cd rose
 
-# Install base dependencies
-poetry install
-
-# Optional: CLI tools
-poetry install --with cli
-
-# Optional: NVIDIA monitoring
-poetry install --with nvidia
+# Install deps
+mise install
+uv pip install --group cli
 ```
 
 ### Running the Service
 
 ```bash
 # Start API service (port 8004)
-poetry run rose-server
+uv run rose-server
 
-# Start background worker (for fine-tuning and jobs)
-poetry run rose-worker
+# Start inference server (Port 8005)
+uv run rose-inference
 
-# Or run both via convenience script:
+# Start trainer
+uv run rose-trainer
+
+# Or run all via convenience script:
 ./start.sh
 ```
 
