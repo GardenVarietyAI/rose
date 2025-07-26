@@ -52,8 +52,6 @@ Thumbs.db
 
 # Documentation
 docs/
-*.md
-!README.md
 
 # Docker
 Dockerfile*
