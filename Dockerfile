@@ -17,8 +17,8 @@ WORKDIR /app
 
 COPY pyproject.toml README.md ./
 
-RUN uv sync --no-dev
-
 COPY src/ ./src/
+
+RUN uv sync --no-dev
 
 ENV PYTHONPATH=/app/src
