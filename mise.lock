@@ -1,7 +1,3 @@
-[tools.poetry]
-version = "2.1.3"
-backend = "asdf:poetry"
-
 [tools.python]
 version = "3.13.5"
 backend = "core:python"
@@ -9,6 +5,10 @@ backend = "core:python"
 [tools.rust]
 version = "1.88.0"
 backend = "core:rust"
+
+[tools.uv]
+version = "0.8.3"
+backend = "aqua:astral-sh/uv"
 
 [tools."vfox:cmake"]
 version = "3.31.6"
