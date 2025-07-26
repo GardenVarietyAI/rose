@@ -4,7 +4,7 @@ services:
 
   rose-api:
     build: .
-    command: ["python", "-m", "rose_server.main"]
+    command: ["uv", "run", "rose-server"]
     ports:
       - "8004:8004"
     environment:
@@ -30,7 +30,7 @@ services:
 
   rose-trainer:
     build: .
-    command: ["python", "-m", "rose_trainer.scheduler"]
+    command: ["uv", "run", "rose-trainer"]
     environment:
       - ROSE_SERVER_URL=http://rose-api:8004
       - ROSE_API_KEY=${ROSE_API_KEY:-docker-dev-key-123456}
@@ -43,7 +43,7 @@ services:
 
   rose-inference:
     build: .
-    command: ["python", "-m", "rose_inference.main"]
+    command: ["uv", "run", "rose-inference"]
     ports:
       - "8005:8005"
     environment:
