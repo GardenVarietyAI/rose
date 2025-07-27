@@ -169,10 +169,10 @@ async def execute_assistant_run_streaming(
     chat_messages = _format_messages(messages=messages, instructions=run.instructions or assistant.instructions)
 
     try:
-        model_name = run.model or assistant.model
-        model = await get_language_model(model_name)
+        model_id = run.model or assistant.model
+        model = await get_language_model(model_id)
         config = ModelConfig.from_language_model(model)
-        tokenizer = Tokenizer.from_pretrained(model_name)
+        tokenizer = Tokenizer.from_pretrained(model.model_name)
     except Exception as e:
         async for evt in fail_run(run.id, step, "model_error", str(e)):
             yield evt
