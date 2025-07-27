@@ -12,7 +12,7 @@ from rose_server.database import current_timestamp
 from rose_server.entities.messages import Message
 from rose_server.entities.runs import Run
 from rose_server.entities.threads import Thread
-from rose_server.runs.executor import execute_assistant_run_streaming
+from rose_server.runs.runner import execute_assistant_run_streaming
 from rose_server.runs.store import create_run, get_run
 from rose_server.schemas.runs import RunCreateRequest, RunResponse
 from rose_server.schemas.threads import ThreadCreateRequest, ThreadResponse
