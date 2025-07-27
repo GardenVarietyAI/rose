@@ -13,12 +13,12 @@ from rose_server.events.formatters.runs import RunsFormatter
 from rose_server.events.generator import EventGenerator
 from rose_server.models.registry import ModelRegistry
 from rose_server.models.store import get as get_language_model
-from rose_server.runs.steps.store import create_run_step, update_run_step
-from rose_server.runs.store import update_run
 from rose_server.schemas.assistants import AssistantResponse
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.runs import RunResponse, RunStepResponse
 from rose_server.threads.messages.store import create_message, get_messages
+from rose_server.threads.runs.steps.store import create_run_step, update_run_step
+from rose_server.threads.runs.store import update_run
 from rose_server.tools import parse_xml_tool_call
 from rose_server.tools.handlers.file_search import intercept_file_search_tool_call
 from rose_server.tools.toolbox import BUILTIN_TOOLS
@@ -233,7 +233,8 @@ async def execute_assistant_run_streaming(
                 step_entity.status = "failed"
                 step_entity.last_error = {
                     "code": "unsupported_tool",
-                    "message": f"The '{tool_name}' tool is not currently supported. Please use a function tool instead.",
+                    "message": f"The '{tool_name}' tool is not currently supported. "
+                    "Please use a function tool instead.",
                 }
                 await create_run_step(step_entity)
                 await update_run_step(

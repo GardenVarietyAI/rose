@@ -4,8 +4,8 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Query
 
-from rose_server.runs.steps.store import get_run_step, list_run_steps
 from rose_server.schemas.runs import RunStepListResponse, RunStepResponse
+from rose_server.threads.runs.steps.store import get_run_step, list_run_steps
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
