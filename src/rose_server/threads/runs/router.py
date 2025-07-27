@@ -14,7 +14,7 @@ from rose_server.threads.runs.steps.router import router as steps_router
 from rose_server.threads.runs.store import cancel_run, create_run, get_run, list_runs, update_run
 from rose_server.threads.store import get_thread
 
-router = APIRouter(prefix="/v1/threads/{thread_id}/runs")
+router = APIRouter(prefix="/{thread_id}/runs")
 logger = logging.getLogger(__name__)
 
 router.include_router(steps_router)

@@ -16,8 +16,9 @@ from rose_server.schemas.runs import RunCreateRequest, RunResponse
 from rose_server.schemas.threads import ThreadCreateRequest, ThreadResponse
 from rose_server.threads.messages.router import router as messages_router
 from rose_server.threads.messages.store import create_message
-from rose_server.threads.runs import create_run, execute_assistant_run_streaming, get_run
+from rose_server.threads.runs import execute_assistant_run_streaming, get_run
 from rose_server.threads.runs.router import router as runs_router
+from rose_server.threads.runs.store import create_run
 from rose_server.threads.store import (
     create_thread,
     delete_thread,
@@ -27,7 +28,7 @@ from rose_server.threads.store import (
 )
 from rose_server.vector_stores.deps import VectorManager
 
-router = APIRouter(prefix="/v1")
+router = APIRouter(prefix="/v1/threads")
 logger = logging.getLogger(__name__)
 
 # Include the messages router
@@ -35,7 +36,7 @@ router.include_router(messages_router)
 router.include_router(runs_router)
 
 
-@router.get("/threads")
+@router.get("")
 async def list_threads(
     limit: int = Query(default=20, description="Number of threads to retrieve"),
     order: str = Query(default="desc", description="Sort order (asc or desc)"),
@@ -54,7 +55,7 @@ async def list_threads(
     )
 
 
-@router.post("/threads", response_model=ThreadResponse)
+@router.post("", response_model=ThreadResponse)
 async def create(request: ThreadCreateRequest = Body(...)) -> ThreadResponse:
     """Create a new conversation thread."""
     thread = Thread(
@@ -98,7 +99,7 @@ async def create(request: ThreadCreateRequest = Body(...)) -> ThreadResponse:
     return ThreadResponse(**thread.model_dump())
 
 
-@router.post("/threads/runs")
+@router.post("/runs")
 async def create_thread_and_run(
     request: Dict[str, Any] = Body(...), vector: VectorManager = VectorManager
 ) -> JSONResponse:
@@ -186,7 +187,25 @@ async def create_thread_and_run(
             response_format=run_request.response_format,
         )
 
-        run = await create_run(run)
+        run = await create_run(
+            thread_id=thread.id,
+            assistant_id=run.assistant_id,
+            model=run.model,
+            instructions=run.instructions,
+            additional_instructions=None,
+            additional_messages=None,
+            tools=run.tools,
+            metadata=run.meta,
+            temperature=run.temperature,
+            top_p=run.top_p,
+            max_prompt_tokens=run.max_prompt_tokens,
+            max_completion_tokens=run.max_completion_tokens,
+            truncation_strategy=run.truncation_strategy,
+            tool_choice=run.tool_choice,
+            parallel_tool_calls=run.parallel_tool_calls,
+            response_format=run.response_format,
+            stream=run_request.stream,
+        )
 
         if run_request.stream:
             return EventSourceResponse(execute_assistant_run_streaming(run, assistant, vector))
@@ -201,7 +220,7 @@ async def create_thread_and_run(
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
-@router.get("/threads/{thread_id}", response_model=ThreadResponse)
+@router.get("/{thread_id}", response_model=ThreadResponse)
 async def get(thread_id: str) -> ThreadResponse:
     """Retrieve a thread by ID."""
     thread = await get_thread(thread_id)
@@ -210,7 +229,7 @@ async def get(thread_id: str) -> ThreadResponse:
     return ThreadResponse(**thread.model_dump())
 
 
-@router.post("/threads/{thread_id}", response_model=ThreadResponse)
+@router.post("/{thread_id}", response_model=ThreadResponse)
 async def update(thread_id: str, request: Dict[str, Any] = Body(...)) -> ThreadResponse:
     """Update a thread's metadata."""
     metadata = request.get("metadata", {})
@@ -220,7 +239,7 @@ async def update(thread_id: str, request: Dict[str, Any] = Body(...)) -> ThreadR
     return ThreadResponse(**thread.model_dump())
 
 
-@router.delete("/threads/{thread_id}")
+@router.delete("/{thread_id}")
 async def delete(thread_id: str) -> Dict[str, Any]:
     """Delete a thread."""
     success = await delete_thread(thread_id)
