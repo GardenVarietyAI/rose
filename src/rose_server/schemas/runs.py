@@ -22,7 +22,7 @@ class RunCreateRequest(BaseModel):
     tool_choice: Optional[Union[str, Dict[str, Any]]] = Field(default=None, description="Tool choice strategy")
     parallel_tool_calls: Optional[bool] = Field(default=None, description="Whether to enable parallel tool calls")
     response_format: Optional[Dict[str, Any]] = Field(default=None, description="Response format specification")
-    stream: Optional[bool] = Field(default=False, description="Whether to stream the response")
+    stream: Optional[bool] = Field(default=None, description="Whether to stream the response")
 
 
 class RunResponse(BaseModel):
