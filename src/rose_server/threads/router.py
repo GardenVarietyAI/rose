@@ -1,7 +1,7 @@
 """API router for threads endpoints."""
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -99,10 +99,10 @@ async def create(request: ThreadCreateRequest = Body(...)) -> ThreadResponse:
     return ThreadResponse(**thread.model_dump())
 
 
-@router.post("/runs")
+@router.post("/runs", response_model=None)
 async def create_thread_and_run(
     request: Dict[str, Any] = Body(...), vector: VectorManager = VectorManager
-) -> JSONResponse:
+) -> Union[JSONResponse, EventSourceResponse]:
     """Create a thread and immediately run it with an assistant."""
     try:
         assistant_id = request.get("assistant_id")
