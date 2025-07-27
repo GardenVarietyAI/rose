@@ -125,11 +125,13 @@ async def process_tool_outputs(
                     if event.output_tokens:
                         completion_tokens = event.output_tokens
 
-            usage = {
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "total_tokens": prompt_tokens + completion_tokens,
-            }
+            usage.update(
+                {
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": prompt_tokens + completion_tokens,
+                }
+            )
         return usage
     except Exception as e:
         logger.error(f"Error generating continuation response: {str(e)}")
