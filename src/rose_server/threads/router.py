@@ -107,11 +107,11 @@ async def create_thread_and_run(
     try:
         assistant_id = request.get("assistant_id")
         if not assistant_id:
-            return JSONResponse(status_code=400, content={"error": "assistant_id is required"})
+            raise HTTPException(status_code=400, detail="assistant_id is required")
 
         assistant = await get_assistant(assistant_id)
         if not assistant:
-            return JSONResponse(status_code=404, content={"error": "Assistant not found"})
+            raise HTTPException(status_code=404, detail="Assistant not found")
 
         thread_params = request.get("thread", {})
         messages = thread_params.get("messages", [])
@@ -214,10 +214,10 @@ async def create_thread_and_run(
             async for event in execute_assistant_run_streaming(run, assistant, vector):
                 events.append(event)
             updated_run = await get_run(run.id)
-            return JSONResponse(content=RunResponse(**updated_run.model_dump()).model_dump())
+            return RunResponse(**updated_run.model_dump())
     except Exception as e:
         logger.error(f"Error in create_thread_and_run: {str(e)}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/{thread_id}", response_model=ThreadResponse)
