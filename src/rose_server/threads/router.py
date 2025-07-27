@@ -102,7 +102,7 @@ async def create(request: ThreadCreateRequest = Body(...)) -> ThreadResponse:
 @router.post("/runs", response_model=None)
 async def create_thread_and_run(
     request: Dict[str, Any] = Body(...), vector: VectorManager = VectorManager
-) -> Union[JSONResponse, EventSourceResponse]:
+) -> Union[RunResponse, EventSourceResponse]:
     """Create a thread and immediately run it with an assistant."""
     try:
         assistant_id = request.get("assistant_id")
