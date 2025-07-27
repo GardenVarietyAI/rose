@@ -8,14 +8,13 @@ from sse_starlette.sse import EventSourceResponse
 
 from rose_server.assistants.store import get_assistant
 from rose_server.models.deps import ModelRegistryDep
-from rose_server.runs.executor import execute_assistant_run_streaming
-from rose_server.runs.steps.router import router as steps_router
-from rose_server.runs.store import cancel_run, create_run, get_run, list_runs, update_run
-from rose_server.runs.tool_outputs import process_tool_outputs
 from rose_server.schemas.runs import RunCreateRequest, RunListResponse, RunResponse
+from rose_server.threads.runs.runner import execute_assistant_run_streaming, process_tool_outputs
+from rose_server.threads.runs.steps.router import router as steps_router
+from rose_server.threads.runs.store import cancel_run, create_run, get_run, list_runs, update_run
 from rose_server.threads.store import get_thread
 
-router = APIRouter(prefix="/v1/threads/{thread_id}/runs")
+router = APIRouter(prefix="/{thread_id}/runs")
 logger = logging.getLogger(__name__)
 
 router.include_router(steps_router)
@@ -41,7 +40,9 @@ async def create(thread_id: str, request: RunCreateRequest = Body(...)) -> Union
                 tool.model_dump() if hasattr(tool, "model_dump") else tool
                 for tool in (request.tools or assistant.tools or [])
             ],
-            meta=request.metadata or {},
+            additional_instructions=request.additional_instructions,
+            additional_messages=request.additional_messages,
+            metadata=request.metadata or {},
             temperature=request.temperature if request.temperature is not None else assistant.temperature,
             top_p=request.top_p if request.top_p is not None else assistant.top_p,
             max_prompt_tokens=request.max_prompt_tokens,
@@ -50,6 +51,7 @@ async def create(thread_id: str, request: RunCreateRequest = Body(...)) -> Union
             tool_choice=request.tool_choice,
             parallel_tool_calls=request.parallel_tool_calls if request.parallel_tool_calls is not None else True,
             response_format=request.response_format,
+            stream=request.stream,
         )
 
         if request.stream:

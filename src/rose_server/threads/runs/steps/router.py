@@ -4,14 +4,14 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Query
 
-from rose_server.runs.steps.store import get_run_step, list_run_steps
 from rose_server.schemas.runs import RunStepListResponse, RunStepResponse
+from rose_server.threads.runs.steps.store import get_run_step, list_run_steps
 
-router = APIRouter()
+router = APIRouter(prefix="/{run_id}/steps")
 logger = logging.getLogger(__name__)
 
 
-@router.get("/{run_id}/steps", response_model=RunStepListResponse)
+@router.get("", response_model=RunStepListResponse)
 async def index(
     thread_id: str,
     run_id: str,
@@ -33,7 +33,7 @@ async def index(
         raise HTTPException(status_code=500, detail=f"Error listing run steps: {str(e)}")
 
 
-@router.get("/{run_id}/steps/{step_id}", response_model=RunStepResponse)
+@router.get("/{step_id}", response_model=RunStepResponse)
 async def get(thread_id: str, run_id: str, step_id: str) -> RunStepResponse:
     """Retrieve a specific run step."""
     try:

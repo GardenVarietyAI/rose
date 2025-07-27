@@ -1,7 +1,7 @@
 """API router for threads endpoints."""
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -12,12 +12,13 @@ from rose_server.database import current_timestamp
 from rose_server.entities.messages import Message
 from rose_server.entities.runs import Run
 from rose_server.entities.threads import Thread
-from rose_server.runs.executor import execute_assistant_run_streaming
-from rose_server.runs.store import create_run, get_run
 from rose_server.schemas.runs import RunCreateRequest, RunResponse
 from rose_server.schemas.threads import ThreadCreateRequest, ThreadResponse
 from rose_server.threads.messages.router import router as messages_router
 from rose_server.threads.messages.store import create_message
+from rose_server.threads.runs import execute_assistant_run_streaming, get_run
+from rose_server.threads.runs.router import router as runs_router
+from rose_server.threads.runs.store import create_run
 from rose_server.threads.store import (
     create_thread,
     delete_thread,
@@ -27,14 +28,15 @@ from rose_server.threads.store import (
 )
 from rose_server.vector_stores.deps import VectorManager
 
-router = APIRouter(prefix="/v1")
+router = APIRouter(prefix="/v1/threads")
 logger = logging.getLogger(__name__)
 
 # Include the messages router
 router.include_router(messages_router)
+router.include_router(runs_router)
 
 
-@router.get("/threads")
+@router.get("")
 async def list_threads(
     limit: int = Query(default=20, description="Number of threads to retrieve"),
     order: str = Query(default="desc", description="Sort order (asc or desc)"),
@@ -53,7 +55,7 @@ async def list_threads(
     )
 
 
-@router.post("/threads", response_model=ThreadResponse)
+@router.post("", response_model=ThreadResponse)
 async def create(request: ThreadCreateRequest = Body(...)) -> ThreadResponse:
     """Create a new conversation thread."""
     thread = Thread(
@@ -97,19 +99,19 @@ async def create(request: ThreadCreateRequest = Body(...)) -> ThreadResponse:
     return ThreadResponse(**thread.model_dump())
 
 
-@router.post("/threads/runs")
+@router.post("/runs", response_model=None)
 async def create_thread_and_run(
     request: Dict[str, Any] = Body(...), vector: VectorManager = VectorManager
-) -> JSONResponse:
+) -> Union[RunResponse, EventSourceResponse]:
     """Create a thread and immediately run it with an assistant."""
     try:
         assistant_id = request.get("assistant_id")
         if not assistant_id:
-            return JSONResponse(status_code=400, content={"error": "assistant_id is required"})
+            raise HTTPException(status_code=400, detail="assistant_id is required")
 
         assistant = await get_assistant(assistant_id)
         if not assistant:
-            return JSONResponse(status_code=404, content={"error": "Assistant not found"})
+            raise HTTPException(status_code=404, detail="Assistant not found")
 
         thread_params = request.get("thread", {})
         messages = thread_params.get("messages", [])
@@ -185,7 +187,25 @@ async def create_thread_and_run(
             response_format=run_request.response_format,
         )
 
-        run = await create_run(run)
+        run = await create_run(
+            thread_id=thread.id,
+            assistant_id=run.assistant_id,
+            model=run.model,
+            instructions=run.instructions,
+            additional_instructions=None,
+            additional_messages=None,
+            tools=run.tools,
+            metadata=run.meta,
+            temperature=run.temperature,
+            top_p=run.top_p,
+            max_prompt_tokens=run.max_prompt_tokens,
+            max_completion_tokens=run.max_completion_tokens,
+            truncation_strategy=run.truncation_strategy,
+            tool_choice=run.tool_choice,
+            parallel_tool_calls=run.parallel_tool_calls,
+            response_format=run.response_format,
+            stream=run_request.stream,
+        )
 
         if run_request.stream:
             return EventSourceResponse(execute_assistant_run_streaming(run, assistant, vector))
@@ -194,13 +214,13 @@ async def create_thread_and_run(
             async for event in execute_assistant_run_streaming(run, assistant, vector):
                 events.append(event)
             updated_run = await get_run(run.id)
-            return JSONResponse(content=RunResponse(**updated_run.model_dump()).model_dump())
+            return RunResponse(**updated_run.model_dump())
     except Exception as e:
         logger.error(f"Error in create_thread_and_run: {str(e)}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/threads/{thread_id}", response_model=ThreadResponse)
+@router.get("/{thread_id}", response_model=ThreadResponse)
 async def get(thread_id: str) -> ThreadResponse:
     """Retrieve a thread by ID."""
     thread = await get_thread(thread_id)
@@ -209,7 +229,7 @@ async def get(thread_id: str) -> ThreadResponse:
     return ThreadResponse(**thread.model_dump())
 
 
-@router.post("/threads/{thread_id}", response_model=ThreadResponse)
+@router.post("/{thread_id}", response_model=ThreadResponse)
 async def update(thread_id: str, request: Dict[str, Any] = Body(...)) -> ThreadResponse:
     """Update a thread's metadata."""
     metadata = request.get("metadata", {})
@@ -219,7 +239,7 @@ async def update(thread_id: str, request: Dict[str, Any] = Body(...)) -> ThreadR
     return ThreadResponse(**thread.model_dump())
 
 
-@router.delete("/threads/{thread_id}")
+@router.delete("/{thread_id}")
 async def delete(thread_id: str) -> Dict[str, Any]:
     """Delete a thread."""
     success = await delete_thread(thread_id)
