@@ -30,6 +30,8 @@ class Run(SQLModel, table=True):
     # Configuration
     model: str
     instructions: Optional[str] = None
+    additional_instructions: Optional[str] = None
+    additional_messages: Optional[List[Dict[str, Any]]] = Field(default=None, sa_type=JSON)
     tools: List[Dict[str, Any]] = Field(default_factory=list, sa_type=JSON)
     meta: Dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
 
