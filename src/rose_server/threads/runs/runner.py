@@ -263,32 +263,34 @@ async def execute_assistant_run_streaming(
                                 "results": output,
                             },
                         }
+
+                        step_entity.step_details = {"tool_calls": [tool_call_detail]}
+                        await update_run_step(step_entity.id, status="completed", step_details=step_entity.step_details)
+
+                        await update_run_step(
+                            step.id,
+                            status="completed",
+                            step_details={"message_creation": {"message_id": "tool_executed"}},
+                        )
+                        yield await stream_run_step_event("completed", step)
+
+                        tool_step = RunStepResponse(**step_entity.model_dump())
+                        yield await stream_run_step_event("created", tool_step)
+                        yield await stream_run_step_event("completed", tool_step)
+
+                        message = Message(
+                            thread_id=run.thread_id,
+                            role="assistant",
+                            content=[{"type": "text", "text": {"value": output, "annotations": []}}],
+                            assistant_id=assistant.id,
+                            run_id=run.id,
+                            meta={"tool_output": True},
+                        )
+                        await create_message(message)
                     else:
                         raise Exception("Search failed")
                 else:
                     raise Exception(f"Tool '{tool_name}' execution not implemented")
-
-                step_entity.step_details = {"tool_calls": [tool_call_detail]}
-                await update_run_step(step_entity.id, status="completed", step_details=step_entity.step_details)
-
-                await update_run_step(
-                    step.id, status="completed", step_details={"message_creation": {"message_id": "tool_executed"}}
-                )
-                yield await stream_run_step_event("completed", step)
-
-                tool_step = RunStepResponse(**step_entity.model_dump())
-                yield await stream_run_step_event("created", tool_step)
-                yield await stream_run_step_event("completed", tool_step)
-
-                message = Message(
-                    thread_id=run.thread_id,
-                    role="assistant",
-                    content=[{"type": "text", "text": {"value": output, "annotations": []}}],
-                    assistant_id=assistant.id,
-                    run_id=run.id,
-                    meta={"tool_output": True},
-                )
-                await create_message(message)
 
                 await update_run(run.id, status="completed")
                 yield await stream_run_status(run.id, "completed")
