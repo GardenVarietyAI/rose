@@ -1,6 +1,7 @@
 """API router for threads endpoints."""
 
 import logging
+import time
 from typing import Any, Dict, Union
 
 from fastapi import APIRouter, Body, HTTPException, Query
@@ -8,41 +9,32 @@ from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
 from rose_server.assistants.store import get_assistant
-from rose_server.database import current_timestamp
 from rose_server.entities.messages import Message
-from rose_server.entities.runs import Run
 from rose_server.entities.threads import Thread
-from rose_server.schemas.runs import RunCreateRequest, RunResponse
-from rose_server.schemas.threads import ThreadCreateRequest, ThreadResponse
+from rose_server.schemas.runs import RunResponse
+from rose_server.schemas.threads import ThreadAndRunCreateRequest, ThreadCreateRequest, ThreadResponse
 from rose_server.threads.messages.router import router as messages_router
 from rose_server.threads.messages.store import create_message
 from rose_server.threads.runs import execute_assistant_run_streaming, get_run
 from rose_server.threads.runs.router import router as runs_router
 from rose_server.threads.runs.store import create_run
-from rose_server.threads.store import (
-    create_thread,
-    delete_thread,
-    get_thread,
-    list_threads as list_threads_store,
-    update_thread,
-)
+from rose_server.threads.store import create_thread, delete_thread, get_thread, list_threads, update_thread
 from rose_server.vector_stores.deps import VectorManager
 
 router = APIRouter(prefix="/v1/threads")
 logger = logging.getLogger(__name__)
 
-# Include the messages router
 router.include_router(messages_router)
 router.include_router(runs_router)
 
 
 @router.get("")
-async def list_threads(
+async def index(
     limit: int = Query(default=20, description="Number of threads to retrieve"),
     order: str = Query(default="desc", description="Sort order (asc or desc)"),
 ) -> JSONResponse:
     """List all threads."""
-    threads = await list_threads_store(limit=limit, order=order)
+    threads = await list_threads(limit=limit, order=order)
     thread_data = [ThreadResponse(**thread.model_dump()).model_dump() for thread in threads]
     return JSONResponse(
         content={
@@ -58,156 +50,84 @@ async def list_threads(
 @router.post("", response_model=ThreadResponse)
 async def create(request: ThreadCreateRequest = Body(...)) -> ThreadResponse:
     """Create a new conversation thread."""
-    thread = Thread(
-        created_at=current_timestamp(),
-        meta=request.metadata,
-        tool_resources=None,
-    )
 
-    thread = await create_thread(thread)
+    thread = await create_thread(Thread(meta=request.metadata, tool_resources=None))
 
     if request.messages:
         for msg_data in request.messages:
             role = msg_data.get("role", "user")
             content = msg_data.get("content", "")
+            formatted_content = [{"type": "text", "text": {"value": content, "annotations": []}}]
 
-            # Format content to match OpenAI structure
-            if isinstance(content, str):
-                formatted_content = [
-                    {
-                        "type": "text",
-                        "text": {
-                            "value": content,
-                            "annotations": [],
-                        },
-                    }
-                ]
-            else:
-                formatted_content = content
-
-            # Create message entity
-            message = Message(
-                thread_id=thread.id,
-                role=role,
-                content=formatted_content,
-                created_at=current_timestamp(),
-                meta=msg_data.get("metadata", {}),
-                completed_at=current_timestamp(),
+            await create_message(
+                Message(
+                    thread_id=thread.id,
+                    role=role,
+                    content=formatted_content,
+                    meta=msg_data.get("metadata", {}),
+                    completed_at=int(time.time()),
+                )
             )
-            await create_message(message)
 
     return ThreadResponse(**thread.model_dump())
 
 
 @router.post("/runs", response_model=None)
 async def create_thread_and_run(
-    request: Dict[str, Any] = Body(...), vector: VectorManager = VectorManager
+    request: ThreadAndRunCreateRequest = Body(...), vector: VectorManager = VectorManager
 ) -> Union[RunResponse, EventSourceResponse]:
     """Create a thread and immediately run it with an assistant."""
     try:
-        assistant_id = request.get("assistant_id")
-        if not assistant_id:
-            raise HTTPException(status_code=400, detail="assistant_id is required")
-
+        assistant_id = request.assistant_id
         assistant = await get_assistant(assistant_id)
         if not assistant:
             raise HTTPException(status_code=404, detail="Assistant not found")
 
-        thread_params = request.get("thread", {})
+        thread_params = request.thread
         messages = thread_params.get("messages", [])
         thread_metadata = thread_params.get("metadata", {})
-        thread = Thread(
-            created_at=current_timestamp(),
-            meta=thread_metadata,
-            tool_resources=None,
-        )
-        thread = await create_thread(thread)
+        thread = await create_thread(Thread(meta=thread_metadata, tool_resources=None))
 
         if messages:
             for msg_data in messages:
                 role = msg_data.get("role", "user")
                 content = msg_data.get("content", "")
+                formatted_content = [{"type": "text", "text": {"value": content, "annotations": []}}]
 
-                # Format content to match OpenAI structure
-                if isinstance(content, str):
-                    formatted_content = [
-                        {
-                            "type": "text",
-                            "text": {
-                                "value": content,
-                                "annotations": [],
-                            },
-                        }
-                    ]
-                else:
-                    formatted_content = content
-
-                # Create message entity
-                message = Message(
-                    thread_id=thread.id,
-                    role=role,
-                    content=formatted_content,
-                    created_at=current_timestamp(),
-                    meta=msg_data.get("metadata", {}),
-                    completed_at=current_timestamp(),
+                await create_message(
+                    Message(
+                        thread_id=thread.id,
+                        role=role,
+                        content=formatted_content,
+                        meta=msg_data.get("metadata", {}),
+                        completed_at=int(time.time()),
+                    )
                 )
-                await create_message(message)
-
-        run_request = RunCreateRequest(
-            assistant_id=assistant_id,
-            model=request.get("model"),
-            instructions=request.get("instructions"),
-            tools=request.get("tools"),
-            metadata=request.get("metadata", {}),
-            temperature=request.get("temperature"),
-            stream=request.get("stream", False),
-        )
-
-        run = Run(
-            created_at=current_timestamp(),
-            thread_id=thread.id,
-            assistant_id=run_request.assistant_id,
-            status="queued",
-            model=run_request.model if run_request.model is not None else assistant.model,
-            instructions=run_request.instructions or assistant.instructions,
-            tools=[
-                tool.model_dump() if hasattr(tool, "model_dump") else tool
-                for tool in (run_request.tools or assistant.tools or [])
-            ],
-            meta=run_request.metadata or {},
-            temperature=run_request.temperature if run_request.temperature is not None else assistant.temperature,
-            top_p=run_request.top_p if run_request.top_p is not None else assistant.top_p,
-            max_prompt_tokens=run_request.max_prompt_tokens,
-            max_completion_tokens=run_request.max_completion_tokens,
-            truncation_strategy=run_request.truncation_strategy,
-            tool_choice=run_request.tool_choice,
-            parallel_tool_calls=run_request.parallel_tool_calls
-            if run_request.parallel_tool_calls is not None
-            else True,
-            response_format=run_request.response_format,
-        )
 
         run = await create_run(
             thread_id=thread.id,
-            assistant_id=run.assistant_id,
-            model=run.model,
-            instructions=run.instructions,
+            assistant_id=request.assistant_id,
+            model=request.model or assistant.model,
+            instructions=request.instructions or assistant.instructions,
             additional_instructions=None,
             additional_messages=None,
-            tools=run.tools,
-            metadata=run.meta,
-            temperature=run.temperature,
-            top_p=run.top_p,
-            max_prompt_tokens=run.max_prompt_tokens,
-            max_completion_tokens=run.max_completion_tokens,
-            truncation_strategy=run.truncation_strategy,
-            tool_choice=run.tool_choice,
-            parallel_tool_calls=run.parallel_tool_calls,
-            response_format=run.response_format,
-            stream=run_request.stream,
+            tools=[
+                tool.model_dump() if hasattr(tool, "model_dump") else tool
+                for tool in (request.tools or assistant.tools or [])
+            ],
+            metadata=request.metadata or {},
+            temperature=(request.temperature if request.temperature is not None else assistant.temperature),
+            top_p=request.top_p if request.top_p is not None else assistant.top_p,
+            max_prompt_tokens=request.max_prompt_tokens,
+            max_completion_tokens=request.max_completion_tokens,
+            truncation_strategy=request.truncation_strategy,
+            tool_choice=request.tool_choice,
+            parallel_tool_calls=(request.parallel_tool_calls if request.parallel_tool_calls is not None else True),
+            response_format=request.response_format,
+            stream=request.stream,
         )
 
-        if run_request.stream:
+        if request.stream:
             return EventSourceResponse(execute_assistant_run_streaming(run, assistant, vector))
         else:
             events = []
