@@ -19,7 +19,7 @@ struct Args {
     #[arg(short, long, default_value = "127.0.0.1:8005")]
     bind: SocketAddr,
 
-    #[arg(short, long, default_value = "cpu")]
+    #[arg(short, long, default_value = "auto", help = "Device to use: auto, cuda, metal, or cpu")]
     device: String,
 
     #[arg(short, long, default_value = "info")]

@@ -42,7 +42,7 @@ async-stream = "0.3"
 ahash = "0.8"
 
 [features]
-default = []
+default = ["metal", "accelerate"]
 cuda = ["candle-core/cuda"]
 metal = ["candle-core/metal"]
 mkl = ["candle-core/mkl"]

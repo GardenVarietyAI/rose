@@ -79,6 +79,7 @@ impl InferenceServer {
             "cuda" => Device::new_cuda(0)?,
             "cpu" => Device::Cpu,
             "metal" => Device::new_metal(0)?,
+            "auto" => Self::detect_best_device()?,
             _ => Device::Cpu,
         };
 
@@ -87,6 +88,34 @@ impl InferenceServer {
         Ok(Self {
             device,
         })
+    }
+
+    fn detect_best_device() -> Result<Device> {
+        // CUDA
+        match Device::new_cuda(0) {
+            Ok(device) => {
+                info!("Auto-detected device: CUDA");
+                return Ok(device);
+            }
+            Err(e) => {
+                info!("CUDA not available: {}", e);
+            }
+        }
+
+        // Apple Silicon
+        match Device::new_metal(0) {
+            Ok(device) => {
+                info!("Auto-detected device: Metal");
+                return Ok(device);
+            }
+            Err(e) => {
+                info!("Metal not available: {}", e);
+            }
+        }
+
+        // Fallback to CPU
+        info!("Auto-detected device: CPU (no GPU acceleration available)");
+        Ok(Device::Cpu)
     }
 
     pub async fn process_streaming_request<S>(&self, request_text: &str, ws_sender: &mut SplitSink<S, WsMessage>) -> Result<()>
