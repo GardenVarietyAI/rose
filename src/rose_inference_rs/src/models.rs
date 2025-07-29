@@ -164,11 +164,11 @@ pub async fn generate_streaming(
             break;
         }
 
-        // Break on repetitive space tokens (token 503 seems to be spaces)
-        if next_token == 503 && index > 5 {
-            let recent_tokens = &all_tokens[all_tokens.len().saturating_sub(5)..];
-            if recent_tokens.iter().all(|&t| t == 503) {
-                info!("Breaking repetitive space loop at token {}", index + 1);
+        // Break on repetitive tokens (prevent infinite loops)
+        if index > 10 {
+            let recent_tokens = &all_tokens[all_tokens.len().saturating_sub(8)..];
+            if recent_tokens.len() >= 8 && recent_tokens.iter().all(|&t| t == next_token) {
+                info!("Breaking repetitive token loop at token {} (repeated token: {})", index + 1, next_token);
                 break;
             }
         }
