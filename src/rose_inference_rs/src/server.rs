@@ -109,7 +109,7 @@ impl InferenceServer {
             return Err(InferenceError::InvalidRequest("Either prompt or messages must be provided".to_string()).into());
         };
 
-        let (stream_tx, mut stream_rx) = mpsc::channel::<InferenceResponse>(100);
+        let (stream_tx, mut stream_rx) = mpsc::channel::<InferenceResponse>(1);
 
         let max_tokens = request.generation_kwargs.max_new_tokens.unwrap_or(512);
         let temperature = request.generation_kwargs.temperature.or(request.config.temperature).unwrap_or(0.7);
