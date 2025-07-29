@@ -1,0 +1,49 @@
+[package]
+name = "rose-inference-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Candle ML framework
+candle-core = "0.9"
+candle-nn = "0.9"
+candle-transformers = "0.9"
+candle-examples = "0.9"
+
+# Tokenization
+tokenizers = { version = "0.21", features = ["http"] }
+hf-hub = "0.4"
+
+# WebSocket server
+tokio = { version = "1.0", features = ["full"] }
+tokio-tungstenite = "0.24"
+futures-util = "0.3"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4"] }
+safetensors = "0.4"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# CLI
+clap = { version = "4.0", features = ["derive"] }
+
+# Async utilities
+async-trait = "0.1"
+async-stream = "0.3"
+ahash = "0.8"
+
+[features]
+default = []
+cuda = ["candle-core/cuda"]
+metal = ["candle-core/metal"]
+mkl = ["candle-core/mkl"]
+accelerate = ["candle-core/accelerate"]
