@@ -65,17 +65,16 @@ pub async fn generate_streaming(
     info!("Sent input tokens count: {}", prompt_tokens);
 
     // Setup sampling with API parameters - use lower temperature for better quality
-    let adjusted_temp = if temperature > 0.8 { 0.3 } else { temperature }; // Cap temperature
-    let sampling = if adjusted_temp <= 0.0 {
+    let sampling = if temperature <= 0.0 {
         candle_transformers::generation::Sampling::ArgMax
     } else {
         match top_p {
             Some(p) => candle_transformers::generation::Sampling::TopP {
                 p: p as f64,
-                temperature: adjusted_temp as f64,
+                temperature: temperature as f64,
             },
             None => candle_transformers::generation::Sampling::All {
-                temperature: adjusted_temp as f64,
+                temperature: temperature as f64,
             }
         }
     };
