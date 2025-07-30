@@ -101,7 +101,7 @@ sleep 2
 
 # Start the Rust inference service
 echo "Starting Rust inference service on ws://localhost:8005..."
-RUST_LOG=info cargo run --release --manifest-path src/rose_inference_rs/Cargo.toml &
+RUST_LOG=info cargo run --release --manifest-path src/rose_inference_rs/Cargo.toml -- --device cpu &
 INFERENCE_PID=$!
 
 # Wait a bit for inference to start
