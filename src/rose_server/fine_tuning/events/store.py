@@ -11,14 +11,7 @@ logger = logging.getLogger(__name__)
 
 async def add_event(job_id: str, level: str, message: str, data: Optional[Dict[str, Any]] = None) -> str:
     """Add an event to a job."""
-    event = FineTuningEvent(
-        job_id=job_id,
-        created_at=current_timestamp(),
-        level=level,
-        message=message,
-        data=data,
-    )
-
+    event = FineTuningEvent(job_id=job_id, created_at=current_timestamp(), level=level, message=message, data=data)
     async with get_session() as session:
         session.add(event)
         await session.commit()

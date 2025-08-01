@@ -15,6 +15,7 @@ from rose_server.models.registry import ModelRegistry
 from rose_server.models.store import get as get_language_model
 from rose_server.schemas.assistants import AssistantResponse
 from rose_server.schemas.chat import ChatMessage
+from rose_server.schemas.models import ModelConfig
 from rose_server.schemas.runs import RunResponse, RunStepResponse
 from rose_server.threads.messages.store import create_message, get_messages
 from rose_server.threads.runs.steps.store import create_run_step, update_run_step
@@ -22,7 +23,6 @@ from rose_server.threads.runs.store import update_run
 from rose_server.tools import parse_xml_tool_call
 from rose_server.tools.handlers.file_search import intercept_file_search_tool_call
 from rose_server.tools.toolbox import BUILTIN_TOOLS
-from rose_server.types.models import ModelConfig
 from rose_server.vector_stores.chroma import Chroma
 
 logger = logging.getLogger(__name__)

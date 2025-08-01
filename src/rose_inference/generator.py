@@ -139,26 +139,24 @@ async def generate_stream(
         "streamer": streamer,
     }
 
+    async def stream_tokens() -> AsyncIterator[str]:
+        loop = asyncio.get_event_loop()
+        while True:
+            token = await loop.run_in_executor(None, lambda: next(streamer, None))
+            if token is None:
+                break
+            yield token
+
     # Start generation
     generation_task = asyncio.create_task(asyncio.to_thread(model.generate, **gen_kwargs))
 
     # Stream tokens
     position = 0
     try:
-
-        async def stream_tokens() -> AsyncIterator[str]:
-            loop = asyncio.get_event_loop()
-            while True:
-                token = await loop.run_in_executor(None, lambda: next(streamer, None))
-                if token is None:
-                    break
-                yield token
-
         async for token in stream_tokens():
             if token:
                 yield {"type": "token", "token": token, "position": position}
                 position += 1
-
     except Exception as e:
         logger.error(f"Generation error: {e}")
         yield {"type": "error", "error": str(e)}
@@ -168,9 +166,17 @@ async def generate_stream(
         timeout = config.get("inference_timeout", 120) if config else 120
         try:
             await asyncio.wait_for(generation_task, timeout=timeout)
-        except asyncio.TimeoutError:
-            logger.error(f"Generation timeout after {timeout}s")
+        except asyncio.CancelledError:
+            logger.warning("Generation task was cancelled")
             generation_task.cancel()
+            raise
+        except Exception as e:
+            if isinstance(e, asyncio.TimeoutError):
+                logger.error(f"Generation timeout after {timeout}s")
+                generation_task.cancel()
+            else:
+                logger.error(f"Unexpected error in generation cleanup: {e}")
+                generation_task.cancel()
 
     yield {
         "type": "complete",

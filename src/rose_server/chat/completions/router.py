@@ -18,7 +18,7 @@ from rose_server.events.formatters import ChatCompletionsFormatter
 from rose_server.events.generator import EventGenerator
 from rose_server.models.store import get as get_language_model
 from rose_server.schemas.chat import ChatMessage, ChatRequest
-from rose_server.types.models import ModelConfig
+from rose_server.schemas.models import ModelConfig
 
 router = APIRouter(prefix="/completions")
 logger = logging.getLogger(__name__)

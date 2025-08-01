@@ -1,15 +1,48 @@
 import json
 import logging
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from io import BytesIO
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from rose_server.files import store as file_store
 from rose_server.fine_tuning.events.store import get_events
 from rose_server.fine_tuning.jobs.store import get_job, update_job_result_files
-from rose_server.types.training import StepMetrics
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_float(value: Any) -> Optional[float]:
+    """Safely convert a value to float, returning None if conversion fails."""
+    try:
+        return None if value is None else float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+@dataclass(slots=True)
+class StepMetrics:
+    """Metrics for a single training step."""
+
+    step: int
+    train_loss: float
+    epoch: int
+    learning_rate: float
+    train_accuracy: Optional[float] = None
+    valid_loss: Optional[float] = None
+    valid_accuracy: Optional[float] = None
+
+    @classmethod
+    def from_event(cls, data: Dict[str, Any]) -> "StepMetrics":
+        """Create StepMetrics from event data."""
+        return cls(
+            step=int(data["step"]),
+            train_loss=float(data["loss"]),
+            epoch=int(data.get("epoch", 1)),
+            learning_rate=float(data.get("learning_rate", 5e-6)),
+            train_accuracy=_safe_float(data.get("accuracy")),
+            valid_loss=_safe_float(data.get("valid_loss")),
+            valid_accuracy=_safe_float(data.get("valid_accuracy")),
+        )
 
 
 async def create_result_file(
@@ -88,7 +121,8 @@ async def create_result_file(
         )
         await update_job_result_files(job_id, [file_obj.id])
         logger.info("Result-file %s created for job %s (%d steps)", file_obj.id, job_id, len(step_metrics))
-        return file_obj.id
+        file_obj_id: str = file_obj.id
+        return file_obj_id
     except (OSError, json.JSONDecodeError, TypeError) as exc:
         logger.error("Failed to create result file for job %s: %s", job_id, exc, exc_info=True)
         return None
