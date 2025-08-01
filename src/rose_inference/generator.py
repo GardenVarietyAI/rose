@@ -139,21 +139,20 @@ async def generate_stream(
         "streamer": streamer,
     }
 
+    async def stream_tokens() -> AsyncIterator[str]:
+        loop = asyncio.get_event_loop()
+        while True:
+            token = await loop.run_in_executor(None, lambda: next(streamer, None))
+            if token is None:
+                break
+            yield token
+
     # Start generation
     generation_task = asyncio.create_task(asyncio.to_thread(model.generate, **gen_kwargs))
 
     # Stream tokens
     position = 0
     try:
-
-        async def stream_tokens() -> AsyncIterator[str]:
-            loop = asyncio.get_event_loop()
-            while True:
-                token = await loop.run_in_executor(None, lambda: next(streamer, None))
-                if token is None:
-                    break
-                yield token
-
         async for token in stream_tokens():
             if token:
                 yield {"type": "token", "token": token, "position": position}
