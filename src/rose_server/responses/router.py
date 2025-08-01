@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Optional
+from typing import Any, AsyncIterator, Dict, Optional, Union
 
 from fastapi import APIRouter, Body, HTTPException
 from sse_starlette.sse import EventSourceResponse
@@ -8,7 +8,7 @@ from sse_starlette.sse import EventSourceResponse
 from rose_server.events.formatters import ResponsesFormatter
 from rose_server.events.generator import EventGenerator
 from rose_server.models.deps import ModelRegistryDep
-from rose_server.responses.store import get_response, store_response_messages
+from rose_server.responses.store import get_conversation_messages, get_response, store_response_messages
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.responses import (
     ResponsesContentItem,
@@ -30,8 +30,6 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMess
 
     # Load conversation history if continuing from previous response
     if request.previous_response_id:
-        from .store import get_conversation_messages
-
         messages = await get_conversation_messages(request.previous_response_id)
 
     # Add system instructions
@@ -89,8 +87,8 @@ async def _generate_streaming_response(
     max_output_tokens: Optional[int] = None,
     temperature: Optional[float] = None,
     tool_choice: Optional[str] = None,
-):
-    async def generate():
+) -> EventSourceResponse:
+    async def generate() -> AsyncIterator[Dict[str, Any]]:
         try:
             generator = EventGenerator(config)
             formatter = ResponsesFormatter()
@@ -124,7 +122,7 @@ async def _generate_complete_response(
     tool_choice: Optional[str] = None,
     store: bool = False,
     chain_id: Optional[str] = None,
-):
+) -> ResponsesResponse:
     generator = EventGenerator(config)
     formatter = ResponsesFormatter()
     all_events = []
@@ -150,7 +148,7 @@ async def _generate_complete_response(
 
 async def _store_response(
     complete_response: dict, messages: list[ChatMessage], model: str, chain_id: Optional[str] = None
-):
+) -> None:
     reply_text = ""
     for output_item in complete_response.get("output", []):
         if output_item.get("type") == "message":
@@ -174,7 +172,7 @@ async def _store_response(
 
 
 @router.get("/responses/{response_id}", response_model=ResponsesResponse)
-async def retrieve_response(response_id: str):
+async def retrieve_response(response_id: str) -> ResponsesResponse:
     try:
         response_msg = await get_response(response_id)
         if not response_msg:
@@ -237,7 +235,9 @@ async def retrieve_response(response_id: str):
 
 
 @router.post("/responses", response_model=None)
-async def create_response(request: ResponsesRequest = Body(...), registry: ModelRegistryDep = None):
+async def create_response(
+    request: ResponsesRequest = Body(...), registry: ModelRegistryDep = None
+) -> Union[EventSourceResponse, ResponsesResponse]:
     try:
         logger.info(f"RESPONSES API - Input type: {type(request.input)}, Input: {request.input}")
         logger.info(f"RESPONSES API - Instructions: {request.instructions}")
