@@ -170,7 +170,7 @@ class ResponsesFormatter:
             "output_tokens_details": {"reasoning_tokens": 0},
         }
 
-    def format_complete_response(self, events: Sequence[LLMEvent]) -> Dict[str, Any]:
+    def format_complete_response(self, events: Sequence[LLMEvent]) -> ResponsesResponse:
         """Format a complete (non-streaming) response from all events."""
         start_event = next((e for e in events if isinstance(e, ResponseStarted)), None)
         token_events = [e for e in events if isinstance(e, TokenGenerated)]
@@ -229,4 +229,4 @@ class ResponsesFormatter:
             usage=usage,
         )
 
-        return dict(response.model_dump())
+        return response
