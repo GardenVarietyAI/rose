@@ -88,7 +88,8 @@ async def create_result_file(
         )
         await update_job_result_files(job_id, [file_obj.id])
         logger.info("Result-file %s created for job %s (%d steps)", file_obj.id, job_id, len(step_metrics))
-        return file_obj.id
+        file_obj_id: str = file_obj.id
+        return file_obj_id
     except (OSError, json.JSONDecodeError, TypeError) as exc:
         logger.error("Failed to create result file for job %s: %s", job_id, exc, exc_info=True)
         return None
