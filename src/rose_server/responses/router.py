@@ -30,7 +30,17 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMess
 
     # Load conversation history if continuing from previous response
     if request.previous_response_id:
-        messages = await get_conversation_messages(request.previous_response_id)
+        chain_messages = await get_conversation_messages(request.previous_response_id)
+
+        # Convert to ChatMessage format
+        for msg in chain_messages:
+            if isinstance(msg.content, list):
+                for item in msg.content:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        messages.append(ChatMessage(role=msg.role, content=item.get("text", "")))
+                        break
+            elif isinstance(msg.content, str):
+                messages.append(ChatMessage(role=msg.role, content=msg.content))
 
     # Add system instructions
     system_content_parts = []
@@ -138,7 +148,7 @@ async def _generate_complete_response(
         all_events.append(event)
 
     complete_response = formatter.format_complete_response(all_events)
-    complete_response["model"] = config.model_name
+    complete_response.model = config.model_name
 
     if store:
         await _store_response(complete_response, messages, config.model_name, chain_id)
@@ -150,25 +160,25 @@ async def _store_response(
     complete_response: dict, messages: list[ChatMessage], model: str, chain_id: Optional[str] = None
 ) -> None:
     reply_text = ""
-    for output_item in complete_response.get("output", []):
-        if output_item.get("type") == "message":
-            content_list = output_item.get("content", [])
+    for output_item in complete_response.output:
+        if output_item.type == "message":
+            content_list = output_item.content
             for content_item in content_list:
-                if content_item.get("type") == "output_text":
-                    reply_text = content_item.get("text", "")
+                if content_item.type == "output_text":
+                    reply_text = content_item.text
                     break
 
     message_id = await store_response_messages(
         messages=messages,
         reply_text=reply_text,
         model=model,
-        input_tokens=complete_response["usage"]["input_tokens"],
-        output_tokens=complete_response["usage"]["output_tokens"],
-        created_at=complete_response["created_at"],
+        input_tokens=complete_response.usage.input_tokens,
+        output_tokens=complete_response.usage.output_tokens,
+        created_at=complete_response.created_at,
         chain_id=chain_id,
     )
 
-    complete_response["id"] = message_id
+    complete_response.id = message_id
 
 
 @router.get("/responses/{response_id}", response_model=ResponsesResponse)
@@ -202,22 +212,18 @@ async def retrieve_response(response_id: str) -> ResponsesResponse:
 
         # Get token counts from meta
         meta = response_msg.meta or {}
-        usage = ResponsesUsage(
-            input_tokens=meta.get("input_tokens", 0),
-            output_tokens=meta.get("output_tokens", meta.get("token_count", 0)),  # Fallback to old token_count
-            total_tokens=meta.get("total_tokens", meta.get("token_count", 0)),
-        )
-
-        response = ResponsesResponse(
+        return ResponsesResponse(
             id=response_msg.id,
             created_at=response_msg.created_at,
             model=model_name,
             status="completed",
             output=[output_item],
-            usage=usage,
+            usage=ResponsesUsage(
+                input_tokens=meta.get("input_tokens", 0),
+                output_tokens=meta.get("output_tokens", meta.get("token_count", 0)),  # Fallback to old token_count
+                total_tokens=meta.get("total_tokens", meta.get("token_count", 0)),
+            ),
         )
-
-        return response.model_dump()
     except HTTPException:
         raise
     except Exception as e:
