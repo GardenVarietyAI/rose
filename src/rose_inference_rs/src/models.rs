@@ -5,7 +5,6 @@ use candle_transformers::generation::LogitsProcessor;
 use candle_nn::VarBuilder;
 use tokenizers::Tokenizer;
 use tokio::sync::mpsc;
-use tracing::info;
 use std::path::Path;
 
 use crate::error::InferenceError;
@@ -19,10 +18,8 @@ pub async fn generate_streaming(
     top_p: Option<f32>,
     stream_tx: mpsc::Sender<crate::server::InferenceResponse>,
 ) -> Result<()> {
-    // Load tokenizer directly
+    // Load tokenizer
     let tokenizer_path = format!("{}/tokenizer.json", model_path);
-    info!("Loading tokenizer from: {}", tokenizer_path);
-
     let tokenizer = if Path::new(&tokenizer_path).exists() {
         Tokenizer::from_file(&tokenizer_path)
             .map_err(|e| InferenceError::TokenizerError(format!("Failed to load tokenizer: {}", e)))?
@@ -38,33 +35,23 @@ pub async fn generate_streaming(
     let prompt_tokens = ids.len() as u32;
     let tokens = ids.to_vec();
 
-    info!("Starting generation with {} prompt tokens, max_tokens: {}, temperature: {}",
-          prompt_tokens, max_tokens, temperature);
-    info!("Raw prompt received: {:?}", prompt);
-
-    // Load model directly
-    info!("Loading Qwen2 model from: {:?}", model_path);
+    // Load model
     let config_path = Path::new(model_path).join("config.json");
     let config_json = std::fs::read_to_string(&config_path)?;
     let qwen_config: Config = serde_json::from_str(&config_json)?;
-
     let weights_path = Path::new(model_path).join("model.safetensors");
     let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[weights_path], candle_core::DType::F32, &device)? };
     let mut model = ModelForCausalLM::new(&qwen_config, vb)?;
 
-    info!("Model loaded successfully");
-
-    // Send input tokens counted
+    // Notify input token count
     let input_tokens_msg = crate::server::InferenceResponse::InputTokensCounted {
         input_tokens: prompt_tokens,
     };
     if stream_tx.send(input_tokens_msg).await.is_err() {
-        info!("Stream receiver dropped during input tokens, stopping");
         return Ok(());
     }
-    info!("Sent input tokens count: {}", prompt_tokens);
 
-    // Setup sampling with API parameters - use lower temperature for better quality
+    // Setup sampling
     let sampling = if temperature <= 0.0 {
         candle_transformers::generation::Sampling::ArgMax
     } else {
@@ -78,32 +65,23 @@ pub async fn generate_streaming(
             }
         }
     };
-
     let mut logits_processor = LogitsProcessor::from_sampling(42, sampling);
 
-    // Process initial prompt
-    info!("Starting initial forward pass with {} tokens", tokens.len());
-    let mut next_token = {
-        let input = Tensor::from_slice(&tokens, (1, tokens.len()), &device)?;
-        info!("Created input tensor, running initial forward");
-        let logits = model.forward(&input, 0)?;
-        info!("Initial forward completed, logits shape: {:?}", logits.shape());
-        // ModelForCausalLM returns [1, 1, vocab_size] - just squeeze the first two dims
-        let logits = logits.squeeze(0)?.squeeze(0)?;
-        info!("Logits after squeeze: {:?}", logits.shape());
-        logits_processor.sample(&logits)?
-    };
+    // Initial forward pass
+    let prompt_tensor = Tensor::from_slice(&tokens, (1, tokens.len()), &device)?;
+    let logits = model.forward(&prompt_tensor, 0)?;
+    let logits = logits.squeeze(0)?.squeeze(0)?;
+    let mut next_token = logits_processor.sample(&logits)?;
 
     let mut all_tokens = tokens.clone();
     all_tokens.push(next_token);
 
-    // Send first token
+    // Stream first token
     let token_text = tokenizer
         .decode(&[next_token], true)
         .map_err(|e| InferenceError::TokenizerError(e.to_string()))?;
-
     let token_msg = crate::server::InferenceResponse::Token {
-        token: token_text.clone(),
+        token: token_text,
         position: 0,
         logprob: None,
         top_logprobs: None,
@@ -117,10 +95,9 @@ pub async fn generate_streaming(
     let repeat_last_n = 64;
     let to_sample = max_tokens.saturating_sub(1);
 
-    info!("Starting generation loop for {} tokens", to_sample);
     for index in 0..to_sample {
-        let input = Tensor::from_slice(&[next_token], (1, 1), &device)?;
-        let logits = model.forward(&input, all_tokens.len() - 1)?;
+        let next_input_tensor = Tensor::from_slice(&[next_token], (1, 1), &device)?;
+        let logits = model.forward(&next_input_tensor, all_tokens.len() - 1)?;
         let logits = logits.squeeze(0)?.squeeze(0)?;
 
         // Apply repeat penalty
@@ -143,9 +120,9 @@ pub async fn generate_streaming(
             .decode(&[next_token], true)
             .map_err(|e| InferenceError::TokenizerError(e.to_string()))?;
 
-        // Stream token immediately after decoding
+        // Stream token
         let token_msg = crate::server::InferenceResponse::Token {
-            token: token_text.clone(),
+            token: token_text,
             position: index + 1,
             logprob: None,
             top_logprobs: None,
@@ -154,32 +131,23 @@ pub async fn generate_streaming(
             break;
         }
 
-        // Check for EOS token - Qwen2.5 uses 151645 as EOS
+        // EOS detection (Qwen2.5 uses 151645 as EOS, <|im_end|> fallback)
         let eos_token = 151645u32;
         let im_end_token = tokenizer.get_vocab(true).get("<|im_end|>").copied().unwrap_or(151643);
-
         if next_token == eos_token || next_token == im_end_token {
-            info!("Generation stopped at token {} (EOS: {}, im_end: {})", index + 1, eos_token, im_end_token);
             break;
         }
 
-        // Break on repetitive tokens (prevent infinite loops)
+        // Prevent infinite token repetition
         if index > 10 {
             let recent_tokens = &all_tokens[all_tokens.len().saturating_sub(8)..];
             if recent_tokens.len() >= 8 && recent_tokens.iter().all(|&t| t == next_token) {
-                info!("Breaking repetitive token loop at token {} (repeated token: {})", index + 1, next_token);
                 break;
             }
         }
-
-        // Hard limit to prevent infinite loops
-        if index >= max_tokens {
-            info!("Max tokens reached, stopping at {}", index + 1);
-            break;
-        }
     }
 
-    // Send completion
+    // Notify completion
     let output_tokens = all_tokens.len() as u32;
     let complete_msg = crate::server::InferenceResponse::Complete {
         input_tokens: prompt_tokens,
