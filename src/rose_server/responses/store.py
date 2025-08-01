@@ -14,9 +14,19 @@ async def get_response(response_id: str) -> Optional[Message]:
         return await session.get(Message, response_id)
 
 
-async def get_conversation_messages(response_id: str) -> List[ChatMessage]:
+async def get_chain_ids() -> List[str]:
     """Load all messages in a conversation chain."""
-    messages = []
+    async with get_session(read_only=True) as session:
+        query = (
+            select(Message.response_chain_id)
+            .where(Message.response_chain_id.is_not(None))
+            .distinct()
+            .order_by(Message.created_at)
+        )
+        result = await session.execute(query)
+        chain_ids: List[str] = result.scalars().all()
+        return chain_ids
+
 
 async def get_conversation_messages(response_id: str) -> List[Message]:
     """Load all messages in a conversation chain."""
@@ -48,7 +58,6 @@ async def store_response_messages(
     chain_id: Optional[str] = None,
 ) -> str:
     end_time = time.time()
-
     # Generate new chain_id if not provided
     if not chain_id:
         chain_id = f"chain_{uuid.uuid4().hex[:16]}"

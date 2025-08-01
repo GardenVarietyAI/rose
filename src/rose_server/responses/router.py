@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, AsyncIterator, Dict, Optional, Union
+from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 from fastapi import APIRouter, Body, HTTPException
 from sse_starlette.sse import EventSourceResponse
@@ -8,7 +8,7 @@ from sse_starlette.sse import EventSourceResponse
 from rose_server.events.formatters import ResponsesFormatter
 from rose_server.events.generator import EventGenerator
 from rose_server.models.deps import ModelRegistryDep
-from rose_server.responses.store import get_conversation_messages, get_response, store_response_messages
+from rose_server.responses.store import get_chain_ids, get_conversation_messages, get_response, store_response_messages
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.responses import (
     ResponsesContentItem,
@@ -22,6 +22,12 @@ from rose_server.types.models import ModelConfig
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["responses"])
+
+
+@router.get("/responses/chains")
+async def chains() -> List[str]:
+    chains: List[str] = await get_chain_ids()
+    return chains
 
 
 async def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMessage]:
@@ -157,7 +163,7 @@ async def _generate_complete_response(
 
 
 async def _store_response(
-    complete_response: dict, messages: list[ChatMessage], model: str, chain_id: Optional[str] = None
+    complete_response: ResponsesResponse, messages: list[ChatMessage], model: str, chain_id: Optional[str] = None
 ) -> None:
     reply_text = ""
     for output_item in complete_response.output:
