@@ -10,6 +10,7 @@ from rose_server.events.generator import EventGenerator
 from rose_server.models.deps import ModelRegistryDep
 from rose_server.responses.store import get_chain_ids, get_conversation_messages, get_response, store_response_messages
 from rose_server.schemas.chat import ChatMessage
+from rose_server.schemas.models import ModelConfig
 from rose_server.schemas.responses import (
     ResponsesContentItem,
     ResponsesOutputItem,
@@ -18,7 +19,6 @@ from rose_server.schemas.responses import (
     ResponsesUsage,
 )
 from rose_server.tools import format_tools_for_prompt
-from rose_server.types.models import ModelConfig
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["responses"])

@@ -4,7 +4,7 @@ import logging
 from typing import Optional
 
 from rose_server.models.store import get as get_language_model
-from rose_server.types.models import ModelConfig
+from rose_server.schemas.models import ModelConfig
 
 logger = logging.getLogger(__name__)
 
