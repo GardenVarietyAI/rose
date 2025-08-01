@@ -157,7 +157,6 @@ async def generate_stream(
             if token:
                 yield {"type": "token", "token": token, "position": position}
                 position += 1
-
     except Exception as e:
         logger.error(f"Generation error: {e}")
         yield {"type": "error", "error": str(e)}
@@ -167,9 +166,17 @@ async def generate_stream(
         timeout = config.get("inference_timeout", 120) if config else 120
         try:
             await asyncio.wait_for(generation_task, timeout=timeout)
-        except asyncio.TimeoutError:
-            logger.error(f"Generation timeout after {timeout}s")
+        except asyncio.CancelledError:
+            logger.warning("Generation task was cancelled")
             generation_task.cancel()
+            raise
+        except Exception as e:
+            if isinstance(e, asyncio.TimeoutError):
+                logger.error(f"Generation timeout after {timeout}s")
+                generation_task.cancel()
+            else:
+                logger.error(f"Unexpected error in generation cleanup: {e}")
+                generation_task.cancel()
 
     yield {
         "type": "complete",
