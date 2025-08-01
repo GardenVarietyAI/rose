@@ -2,7 +2,7 @@
 
 from typing import List, Union
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
 from rose_server.embeddings import generate_embeddings
@@ -26,9 +26,8 @@ async def openai_api_embeddings(
         response = generate_embeddings(texts=input, model_name=model)
         return JSONResponse(content=response)
     except ValueError as e:
-        return JSONResponse(status_code=400, content={"error": {"message": str(e), "type": "invalid_request_error"}})
+        raise HTTPException(status_code=400, detail={"error": {"message": str(e), "type": "invalid_request_error"}})
     except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": {"message": f"An error occurred: {str(e)}", "type": "server_error"}},
+        raise HTTPException(
+            status_code=500, detail={"error": {"message": f"An error occurred: {str(e)}", "type": "server_error"}}
         )
