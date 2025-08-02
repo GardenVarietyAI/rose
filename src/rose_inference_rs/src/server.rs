@@ -150,7 +150,7 @@ impl InferenceServer {
 
         let (stream_tx, mut stream_rx) = mpsc::channel::<InferenceResponse>(1);
 
-        let max_tokens = request.generation_kwargs.max_new_tokens.unwrap_or(512);
+        let max_tokens = request.generation_kwargs.max_new_tokens.unwrap_or(2048);
         let temperature = request
             .generation_kwargs
             .temperature

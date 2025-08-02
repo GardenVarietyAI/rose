@@ -24,9 +24,15 @@ pub async fn stream(
     let encoding = tokenizer
         .encode(prompt, false)
         .map_err(|e| InferenceError::TokenizerError(e.to_string()))?;
-    let ids = encoding.get_ids();
-    let prompt_tokens = ids.len() as u32;
-    let tokens = ids.to_vec();
+
+    let mut tokens = encoding.get_ids().to_vec();
+
+    // Sliding context window
+    if tokens.len() > max_tokens {
+        tokens = tokens[tokens.len() - max_tokens..].to_vec();
+    }
+
+    let prompt_tokens = tokens.len() as u32;
 
     // Notify input token count
     let input_tokens_msg = crate::server::InferenceResponse::InputTokensCounted {
