@@ -185,6 +185,9 @@ impl InferenceServer {
                     temperature,
                     top_p,
                     stream_tx,
+                    42,
+                    1.1f32,
+                    64,
                 )
                 .await
             })

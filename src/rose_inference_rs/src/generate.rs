@@ -16,6 +16,9 @@ pub async fn stream(
     temperature: f32,
     top_p: Option<f32>,
     stream_tx: mpsc::Sender<crate::server::InferenceResponse>,
+    seed: u64,
+    repeat_penalty: f32,
+    repeat_last_n: usize,
 ) -> Result<()> {
     // Tokenize prompt
     let encoding = tokenizer
@@ -47,7 +50,7 @@ pub async fn stream(
             },
         }
     };
-    let mut logits_processor = LogitsProcessor::from_sampling(42, sampling);
+    let mut logits_processor = LogitsProcessor::from_sampling(seed, sampling);
 
     // Initial forward pass
     let prompt_tensor = Tensor::from_slice(&tokens, (1, tokens.len()), &device)?;
@@ -73,8 +76,6 @@ pub async fn stream(
     }
 
     // Generate remaining tokens
-    let repeat_penalty = 1.1f32;
-    let repeat_last_n = 64;
     let to_sample = max_tokens.saturating_sub(1);
 
     for index in 0..to_sample {
