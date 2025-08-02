@@ -1,14 +1,15 @@
 use anyhow::Result;
 use clap::Parser;
-use tokio_tungstenite::{accept_hdr_async, tungstenite::Message};
-use tracing::{error, info, warn};
 use futures_util::{SinkExt, StreamExt};
 use std::net::SocketAddr;
 use tokio::net::{TcpListener, TcpStream};
+use tokio_tungstenite::{accept_hdr_async, tungstenite::Message};
+use tracing::{error, info, warn};
 
+mod error;
+mod generate;
 mod models;
 mod server;
-mod error;
 
 use server::InferenceServer;
 
@@ -19,7 +20,12 @@ struct Args {
     #[arg(short, long, default_value = "127.0.0.1:8005")]
     bind: SocketAddr,
 
-    #[arg(short, long, default_value = "auto", help = "Device to use: auto, cuda, metal, or cpu")]
+    #[arg(
+        short,
+        long,
+        default_value = "auto",
+        help = "Device to use: auto, cuda, metal, or cpu"
+    )]
     device: String,
 
     #[arg(short, long, default_value = "info")]
@@ -39,7 +45,10 @@ async fn main() -> Result<()> {
     let server = InferenceServer::new(args.device).await?;
     let listener = TcpListener::bind(&args.bind).await?;
 
-    info!("WebSocket server listening on {} with /inference endpoint", args.bind);
+    info!(
+        "WebSocket server listening on {} with /inference endpoint",
+        args.bind
+    );
 
     let shutdown = tokio::signal::ctrl_c();
 
@@ -73,7 +82,11 @@ async fn handle_connection(stream: TcpStream, server: InferenceServer) -> Result
     let callback = |req: &tokio_tungstenite::tungstenite::handshake::server::Request, response| {
         if req.uri().path() != "/inference" {
             warn!("Invalid path: {}, expected /inference", req.uri().path());
-            return Err(tokio_tungstenite::tungstenite::handshake::server::ErrorResponse::new(Some("404".to_string())));
+            return Err(
+                tokio_tungstenite::tungstenite::handshake::server::ErrorResponse::new(Some(
+                    "404".to_string(),
+                )),
+            );
         }
         Ok(response)
     };
@@ -84,15 +97,19 @@ async fn handle_connection(stream: TcpStream, server: InferenceServer) -> Result
     while let Some(msg) = ws_receiver.next().await {
         match msg? {
             Message::Text(text) => {
-                match server.process_streaming_request(&text, &mut ws_sender).await {
+                match server
+                    .process_streaming_request(&text, &mut ws_sender)
+                    .await
+                {
                     Ok(()) => {
                         // Streaming completed successfully
                     }
                     Err(e) => {
                         warn!("Request processing error: {}", e);
-                        let error_response = serde_json::to_string(&server::InferenceResponse::Error {
-                            error: e.to_string(),
-                        })?;
+                        let error_response =
+                            serde_json::to_string(&server::InferenceResponse::Error {
+                                error: e.to_string(),
+                            })?;
                         if let Err(e) = ws_sender.send(Message::Text(error_response)).await {
                             error!("Failed to send error response: {}", e);
                             break;

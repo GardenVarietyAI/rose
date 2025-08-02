@@ -1,14 +1,18 @@
+use std::path::Path;
+
 use anyhow::Result;
 use candle_core::Device;
-use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
-use tokio_tungstenite::tungstenite::Message as WsMessage;
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
-use tracing::{info, debug, warn};
+use serde::{Deserialize, Serialize};
+use tokenizers::Tokenizer;
+use tokio::sync::mpsc;
+use tokio_tungstenite::tungstenite::Message as WsMessage;
+use tracing::{debug, info, warn};
 
-use crate::models;
 use crate::error::InferenceError;
+use crate::generate;
+use crate::models::{load_causal_lm, ModelKind};
 
 #[derive(Clone)]
 pub struct InferenceServer {
@@ -85,9 +89,7 @@ impl InferenceServer {
 
         info!("Initialized inference server with device: {:?}", device);
 
-        Ok(Self {
-            device,
-        })
+        Ok(Self { device })
     }
 
     fn detect_best_device() -> Result<Device> {
@@ -118,9 +120,14 @@ impl InferenceServer {
         Ok(Device::Cpu)
     }
 
-    pub async fn process_streaming_request<S>(&self, request_text: &str, ws_sender: &mut SplitSink<S, WsMessage>) -> Result<()>
+    pub async fn process_streaming_request<S>(
+        &self,
+        request_text: &str,
+        ws_sender: &mut SplitSink<S, WsMessage>,
+    ) -> Result<()>
     where
-        S: futures_util::Stream<Item = Result<WsMessage, tokio_tungstenite::tungstenite::Error>> + futures_util::Sink<WsMessage>,
+        S: futures_util::Stream<Item = Result<WsMessage, tokio_tungstenite::tungstenite::Error>>
+            + futures_util::Sink<WsMessage>,
         <S as futures_util::Sink<WsMessage>>::Error: std::error::Error + Send + Sync + 'static,
     {
         debug!("Processing streaming request: {}", request_text);
@@ -135,21 +142,51 @@ impl InferenceServer {
             // TODO: Implement proper chat template support when available in tokenizers crate
             self.format_messages(&messages)
         } else {
-            return Err(InferenceError::InvalidRequest("Either prompt or messages must be provided".to_string()).into());
+            return Err(InferenceError::InvalidRequest(
+                "Either prompt or messages must be provided".to_string(),
+            )
+            .into());
         };
 
         let (stream_tx, mut stream_rx) = mpsc::channel::<InferenceResponse>(1);
 
         let max_tokens = request.generation_kwargs.max_new_tokens.unwrap_or(512);
-        let temperature = request.generation_kwargs.temperature.or(request.config.temperature).unwrap_or(0.7);
+        let temperature = request
+            .generation_kwargs
+            .temperature
+            .or(request.config.temperature)
+            .unwrap_or(0.7);
         let top_p = request.generation_kwargs.top_p;
 
         let generation_task = {
             let model_path = request.config.model_path.clone();
             let device = self.device.clone();
+            let mut model = load_causal_lm(ModelKind::Qwen2, &model_path, &device)?;
+            let tokenizer_path = format!("{}/tokenizer.json", model_path);
+            let tokenizer = if Path::new(&tokenizer_path).exists() {
+                Tokenizer::from_file(&tokenizer_path).map_err(|e| {
+                    InferenceError::TokenizerError(format!("Failed to load tokenizer: {}", e))
+                })?
+            } else {
+                return Err(InferenceError::TokenizerError(format!(
+                    "Tokenizer not found at: {}",
+                    tokenizer_path
+                ))
+                .into());
+            };
             let prompt = prompt.clone();
             tokio::spawn(async move {
-                models::generate_streaming(&model_path, device, &prompt, max_tokens, temperature, top_p, stream_tx).await
+                generate::stream(
+                    &mut *model,
+                    &tokenizer,
+                    device,
+                    &prompt,
+                    max_tokens,
+                    temperature,
+                    top_p,
+                    stream_tx,
+                )
+                .await
             })
         };
 
@@ -182,7 +219,10 @@ impl InferenceServer {
                     prompt_parts.push(format!("<|im_start|>assistant\n{}<|im_end|>", msg.content));
                 }
                 _ => {
-                    prompt_parts.push(format!("<|im_start|>{}\n{}<|im_end|>", msg.role, msg.content));
+                    prompt_parts.push(format!(
+                        "<|im_start|>{}\n{}<|im_end|>",
+                        msg.role, msg.content
+                    ));
                 }
             }
         }

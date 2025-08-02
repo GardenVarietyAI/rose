@@ -1,16 +1,15 @@
 use anyhow::Result;
 use candle_core::{Device, Tensor};
-use candle_transformers::models::qwen2::{ModelForCausalLM, Config};
 use candle_transformers::generation::LogitsProcessor;
-use candle_nn::VarBuilder;
 use tokenizers::Tokenizer;
 use tokio::sync::mpsc;
-use std::path::Path;
 
 use crate::error::InferenceError;
+use crate::models::CausalLM;
 
-pub async fn generate_streaming(
-    model_path: &str,
+pub async fn stream(
+    model: &mut dyn CausalLM,
+    tokenizer: &Tokenizer,
     device: Device,
     prompt: &str,
     max_tokens: usize,
@@ -18,15 +17,6 @@ pub async fn generate_streaming(
     top_p: Option<f32>,
     stream_tx: mpsc::Sender<crate::server::InferenceResponse>,
 ) -> Result<()> {
-    // Load tokenizer
-    let tokenizer_path = format!("{}/tokenizer.json", model_path);
-    let tokenizer = if Path::new(&tokenizer_path).exists() {
-        Tokenizer::from_file(&tokenizer_path)
-            .map_err(|e| InferenceError::TokenizerError(format!("Failed to load tokenizer: {}", e)))?
-    } else {
-        return Err(InferenceError::TokenizerError(format!("Tokenizer not found at: {}", tokenizer_path)).into());
-    };
-
     // Tokenize prompt
     let encoding = tokenizer
         .encode(prompt, false)
@@ -34,14 +24,6 @@ pub async fn generate_streaming(
     let ids = encoding.get_ids();
     let prompt_tokens = ids.len() as u32;
     let tokens = ids.to_vec();
-
-    // Load model
-    let config_path = Path::new(model_path).join("config.json");
-    let config_json = std::fs::read_to_string(&config_path)?;
-    let qwen_config: Config = serde_json::from_str(&config_json)?;
-    let weights_path = Path::new(model_path).join("model.safetensors");
-    let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[weights_path], candle_core::DType::F32, &device)? };
-    let mut model = ModelForCausalLM::new(&qwen_config, vb)?;
 
     // Notify input token count
     let input_tokens_msg = crate::server::InferenceResponse::InputTokensCounted {
@@ -62,7 +44,7 @@ pub async fn generate_streaming(
             },
             None => candle_transformers::generation::Sampling::All {
                 temperature: temperature as f64,
-            }
+            },
         }
     };
     let mut logits_processor = LogitsProcessor::from_sampling(42, sampling);
@@ -132,8 +114,8 @@ pub async fn generate_streaming(
         }
 
         // EOS detection (Qwen2.5 uses 151645 as EOS, <|im_end|> fallback)
-        let eos_token = 151645u32;
-        let im_end_token = tokenizer.get_vocab(true).get("<|im_end|>").copied().unwrap_or(151643);
+        let eos_token = model.eos_token_id();
+        let im_end_token = model.im_end_token_id(tokenizer);
         if next_token == eos_token || next_token == im_end_token {
             break;
         }
