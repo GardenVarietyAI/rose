@@ -26,14 +26,14 @@ pub async fn stream(
         .encode(prompt, false)
         .map_err(|e| InferenceError::TokenizerError(e.to_string()))?;
 
-    let mut tokens = encoding.get_ids().to_vec();
+    let mut all_tokens = encoding.get_ids().to_vec();
 
     // Sliding context window
-    if tokens.len() > max_input_tokens {
-        tokens = tokens[tokens.len() - max_input_tokens..].to_vec();
+    if all_tokens.len() > max_input_tokens {
+        all_tokens = all_tokens[all_tokens.len() - max_input_tokens..].to_vec();
     }
 
-    let prompt_tokens = tokens.len() as u32;
+    let prompt_tokens = all_tokens.len() as u32;
 
     // Notify input token count
     let input_tokens_msg = crate::server::InferenceResponse::InputTokensCounted {
@@ -59,35 +59,15 @@ pub async fn stream(
     };
     let mut logits_processor = LogitsProcessor::from_sampling(seed, sampling);
 
-    // Initial forward pass
-    let prompt_tensor = Tensor::from_slice(&tokens, (1, tokens.len()), &device)?;
-    let logits = model.forward(&prompt_tensor, 0)?;
-    let logits = logits.squeeze(0)?.squeeze(0)?;
-    let mut next_token = logits_processor.sample(&logits)?;
-
-    let mut all_tokens = tokens.clone();
-    all_tokens.push(next_token);
-
-    // Stream first token
-    let token_text = tokenizer
-        .decode(&[next_token], true)
-        .map_err(|e| InferenceError::TokenizerError(e.to_string()))?;
-    let token_msg = crate::server::InferenceResponse::Token {
-        token: token_text,
-        position: 0,
-        logprob: None,
-        top_logprobs: None,
-    };
-    if stream_tx.send(token_msg).await.is_err() {
-        return Ok(());
-    }
-
+    let mut next_token: Option<u32> = None;
     for index in 0..max_output_tokens {
-        let next_input_tensor = Tensor::from_slice(&[next_token], (1, 1), &device)?;
-        let logits = model.forward(&next_input_tensor, all_tokens.len() - 1)?;
+        let input = match next_token {
+            Some(tok) => vec![tok],     // generate next token from last token
+            None => all_tokens.clone(), // first step: use prompt tokens
+        };
+        let input_tensor = Tensor::from_slice(&input, (1, input.len()), &device)?;
+        let logits = model.forward(&input_tensor, all_tokens.len() - input.len())?;
         let logits = logits.squeeze(0)?.squeeze(0)?;
-
-        // Apply repeat penalty
         let logits = if repeat_penalty == 1.0 {
             logits
         } else {
@@ -99,18 +79,16 @@ pub async fn stream(
             )?
         };
 
-        next_token = logits_processor.sample(&logits)?;
-        all_tokens.push(next_token);
+        let sampled_token = logits_processor.sample(&logits)?;
+        all_tokens.push(sampled_token);
 
-        // Decode token
+        // decode & stream
         let token_text = tokenizer
-            .decode(&[next_token], true)
+            .decode(&[sampled_token], true)
             .map_err(|e| InferenceError::TokenizerError(e.to_string()))?;
-
-        // Stream token
         let token_msg = crate::server::InferenceResponse::Token {
             token: token_text,
-            position: index + 1,
+            position: index,
             logprob: None,
             top_logprobs: None,
         };
@@ -119,23 +97,25 @@ pub async fn stream(
         }
 
         // EOS detection (Qwen2.5 uses 151645 as EOS, <|im_end|> fallback)
-        let eos_token = model.eos_token_id();
-        let im_end_token = model.im_end_token_id(tokenizer);
-        if next_token == eos_token || next_token == im_end_token {
+        if sampled_token == model.eos_token_id()
+            || sampled_token == model.im_end_token_id(tokenizer)
+        {
             break;
         }
 
         // Prevent infinite token repetition
         if index > 10 {
             let recent_tokens = &all_tokens[all_tokens.len().saturating_sub(8)..];
-            if recent_tokens.len() >= 8 && recent_tokens.iter().all(|&t| t == next_token) {
+            if recent_tokens.len() >= 8 && recent_tokens.iter().all(|&t| t == sampled_token) {
                 break;
             }
         }
+
+        next_token = Some(sampled_token);
     }
 
     // Notify completion
-    let output_tokens = all_tokens.len() as u32;
+    let output_tokens = all_tokens.len() as u32 - prompt_tokens;
     let complete_msg = crate::server::InferenceResponse::Complete {
         input_tokens: prompt_tokens,
         output_tokens,

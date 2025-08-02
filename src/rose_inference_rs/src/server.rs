@@ -181,8 +181,8 @@ impl InferenceServer {
                     &tokenizer,
                     device,
                     &prompt,
-                    max_tokens,
-                    512,
+                    8192, // max_tokens
+                    1024,
                     temperature,
                     top_p,
                     stream_tx,
