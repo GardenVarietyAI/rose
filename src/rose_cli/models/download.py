@@ -20,6 +20,7 @@ def download_model(
     model_name: str = typer.Argument(..., help="HuggingFace model to download (e.g. microsoft/phi-2)"),
     force: bool = typer.Option(False, "--force", "-f", help="Force re-download even if exists"),
     alias: str = typer.Option(None, "--alias", "-a", help="Short alias for the model (defaults to last part of name)"),
+    num_workers: int = typer.Option(1, "--num-workers", "-n", help="Number of files to download simulatneously"),
 ) -> None:
     """Download a model from HuggingFace and register it in the database."""
     # model_name is the HuggingFace model ID
@@ -40,13 +41,13 @@ def download_model(
         console.print(f"[yellow]Downloading {hf_model_name} to {local_dir}[/yellow]")
         console.print("[dim]This may take several minutes for large models...[/dim]\n")
 
-        # Download using snapshot_download with better error handling
+        # Download using snapshot_download
         local_path = snapshot_download(
             repo_id=hf_model_name,
             local_dir=str(local_dir),
             force_download=force,
-            token=HfFolder.get_token(),  # Use token if user is logged in
-            max_workers=4,  # Limit concurrent downloads
+            token=HfFolder.get_token(),
+            max_workers=num_workers,
         )
 
         console.print(f"[green]✓ Model {model_name} successfully downloaded[/green]")
