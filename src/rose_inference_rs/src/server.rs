@@ -182,6 +182,7 @@ impl InferenceServer {
                     device,
                     &prompt,
                     max_tokens,
+                    512,
                     temperature,
                     top_p,
                     stream_tx,

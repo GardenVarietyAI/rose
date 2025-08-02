@@ -12,7 +12,8 @@ pub async fn stream(
     tokenizer: &Tokenizer,
     device: Device,
     prompt: &str,
-    max_tokens: usize,
+    max_input_tokens: usize,
+    max_output_tokens: usize,
     temperature: f32,
     top_p: Option<f32>,
     stream_tx: mpsc::Sender<crate::server::InferenceResponse>,
@@ -28,8 +29,8 @@ pub async fn stream(
     let mut tokens = encoding.get_ids().to_vec();
 
     // Sliding context window
-    if tokens.len() > max_tokens {
-        tokens = tokens[tokens.len() - max_tokens..].to_vec();
+    if tokens.len() > max_input_tokens {
+        tokens = tokens[tokens.len() - max_input_tokens..].to_vec();
     }
 
     let prompt_tokens = tokens.len() as u32;
@@ -81,10 +82,7 @@ pub async fn stream(
         return Ok(());
     }
 
-    // Generate remaining tokens
-    let to_sample = max_tokens.saturating_sub(1);
-
-    for index in 0..to_sample {
+    for index in 0..max_output_tokens {
         let next_input_tensor = Tensor::from_slice(&[next_token], (1, 1), &device)?;
         let logits = model.forward(&next_input_tensor, all_tokens.len() - 1)?;
         let logits = logits.squeeze(0)?.squeeze(0)?;
