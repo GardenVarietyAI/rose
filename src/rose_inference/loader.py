@@ -150,10 +150,18 @@ def unload_model(model: Optional[Any] = None) -> None:
 
     # GPU memory cleanup
     if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.ipc_collect()  # type: ignore[no-untyped-call]
+        for device_id in range(torch.cuda.device_count()):
+            with torch.cuda.device(device_id):
+                # Release cached memory on each CUDA device and wait for
+                # pending kernels to finish so memory is actually freed.
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()  # type: ignore[no-untyped-call]
+                torch.cuda.synchronize()
     elif torch.backends.mps.is_available():
         torch.mps.empty_cache()
+        # Ensure all queued work is done before continuing to avoid
+        # holding references to freed memory on Apple MPS.
+        torch.mps.synchronize()
 
     gc.collect()
     logger.info("Memory cleanup completed")
