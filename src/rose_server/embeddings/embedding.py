@@ -1,4 +1,5 @@
 import asyncio
+from functools import lru_cache
 from typing import Any, Dict, List, Union
 
 import numpy as np
@@ -20,9 +21,33 @@ EMBEDDING_MODELS = {
     },
 }
 
-# Simple caches for models and tokenizers
-_models: Dict[str, SentenceTransformer] = {}
-_tokenizers: Dict[str, Tokenizer] = {}
+@lru_cache(maxsize=4)
+def _get_model(model_name: str) -> SentenceTransformer:
+    if model_name in EMBEDDING_MODELS:
+        model_path = str(EMBEDDING_MODELS[model_name]["model_name"])
+    else:
+        model_path = str(model_name)
+    return SentenceTransformer(model_path)
+
+
+@lru_cache(maxsize=4)
+def _get_tokenizer(model_name: str) -> Tokenizer:
+    if model_name in EMBEDDING_MODELS:
+        model_path = str(EMBEDDING_MODELS[model_name]["model_name"])
+    else:
+        model_path = model_name
+    return Tokenizer.from_pretrained(model_path, trust_remote_code=True, use_fast=True)
+
+
+def clear_embedding_cache() -> None:
+    """Clear cached models and tokenizers.
+
+    This can be used when memory pressure is detected to free cached
+    embedding models and tokenizers.
+    """
+
+    _get_model.cache_clear()
+    _get_tokenizer.cache_clear()
 
 
 def generate_embeddings(
@@ -36,13 +61,7 @@ def generate_embeddings(
     if isinstance(texts, str):
         texts = [texts]
 
-    if model_name not in _models:
-        if model_name in EMBEDDING_MODELS:
-            model_path = str(EMBEDDING_MODELS[model_name]["model_name"])
-        else:
-            model_path = str(model_name)
-        _models[model_name] = SentenceTransformer(model_path)
-    model = _models[model_name]
+    model = _get_model(model_name)
 
     all_embeddings: List[np.ndarray] = []
 
@@ -52,13 +71,7 @@ def generate_embeddings(
         # Convert 2D array to list of 1D arrays
         all_embeddings.extend(list(batch_embeddings))
 
-    if model_name not in _tokenizers:
-        if model_name in EMBEDDING_MODELS:
-            model_path = str(EMBEDDING_MODELS[model_name]["model_name"])
-        else:
-            model_path = model_name
-        _tokenizers[model_name] = Tokenizer.from_pretrained(model_path, trust_remote_code=True, use_fast=True)
-    embedding_tokenizer = _tokenizers[model_name]
+    embedding_tokenizer = _get_tokenizer(model_name)
 
     total_tokens = 0
     for text in texts:
