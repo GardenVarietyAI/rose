@@ -82,7 +82,7 @@ impl InferenceServer {
         let device = match device_str.as_str() {
             "cuda" => Device::new_cuda(0)?,
             "cpu" => Device::Cpu,
-            "metal" => Device::new_metal(0)?,
+            "metal" | "mps" => Device::new_metal(0)?,
             "auto" => Self::detect_best_device()?,
             _ => Device::Cpu,
         };
