@@ -5,10 +5,9 @@ edition = "2021"
 
 [dependencies]
 # Candle ML framework
-candle-core = "0.9"
-candle-nn = "0.9"
-candle-transformers = "0.9"
-candle-examples = "0.9"
+candle-core = "^0.9"
+candle-nn = "^0.9"
+candle-transformers = "^0.9"
 
 # Tokenization
 tokenizers = { version = "0.21", features = ["http"] }
