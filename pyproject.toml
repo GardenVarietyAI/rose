@@ -5,6 +5,12 @@ description = "ROSE - Run your own LLM server"
 readme = "README.md"
 requires-python = ">=3.13,<4.0"
 authors = [{ name = "Garden Variety AI" }]
+license = { file = "LICENSE" }
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13",
+]
 dependencies = [
   "fastapi>=0.110.0",
   "uvicorn>=0.27.1",
