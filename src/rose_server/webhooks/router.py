@@ -37,6 +37,7 @@ async def process_webhook_event(event: WebhookEvent, registry: ModelRegistryDep)
             else:
                 logger.warning(f"Unknown training webhook event: {event.event}")
                 return
+
             logger.info(f"Successfully processed webhook: {event.event} for job {event.job_id}")
         else:
             logger.error(f"Unknown webhook object type: {event.object}")
