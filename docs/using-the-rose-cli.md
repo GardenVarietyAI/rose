@@ -219,10 +219,3 @@ poetry run rose chat "Hello" --local --url http://localhost:8004/v1
 poetry run rose files list | grep training | xargs -I {} poetry run rose files delete {}
 ```
 
-### Tips
-
-1. **Default Behavior**: Most commands default to local service (http://localhost:8004/v1)
-2. **Streaming**: Chat defaults to streaming, completions do not
-3. **Model Selection**: If not specified, uses the server's default model
-4. **File Formats**: Fine-tuning expects JSONL format with OpenAI-style messages
-5. **Job Monitoring**: Fine-tuning jobs run asynchronously, use `finetune get` to check status

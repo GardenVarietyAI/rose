@@ -1,19 +1,3 @@
-## Development
-
-```
-feat:     new user-visible feature
-fix:      bugfix or behavior correction
-chore:    tooling, infra, or cleanup
-refactor: internal code improvement, no behavior change
-docs:     changes to documentation only
-test:     test additions or changes
-perf:     performance improvement
-build:    for packaging, dependencies
-ci:       for CI config
-style:    for formatting-only changes (e.g. Prettier runs)
-plan:     planning docs
-```
-
 ### Running Tests
 
 ```bash

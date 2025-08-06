@@ -23,14 +23,10 @@ Full documentation is available in the `docs/` directory:
 
 - [OpenAI Compatibility](docs/openai-compatibility.md)
 - [Using the ROSE CLI](docs/using-the-rose-cli.md)
-- [Fine-Tuning Workflows](docs/fine-tuning-workflows.md)
 - [Assistant Workflows](docs/assistant-workflows.md)
-- [Model Evaluation](docs/model-evaluation.md)
 - [Available Models](docs/available-models.md)
 - [API Reference](docs/api-reference.md)
-- [Configuration](docs/configuration.md)
 - [Development](docs/development.md)
-- [Troubleshooting](docs/troubleshooting.md)
 - [License](docs/license.md)
 
 ## Quick Start
