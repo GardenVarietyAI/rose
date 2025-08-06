@@ -2,7 +2,7 @@
 
 from typing import Any, Dict
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class WebhookEvent(BaseModel):
@@ -14,3 +14,10 @@ class WebhookEvent(BaseModel):
     object_id: str
     created_at: int
     data: Dict[str, Any]
+
+
+class WebhookResponse(BaseModel):
+    """Response for webhook endpoints."""
+
+    status: str = Field(description="Processing status")
+    message: str = Field(description="Response message")
