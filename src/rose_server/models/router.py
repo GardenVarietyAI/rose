@@ -7,11 +7,12 @@ import shutil
 from pathlib import Path
 from typing import Any, Dict
 
+import aiofiles
+import aiofiles.os
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
 from rose_server.config.settings import settings
-from rose_server.fs import check_file_path
 from rose_server.inference.client import InferenceClient
 from rose_server.models.store import (
     create as create_language_model,
@@ -119,7 +120,8 @@ async def delete_model(model: str) -> JSONResponse:
     # Delete model files if they exist
     if model_obj.path:
         model_path = Path(settings.data_dir) / model_obj.path
-        if await check_file_path(model_path):
+        file_path_exists = await aiofiles.os.path.exists(model_path)
+        if file_path_exists:
             await asyncio.to_thread(shutil.rmtree, str(model_path))
             logger.info(f"Deleted model files at: {model_path}")
 

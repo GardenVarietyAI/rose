@@ -35,6 +35,7 @@ async def lifespan(app: FastAPI) -> Any:
         settings.model_offload_dir,
         settings.chroma_persist_dir,
         settings.fine_tuning_checkpoint_dir,
+        settings.training_results_dir,
     ]
     for dir in directories:
         os.makedirs(dir, exist_ok=True)
@@ -78,7 +79,7 @@ def create_app() -> FastAPI:
     if settings.auth_enabled:
         app.add_middleware(AuthMiddleware)
     else:
-        logger.warning("⚠️ API authentication is DISABLED. Set ROSE_SERVER_AUTH_ENABLED=true to enable.")
+        logger.warning("⚠️  API authentication is DISABLED. Set ROSE_SERVER_AUTH_ENABLED=true to enable.")
 
     app.include_router(router)
 

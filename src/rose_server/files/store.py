@@ -27,7 +27,6 @@ async def create_file(file_size: int, purpose: FilePurpose, filename: str) -> Up
         session.add(uploaded_file)
         await session.commit()
         await session.refresh(uploaded_file)
-
         logger.info(f"Created file {uploaded_file.id} with filename {uploaded_file.filename}")
         return uploaded_file
 
