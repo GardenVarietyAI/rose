@@ -48,6 +48,7 @@ class Settings(BaseSettings):
         default=0.1, description="Learning rate multiplier when 'auto' is specified"
     )
     training_interval: int = Field(default=30, description="Training job check interval in seconds")
+    training_results_dir: str = Field(default="data/results", description="Training results directory")
 
     # Inference settings
     inference_uri: str = Field(default="ws://localhost:8005", description="WebSocket URI for inference worker")
