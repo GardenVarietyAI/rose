@@ -59,7 +59,11 @@ async def inference_endpoint(websocket: WebSocket) -> None:
     try:
         # Process inference requests on this connection sequentially
         async for message in websocket.iter_text():
-            request_data = json.loads(message)
+            try:
+                request_data = json.loads(message)
+            except json.JSONDecodeError:
+                await websocket.send_json({"type": "error", "error": "Invalid JSON"})
+                continue
 
             try:
                 config = request_data["config"]
