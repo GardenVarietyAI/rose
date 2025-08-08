@@ -2,14 +2,24 @@
 
 import gc
 import logging
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import torch
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(slots=True)
+class ModelLoaderParams:
+    model_id: str
+    model_name: str
+    model_path: str
+    torch_dtype: Optional[str]
+    data_dir: str
 
 
 def load_tokenizer(model_name: str, data_dir: str = "./data") -> Any:
@@ -20,10 +30,10 @@ def load_tokenizer(model_name: str, data_dir: str = "./data") -> Any:
 
     # Try local path first, then model name
     if local_model_path.exists():
-        tokenizer = AutoTokenizer.from_pretrained(str(local_model_path), local_files_only=True)
+        tokenizer = AutoTokenizer.from_pretrained(str(local_model_path), local_files_only=True)  # type: ignore[no-untyped-call]
     else:
         # Try loading from model name (will download if needed)
-        tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=False)
+        tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=False)  # type: ignore[no-untyped-call]
 
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -31,34 +41,20 @@ def load_tokenizer(model_name: str, data_dir: str = "./data") -> Any:
     return tokenizer
 
 
-async def load_model(config: Dict[str, Any]) -> Dict[str, Any]:
+def load_model(params: ModelLoaderParams) -> Any:
     """Load a model and tokenizer for inference."""
-    model_name = config.get("model_name")
-    model_path = config.get("model_path")
+    logger.info(f"Loading model: {params.model_name} (path: {params.model_path})")
 
-    if not model_name:
-        raise ValueError("model_name is required in config")
-
-    logger.info(f"Loading model: {model_name} (path: {model_path})")
-
-    if model_path:
-        model = load_peft_model(model_id=model_name, model_path=model_path, torch_dtype=config.get("torch_dtype"))
+    if params.model_path:
+        model = load_peft_model(
+            model_id=params.model_name,
+            model_path=params.model_path,
+            torch_dtype=params.torch_dtype,
+        )
     else:
-        model = load_hf_model(model_id=model_name, torch_dtype=config.get("torch_dtype"))
+        model = load_hf_model(model_id=params.model_name, torch_dtype=params.torch_dtype)
 
-    # Load tokenizer
-    tokenizer = load_tokenizer(model_name, config.get("data_dir", "./data"))
-
-    # Return model info
-    return {
-        "name": model_name,
-        "model": model,
-        "tokenizer": tokenizer,
-        "config": config,
-        "device": str(model.device) if hasattr(model, "device") else "cpu",
-        "dtype": str(next(model.parameters()).dtype) if hasattr(model, "parameters") else "unknown",
-        "quantized": False,
-    }
+    return model
 
 
 def get_torch_dtype(dtype_str: Optional[str] = None) -> torch.dtype:
@@ -86,7 +82,7 @@ def load_hf_model(model_id: str, torch_dtype: Optional[str] = None) -> Any:
 
     logger.info(f"Loading HF model {model_id} on {device} with dtype {dtype}")
 
-    model = AutoModelForCausalLM.from_pretrained(  # type: ignore[no-untyped-call]
+    model = AutoModelForCausalLM.from_pretrained(
         model_id,
         torch_dtype=dtype,
         device_map="auto" if device == "cuda" else None,
@@ -104,10 +100,9 @@ def load_peft_model(model_id: str, model_path: str, torch_dtype: Optional[str] =
     device = get_optimal_device()
     dtype = get_torch_dtype(torch_dtype)
 
-    logger.info(f"Loading PEFT model from {model_path}")
+    logger.info(f"Loading PEFT model {model_id} from {model_path} on {device} with dtype {dtype}")
 
-    # Load the PEFT model with its base model
-    model = AutoModelForCausalLM.from_pretrained(  # type: ignore[no-untyped-call]
+    model = AutoModelForCausalLM.from_pretrained(
         model_path,
         torch_dtype=dtype,
         device_map="auto" if device == "cuda" else None,

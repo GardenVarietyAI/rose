@@ -1,4 +1,4 @@
-"""Simplified WebSocket inference server."""
+"""Inference Server"""
 
 import json
 import logging
@@ -9,9 +9,9 @@ from typing import Any, AsyncGenerator, Dict
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
-from rose_inference.cache import ModelCache
-from rose_inference.generator import generate_stream, generate_with_logprobs
-from rose_inference.loader import load_model
+from rose_inference.cache import CachedModelRegistry
+from rose_inference.generator import ModelGenerationParams, stream, with_logprobs
+from rose_inference.loader import ModelLoaderParams
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application lifecycle."""
-    app.state.cache = ModelCache()
+    app.state.cache = CachedModelRegistry()
     app.state.active_connections = 0
     app.state.max_connections = int(os.getenv("ROSE_INFERENCE_MAX_CONNECTIONS", "10"))
 
@@ -36,11 +36,11 @@ app = FastAPI(title="ROSE Inference Server", lifespan=lifespan)
 
 
 @app.websocket("/inference")
-async def inference_endpoint(websocket: WebSocket) -> None:
+async def inference(websocket: WebSocket) -> None:
     """Handle persistent inference WebSocket connections."""
     # Check connection limit before accepting
     if app.state.active_connections >= app.state.max_connections:
-        await websocket.close(code=1013, reason="Server busy - too many connections")
+        await websocket.close(code=1013, reason="Server busy: too many connections")
         return
 
     # Check auth if enabled
@@ -57,58 +57,52 @@ async def inference_endpoint(websocket: WebSocket) -> None:
     logger.info(f"Client connected (active_connections={app.state.active_connections})")
 
     try:
-        # Process inference requests on this connection sequentially
         async for message in websocket.iter_text():
             request_data = json.loads(message)
 
             try:
                 config = request_data["config"]
-                model_id = config.get("model_id")
-                model_name = config.get("model_name")
+                generation_kwargs = request_data.get("generation_kwargs", {}) or {}
 
-                if not model_id or not model_name:
+                load_params = ModelLoaderParams(
+                    model_id=config.get("model_id"),
+                    model_name=config.get("model_name"),
+                    model_path=config.get("model_path"),
+                    torch_dtype=config.get("torch_dtype"),
+                    data_dir=config.get("data_dir", "./data"),
+                )
+
+                if not load_params.model_id or not load_params.model_name:
                     await websocket.send_json(
-                        {
-                            "type": "error",
-                            "error": f"Missing required config: model_id={model_id}, model_name={model_name}",
-                        }
+                        {"type": "error", "error": f"Missing config for model {load_params.model_id}"}
                     )
                     continue
 
                 # Get or load model
-                model_info = app.state.cache.get(model_id)
-                if model_info is None:
-                    logger.info(f"Cache miss, loading model: {model_name}")
-                    model_info = await load_model(config)
-                    app.state.cache.set(model_id, model_info)
-
-                # Choose generation function based on logprobs parameter
-                generation_kwargs = request_data["generation_kwargs"]
-                if generation_kwargs.get("logprobs", False):
-                    # Use non-streaming generation with logprobs
-                    generator_fn = generate_with_logprobs
-                else:
-                    # Use regular streaming generation
-                    generator_fn = generate_stream
+                cached = await app.state.cache.get_or_load(load_params)
+                generate = stream if not generation_kwargs.get("logprobs", False) else with_logprobs
 
                 # Generate
-                async for event in generator_fn(
-                    model=model_info["model"],
-                    tokenizer=model_info["tokenizer"],
-                    messages=request_data.get("messages"),
-                    prompt=request_data.get("prompt", ""),
-                    generation_kwargs=generation_kwargs,
-                    config=config,
-                ):
-                    await websocket.send_json(event)
-            except Exception as e:
-                logger.error(f"Error processing request: {e}")
-                await websocket.send_json({"type": "error", "error": str(e)})
+                async with cached.use():
+                    async for event in generate(
+                        ModelGenerationParams(
+                            model=cached.model,
+                            tokenizer=cached.tokenizer,
+                            messages=request_data.get("messages"),
+                            prompt=request_data.get("prompt", ""),
+                            generation_kwargs=generation_kwargs,
+                        ),
+                    ):
+                        await websocket.send_json(event)
+            except Exception:
+                logger.exception("Error processing request")
+                await websocket.send_json({"type": "error", "error": "internal error"})
 
     except WebSocketDisconnect:
         logger.info("Client disconnected")
-    except Exception as e:
-        logger.error(f"WebSocket error: {e}")
+    except Exception:
+        logger.exception("Error processing request")
+        logger.exception("WebSocket error")
     finally:
         app.state.active_connections -= 1
         logger.info(f"Client cleanup (active_connections={app.state.active_connections})")
@@ -123,7 +117,7 @@ async def health() -> Dict[str, Any]:
 @app.post("/control/evict")
 async def evict_cache() -> Dict[str, str]:
     """Evict all cached models."""
-    app.state.cache.evict()
+    await app.state.cache.evict()
     return {"status": "evicted", "message": "Model cache cleared"}
 
 
