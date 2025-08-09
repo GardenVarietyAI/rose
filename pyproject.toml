@@ -30,7 +30,7 @@ dependencies = [
   "apscheduler>=3.10.4",
   "python-multipart>=0.0.18",
   "evaluate>=0.4.5",
-  "tokenizers>=0.21.2"
+  "tokenizers>=0.21.2",
 ]
 
 [dependency-groups]
