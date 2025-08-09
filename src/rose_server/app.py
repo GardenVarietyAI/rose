@@ -11,6 +11,7 @@ os.environ["POSTHOG_DISABLED"] = "1"
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from rose_server import __version__
 from rose_server.config.settings import settings
 from rose_server.database import create_all_tables
 from rose_server.middleware.auth import AuthMiddleware
@@ -64,7 +65,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="ROSE",
         description="A service for generating responses using different LLM modes",
-        version="0.1.0",
+        version=__version__,
         lifespan=lifespan,
     )
     app.add_middleware(
