@@ -22,7 +22,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: List[ChatMessage] = Field(description="Chat messages in the conversation")
-    model: str = Field(default="qwen-coder", description="Model to use for generation")
+    model: str = Field(default="Qwen--Qwen2.5-1.5B-Instruct", description="Model to use for generation")
     mode: Optional[str] = Field(default=None, description="Deprecated: Use model instead")
     temperature: Optional[float] = Field(default=0.7, description="Sampling temperature")
     max_tokens: Optional[int] = Field(default=None, description="Maximum tokens to generate")
@@ -30,6 +30,11 @@ class ChatRequest(BaseModel):
     tools: Optional[List[Dict[str, Any]]] = Field(default=None, description="Available tools")
     tool_choice: Optional[str] = Field(default="auto", description="Tool selection mode")
     return_tool_calls: Optional[bool] = Field(default=True, description="Return tool calls in response")
+    logprobs: Optional[bool] = Field(default=None, description="Whether to return log probabilities")
+    top_logprobs: Optional[int] = Field(
+        default=None, ge=0, le=5, description="Number of most likely tokens to return at each position"
+    )
+    seed: Optional[int] = Field(default=None, ge=0, description="Seed for deterministic generation")
 
 
 class ChatResponse(BaseModel):

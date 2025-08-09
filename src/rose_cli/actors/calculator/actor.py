@@ -14,7 +14,7 @@ from rose_cli.utils import get_async_client
 class CalculatorActor:
     """Agent specialized in mathematical calculations and problem solving."""
 
-    def __init__(self, model: str = "qwen2.5-0.5b") -> None:
+    def __init__(self, model: str = "Qwen--Qwen2.5-1.5B-Instruct") -> None:
         client = get_async_client()
         set_default_openai_client(client)
         set_tracing_disabled(True)

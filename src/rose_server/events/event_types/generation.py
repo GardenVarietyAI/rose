@@ -44,6 +44,9 @@ class TokenGenerated(LLMEvent):
     token_id: int = Field(..., description="Token ID from tokenizer vocabulary")
     position: int = Field(..., ge=0, description="Position in the generated sequence")
     logprob: Optional[float] = Field(None, description="Log probability of this token")
+    top_logprobs: Optional[list[Dict[str, Any]]] = Field(
+        None, description="Top alternative tokens with their log probabilities"
+    )
 
     @validator("position")
     def validate_position(cls, v):
@@ -110,7 +113,7 @@ class ResponseCompleted(LLMEvent):
 
     response_id: str = Field(..., description="ID of the completed response")
     total_tokens: int = Field(..., ge=0, description="Total tokens in the response")
-    finish_reason: Literal["stop", "length", "tool_calls", "error", "cancelled"] = Field(
+    finish_reason: Literal["stop", "length", "tool_calls", "error", "cancelled", "timeout"] = Field(
         ..., description="Reason why generation finished"
     )
     output_tokens: Optional[int] = Field(None, ge=0, description="Number of output tokens generated")

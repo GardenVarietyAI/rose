@@ -10,7 +10,7 @@ from typing import AsyncGenerator, TypeVar
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 
-from rose_core.config.settings import settings
+from rose_server.config.settings import settings
 from rose_server.entities.assistants import Assistant
 from rose_server.entities.files import UploadedFile
 from rose_server.entities.fine_tuning import FineTuningEvent, FineTuningJob

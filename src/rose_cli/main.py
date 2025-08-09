@@ -2,7 +2,7 @@
 
 import typer
 
-from rose_cli import actors, assistants, auth, chat, files, finetune, models, responses, runs, threads
+from rose_cli import actors, assistants, auth, chat, files, finetune, models, responses, runs, threads, vectorstores
 
 app = typer.Typer(
     help="ROSE - Run your own LLM server",
@@ -19,6 +19,7 @@ app.add_typer(threads.app, name="threads", help="Thread management")
 app.add_typer(assistants.app, name="assistants", help="Assistant management")
 app.add_typer(runs.app, name="runs", help="Run management")
 app.add_typer(responses.app, name="responses", help="Responses API operations")
+app.add_typer(vectorstores.app, name="vectorstores", help="Vector store management")
 
 
 def main() -> None:

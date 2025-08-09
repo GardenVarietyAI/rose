@@ -33,6 +33,21 @@ class ChatCompletionsFormatter:
         self.completion_id: Optional[str] = None
         self.created: Optional[int] = None
         self.model_name: Optional[str] = None
+        self.request_seed: Optional[int] = None
+
+    def set_request_seed(self, seed: Optional[int]) -> None:
+        """Set the seed value from the request for fingerprint generation."""
+        self.request_seed = seed
+
+    def _get_base_chunk_dict(self) -> Dict[str, Any]:
+        """Get base dictionary with common fields for all chunks."""
+        return {
+            "id": self.completion_id,
+            "object": "chat.completion.chunk",
+            "created": self.created,
+            "model": self.model_name,
+            "system_fingerprint": f"fp_{self.model_name}" if self.request_seed is not None else None,
+        }
 
     def format_event(self, event: LLMEvent) -> Optional[ChatCompletionChunk]:
         """Convert an LLM event to ChatCompletionChunk format."""
@@ -41,34 +56,19 @@ class ChatCompletionsFormatter:
             self.completion_id = f"chatcmpl-{event.response_id}"
             self.created = int(event.timestamp)
             self.model_name = event.model_name
+
             return ChatCompletionChunk(
-                id=self.completion_id,
-                object="chat.completion.chunk",
-                created=self.created,
-                model=self.model_name,
-                system_fingerprint=f"fp_{self.model_name}",
+                **self._get_base_chunk_dict(),
                 choices=[Choice(index=0, delta=ChoiceDelta(role="assistant"), finish_reason=None)],
             )
         elif isinstance(event, TokenGenerated):
-            if not self.completion_id:
-                self.completion_id = f"chatcmpl-{uuid.uuid4().hex[:16]}"
-                self.created = int(time.time())
-                self.model_name = event.model_name
             return ChatCompletionChunk(
-                id=self.completion_id,
-                object="chat.completion.chunk",
-                created=self.created,
-                model=self.model_name,
-                system_fingerprint=f"fp_{self.model_name}",
+                **self._get_base_chunk_dict(),
                 choices=[Choice(index=0, delta=ChoiceDelta(content=event.token), finish_reason=None)],
             )
         elif isinstance(event, ToolCallStarted):
             return ChatCompletionChunk(
-                id=self.completion_id,
-                object="chat.completion.chunk",
-                created=self.created,
-                model=self.model_name,
-                system_fingerprint=f"fp_{self.model_name}",
+                **self._get_base_chunk_dict(),
                 choices=[
                     Choice(
                         index=0,
@@ -91,11 +91,7 @@ class ChatCompletionsFormatter:
             )
         elif isinstance(event, ToolCallCompleted):
             return ChatCompletionChunk(
-                id=self.completion_id,
-                object="chat.completion.chunk",
-                created=self.created,
-                model=self.model_name,
-                system_fingerprint=f"fp_{self.model_name}",
+                **self._get_base_chunk_dict(),
                 choices=[
                     Choice(
                         index=0,
@@ -126,7 +122,9 @@ class ChatCompletionsFormatter:
                     Choice(
                         index=0,
                         delta=ChoiceDelta(),
-                        finish_reason=event.finish_reason,
+                        finish_reason="stop"
+                        if event.finish_reason in ["cancelled", "timeout"]
+                        else event.finish_reason,
                     )
                 ],
             )
@@ -152,21 +150,47 @@ class ChatCompletionsFormatter:
                     }
                 )
             message["tool_calls"] = tool_calls
+
+        # Build choice dict
+        choice = {
+            "index": 0,
+            "message": message,
+            "finish_reason": "tool_calls"
+            if tool_events
+            else (
+                "stop"
+                if end_event and end_event.finish_reason in ["cancelled", "timeout"]
+                else (end_event.finish_reason if end_event else "stop")
+            ),
+        }
+
+        # Add logprobs if any token has them
+        if any(e.logprob is not None for e in token_events):
+            logprobs_content = []
+            for event in token_events:
+                token_logprob = {
+                    "token": event.token,
+                    "logprob": event.logprob if event.logprob is not None else 0.0,
+                    "bytes": list(event.token.encode("utf-8")),
+                }
+
+                # Add top_logprobs if present
+                if event.top_logprobs:
+                    token_logprob["top_logprobs"] = event.top_logprobs
+                else:
+                    token_logprob["top_logprobs"] = []
+
+                logprobs_content.append(token_logprob)
+
+            choice["logprobs"] = {"content": logprobs_content, "refusal": None}
+
         return {
             "id": f"chatcmpl-{start_event.response_id if start_event else uuid.uuid4().hex[:16]}",
             "object": "chat.completion",
             "created": int(start_event.timestamp if start_event else time.time()),
             "model": start_event.model_name if start_event else "unknown",
-            "system_fingerprint": f"fp_{start_event.model_name if start_event else 'unknown'}",
-            "choices": [
-                {
-                    "index": 0,
-                    "message": message,
-                    "finish_reason": "tool_calls"
-                    if tool_events
-                    else (end_event.finish_reason if end_event else "stop"),
-                }
-            ],
+            "system_fingerprint": f"fp_{start_event.model_name}" if self.request_seed is not None else None,
+            "choices": [choice],
             "usage": {
                 "prompt_tokens": start_event.input_tokens if start_event else 0,
                 "completion_tokens": end_event.output_tokens if end_event else len(token_events),

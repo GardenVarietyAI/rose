@@ -135,31 +135,3 @@ openai api files.delete -i file_abc123
 | Assistants | Yes | Yes | No |
 | Threads | Yes | Yes | No |
 | Vector Stores | Yes | Yes | No |
-| Legacy Completions | No | No | No |
-
-### What's NOT Implemented
-
-- **Vision/Images** - No GPT-4V style image inputs or DALL-E generation
-- **Audio** - No Whisper transcription or TTS
-- **Code Interpreter** - Assistants can't execute code
-- **Newer Features** - No o1 models, structured outputs, or reasoning tokens
-- **Security** - No API keys, rate limiting, or user isolation
-- **Legacy Completions** - Only chat completions endpoint supported
-
-### Using with Other OpenAI-Compatible Tools
-
-ROSE works with any tool that supports OpenAI API configuration:
-
-```bash
-# LangChain
-export OPENAI_API_BASE="http://localhost:8004/v1"
-
-# LlamaIndex
-export OPENAI_API_BASE="http://localhost:8004/v1"
-
-# Continue (VS Code extension)
-# Set API base URL in settings to: http://localhost:8004/v1
-
-# Cursor
-# Use http://localhost:8004/v1 as the API endpoint
-```

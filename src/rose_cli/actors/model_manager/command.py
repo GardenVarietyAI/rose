@@ -5,7 +5,7 @@ from .actor import ModelManagerActor
 
 def model_manager(
     query: str = typer.Argument(..., help="Query for the model manager"),
-    model: str = typer.Option("qwen2.5-0.5b", "--model", "-m", help="Model to use for the actor"),
+    model: str = typer.Option("Qwen--Qwen2.5-1.5B-Instruct", "--model", "-m", help="Model to use for the actor"),
 ) -> None:
     """Manage models through the ROSE API."""
     try:

@@ -11,12 +11,13 @@ os.environ["POSTHOG_DISABLED"] = "1"
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from rose_core.config.settings import settings
+from rose_server import __version__
+from rose_server.config.settings import settings
 from rose_server.database import create_all_tables
 from rose_server.middleware.auth import AuthMiddleware
 from rose_server.models.registry import ModelRegistry
 from rose_server.router import router
-from rose_server.vector import ChromaDBManager
+from rose_server.vector_stores.chroma import Chroma
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["ANONYMIZED_TELEMETRY"] = "false"
@@ -35,6 +36,7 @@ async def lifespan(app: FastAPI) -> Any:
         settings.model_offload_dir,
         settings.chroma_persist_dir,
         settings.fine_tuning_checkpoint_dir,
+        settings.training_results_dir,
     ]
     for dir in directories:
         os.makedirs(dir, exist_ok=True)
@@ -44,14 +46,13 @@ async def lifespan(app: FastAPI) -> Any:
 
     logger.info("SQLite database initialized with WAL mode")
 
-    app.state.vector = ChromaDBManager(
+    app.state.chroma = Chroma(
         host=settings.chroma_host,
         port=settings.chroma_port,
         persist_dir=settings.chroma_persist_dir,
     )
 
     app.state.model_registry = ModelRegistry()
-    await app.state.model_registry.initialize()
     logger.info("Model registry initialized")
 
     yield
@@ -64,7 +65,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="ROSE",
         description="A service for generating responses using different LLM modes",
-        version="0.1.0",
+        version=__version__,
         lifespan=lifespan,
     )
     app.add_middleware(

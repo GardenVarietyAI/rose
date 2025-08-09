@@ -11,7 +11,7 @@ from rose_server.entities.models import LanguageModel
 
 
 async def _generate_model_id(is_fine_tuned: bool, base_model: str, model_name: str, suffix: str = "") -> str:
-    """Generate model ID based on OpenAI format."""
+    """Generate model ID."""
     if not is_fine_tuned:
         return model_name.replace("/", "--")
 
@@ -62,9 +62,6 @@ async def create(
         quantization=quantization,
     )
 
-    # Set root to parent for fine-tuned, or self for base models
-    model.root = parent or model_id
-
     if lora_modules:
         model.set_lora_modules(lora_modules)
 
@@ -85,19 +82,6 @@ async def get(model_id: str) -> Optional[LanguageModel]:
     async with get_session(read_only=True) as session:
         result = await session.execute(select(LanguageModel).where(LanguageModel.id == model_id))
         return result.scalar_one_or_none()
-
-
-async def list_models(parent: Optional[str] = None) -> List[LanguageModel]:
-    async with get_session() as session:
-        query = select(LanguageModel)
-
-        if parent:
-            query = query.where(LanguageModel.parent == parent)
-
-        query = query.order_by(LanguageModel.created_at.desc())
-        result = await session.execute(query)
-
-        return list(result.scalars().all())
 
 
 async def list_all() -> List[LanguageModel]:

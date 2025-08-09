@@ -11,7 +11,8 @@ from sqlmodel import Field, SQLModel
 class Run(SQLModel, table=True):
     """Run model for database storage."""
 
-    __tablename__: str = "runs"
+    __tablename__ = "runs"
+
     id: str = Field(primary_key=True, default_factory=lambda: f"run_{uuid.uuid4().hex[:16]}")
     object: str = Field(default="thread.run")
     created_at: int = Field(default_factory=lambda: int(time.time()))
@@ -29,6 +30,8 @@ class Run(SQLModel, table=True):
     # Configuration
     model: str
     instructions: Optional[str] = None
+    additional_instructions: Optional[str] = None
+    additional_messages: Optional[List[Dict[str, Any]]] = Field(default=None, sa_type=JSON)
     tools: List[Dict[str, Any]] = Field(default_factory=list, sa_type=JSON)
     meta: Dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
 

@@ -22,7 +22,7 @@ jobs:
           -v ${{ github.workspace }}:/app \
           -w /app \
           rose-server:test \
-          poetry run pytest
+          uv run pytest
 
     - name: Run linting
       run: |
@@ -30,12 +30,12 @@ jobs:
           -v ${{ github.workspace }}:/app \
           -w /app \
           rose-server:test \
-          poetry run ruff check src/
+          uv run ruff check src/
 
     - name: Test API startup
       run: |
         docker compose up -d
         sleep 30
         curl -f http://localhost:8004/health || exit 1
-        docker compose logs rose-server
+        docker compose logs rose-api
         docker compose down

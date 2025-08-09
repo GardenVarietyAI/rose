@@ -8,7 +8,7 @@ from rose_cli.utils import get_client
 
 def create_response(
     message: str = typer.Argument(..., help="Message to send"),
-    model: str = typer.Option("qwen-coder", "--model", "-m", help="Model to use"),
+    model: str = typer.Option("Qwen--Qwen2.5-1.5B-Instruct", "--model", "-m", help="Model to use"),
     store: bool = typer.Option(True, "--store/--no-store", help="Store response for later retrieval"),
     stream: bool = typer.Option(False, "--stream", help="Stream response"),
     instructions: Optional[str] = typer.Option(None, "--instructions", "-i", help="System instructions"),

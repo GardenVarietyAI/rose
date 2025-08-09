@@ -14,15 +14,27 @@ async def get_response(response_id: str) -> Optional[Message]:
         return await session.get(Message, response_id)
 
 
-async def get_conversation_messages(response_id: str) -> List[ChatMessage]:
+async def get_chain_ids() -> List[str]:
     """Load all messages in a conversation chain."""
-    messages = []
+    async with get_session(read_only=True) as session:
+        query = (
+            select(Message.response_chain_id)
+            .where(Message.response_chain_id.is_not(None))
+            .distinct()
+            .order_by(Message.created_at)
+        )
+        result = await session.execute(query)
+        chain_ids: List[str] = result.scalars().all()
+        return chain_ids
 
+
+async def get_conversation_messages(response_id: str) -> List[Message]:
+    """Load all messages in a conversation chain."""
     async with get_session(read_only=True) as session:
         # Get the response message
         response_msg = await session.get(Message, response_id)
         if not response_msg:
-            return messages
+            return []
 
         # Load all messages in the chain
         query = (
@@ -32,19 +44,8 @@ async def get_conversation_messages(response_id: str) -> List[ChatMessage]:
         )
 
         result = await session.execute(query)
-        chain_messages = result.scalars().all()
-
-        # Convert to ChatMessage format
-        for msg in chain_messages:
-            if isinstance(msg.content, list):
-                for item in msg.content:
-                    if isinstance(item, dict) and item.get("type") == "text":
-                        messages.append(ChatMessage(role=msg.role, content=item.get("text", "")))
-                        break
-            elif isinstance(msg.content, str):
-                messages.append(ChatMessage(role=msg.role, content=msg.content))
-
-    return messages
+        messages: List[Message] = result.scalars().all()
+        return messages
 
 
 async def store_response_messages(
@@ -57,7 +58,6 @@ async def store_response_messages(
     chain_id: Optional[str] = None,
 ) -> str:
     end_time = time.time()
-
     # Generate new chain_id if not provided
     if not chain_id:
         chain_id = f"chain_{uuid.uuid4().hex[:16]}"
@@ -91,4 +91,5 @@ async def store_response_messages(
         )
         session.add(assistant_message)
         await session.commit()
-        return assistant_message.id
+        id: str = assistant_message.id
+        return id

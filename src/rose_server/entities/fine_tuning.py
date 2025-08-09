@@ -2,10 +2,6 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
-from openai.types.fine_tuning import (
-    FineTuningJob as OpenAIFineTuningJob,
-    FineTuningJobEvent as OpenAIFineTuningJobEvent,
-)
 from sqlalchemy import JSON, Index
 from sqlmodel import Field, SQLModel
 
@@ -14,7 +10,7 @@ class FineTuningJob(SQLModel, table=True):
     __tablename__ = "fine_tuning_jobs"
 
     id: str = Field(primary_key=True, default_factory=lambda: f"ftjob-{uuid.uuid4().hex[:24]}")
-    created_at: int
+    created_at: int = Field(default_factory=lambda: int(time.time()))
     finished_at: Optional[int] = None
     model: str
     fine_tuned_model: Optional[str] = None
@@ -31,32 +27,13 @@ class FineTuningJob(SQLModel, table=True):
     suffix: Optional[str] = None
     hyperparameters: Dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
     method: Optional[Dict[str, Any]] = Field(default=None, sa_type=JSON)
+    trainer: str = Field(default="huggingface")  # "huggingface" or "torchtune"
+    training_metrics: Optional[Dict[str, Any]] = Field(default=None, sa_type=JSON)
 
     __table_args__ = (
         Index("idx_ft_jobs_status", "status"),
         Index("idx_ft_jobs_created", "created_at"),
     )
-
-    def to_openai(self) -> OpenAIFineTuningJob:
-        data = self.model_dump()
-
-        data["object"] = "fine_tuning.job"
-
-        if "hyperparameters" not in data or data["hyperparameters"] is None:
-            data["hyperparameters"] = {}
-
-        data["metadata"] = data.pop("meta", None)
-
-        internal_fields = ["started_at"]
-        for field in internal_fields:
-            data.pop(field, None)
-
-        # Map internal statuses to valid OpenAI statuses
-        status_mapping = {"cancelling": "cancelled", "pausing": "cancelled"}
-        if data["status"] in status_mapping:
-            data["status"] = status_mapping[data["status"]]
-
-        return OpenAIFineTuningJob(**data)
 
 
 class FineTuningEvent(SQLModel, table=True):
@@ -74,6 +51,3 @@ class FineTuningEvent(SQLModel, table=True):
         Index("idx_events_job_id", "job_id"),
         Index("idx_events_created", "created_at"),
     )
-
-    def to_openai(self) -> OpenAIFineTuningJobEvent:
-        return OpenAIFineTuningJobEvent(**self.model_dump())

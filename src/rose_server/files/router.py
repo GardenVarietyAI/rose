@@ -7,7 +7,12 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from openai.types import FileDeleted, FileObject
 
-from rose_server.files.store import create_file, delete_file, get_file, get_file_content, list_files
+from rose_server.files.store import create_file, delete_file, get_file, list_files, update_storage_path
+from rose_server.fs import (
+    delete_file as delete_file_from_disk,
+    read_file,
+    save_file,
+)
 from rose_server.schemas.files import FileListResponse
 
 logger = logging.getLogger(__name__)
@@ -21,12 +26,11 @@ async def create(
 ) -> FileObject:
     """Upload a file."""
     try:
-        file_obj = await create_file(file=file.file, purpose=purpose, filename=file.filename)
-        if file_obj is None:
-            raise HTTPException(status_code=500, detail="Failed to create file")
-        if not isinstance(file_obj, FileObject):
-            raise HTTPException(status_code=500, detail="Invalid file object returned")
-        return file_obj
+        content = await file.read()
+        uploaded_file = await create_file(file_size=file.size, purpose=purpose, filename=file.filename)
+        await save_file(uploaded_file.id, content)
+        await update_storage_path(uploaded_file.id)
+        return FileObject(**uploaded_file.model_dump())
     except Exception as e:
         logger.error(f"File upload error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -39,28 +43,33 @@ async def index(
     after: Optional[str] = Query(None),
 ) -> FileListResponse:
     """List files."""
-    files = await list_files(purpose=purpose, limit=limit, after=after)
-    return FileListResponse(data=files, has_more=len(files) == limit)
+    uploaded_files = await list_files(purpose=purpose, limit=limit, after=after)
+    return FileListResponse(
+        data=[FileObject(**f.model_dump()) for f in uploaded_files],
+        has_more=len(uploaded_files) == limit,
+    )
 
 
 @router.get("/files/{file_id}")
 async def get(file_id: str) -> FileObject:
     """Get file metadata."""
-    file_obj = await get_file(file_id)
-    if not file_obj:
+    uploaded_file = await get_file(file_id)
+    if not uploaded_file:
         raise HTTPException(status_code=404, detail=f"File {file_id} not found")
-    if not isinstance(file_obj, FileObject):
-        raise HTTPException(status_code=500, detail="Internal error: file object has invalid type")
-    return file_obj
+    return FileObject(**uploaded_file.model_dump())
 
 
 @router.get("/files/{file_id}/content")
 async def get_content(file_id: str) -> Response:
     """Get file content."""
-    content = await get_file_content(file_id)
+    file_obj = await get_file(file_id)
+    if not file_obj:
+        raise HTTPException(status_code=404, detail=f"File {file_id} not found")
+
+    content = await read_file(file_id)
     if content is None:
         raise HTTPException(status_code=404, detail=f"File {file_id} not found")
-    file_obj = await get_file(file_id)
+
     return Response(
         content=content,
         media_type="application/octet-stream",
@@ -73,8 +82,7 @@ async def remove(file_id: str) -> FileDeleted:
     """Delete a file."""
     try:
         deleted = await delete_file(file_id)
-        if not isinstance(deleted, FileDeleted):
-            raise HTTPException(status_code=500, detail="Internal error: invalid FileDeleted object")
-        return deleted
+        await delete_file_from_disk(file_id)
+        return FileDeleted(id=file_id, object="file", deleted=deleted)
     except Exception:
         raise HTTPException(status_code=404, detail=f"File {file_id} not found")

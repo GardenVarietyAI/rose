@@ -4,7 +4,7 @@ import logging
 import os
 
 from rose_trainer.client import ServiceClient
-from rose_trainer.fine_tuning.process import process_training_job
+from rose_trainer.process import process_training_job
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

@@ -27,7 +27,7 @@ class Message(SQLModel, table=True):
     status: str = Field(default="completed")
     incomplete_details: Optional[Dict[str, Any]] = Field(default=None, sa_type=JSON)
     incomplete_at: Optional[int] = None
-    completed_at: Optional[int] = Field(default_factory=lambda: int(time.time()))
+    completed_at: Optional[int] = None
 
     __table_args__ = (
         Index("idx_messages_thread", "thread_id"),

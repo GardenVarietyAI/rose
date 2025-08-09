@@ -78,28 +78,3 @@ GET /v1/files/{file_id}/content
 DELETE /v1/files/{file_id}
 ```
 
-### Evaluation Endpoints
-
-```bash
-# Create evaluation
-POST /v1/evals
-
-# List evaluations
-GET /v1/evals
-
-# Get evaluation details
-GET /v1/evals/{eval_id}
-
-# Create evaluation run
-POST /v1/evals/{eval_id}/runs
-
-# List evaluation runs
-GET /v1/evals/{eval_id}/runs
-
-# Get run details
-GET /v1/evals/{eval_id}/runs/{run_id}
-
-# Get sample results
-GET /v1/evals/{eval_id}/runs/{run_id}/samples
-GET /v1/evals/{eval_id}/runs/{run_id}/samples/{sample_id}
-```

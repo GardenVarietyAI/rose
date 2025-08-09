@@ -1,7 +1,5 @@
-import json
 import logging
-import uuid
-from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
+from typing import Any, AsyncGenerator, List, Optional, Union
 
 from rose_server.events.event_types.generation import (
     ResponseCompleted,
@@ -10,20 +8,20 @@ from rose_server.events.event_types.generation import (
     ToolCallCompleted,
     ToolCallStarted,
 )
-from rose_server.llms.llm import LLM
-from rose_server.llms.websocket_inference import InferenceClient
+from rose_server.events.tool_processor import ToolProcessor
+from rose_server.inference.client import InferenceClient
 from rose_server.schemas.chat import ChatMessage
-from rose_server.tools import StreamingXMLDetector
+from rose_server.schemas.models import ModelConfig
+from rose_server.tools import format_tools_for_prompt
 
 logger = logging.getLogger(__name__)
 
 
 class EventGenerator:
-    def __init__(self, llm: LLM) -> None:
-        self.llm = llm
-        self.model_name: str = llm.model_name
-        self.config: Dict[str, Any] = llm.config
-        self._current_tools: Optional[List[Any]] = None
+    def __init__(self, config: ModelConfig) -> None:
+        self.config = config
+        self.model_name = config.model_name
+        self.client = InferenceClient()
 
     async def generate_events(
         self,
@@ -34,124 +32,103 @@ class EventGenerator:
         enable_tools: bool = False,
         tools: Optional[List[Any]] = None,
         tool_choice: Optional[str] = "auto",
+        logprobs: Optional[bool] = None,
+        top_logprobs: Optional[int] = None,
+        seed: Optional[int] = None,
         **kwargs: Any,
     ) -> AsyncGenerator[
         Union[ResponseStarted, TokenGenerated, ToolCallStarted, ToolCallCompleted, ResponseCompleted],
         None,
     ]:
-        """Main entrypoint: yield events for an LLM run."""
-        # Store tools for later use in _stream_generation
-        self._current_tools = tools
+        """Generate events for a model run."""
+        # Use provided values or defaults
+        max_tokens = max_tokens or self.config.max_response_tokens
+        temperature = temperature or self.config.temperature
 
-        max_new = max_tokens or self.config.get("max_response_tokens", 2048)
-        temp = temperature or self.config.get("temperature", 0.7)
-
-        # Token counting happens in inference layer
+        # Emit start event
         start_event = ResponseStarted(
             model_name=self.model_name,
-            input_tokens=0,  # Will be updated from inference layer
-            max_tokens=max_new,
-            temperature=temp,
+            input_tokens=0,
+            max_tokens=max_tokens,
+            temperature=temperature,
         )
         yield start_event
 
-        # Pass messages for proper formatting
-        async for event in self._stream_generation(messages, start_event.response_id, max_new, temp, enable_tools):
+        # Stream from inference
+        async for event in self._stream_inference(
+            messages=messages,
+            response_id=start_event.response_id,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            enable_tools=enable_tools,
+            tools=tools,
+            logprobs=logprobs,
+            top_logprobs=top_logprobs,
+            seed=seed,
+        ):
             yield event
 
-    async def _stream_generation(
+    async def _stream_inference(
         self,
         messages: List[ChatMessage],
         response_id: str,
-        max_new: int,
         temperature: float,
+        max_tokens: int,
         enable_tools: bool,
-    ) -> AsyncGenerator[
-        Union[ResponseStarted, TokenGenerated, ToolCallStarted, ToolCallCompleted, ResponseCompleted], None
-    ]:
-        # Use WebSocket inference instead of local generation
-        client = InferenceClient()
-
-        # Convert ChatMessage objects to dicts for serialization
+        tools: Optional[List[Any]],
+        logprobs: Optional[bool] = None,
+        top_logprobs: Optional[int] = None,
+        seed: Optional[int] = None,
+    ) -> AsyncGenerator[Union[TokenGenerated, ToolCallStarted, ToolCallCompleted, ResponseCompleted], None]:
+        """Stream events from the inference service."""
+        # Prepare messages
         messages_dict = [{"role": msg.role, "content": msg.content} for msg in messages]
 
-        # Only prepare prompt if we have tools
-        prompt = None
-        if enable_tools and self._current_tools:
-            # Only format the tool instructions
-            from rose_server.tools import format_tools_for_prompt
+        # Prepare tool prompt if needed
+        prompt = format_tools_for_prompt(tools) if enable_tools and tools else None
 
-            prompt = format_tools_for_prompt(self._current_tools)
-
-        # Prepare generation kwargs for the worker
+        # Build generation parameters
         generation_kwargs = {
-            "max_new_tokens": max_new,
+            "max_new_tokens": max_tokens,
             "temperature": temperature,
-            "top_p": self.config.get("top_p", 0.9),
-            "repetition_penalty": self.config.get("repetition_penalty", 1.1),
-            "length_penalty": self.config.get("length_penalty", 1.0),
+            "top_p": self.config.top_p,
+            "repetition_penalty": self.config.repetition_penalty,
+            "length_penalty": self.config.length_penalty,
         }
 
-        # Get model config
-        model_config = {
-            "model_name": self.llm.model_name,
-            "model_path": self.llm.model_path,
-        }
+        # Add logprobs parameters if provided
+        if logprobs is not None:
+            generation_kwargs["logprobs"] = logprobs
+            generation_kwargs["top_logprobs"] = top_logprobs or 0
 
-        detector = StreamingXMLDetector() if enable_tools else None
+        # Add seed for deterministic generation
+        if seed is not None:
+            generation_kwargs["seed"] = seed
 
-        async for event in client.stream_inference(
+        # Create tool processor if needed
+        tool_processor = ToolProcessor(self.model_name) if enable_tools else None
+
+        # Stream from inference
+        model_config_dict = self.config.model_dump()
+        logger.info(f"Streaming inference for {self.model_name} with config: {model_config_dict}")
+        async for event in self.client.stream_inference(
             model_name=self.model_name,
-            model_config=model_config,
-            prompt=prompt,  # Tool instructions only
+            model_config=model_config_dict,
+            prompt=prompt,
             generation_kwargs=generation_kwargs,
             response_id=response_id,
-            messages=messages_dict,  # Conversation history
+            messages=messages_dict,
         ):
-            # Handle tool detection if needed
-            if isinstance(event, TokenGenerated) and detector:
-                tool_events, plain = self._handle_tool_streaming(event.token, detector, event.token_id)
+            # Process tools if needed
+            if isinstance(event, TokenGenerated) and tool_processor:
+                tool_events, modified_event = tool_processor.process_token(event)
+
+                # Yield tool events first
                 for tool_event in tool_events:
                     yield tool_event
-                if plain:
-                    # Update the token event with processed text
-                    event.token = plain
-                    yield event
+
+                # Yield modified token event if any
+                if modified_event:
+                    yield modified_event
             else:
                 yield event
-
-    def _handle_tool_streaming(
-        self, token: str, detector: Any, total_tokens: int
-    ) -> Tuple[List[Union[ToolCallStarted, ToolCallCompleted]], Optional[str]]:
-        """Process token for tool calls, returns (events_list, plain_text)"""
-        events: List[Union[ToolCallStarted, ToolCallCompleted]] = []
-        plain, call = detector.process_token(token)
-        if call:
-            call_id = f"call_{uuid.uuid4().hex[:16]}"
-            events.append(
-                ToolCallStarted(
-                    model_name=self.model_name,
-                    function_name=call["tool"],
-                    call_id=call_id,
-                    arguments_so_far="",
-                )
-            )
-            events.append(
-                ToolCallCompleted(
-                    model_name=self.model_name,
-                    function_name=call["tool"],
-                    call_id=call_id,
-                    arguments=json.dumps(call["arguments"]),
-                )
-            )
-        return events, plain
-
-    def _response_completed_zero(self) -> ResponseCompleted:
-        return ResponseCompleted(
-            model_name=self.model_name,
-            response_id=f"resp_{uuid.uuid4().hex[:16]}",
-            total_tokens=0,
-            finish_reason="stop",
-            output_tokens=0,
-            completion_time=0.0,
-        )

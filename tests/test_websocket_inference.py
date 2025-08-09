@@ -1,13 +1,13 @@
-"""Test WebSocket inference client."""
+# mypy: ignore-errors
 
 import pytest
 
-from rose_core.config.settings import settings
-from rose_server.llms.websocket_inference import InferenceClient
+from rose_server.config.settings import settings
+from rose_server.inference.client import InferenceClient
 
 
 @pytest.mark.asyncio
-async def test_connection_error_message() -> None:
+async def test_connection_error_message():
     """Test that connection errors return a user-friendly message."""
     # Use a non-existent port to ensure connection failure
     client = InferenceClient(uri="ws://localhost:99999")
@@ -28,7 +28,7 @@ async def test_connection_error_message() -> None:
 
 
 @pytest.mark.asyncio
-async def test_configurable_uri() -> None:
+async def test_configurable_uri():
     """Test that the client uses the configured URI."""
     # Test with custom URI
     custom_uri = "ws://custom-host:8888"
