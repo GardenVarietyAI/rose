@@ -66,13 +66,12 @@ def get_torch_dtype(dtype_str: Optional[str] = None) -> torch.dtype:
     return torch.float32
 
 
-def get_optimal_device() -> str:
-    """Get the optimal device for model loading."""
+def get_optimal_device() -> torch.device:
     if torch.cuda.is_available():
-        return "cuda"
-    elif torch.backends.mps.is_available():
-        return "mps"
-    return "cpu"
+        return torch.device("cuda")
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
 
 
 def load_hf_model(model_id: str, torch_dtype: Optional[str] = None) -> Any:
@@ -85,12 +84,12 @@ def load_hf_model(model_id: str, torch_dtype: Optional[str] = None) -> Any:
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
         torch_dtype=dtype,
-        device_map="auto" if device == "cuda" else None,
+        device_map="auto" if device.type == "cuda" else None,
         local_files_only=False,
     )
 
-    if device == "mps":
-        model = model.to(device)
+    if device.type in {"cpu", "mps"}:
+        model.to(device)  # type: ignore[arg-type]
 
     return model
 
@@ -105,12 +104,12 @@ def load_peft_model(model_id: str, model_path: str, torch_dtype: Optional[str] =
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
         torch_dtype=dtype,
-        device_map="auto" if device == "cuda" else None,
+        device_map="auto" if device.type == "cuda" else None,
         local_files_only=True,
     )
 
-    if device == "mps":
-        model = model.to(device)
+    if device.type in {"cpu", "mps"}:
+        model.to(device)  # type: ignore[arg-type]
 
     return model
 
@@ -145,10 +144,18 @@ def unload_model(model: Optional[Any] = None) -> None:
 
     # GPU memory cleanup
     if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.ipc_collect()  # type: ignore[no-untyped-call]
+        for device_id in range(torch.cuda.device_count()):
+            with torch.cuda.device(device_id):
+                # Release cached memory on each CUDA device and wait for
+                # pending kernels to finish so memory is actually freed.
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()  # type: ignore[no-untyped-call]
+                torch.cuda.synchronize()
     elif torch.backends.mps.is_available():
         torch.mps.empty_cache()
+        # Ensure all queued work is done before continuing to avoid
+        # holding references to freed memory on Apple MPS.
+        torch.mps.synchronize()
 
     gc.collect()
     logger.info("Memory cleanup completed")
