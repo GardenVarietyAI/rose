@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -9,10 +9,31 @@ class Vector(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
+class StaticChunkingConfig(BaseModel):
+    max_chunk_size_tokens: int = Field(
+        800,
+        description="Maximum number of tokens in each chunk.",
+        ge=50,
+        le=4000,
+    )
+    chunk_overlap_tokens: int = Field(
+        400,
+        description="Number of tokens shared between consecutive chunks.",
+        ge=0,
+        le=4000,
+    )
+
+
+class ChunkingStrategy(BaseModel):
+    type: Literal["static"] = Field("static", description="The chunking strategy type.")
+    static: StaticChunkingConfig = Field(..., description="Chunking strategy configuration.")
+
+
 class VectorStoreCreate(BaseModel):
     name: str
     metadata: Dict[str, Any] = Field(default_factory=dict)
     file_ids: Optional[List[str]] = None
+    chunking_strategy: Optional[ChunkingStrategy] = None
 
 
 class VectorStoreUpdate(BaseModel):
