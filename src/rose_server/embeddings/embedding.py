@@ -21,6 +21,7 @@ EMBEDDING_MODELS = {
     },
 }
 
+
 @lru_cache(maxsize=4)
 def _get_model(model_name: str) -> SentenceTransformer:
     if model_name in EMBEDDING_MODELS:
@@ -36,7 +37,7 @@ def _get_tokenizer(model_name: str) -> Tokenizer:
         model_path = str(EMBEDDING_MODELS[model_name]["model_name"])
     else:
         model_path = model_name
-    return Tokenizer.from_pretrained(model_path, trust_remote_code=True, use_fast=True)
+    return Tokenizer.from_pretrained(model_path)
 
 
 def clear_embedding_cache() -> None:
