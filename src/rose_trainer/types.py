@@ -50,5 +50,5 @@ class ModelConfig(BaseModel):
     id: str
     parent: Optional[str] = None
     model_name: str
-    lora_target_modules: List[str]
+    lora_target_modules: Optional[List[str]] = None
     quantization: Optional[str] = None
