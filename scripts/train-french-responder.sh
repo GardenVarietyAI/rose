@@ -45,12 +45,12 @@ EOF
 
 # === Upload training data ===
 echo "Uploading French response training data..."
-FILE_ID=$(poetry run rose files upload "$TRAIN_FILE" --purpose fine-tune)
+FILE_ID=$(uv run rose files upload "$TRAIN_FILE" --purpose fine-tune)
 echo "File ID: $FILE_ID"
 
 # === Start fine-tuning ===
 echo "Starting fine-tuning for French responder model..."
-JOB_ID=$(poetry run rose finetune create \
+JOB_ID=$(uv run rose finetune create \
   --file "$FILE_ID" \
   --model "$MODEL_ID" \
   --suffix "$SUFFIX" \
@@ -63,13 +63,13 @@ echo "Job ID: $JOB_ID"
 # === Monitor training ===
 echo "Monitoring training progress..."
 while true; do
-  STATUS=$(poetry run rose finetune get "$JOB_ID" -q)
+  STATUS=$(uv run rose finetune get "$JOB_ID" -q)
   if [ "$STATUS" = "succeeded" ]; then
     echo -e "\n✓ Fine-tuning completed successfully!"
     break
   elif [ "$STATUS" = "failed" ]; then
     echo -e "\n✗ Fine-tuning failed."
-    poetry run rose finetune get "$JOB_ID"
+    uv run rose finetune get "$JOB_ID"
     exit 1
   fi
   sleep 10
@@ -77,7 +77,7 @@ while true; do
 done
 
 # === Get fine-tuned model ID ===
-MODEL=$(poetry run rose finetune get "$JOB_ID" --model-only)
+MODEL=$(uv run rose finetune get "$JOB_ID" --model-only)
 echo -e "\nFine-tuned model: $MODEL"
 
 # === Test the model ===
@@ -97,7 +97,7 @@ test_prompts=(
 for prompt in "${test_prompts[@]}"; do
   echo "English: $prompt"
   echo -n "French:  "
-  poetry run rose chat --model "$MODEL" "$prompt" 2>/dev/null || echo "Error generating response"
+  uv run rose chat --model "$MODEL" "$prompt" 2>/dev/null || echo "Error generating response"
   echo ""
 done
 
@@ -106,6 +106,6 @@ echo "Model ID: $MODEL"
 echo "Training samples: $(wc -l < "$TRAIN_FILE")"
 echo ""
 echo "To chat with the French responder:"
-echo "poetry run rose chat --model \"$MODEL\""
+echo "uv run rose chat --model \"$MODEL\""
 echo ""
 echo "Bonne chance avec votre modèle français!"
