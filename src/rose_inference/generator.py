@@ -3,13 +3,17 @@
 import asyncio
 import logging
 import math
+import queue
 import random
 from dataclasses import dataclass
-from typing import Any, AsyncIterator, Dict, List, Optional
+from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from transformers.generation.streamers import TextIteratorStreamer
+from transformers.generation.utils import GenerateDecoderOnlyOutput
+from transformers.utils.import_utils import is_flash_attn_2_available
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +26,14 @@ class ModelGenerationParams:
     prompt: str = ""
     generation_kwargs: Optional[Dict[str, Any]] = None
     config: Optional[Dict[str, Any]] = None
+
+
+def _model_device(model: Any) -> torch.device:
+    try:
+        device: torch.device = next(model.parameters()).device
+    except StopIteration:
+        device = torch.device("cpu")
+    return device
 
 
 def _set_random_seeds(seed: int) -> None:
@@ -64,16 +76,18 @@ def _format_messages(
 
 
 async def _prepare_inputs(formatted_prompt: str, tokenizer: Any, model: Any) -> Dict[str, Any]:
-    """Tokenize and prepare inputs for model generation.
-
-    Returns:
-        Tuple of (inputs_dict, input_token_count)
-    """
     inputs: Dict[str, Any] = tokenizer(formatted_prompt, return_tensors="pt")
-    if hasattr(model, "device"):
-        inputs = {k: v.to(model.device) for k, v in inputs.items()}
-
+    dev = _model_device(model)
+    inputs = {k: v.to(dev) for k, v in inputs.items()}
     return inputs
+
+
+def _pick_attn_impl() -> Optional[str]:
+    if torch.cuda.is_available() and is_flash_attn_2_available():  # type: ignore[no-untyped-call]
+        return "flash_attention_2"
+    # On CPU/MPS keep it eager
+    # Some stacks passing the arg on MPS confuses things, so return None and  don't include it.
+    return None
 
 
 async def stream(params: ModelGenerationParams, inference_timeout: int = 120) -> AsyncIterator[Dict[str, Any]]:
@@ -104,66 +118,85 @@ async def stream(params: ModelGenerationParams, inference_timeout: int = 120) ->
     yield {"type": "input_tokens_counted", "input_tokens": input_token_count}
 
     # Setup streaming
-    streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
+    streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True, timeout=0.2)
 
     pad_id = tokenizer.pad_token_id
     eos_id = tokenizer.eos_token_id
     if pad_id is None and eos_id is not None:
         pad_id = eos_id  # use eos when tokenizers have no pad
 
-    generation_kwargs.pop("logprobs", False)  # not needed in this context
+    generation_kwargs.pop("logprobs", None)  # not needed in this context
 
     # Build generation kwargs
     gen_kwargs = {
         **generation_kwargs,
         **inputs,
+        "max_new_tokens": generation_kwargs.get("max_new_tokens", 256),
         "do_sample": generation_kwargs.get("temperature", 1.0) > 0,
-        "pad_token_id": tokenizer.pad_token_id,
-        "eos_token_id": tokenizer.eos_token_id,
+        "pad_token_id": pad_id,
+        "eos_token_id": eos_id,
         "streamer": streamer,
+        "use_cache": True,
     }
 
-    async def stream_tokens() -> AsyncIterator[str]:
-        loop = asyncio.get_event_loop()
-        while True:
-            token = await loop.run_in_executor(None, lambda: next(streamer, None))
-            if token is None:
-                break
-            yield token
+    attn_impl = _pick_attn_impl()
+    if attn_impl is not None:
+        gen_kwargs["attn_implementation"] = attn_impl
 
     # Start blocking generate in a worker thread under inference mode
     def _blocking_generate() -> Any:
         with torch.inference_mode():
-            return params.model.generate(**gen_kwargs)
+            return model.generate(**gen_kwargs)
 
     generation_task = asyncio.create_task(asyncio.to_thread(_blocking_generate))
+
+    _EOS = object()
+
+    def _poll_streamer() -> Any:
+        try:
+            return next(streamer)  # may raise StopIteration
+        except queue.Empty:
+            return None  # no token yet
+        except StopIteration:
+            return _EOS  # end of stream
+
+    async def stream_tokens() -> AsyncIterator[str]:
+        loop = asyncio.get_running_loop()
+        while True:
+            res = await loop.run_in_executor(None, _poll_streamer)
+            if res is _EOS:
+                break  # clean EOS
+            if res is None:
+                # no token yet, if generation is finished then loop once more to catch EOS
+                if generation_task.done():
+                    await asyncio.sleep(0)
+                else:
+                    await asyncio.sleep(0)
+                continue
+            yield res
 
     # Stream tokens
     position = 0
     try:
         async for token in stream_tokens():
-            if token:
-                yield {"type": "token", "token": token, "position": position}
-                position += 1
+            yield {"type": "token", "token": token, "position": position}
+            position += 1
     except Exception:
-        logger.exception("Generation error")
+        logger.exception("Error during token generation")
         yield {"type": "error", "error": "internal error"}
-        generation_task.cancel()
-        return
+        if not generation_task.done():
+            generation_task.cancel()
+        # don't re-raise
     finally:
+        # wait for the background thread to finish (or give up)
         try:
             await asyncio.wait_for(generation_task, timeout=inference_timeout)
-        except asyncio.CancelledError:
-            logger.warning("Generation task was cancelled")
+        except asyncio.TimeoutError:
             generation_task.cancel()
-            raise
-        except Exception as e:
-            if isinstance(e, asyncio.TimeoutError):
-                logger.error(f"Generation timeout after {inference_timeout}s")
-                generation_task.cancel()
-            else:
-                logger.exception("Unexpected error in generation cleanup")
-                generation_task.cancel()
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("Unexpected error in generation cleanup")
 
     yield {
         "type": "complete",
@@ -210,15 +243,12 @@ def _extract_top_logprobs(log_probs: torch.Tensor, top_k: int, tokenizer: Any) -
 
 
 async def with_logprobs(params: ModelGenerationParams, inference_timeout: int = 120) -> AsyncIterator[Dict[str, Any]]:
-    """Generate with logprobs using output_scores=True.
-
-    Non-streaming generation that returns logprobs for each token.
-    """
+    """Non-streaming generation that yields per-token logprobs (decoder-only)."""
     generation_kwargs = params.generation_kwargs or {}
     model = params.model
     tokenizer = params.tokenizer
 
-    # Handle seed for deterministic generation
+    # Deterministic seeding (optional)
     seed = generation_kwargs.pop("seed", None)
     if seed is not None:
         _set_random_seeds(seed)
@@ -229,55 +259,70 @@ async def with_logprobs(params: ModelGenerationParams, inference_timeout: int = 
         yield {"type": "complete", "input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
         return
 
-    # Tokenize and prepare inputs
+    # Tokenize and move to model device
     inputs = await _prepare_inputs(formatted_prompt, tokenizer, model)
     input_token_count = inputs["input_ids"].shape[1]
-
     yield {"type": "input_tokens_counted", "input_tokens": input_token_count}
 
-    pad_id = tokenizer.pad_token_id
+    # IDs
+    pad_id = tokenizer.pad_token_id or tokenizer.eos_token_id
     eos_id = tokenizer.eos_token_id
-    if pad_id is None and eos_id is not None:
-        pad_id = eos_id  # use eos when tokenizers have no pad
 
-    # Extract logprobs parameters (remove them from generation_kwargs)
-    generation_kwargs.pop("logprobs", False)
-    top_logprobs = generation_kwargs.pop("top_logprobs", 0)
+    # Logprobs controls (strip from user kwargs)
+    generation_kwargs.pop("logprobs", None)
+    top_logprobs = int(generation_kwargs.pop("top_logprobs", 0))
 
-    # Build generation kwargs with extra parameters for logprobs
-    gen_kwargs = {
+    # Build generate kwargs
+    gen_kwargs: Dict[str, Any] = {
         **generation_kwargs,
         **inputs,
         "do_sample": generation_kwargs.get("temperature", 1.0) > 0,
-        "pad_token_id": tokenizer.pad_token_id,
-        "eos_token_id": tokenizer.eos_token_id,
+        "pad_token_id": pad_id,
+        "eos_token_id": eos_id,
         "output_scores": True,
         "return_dict_in_generate": True,
+        "use_cache": True,
     }
 
-    try:
-        # Generate all at once
+    # Omit attn_implementation on MPS/CPU
+    attn_impl = _pick_attn_impl()
+    if attn_impl is not None:
+        gen_kwargs["attn_implementation"] = attn_impl
+
+    # run sync generate in a worker thread
+    def _gen_sync() -> GenerateDecoderOnlyOutput:
         with torch.no_grad():
-            outputs = await asyncio.to_thread(model.generate, **gen_kwargs)
+            out = model.generate(**gen_kwargs)
+        return cast(GenerateDecoderOnlyOutput, out)
 
-        # Extract generated tokens (skip input tokens)
-        generated_ids = outputs.sequences[0][input_token_count:]
+    try:
+        outputs = await asyncio.wait_for(asyncio.to_thread(_gen_sync), timeout=inference_timeout)
 
-        # Process each token with its score
-        for position, (token_id, score) in enumerate(zip(generated_ids, outputs.scores)):
-            # Convert token_id tensor to integer
-            token_id_int = token_id.item()
+        # Slice out new tokens
+        generated_ids: torch.Tensor = outputs.sequences[0][input_token_count:]
 
-            # Decode token
-            token_text = tokenizer.decode(token_id_int, skip_special_tokens=False)
+        scores_tuple: Optional[Tuple[torch.FloatTensor, ...]] = cast(
+            Optional[Tuple[torch.FloatTensor, ...]], outputs.scores
+        )
+        if scores_tuple is None:
+            # Nothing to yield, return a well-formed completion
+            yield {
+                "type": "complete",
+                "input_tokens": input_token_count,
+                "output_tokens": 0,
+                "total_tokens": input_token_count,
+            }
+            return
 
-            # Convert logits to log probabilities
-            log_probs = torch.nn.functional.log_softmax(score[0], dim=-1)
+        # Iterate by index so types line up (zip would complain if scores is Optional)
+        for position in range(len(scores_tuple)):
+            score: torch.FloatTensor = scores_tuple[position]  # (batch, vocab)
+            token_id = generated_ids[position]  # scalar tensor
+            token_id_int = int(token_id.item())
+            token_text = tokenizer.decode([token_id_int], skip_special_tokens=False)
 
-            # Get log probability of the selected token
-            token_logprob = _process_logprob(log_probs[token_id_int].item())
-
-            # Get top alternatives if requested
+            log_probs = F.log_softmax(score[0], dim=-1)  # batch=1
+            token_logprob = _process_logprob(float(log_probs[token_id_int].item()))
             top_tokens_data = _extract_top_logprobs(log_probs, top_logprobs, tokenizer)
 
             yield {
@@ -288,14 +333,16 @@ async def with_logprobs(params: ModelGenerationParams, inference_timeout: int = 
                 "top_logprobs": top_tokens_data,
             }
 
-        output_token_count = len(generated_ids)
         yield {
             "type": "complete",
             "input_tokens": input_token_count,
-            "output_tokens": output_token_count,
-            "total_tokens": input_token_count + output_token_count,
+            "output_tokens": len(scores_tuple),
+            "total_tokens": input_token_count + len(scores_tuple),
         }
 
+    except asyncio.TimeoutError:
+        logger.error(f"Generation timeout after {inference_timeout}s")
+        yield {"type": "error", "error": "timeout"}
     except Exception:
         logger.exception("Generation with logprobs error")
         yield {"type": "error", "error": "internal error"}
