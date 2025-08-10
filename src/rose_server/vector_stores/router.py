@@ -5,7 +5,6 @@ import time
 import uuid
 from typing import Any, Dict, List
 
-from chromadb.utils import embedding_functions
 from fastapi import APIRouter, Body, HTTPException, Path
 
 from rose_server.schemas.vector_stores import (
@@ -65,10 +64,8 @@ async def create(vector: VectorManager, request: VectorStoreCreate = Body(...)) 
             "display_name": request.name,
             "created_at": int(time.time()),
         }
-        # Create collection with ChromaDB's default embedding function
-        vector.get_or_create_collection(
-            vid, metadata=meta, embedding_function=embedding_functions.DefaultEmbeddingFunction()
-        )
+        # Create collection (will log warning about ChromaDB being unavailable)
+        vector.get_or_create_collection(vid, metadata=meta)
         logger.info("Created vector store %s (%s)", request.name, vid)
         public_meta = {k: v for k, v in meta.items() if k not in _META_EXCLUDE}
 

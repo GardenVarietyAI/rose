@@ -17,7 +17,6 @@ from rose_server.database import create_all_tables
 from rose_server.middleware.auth import AuthMiddleware
 from rose_server.models.registry import ModelRegistry
 from rose_server.router import router
-from rose_server.vector_stores.chroma import Chroma
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["ANONYMIZED_TELEMETRY"] = "false"
@@ -46,11 +45,7 @@ async def lifespan(app: FastAPI) -> Any:
 
     logger.info("SQLite database initialized with WAL mode")
 
-    app.state.chroma = Chroma(
-        host=settings.chroma_host,
-        port=settings.chroma_port,
-        persist_dir=settings.chroma_persist_dir,
-    )
+    logger.warning("ChromaDB support has been removed. Vector store operations will not function.")
 
     app.state.model_registry = ModelRegistry()
     logger.info("Model registry initialized")
