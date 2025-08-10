@@ -21,7 +21,7 @@ from rose_server.entities.run_steps import RunStep
 from rose_server.entities.runs import Run
 from rose_server.entities.threads import MessageMetadata, Thread
 
-DB_PATH = Path(settings.data_dir) / "rose_server.db"
+DB_PATH = Path(settings.data_dir) / "rose.db"
 engine = create_async_engine(
     f"sqlite+aiosqlite:///{DB_PATH}",
     echo=False,
