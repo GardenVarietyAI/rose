@@ -17,6 +17,22 @@ if [ ! -d ".venv" ]; then
     uv sync --no-dev
 fi
 
+# Run database migrations
+echo "Running database migrations..."
+if ! command -v dbmate &> /dev/null; then
+    echo "dbmate not found. Please run 'mise install' first."
+    exit 1
+fi
+
+# Set up environment for dbmate
+export DATABASE_URL=${DATABASE_URL:-sqlite:data/rose.db}
+export DBMATE_MIGRATIONS_DIR=${DBMATE_MIGRATIONS_DIR:-db/migrations}
+export DBMATE_SCHEMA_FILE=${DBMATE_SCHEMA_FILE:-db/schema.sql}
+
+# Apply migrations
+dbmate up
+echo "Database migrations complete"
+
 # Function to cleanup on exit
 cleanup() {
     echo -e "\nShutting down..."
