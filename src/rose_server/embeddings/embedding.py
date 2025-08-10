@@ -3,7 +3,7 @@ from functools import lru_cache
 from typing import Any, Dict, List, Union
 
 import numpy as np
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 from tokenizers import Tokenizer
 
 EMBEDDING_MODELS = {
@@ -23,12 +23,12 @@ EMBEDDING_MODELS = {
 
 
 @lru_cache(maxsize=4)
-def _get_model(model_name: str) -> SentenceTransformer:
+def _get_model(model_name: str) -> TextEmbedding:
     if model_name in EMBEDDING_MODELS:
         model_path = str(EMBEDDING_MODELS[model_name]["model_name"])
     else:
         model_path = str(model_name)
-    return SentenceTransformer(model_path)
+    return TextEmbedding(model_name=model_path)
 
 
 @lru_cache(maxsize=4)
@@ -68,9 +68,8 @@ def generate_embeddings(
 
     for i in range(0, len(texts), batch_size):
         batch = texts[i : i + batch_size]
-        batch_embeddings = model.encode(batch)
-        # Convert 2D array to list of 1D arrays
-        all_embeddings.extend(list(batch_embeddings))
+        batch_embeddings = list(model.embed(batch))
+        all_embeddings.extend(batch_embeddings)
 
     embedding_tokenizer = _get_tokenizer(model_name)
 
@@ -84,7 +83,7 @@ def generate_embeddings(
         "data": [
             {
                 "object": "embedding",
-                "embedding": embedding.tolist() if isinstance(embedding, np.ndarray) else embedding,
+                "embedding": embedding.tolist() if isinstance(embedding, np.ndarray) else list(embedding),
                 "index": i,
             }
             for i, embedding in enumerate(all_embeddings)
