@@ -22,9 +22,7 @@ class Chroma:
         self.port = port or int(os.getenv("CHROMA_PORT", "8003"))
         self.persist_dir = persist_dir or os.getenv("CHROMA_PERSIST_DIR", "./data/chroma")
         self._client: Optional[chromadb.Client] = None
-        self._default_embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="BAAI/bge-small-en-v1.5"
-        )
+        self._default_embedding_function = embedding_functions.DefaultEmbeddingFunction()
         self._init_client()
 
     def _init_client(self) -> None:
