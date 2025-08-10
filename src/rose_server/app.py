@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from rose_server import __version__
 from rose_server.config.settings import settings
+from rose_server.database import check_database_setup
 from rose_server.middleware.auth import AuthMiddleware
 from rose_server.models.registry import ModelRegistry
 from rose_server.router import router
@@ -41,7 +42,8 @@ async def lifespan(app: FastAPI) -> Any:
         os.makedirs(dir, exist_ok=True)
         logger.info(f"Ensured directory exists: {dir}")
 
-    logger.info("SQLite database initialized with WAL mode")
+    if not check_database_setup():
+        raise RuntimeError("Database not found")
 
     app.state.chroma = Chroma(
         host=settings.chroma_host,

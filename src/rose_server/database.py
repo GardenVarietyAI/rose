@@ -64,11 +64,17 @@ def current_timestamp() -> int:
     return int(time.time())
 
 
+def check_database_setup() -> bool:
+    """Check if database file exists."""
+    return DB_PATH.exists()
+
+
 __all__ = [
     "engine",
     "get_session",
     "create_all_tables",
     "current_timestamp",
+    "check_database_setup",
     "UploadedFile",
     "FineTuningJob",
     "FineTuningEvent",
