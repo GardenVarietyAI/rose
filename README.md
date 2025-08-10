@@ -56,7 +56,7 @@ uv run rose models download Qwen/Qwen2.5-1.5B-Instruct
 
 ```bash
 # Chat with Qwen/Qwen2.5-1.5B-Instruct  
-uv run rose chat --model Qwen--Qwen2.5-1.5B-Instruct
+uv run rose chat --model Qwen/Qwen2.5-1.5B-Instruct
 ```
 
 ## Documentation

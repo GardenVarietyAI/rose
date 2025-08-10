@@ -28,7 +28,7 @@ def download_model(
 
     # Determine local path
     models_dir = get_models_directory()
-    safe_model_name = hf_model_name.replace("/", "--")
+    safe_model_name = hf_model_name.replace("--", "/")
     local_dir = models_dir / safe_model_name
 
     # Check if already exists
