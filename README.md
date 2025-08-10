@@ -10,7 +10,7 @@ This is pre-release software. Use at your own risk!
 
 - **Local Model Inference** - Hugging Face Transformers
 - **Fine-Tuning** - LoRA-based pipeline
-- **Vector Storage** - Backed by ChromaDB 
+- **Vector Storage** - Backed by ChromaDB
 - **Embeddings** - Using bge-small-en-v1.5 as the default
 - **Streaming Support** - SSE for real-time completions
 
@@ -38,6 +38,14 @@ mise install
 uv pip install --group cli
 ```
 
+### Initialize Database
+
+```bash
+# Set up the database schema using dbmate
+export DATABASE_URL=sqlite:data/rose.db
+dbmate up
+```
+
 ### Download a Model
 
 ```bash
@@ -55,7 +63,7 @@ uv run rose models download Qwen/Qwen2.5-1.5B-Instruct
 ### Start a chat
 
 ```bash
-# Chat with Qwen/Qwen2.5-1.5B-Instruct  
+# Chat with Qwen/Qwen2.5-1.5B-Instruct
 uv run rose chat --model Qwen/Qwen2.5-1.5B-Instruct
 ```
 
