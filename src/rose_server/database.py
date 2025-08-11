@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator, TypeVar
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 
@@ -64,9 +65,14 @@ def current_timestamp() -> int:
     return int(time.time())
 
 
-def check_database_setup() -> bool:
-    """Check if database file exists."""
-    return DB_PATH.exists()
+async def check_database_setup() -> bool:
+    """Check if database connection works."""
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("SELECT 1"))
+            return True
+    except Exception:
+        return False
 
 
 __all__ = [

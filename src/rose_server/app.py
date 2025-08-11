@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI) -> Any:
         os.makedirs(dir, exist_ok=True)
         logger.info(f"Ensured directory exists: {dir}")
 
-    if not check_database_setup():
+    if not await check_database_setup():
         raise RuntimeError("Database not found")
 
     app.state.chroma = Chroma(
