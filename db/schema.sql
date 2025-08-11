@@ -39,15 +39,6 @@ CREATE TABLE threads (
     meta TEXT NOT NULL DEFAULT '{}'  -- JSON
 );
 CREATE INDEX idx_threads_created ON threads(created_at);
-CREATE TABLE message_metadata (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    message_id TEXT NOT NULL,
-    key TEXT NOT NULL,
-    value TEXT NOT NULL,
-    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
-);
-CREATE INDEX idx_message_metadata_message ON message_metadata(message_id);
-CREATE INDEX idx_message_metadata_key ON message_metadata(key);
 CREATE TABLE messages (
     id TEXT PRIMARY KEY,
     object TEXT NOT NULL DEFAULT 'thread.message',
@@ -210,6 +201,15 @@ CREATE TABLE vector_stores (
 CREATE INDEX idx_vector_stores_created_at ON vector_stores(created_at);
 CREATE INDEX idx_vector_stores_name ON vector_stores(name);
 CREATE INDEX idx_files_vector_store_id ON files(vector_store_id);
+CREATE TABLE message_metadata (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_message_metadata_message ON message_metadata(message_id);
+CREATE INDEX idx_message_metadata_key ON message_metadata(key);
 -- Dbmate schema migrations
 INSERT INTO "schema_migrations" (version) VALUES
   ('20250810000001'),
@@ -218,4 +218,5 @@ INSERT INTO "schema_migrations" (version) VALUES
   ('20250810000004'),
   ('20250810000005'),
   ('20250810000006'),
-  ('20250810000007');
+  ('20250810000007'),
+  ('20250810000008');
