@@ -43,7 +43,7 @@ async def lifespan(app: FastAPI) -> Any:
         logger.info(f"Ensured directory exists: {dir}")
 
     if not await check_database_setup():
-        raise RuntimeError("Database not found")
+        raise RuntimeError("Database not found. Please run 'dbmate up' and try again.")
 
     app.state.chroma = Chroma(
         host=settings.chroma_host,
