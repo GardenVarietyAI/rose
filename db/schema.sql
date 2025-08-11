@@ -238,6 +238,8 @@ CREATE TABLE models (
 );
 CREATE INDEX idx_models_model_name ON models(model_name);
 CREATE INDEX idx_models_is_fine_tuned ON models(is_fine_tuned);
+CREATE TABLE _litestream_seq (id INTEGER PRIMARY KEY, seq INTEGER);
+CREATE TABLE _litestream_lock (id INTEGER);
 -- Dbmate schema migrations
 INSERT INTO "schema_migrations" (version) VALUES
   ('20250810000001'),
