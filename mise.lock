@@ -15,6 +15,13 @@ backend = "core:python"
 version = "1.88.0"
 backend = "core:rust"
 
+[tools."ubi:benbjohnson/litestream"]
+version = "0.3.13"
+backend = "ubi:benbjohnson/litestream"
+
+[tools."ubi:benbjohnson/litestream".platforms.macos-arm64-litestream]
+checksum = "blake3:41992d1386eaada9de8b46ad20009fc14b5fd2742243e976f23f6dbd5189108d"
+
 [tools.uv]
 version = "0.8.3"
 backend = "aqua:astral-sh/uv"
