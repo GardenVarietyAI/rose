@@ -4,6 +4,11 @@ rust = "1.88"
 "vfox:cmake" = "3.31.6"
 uv = "0.8.3"
 dbmate = "2.22.0"
+"ubi:benbjohnson/litestream" = "latest"
+
+[tasks]
+backup = "litestream replicate -config ./litestream.yml"
+restore = "litestream restore -config ./litestream.yml -replica local -o ./data/rose.db ./data/rose.db"
 
 [settings]
 lockfile = true
