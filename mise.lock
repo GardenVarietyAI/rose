@@ -1,3 +1,12 @@
+[tools.dbmate]
+version = "2.22.0"
+backend = "aqua:amacneil/dbmate"
+
+[tools.dbmate.platforms.macos-arm64]
+checksum = "blake3:15e92e6f82afabf72ef0c13126d28d0c5bd9a5b9f741bbdb43540b8b287104f1"
+size = 29838578
+url = "https://github.com/amacneil/dbmate/releases/download/v2.22.0/dbmate-macos-arm64"
+
 [tools.python]
 version = "3.13.5"
 backend = "core:python"
