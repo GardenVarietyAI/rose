@@ -30,7 +30,3 @@ backend = "aqua:astral-sh/uv"
 checksum = "sha256:9ebfe9f3b51187932ef97270b689da48261acacadd6ea7018d2cc62719c86ffe"
 size = 16667462
 url = "https://github.com/astral-sh/uv/releases/download/0.8.3/uv-aarch64-apple-darwin.tar.gz"
-
-[tools."vfox:cmake"]
-version = "3.31.6"
-backend = "vfox:cmake"
