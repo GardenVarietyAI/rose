@@ -14,7 +14,7 @@ console = Console()
 def chat(
     ctx: typer.Context,
     prompt: Optional[str] = typer.Argument(None, help="Message to send (omit for interactive mode)"),
-    model: str = typer.Option("Qwen--Qwen2.5-1.5B-Instruct", "--model", "-m", help="Model to use"),
+    model: str = typer.Option("Qwen/Qwen2.5-1.5B-Instruct", "--model", "-m", help="Model to use"),
     system: Optional[str] = typer.Option(None, "--system", "-s", help="System prompt"),
     interactive: bool = typer.Option(False, "--interactive", "-i", help="Start interactive session"),
     logprobs: bool = typer.Option(False, "--logprobs", help="Return log probabilities of tokens"),
@@ -47,8 +47,9 @@ def chat(
 
     try:
         # Build kwargs for completion
+        safe_model_name = model.replace("/", "--")
         kwargs: dict[str, Any] = {
-            "model": model,
+            "model": safe_model_name,
             "messages": messages,
         }
         if temperature is not None:
