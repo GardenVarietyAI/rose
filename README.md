@@ -35,6 +35,7 @@ cd rose
 
 # Install deps
 mise install
+uv venv
 uv pip install --group cli
 ```
 
