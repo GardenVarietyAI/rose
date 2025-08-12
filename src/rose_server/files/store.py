@@ -11,8 +11,8 @@ from rose_server.entities.files import UploadedFile
 logger = logging.getLogger(__name__)
 
 
-async def create_file(file_size: int, purpose: FilePurpose, filename: str) -> UploadedFile:
-    # Save to database first to get the auto-generated ID
+async def create_file(file_size: int, purpose: FilePurpose, filename: str, content: bytes) -> UploadedFile:
+    """Create file with content stored as BLOB in database."""
     uploaded_file = UploadedFile(
         object="file",
         bytes=file_size,
@@ -20,24 +20,23 @@ async def create_file(file_size: int, purpose: FilePurpose, filename: str) -> Up
         filename=filename,
         purpose=purpose,
         status="processed",
-        storage_path="",  # Will be updated after we have the ID
+        storage_path="BLOB",
+        content=content,
     )
 
     async with get_session() as session:
         session.add(uploaded_file)
         await session.commit()
         await session.refresh(uploaded_file)
-        logger.info(f"Created file {uploaded_file.id} with filename {uploaded_file.filename}")
+        logger.info(f"Created file {uploaded_file.id} with BLOB content, filename {uploaded_file.filename}")
         return uploaded_file
 
 
-async def update_storage_path(file_id: str) -> None:
-    """Mark job as completed."""
-    async with get_session() as session:
-        uploaded_file = await session.get(UploadedFile, file_id)
-        if uploaded_file:
-            uploaded_file.storage_path = file_id
-            await session.commit()
+async def get_file_content(file_id: str) -> Optional[bytes]:
+    """Get file content from BLOB storage."""
+    async with get_session(read_only=True) as session:
+        result = await session.execute(select(UploadedFile.content).where(UploadedFile.id == file_id))
+        return result.scalar_one_or_none()
 
 
 async def get_file(file_id: str) -> Optional[UploadedFile]:

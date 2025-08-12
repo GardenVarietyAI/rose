@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional
 from rose_server.files.store import create_file
 from rose_server.fine_tuning.events.store import get_events
 from rose_server.fine_tuning.jobs.store import get_job, update_job_result_files
-from rose_server.fs import save_results_file
 
 logger = logging.getLogger(__name__)
 
@@ -116,8 +115,9 @@ async def create_result_file(
         payload = json.dumps(training_results, indent=2, ensure_ascii=False)
         result_bytes = BytesIO(payload.encode())
         filename = f"ft-{job_id}-training-results.jsonl"
-        file_obj = await create_file(result_bytes.getbuffer().nbytes, "fine-tune-results", filename)
-        await save_results_file(filename, result_bytes.getvalue())
+        file_obj = await create_file(
+            result_bytes.getbuffer().nbytes, "fine-tune-results", filename, result_bytes.getvalue()
+        )
         await update_job_result_files(job_id, [file_obj.id])
         logger.info("Result-file %s created for job %s (%d steps)", file_obj.id, job_id, len(step_metrics))
         file_obj_id: str = file_obj.id
