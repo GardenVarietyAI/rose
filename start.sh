@@ -30,7 +30,7 @@ export DBMATE_MIGRATIONS_DIR=${DBMATE_MIGRATIONS_DIR:-db/migrations}
 export DBMATE_SCHEMA_FILE=${DBMATE_SCHEMA_FILE:-db/schema.sql}
 
 # Apply migrations
-dbmate --no-dump-schema up
+dbmate up
 echo "Database migrations complete"
 
 # Function to cleanup on exit
