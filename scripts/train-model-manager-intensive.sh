@@ -82,7 +82,7 @@ phrases=(
 
 for input in "${phrases[@]}"; do
   echo -e "\nQuery: $input"
-  OUTPUT=$(ROSE_API_KEY=48028196-b9b6-46b0-ab17-fafcdc5c69af uv run rose actors model-manager --model "$MODEL" "$input" 2>&1 || echo "ERROR")
+  OUTPUT=$(export ROSE_API_KEY="sk-dummy-key" uv run rose actors model-manager --model "$MODEL" "$input" 2>&1 || echo "ERROR")
 
   # Check for successful responses
   if [[ "$OUTPUT" == "ERROR" ]] || [[ "$OUTPUT" == *"Error"* ]] || [[ "$OUTPUT" == *"error"* ]]; then

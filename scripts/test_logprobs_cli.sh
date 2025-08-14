@@ -2,7 +2,7 @@
 # Test logprobs functionality using the rose CLI
 
 # Set API key if needed
-export ROSE_API_KEY="${ROSE_API_KEY:-48028196-b9b6-46b0-ab17-fafcdc5c69af}"
+export ROSE_API_KEY="sk-dummy-key"
 
 echo "Testing rose CLI with logprobs"
 echo "=============================="

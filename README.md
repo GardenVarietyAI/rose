@@ -43,7 +43,7 @@ uv pip install --group cli
 
 ```bash
 # Set up the database schema using dbmate
-export DATABASE_URL=sqlite:data/rose.db
+mv env.example .env
 mkdir -p data
 dbmate up
 ```

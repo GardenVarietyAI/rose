@@ -20,10 +20,7 @@ class ServiceClient:
     def __init__(self, base_url: Optional[str] = None, timeout: float = DEFAULT_TIMEOUT):
         self.base_url = os.getenv("ROSE_SERVER_URL", "http://127.0.0.1:8004")
         self.timeout = timeout
-        token = os.getenv("ROSE_API_KEY") or ""
-        headers = {"Authorization": f"Bearer {token}"}
-
-        self._client = httpx.Client(base_url=self.base_url, timeout=timeout, headers=headers)
+        self._client = httpx.Client(base_url=self.base_url, timeout=timeout)
 
     def __enter__(self) -> "ServiceClient":
         return self
