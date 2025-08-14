@@ -43,15 +43,6 @@ async def inference(websocket: WebSocket) -> None:
         await websocket.close(code=1013, reason="Server busy: too many connections")
         return
 
-    # Check auth if enabled
-    auth_enabled = os.getenv("ROSE_SERVER_AUTH_ENABLED", "false").lower() == "true"
-    if auth_enabled:
-        token = os.getenv("ROSE_API_KEY")
-        auth_header = websocket.headers.get("authorization", "")
-        if token and auth_header != f"Bearer {token}":
-            await websocket.close(code=1008, reason="Unauthorized")
-            return
-
     await websocket.accept()
     app.state.active_connections += 1
     logger.info(f"Client connected (active_connections={app.state.active_connections})")
@@ -123,7 +114,7 @@ async def evict_cache() -> Dict[str, str]:
 
 def main() -> None:
     """Entry point for the inference server."""
-    host = os.getenv("ROSE_INFERENCE_HOST", "0.0.0.0")
+    host = os.getenv("ROSE_INFERENCE_HOST", "127.0.0.1")
     port = int(os.getenv("ROSE_INFERENCE_PORT", "8005"))
     logger.info(f"Starting inference server on ws://{host}:{port}")
     uvicorn.run(app, host=host, port=port, log_level="info")

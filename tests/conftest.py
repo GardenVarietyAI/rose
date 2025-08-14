@@ -7,7 +7,6 @@ from sqlmodel import SQLModel
 
 from rose_server import database
 from rose_server.app import create_app
-from rose_server.config import settings
 
 # Create in-memory engine for testing
 test_engine = create_async_engine(
@@ -39,9 +38,6 @@ def client(test_db, monkeypatch):
     monkeypatch.setattr(database, "async_session_factory", test_async_session_factory)
     monkeypatch.setattr(database, "engine", test_engine)
 
-    original_auth = settings.auth_enabled
-    settings.auth_enabled = False
-
     app = create_app()
     with TestClient(app) as test_client:
         # Create the default test model via API
@@ -56,6 +52,3 @@ def client(test_db, monkeypatch):
         )
         assert response.status_code == 201
         yield test_client
-
-    # Restore original auth setting
-    settings.auth_enabled = original_auth
