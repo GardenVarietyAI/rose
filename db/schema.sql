@@ -27,7 +27,7 @@ CREATE TABLE files (
     status TEXT DEFAULT 'processed',
     status_details TEXT,
     storage_path TEXT NOT NULL
-, vector_store_id TEXT REFERENCES vector_stores(id), content BLOB);
+, content BLOB);
 CREATE INDEX idx_files_created_at ON files(created_at);
 CREATE INDEX idx_files_purpose ON files(purpose);
 CREATE INDEX idx_files_status ON files(status);
@@ -197,10 +197,9 @@ CREATE TABLE vector_stores (
     dimensions INTEGER NOT NULL DEFAULT 384,
     meta TEXT NOT NULL DEFAULT '{}',  -- JSON for additional metadata
     created_at INTEGER NOT NULL
-);
+, last_used_at INTEGER);
 CREATE INDEX idx_vector_stores_created_at ON vector_stores(created_at);
 CREATE INDEX idx_vector_stores_name ON vector_stores(name);
-CREATE INDEX idx_files_vector_store_id ON files(vector_store_id);
 CREATE TABLE message_metadata (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     message_id TEXT NOT NULL,
@@ -245,6 +244,15 @@ CREATE TABLE _litestream_seq (
 CREATE TABLE _litestream_lock (
     id INTEGER
 );
+CREATE TABLE documents (
+    id TEXT PRIMARY KEY,
+    vector_store_id TEXT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    meta JSON,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY (vector_store_id) REFERENCES vector_stores (id) ON DELETE CASCADE
+);
 -- Dbmate schema migrations
 INSERT INTO "schema_migrations" (version) VALUES
   ('20250810000001'),
@@ -257,4 +265,5 @@ INSERT INTO "schema_migrations" (version) VALUES
   ('20250810000008'),
   ('20250810000009'),
   ('20250812000001'),
-  ('20250812000003');
+  ('20250812000003'),
+  ('20250815000003');
