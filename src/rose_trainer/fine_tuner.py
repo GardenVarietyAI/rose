@@ -247,13 +247,13 @@ def train(
         data_dir = config["data_dir"]
 
         local_model_path = resolve_model_path(data_dir, model_info.id)
-        
+
         # Fetch training file content from API
         try:
             training_file_content = client.get_file_content(training_file)
         except FileNotFoundError:
             raise ValueError(f"Training file '{training_file}' not found")
-        
+
         training_file_path = create_training_file_from_content(data_dir, training_file, training_file_content)
         ft_model_id = generate_name(model_info.id, hyperparameters.suffix)
         output_dir = create_output_dir(data_dir, ft_model_id)
@@ -324,5 +324,11 @@ def train(
         except (RuntimeError, ValueError, OSError) as e:
             logger.error(f"HuggingFace training failed for job {job_id}: {str(e)}")
             raise
+        finally:
+            try:
+                training_file_path.unlink()
+                logger.info(f"Cleaned up temporary training file: {training_file_path}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up temporary training file {training_file_path}: {e}")
     else:
         raise ValueError(f"Unknown trainer: {trainer}")
