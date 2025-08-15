@@ -22,7 +22,7 @@ async def create(
     """Upload a file."""
     try:
         content = await file.read()
-        file_size = len(content)
+        file_size = file.size or len(content)
 
         uploaded_file = await create_file(file_size=file_size, purpose=purpose, filename=file.filename, content=content)
 
