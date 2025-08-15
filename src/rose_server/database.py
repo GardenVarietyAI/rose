@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator, TypeVar
 
+import sqlite_vec
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
@@ -59,13 +60,16 @@ async def create_all_tables() -> None:
     """Create all database tables."""
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
-        await conn.execute(text("SELECT load_extension('vec0')"))
-        await conn.execute(text("""
+        # Load sqlite-vec extension and create virtual table
+        sqlite_vec.load(conn.connection.connection)
+        await conn.execute(
+            text("""
             CREATE VIRTUAL TABLE IF NOT EXISTS vec0 USING vec0(
                 document_id TEXT PRIMARY KEY,
                 embedding float[384]
             )
-        """))
+        """)
+        )
 
 
 def current_timestamp() -> int:
@@ -79,7 +83,8 @@ async def check_database_setup() -> bool:
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
             return True
-    except Exception:
+    except Exception as e:
+        print(f"Database check failed: {e}")
         return False
 
 
