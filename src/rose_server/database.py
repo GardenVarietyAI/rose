@@ -21,6 +21,7 @@ from rose_server.entities.models import LanguageModel
 from rose_server.entities.run_steps import RunStep
 from rose_server.entities.runs import Run
 from rose_server.entities.threads import MessageMetadata, Thread
+from rose_server.entities.vector_stores import Document, VectorStore
 
 DB_PATH = Path(settings.data_dir) / "rose.db"
 engine = create_async_engine(
@@ -92,4 +93,6 @@ __all__ = [
     "MessageMetadata",
     "Run",
     "RunStep",
+    "VectorStore",
+    "Document",
 ]
