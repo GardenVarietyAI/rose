@@ -18,7 +18,13 @@ from rose_server.schemas.vector_stores import (
     VectorStoreUpdate,
 )
 from rose_server.vector_stores.deps import VectorManager
-from rose_server.vector_stores.store import add_file_to_vector_store, create_vector_store, list_vector_stores
+from rose_server.vector_stores.store import (
+    add_file_to_vector_store,
+    create_vector_store,
+    get_vector_store,
+    list_vector_stores,
+    search_vector_store,
+)
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
@@ -195,47 +201,33 @@ async def delete_vectors(
 
 
 @router.post("/vector_stores/{vector_store_id}/search")
-async def search_vector_store(
-    vector: VectorManager,
+async def search_store(
     vector_store_id: str = Path(..., description="The ID of the vector store"),
     request: VectorSearch = Body(...),
 ) -> VectorSearchResult:
     """Search for vectors in a vector store (OpenAI-compatible)."""
     try:
-        if vector_store_id not in vector.list_collections():
-            raise VectorStoreNotFoundError(vector_store_id)
+        # Check if vector store exists
+        vector_store = await get_vector_store(vector_store_id)
+        if not vector_store:
+            raise HTTPException(status_code=404, detail=f"Vector store {vector_store_id} not found")
 
-        col = vector.client.get_collection(vector_store_id)
-
-        # Use ChromaDB's built-in embedding for text queries
+        # Search documents using text query for now
         if isinstance(request.query, str):
-            res = col.query(
-                query_texts=[request.query],
-                n_results=request.max_num_results,
-                where=request.filters,
-                include=["metadatas", "embeddings", "distances"],
-            )
-            # Estimate usage for API compatibility
+            documents = await search_vector_store(vector_store_id, request.query, request.max_num_results)
             usage = {
                 "prompt_tokens": len(request.query.split()),
                 "total_tokens": len(request.query.split()),
             }
         else:
-            # Direct vector query
-            res = col.query(
-                query_embeddings=[request.query],
-                n_results=request.max_num_results,
-                where=request.filters,
-                include=["metadatas", "embeddings", "distances"],
-            )
+            # Vector embeddings not implemented yet
+            documents = []
             usage = {"prompt_tokens": 0, "total_tokens": 0}
 
+        # Convert documents to Vector format
         out = []
-        for i, vec_id in enumerate(res["ids"][0]):
-            meta = (res.get("metadatas") or [[]])[0][i] or {}
-            vec = Vector(id=vec_id, metadata=meta)
-            if request.include_values and "embeddings" in res:
-                vec.values = res["embeddings"][0][i]
+        for doc in documents:
+            vec = Vector(id=doc.id, metadata=doc.meta or {})
             out.append(vec)
 
         return VectorSearchResult(data=out, usage=usage)

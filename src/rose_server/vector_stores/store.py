@@ -64,3 +64,16 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
         session.add(document)
         await session.commit()
         return document
+
+
+async def search_vector_store(vector_store_id: str, query: str, max_results: int = 10) -> List[Document]:
+    """Search documents in a vector store using text matching."""
+    async with get_session(read_only=True) as session:
+        # Simple text search for now - will add vector search later
+        result = await session.execute(
+            select(Document)
+            .where(Document.vector_store_id == vector_store_id)
+            .where(Document.content.contains(query))
+            .limit(max_results)
+        )
+        return [row[0] for row in result.fetchall()]
