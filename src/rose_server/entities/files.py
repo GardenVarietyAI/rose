@@ -24,4 +24,4 @@ class UploadedFile(SQLModel, table=True):
     status: Optional[str] = Field(default="processed", description="Deprecated. Status: uploaded, processed, or error")
     status_details: Optional[str] = Field(default=None, description="Deprecated. Details on validation errors")
     storage_path: str = Field(description="Internal storage path relative to uploads directory")
-    content: Any = Field(default=None, sa_column=Column(LargeBinary), description="File content stored as BLOB")
+    content: Any = Field(default=None, sa_column=Column(LargeBinary), description="File content stored as BLOB (bytes)")
