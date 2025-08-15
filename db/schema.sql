@@ -27,7 +27,7 @@ CREATE TABLE files (
     status TEXT DEFAULT 'processed',
     status_details TEXT,
     storage_path TEXT NOT NULL
-, vector_store_id TEXT REFERENCES vector_stores(id));
+, vector_store_id TEXT REFERENCES vector_stores(id), content BLOB);
 CREATE INDEX idx_files_created_at ON files(created_at);
 CREATE INDEX idx_files_purpose ON files(purpose);
 CREATE INDEX idx_files_status ON files(status);
@@ -256,4 +256,5 @@ INSERT INTO "schema_migrations" (version) VALUES
   ('20250810000007'),
   ('20250810000008'),
   ('20250810000009'),
+  ('20250812000001'),
   ('20250812000003');
