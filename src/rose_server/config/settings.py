@@ -19,7 +19,6 @@ class Settings(BaseSettings):
     port: int = Field(default=8004, description="Server port")
     reload: bool = Field(default=True, description="Enable auto-reload in development")
     log_level: str = Field(default="INFO", description="Logging level")
-    auth_enabled: bool = Field(default=False, description="Enable API authentication")
 
     # Data directories
     data_dir: str = Field(default="./data", description="Base data directory")
@@ -57,7 +56,6 @@ class Settings(BaseSettings):
         default=0.1, description="Learning rate multiplier when 'auto' is specified"
     )
     training_interval: int = Field(default=30, description="Training job check interval in seconds")
-    training_results_dir: str = Field(default="data/results", description="Training results directory")
 
     # File upload settings
     max_file_upload_size: int = Field(

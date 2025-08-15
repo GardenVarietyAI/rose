@@ -35,7 +35,6 @@ async def lifespan(app: FastAPI) -> Any:
         settings.model_offload_dir,
         settings.chroma_persist_dir,
         settings.fine_tuning_checkpoint_dir,
-        settings.training_results_dir,
     ]
     for dir in directories:
         os.makedirs(dir, exist_ok=True)
