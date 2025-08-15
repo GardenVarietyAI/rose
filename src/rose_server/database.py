@@ -58,18 +58,31 @@ async def get_session(read_only: bool = False) -> AsyncGenerator[AsyncSession, N
 
 async def create_all_tables() -> None:
     """Create all database tables."""
+    # First create regular tables with async connection
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
-        # Load sqlite-vec extension and create virtual table
-        sqlite_vec.load(conn.connection.connection)
-        await conn.execute(
-            text("""
+
+    # Then create vec0 table with separate sync connection
+    import sqlite3
+
+    sync_conn = sqlite3.connect(str(DB_PATH))
+    try:
+        print("Enabling extension loading and loading sqlite-vec")
+        sync_conn.enable_load_extension(True)
+        sqlite_vec.load(sync_conn)
+        sync_conn.execute("""
             CREATE VIRTUAL TABLE IF NOT EXISTS vec0 USING vec0(
                 document_id TEXT PRIMARY KEY,
                 embedding float[384]
             )
         """)
-        )
+        sync_conn.commit()
+        print("vec0 table created successfully")
+    except Exception as e:
+        print(f"Error creating vec0 table: {e}")
+        raise
+    finally:
+        sync_conn.close()
 
 
 def current_timestamp() -> int:

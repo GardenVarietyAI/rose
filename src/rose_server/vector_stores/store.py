@@ -47,9 +47,6 @@ async def list_vector_stores() -> List[VectorStore]:
 async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Document:
     """Add a file to a vector store by chunking and embedding it."""
     async with get_session() as session:
-        # Load sqlite-vec extension
-        sqlite_vec.load(session.connection().connection.connection)
-
         # Get the file content
         file_result = await session.execute(select(UploadedFile).where(UploadedFile.id == file_id))
         file_row = file_result.fetchone()
@@ -91,9 +88,6 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
 async def search_vector_store(vector_store_id: str, query: str, max_results: int = 10) -> List[Document]:
     """Search documents in a vector store using vector similarity."""
     async with get_session(read_only=True) as session:
-        # Load sqlite-vec extension
-        sqlite_vec.load(session.connection().connection.connection)
-
         # Generate query embedding
         embedding_model = _get_model("bge-small-en-v1.5")
         query_embedding = list(embedding_model.embed([query]))[0]
