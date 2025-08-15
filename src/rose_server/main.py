@@ -12,7 +12,7 @@ def main() -> None:
         limit_max_requests=1000,
         limit_concurrency=1000,
         timeout_keep_alive=30,
-        h11_max_incomplete_event_size=100 * 1024 * 1024,  # 100MB for large file uploads
+        h11_max_incomplete_event_size=settings.max_file_upload_size,
     )
 
 
