@@ -10,7 +10,7 @@ This is pre-release software. Use at your own risk!
 
 - **Local Model Inference** - Hugging Face Transformers
 - **Fine-Tuning** - LoRA-based pipeline
-- **Vector Storage** - Backed by ChromaDB 
+- **Vector Storage** - Backed by ChromaDB
 - **Embeddings** - Using bge-small-en-v1.5 as the default
 - **Streaming Support** - SSE for real-time completions
 
@@ -30,12 +30,22 @@ This is pre-release software. Use at your own risk!
 curl https://mise.run | sh
 
 # Clone the repository
-git clone git@github.com:GardenVarietyAI/rose.git
+git clone --branch 0.1.1 --depth 1 git@github.com:GardenVarietyAI/rose.git
 cd rose
 
 # Install deps
 mise install
+uv venv
 uv pip install --group cli
+```
+
+### Initialize Database
+
+```bash
+# Set up the database schema using dbmate
+mv env.example .env
+mkdir -p data
+dbmate up
 ```
 
 ### Download a Model
@@ -55,7 +65,7 @@ uv run rose models download Qwen/Qwen2.5-1.5B-Instruct
 ### Start a chat
 
 ```bash
-# Chat with Qwen/Qwen2.5-1.5B-Instruct  
+# Chat with Qwen/Qwen2.5-1.5B-Instruct
 uv run rose chat --model Qwen/Qwen2.5-1.5B-Instruct
 ```
 

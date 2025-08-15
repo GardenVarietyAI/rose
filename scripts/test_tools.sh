@@ -4,7 +4,7 @@
 # Tests each tool through different actors
 
 # Set API key
-export ROSE_API_KEY=48028196-b9b6-46b0-ab17-fafcdc5c69af
+export ROSE_API_KEY="sk-dummy-key"
 
 # Colors
 YELLOW='\033[1;33m'

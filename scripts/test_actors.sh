@@ -4,7 +4,7 @@
 # This script demonstrates each actor's capabilities
 
 # Set API key
-export ROSE_API_KEY=48028196-b9b6-46b0-ab17-fafcdc5c69af
+export ROSE_API_KEY="sk-dummy-key"
 
 # Colors for output
 RED='\033[0;31m'

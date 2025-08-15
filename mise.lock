@@ -1,3 +1,12 @@
+[tools.dbmate]
+version = "2.22.0"
+backend = "aqua:amacneil/dbmate"
+
+[tools.dbmate.platforms.macos-arm64]
+checksum = "blake3:15e92e6f82afabf72ef0c13126d28d0c5bd9a5b9f741bbdb43540b8b287104f1"
+size = 29838578
+url = "https://github.com/amacneil/dbmate/releases/download/v2.22.0/dbmate-macos-arm64"
+
 [tools.python]
 version = "3.13.5"
 backend = "core:python"
@@ -5,6 +14,13 @@ backend = "core:python"
 [tools.rust]
 version = "1.88.0"
 backend = "core:rust"
+
+[tools."ubi:benbjohnson/litestream"]
+version = "0.3.13"
+backend = "ubi:benbjohnson/litestream"
+
+[tools."ubi:benbjohnson/litestream".platforms.macos-arm64-litestream]
+checksum = "blake3:41992d1386eaada9de8b46ad20009fc14b5fd2742243e976f23f6dbd5189108d"
 
 [tools.uv]
 version = "0.8.3"
@@ -14,7 +30,3 @@ backend = "aqua:astral-sh/uv"
 checksum = "sha256:9ebfe9f3b51187932ef97270b689da48261acacadd6ea7018d2cc62719c86ffe"
 size = 16667462
 url = "https://github.com/astral-sh/uv/releases/download/0.8.3/uv-aarch64-apple-darwin.tar.gz"
-
-[tools."vfox:cmake"]
-version = "3.31.6"
-backend = "vfox:cmake"

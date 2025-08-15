@@ -19,10 +19,18 @@ class Settings(BaseSettings):
     port: int = Field(default=8004, description="Server port")
     reload: bool = Field(default=True, description="Enable auto-reload in development")
     log_level: str = Field(default="INFO", description="Logging level")
-    auth_enabled: bool = Field(default=False, description="Enable API authentication")
 
     # Data directories
     data_dir: str = Field(default="./data", description="Base data directory")
+
+    # Database settings (non-prefixed for dbmate compatibility)
+    database_url: str = Field(default="sqlite:data/rose.db", description="Database URL", env="DATABASE_URL")
+    dbmate_migrations_dir: str = Field(
+        default="db/migrations", description="Migrations directory", env="DBMATE_MIGRATIONS_DIR"
+    )
+    dbmate_schema_file: str = Field(
+        default="db/schema.sql", description="Schema file location", env="DBMATE_SCHEMA_FILE"
+    )
 
     # ChromaDB settings
     chroma_host: str = Field(default="localhost", description="ChromaDB host")
@@ -48,7 +56,11 @@ class Settings(BaseSettings):
         default=0.1, description="Learning rate multiplier when 'auto' is specified"
     )
     training_interval: int = Field(default=30, description="Training job check interval in seconds")
-    training_results_dir: str = Field(default="data/results", description="Training results directory")
+
+    # File upload settings
+    max_file_upload_size: int = Field(
+        default=100 * 1024 * 1024, description="Maximum file upload size in bytes (default: 100MB)"
+    )
 
     # Inference settings
     inference_uri: str = Field(default="ws://localhost:8005", description="WebSocket URI for inference worker")

@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator, TypeVar
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 
@@ -21,7 +22,7 @@ from rose_server.entities.run_steps import RunStep
 from rose_server.entities.runs import Run
 from rose_server.entities.threads import MessageMetadata, Thread
 
-DB_PATH = Path(settings.data_dir) / "rose_server.db"
+DB_PATH = Path(settings.data_dir) / "rose.db"
 engine = create_async_engine(
     f"sqlite+aiosqlite:///{DB_PATH}",
     echo=False,
@@ -64,11 +65,22 @@ def current_timestamp() -> int:
     return int(time.time())
 
 
+async def check_database_setup() -> bool:
+    """Check if database connection works."""
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("SELECT 1"))
+            return True
+    except Exception:
+        return False
+
+
 __all__ = [
     "engine",
     "get_session",
     "create_all_tables",
     "current_timestamp",
+    "check_database_setup",
     "UploadedFile",
     "FineTuningJob",
     "FineTuningEvent",

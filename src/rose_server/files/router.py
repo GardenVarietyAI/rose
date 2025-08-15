@@ -7,12 +7,8 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from openai.types import FileDeleted, FileObject
 
-from rose_server.files.store import create_file, delete_file, get_file, list_files, update_storage_path
-from rose_server.fs import (
-    delete_file as delete_file_from_disk,
-    read_file,
-    save_file,
-)
+from rose_server.config.settings import settings
+from rose_server.files.store import create_file, delete_file, get_file, get_file_content, list_files
 from rose_server.schemas.files import FileListResponse
 
 logger = logging.getLogger(__name__)
@@ -27,12 +23,31 @@ async def create(
     """Upload a file."""
     try:
         content = await file.read()
-        uploaded_file = await create_file(file_size=file.size, purpose=purpose, filename=file.filename)
-        await save_file(uploaded_file.id, content)
-        await update_storage_path(uploaded_file.id)
-        return FileObject(**uploaded_file.model_dump())
+
+        if file.size > settings.max_file_upload_size:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    f"File size {file.size} bytes exceeds maximum allowed size of {settings.max_file_upload_size} bytes"
+                ),
+            )
+
+        uploaded_file = await create_file(file_size=file.size, purpose=purpose, filename=file.filename, content=content)
+
+        # Return response without binary content to avoid serialization issues
+        return FileObject(
+            id=uploaded_file.id,
+            object=uploaded_file.object,
+            bytes=uploaded_file.bytes,
+            created_at=uploaded_file.created_at,
+            filename=uploaded_file.filename,
+            purpose=uploaded_file.purpose,
+            status=uploaded_file.status,
+            expires_at=uploaded_file.expires_at,
+            status_details=uploaded_file.status_details,
+        )
     except Exception as e:
-        logger.error(f"File upload error: {e}")
+        logger.error(f"File upload error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -45,7 +60,20 @@ async def index(
     """List files."""
     uploaded_files = await list_files(purpose=purpose, limit=limit, after=after)
     return FileListResponse(
-        data=[FileObject(**f.model_dump()) for f in uploaded_files],
+        data=[
+            FileObject(
+                id=f.id,
+                object=f.object,
+                bytes=f.bytes,
+                created_at=f.created_at,
+                filename=f.filename,
+                purpose=f.purpose,
+                status=f.status,
+                expires_at=f.expires_at,
+                status_details=f.status_details,
+            )
+            for f in uploaded_files
+        ],
         has_more=len(uploaded_files) == limit,
     )
 
@@ -56,7 +84,17 @@ async def get(file_id: str) -> FileObject:
     uploaded_file = await get_file(file_id)
     if not uploaded_file:
         raise HTTPException(status_code=404, detail=f"File {file_id} not found")
-    return FileObject(**uploaded_file.model_dump())
+    return FileObject(
+        id=uploaded_file.id,
+        object=uploaded_file.object,
+        bytes=uploaded_file.bytes,
+        created_at=uploaded_file.created_at,
+        filename=uploaded_file.filename,
+        purpose=uploaded_file.purpose,
+        status=uploaded_file.status,
+        expires_at=uploaded_file.expires_at,
+        status_details=uploaded_file.status_details,
+    )
 
 
 @router.get("/files/{file_id}/content")
@@ -66,9 +104,9 @@ async def get_content(file_id: str) -> Response:
     if not file_obj:
         raise HTTPException(status_code=404, detail=f"File {file_id} not found")
 
-    content = await read_file(file_id)
+    content = await get_file_content(file_id)
     if content is None:
-        raise HTTPException(status_code=404, detail=f"File {file_id} not found")
+        raise HTTPException(status_code=404, detail=f"File {file_id} content not found")
 
     return Response(
         content=content,
@@ -82,7 +120,6 @@ async def remove(file_id: str) -> FileDeleted:
     """Delete a file."""
     try:
         deleted = await delete_file(file_id)
-        await delete_file_from_disk(file_id)
         return FileDeleted(id=file_id, object="file", deleted=deleted)
     except Exception:
         raise HTTPException(status_code=404, detail=f"File {file_id} not found")
