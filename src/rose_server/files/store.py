@@ -36,7 +36,10 @@ async def get_file_content(file_id: str) -> Optional[bytes]:
     """Get file content from BLOB storage."""
     async with get_session(read_only=True) as session:
         result = await session.execute(select(UploadedFile.content).where(UploadedFile.id == file_id))
-        return result.scalar_one_or_none()
+        content = result.scalar_one_or_none()
+        if content is None:
+            logger.debug(f"File content not found for file_id: {file_id}")
+        return content
 
 
 async def get_file(file_id: str) -> Optional[UploadedFile]:
