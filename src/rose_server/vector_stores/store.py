@@ -3,9 +3,12 @@
 import time
 from typing import List, Optional
 
+import numpy as np
+from sqlalchemy import text
 from sqlmodel import select
 
 from rose_server.database import get_session
+from rose_server.embeddings.embedding import _get_model
 from rose_server.entities.files import UploadedFile
 from rose_server.entities.vector_stores import Document, VectorStore
 
@@ -43,6 +46,9 @@ async def list_vector_stores() -> List[VectorStore]:
 async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Document:
     """Add a file to a vector store by chunking and embedding it."""
     async with get_session() as session:
+        # Load extension and ensure vec0 table exists
+        await session.execute(text("SELECT load_extension('vec0')"))
+        
         # Get the file content
         file_result = await session.execute(select(UploadedFile).where(UploadedFile.id == file_id))
         file_row = file_result.fetchone()
@@ -53,15 +59,30 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
         if not uploaded_file.content:
             raise ValueError(f"File {file_id} has no content")
         
-        # Create a document entry for the file
+        content = uploaded_file.content.decode('utf-8')
+        
+        # Generate embedding using existing infrastructure
+        embedding_model = _get_model("bge-small-en-v1.5")  # 384 dimensions
+        embedding = list(embedding_model.embed([content]))[0]
+        
+        # Create document entry
         document = Document(
             vector_store_id=vector_store_id,
             chunk_index=0,
-            content=uploaded_file.content.decode('utf-8'),
+            content=content,
             meta={"file_id": file_id, "filename": uploaded_file.filename},
             created_at=int(time.time()),
         )
         session.add(document)
+        await session.flush()  # Get the document.id
+        
+        # Store embedding in vec0 virtual table
+        embedding_blob = np.array(embedding, dtype=np.float32).tobytes()
+        await session.execute(
+            text("INSERT INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
+            {"doc_id": document.id, "embedding": embedding_blob}
+        )
+        
         await session.commit()
         return document
 
