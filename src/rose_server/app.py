@@ -32,7 +32,6 @@ async def lifespan(app: FastAPI) -> Any:
     directories = [
         settings.data_dir,
         settings.model_offload_dir,
-        settings.chroma_persist_dir,
         settings.fine_tuning_checkpoint_dir,
     ]
     for dir in directories:
@@ -41,8 +40,6 @@ async def lifespan(app: FastAPI) -> Any:
 
     if not await check_database_setup():
         raise RuntimeError("Database not found. Please run 'dbmate up' and try again.")
-
-    logger.warning("ChromaDB support has been removed. Vector store operations will not function.")
 
     app.state.model_registry = ModelRegistry()
     logger.info("Model registry initialized")

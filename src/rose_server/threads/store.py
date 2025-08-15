@@ -1,4 +1,4 @@
-"""SQLModel-based storage for threads and messages with ChromaDB integration."""
+"""SQLModel-based storage for threads and messages."""
 
 import logging
 from typing import Any, Dict, List, Optional
