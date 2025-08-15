@@ -13,7 +13,6 @@ dependencies = [
   "numpy>=1.26.4",
   "transformers>=4.51.2",
   "pydantic-settings>=2.9.1",
-  "chromadb>=1.0.9",
   "openai>=1.88.0",
   "psutil>=7.0.0",
   "torch>=2.7.0",
@@ -30,6 +29,7 @@ dependencies = [
   "python-multipart>=0.0.18",
   "evaluate>=0.4.5",
   "tokenizers>=0.21.2",
+  "websockets>=13.0",
 ]
 
 [dependency-groups]
@@ -115,7 +115,6 @@ strict_equality = true
 [[tool.mypy.overrides]]
 module = [
     "transformers.*",
-    "chromadb.*",
     "sentencepiece.*",
     "peft.*",
     "accelerate.*",

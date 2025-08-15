@@ -10,7 +10,6 @@ This is pre-release software. Use at your own risk!
 
 - **Local Model Inference** - Hugging Face Transformers
 - **Fine-Tuning** - LoRA-based pipeline
-- **Vector Storage** - Backed by ChromaDB
 - **Embeddings** - Using bge-small-en-v1.5 as the default
 - **Streaming Support** - SSE for real-time completions
 

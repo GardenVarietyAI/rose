@@ -24,18 +24,9 @@ class Settings(BaseSettings):
     data_dir: str = Field(default="./data", description="Base data directory")
 
     # Database settings (non-prefixed for dbmate compatibility)
-    database_url: str = Field(default="sqlite:data/rose.db", description="Database URL", env="DATABASE_URL")
-    dbmate_migrations_dir: str = Field(
-        default="db/migrations", description="Migrations directory", env="DBMATE_MIGRATIONS_DIR"
-    )
-    dbmate_schema_file: str = Field(
-        default="db/schema.sql", description="Schema file location", env="DBMATE_SCHEMA_FILE"
-    )
-
-    # ChromaDB settings
-    chroma_host: str = Field(default="localhost", description="ChromaDB host")
-    chroma_port: int = Field(default=8003, description="ChromaDB port")
-    chroma_persist_dir: str = Field(default="./data/chroma", description="ChromaDB storage path")
+    database_url: str = Field(default="sqlite:data/rose.db", description="Database URL")
+    dbmate_migrations_dir: str = Field(default="db/migrations", description="Migrations directory")
+    dbmate_schema_file: str = Field(default="db/schema.sql", description="Schema file location")
 
     # Fine-tuning settings
     fine_tuning_checkpoint_dir: str = Field(default="data/checkpoints", description="Checkpoint directory")

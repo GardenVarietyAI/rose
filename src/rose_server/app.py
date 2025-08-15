@@ -16,7 +16,6 @@ from rose_server.config.settings import settings
 from rose_server.database import check_database_setup
 from rose_server.models.registry import ModelRegistry
 from rose_server.router import router
-from rose_server.vector_stores.chroma import Chroma
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["ANONYMIZED_TELEMETRY"] = "false"
@@ -33,7 +32,6 @@ async def lifespan(app: FastAPI) -> Any:
     directories = [
         settings.data_dir,
         settings.model_offload_dir,
-        settings.chroma_persist_dir,
         settings.fine_tuning_checkpoint_dir,
     ]
     for dir in directories:
@@ -42,12 +40,6 @@ async def lifespan(app: FastAPI) -> Any:
 
     if not await check_database_setup():
         raise RuntimeError("Database not found. Please run 'dbmate up' and try again.")
-
-    app.state.chroma = Chroma(
-        host=settings.chroma_host,
-        port=settings.chroma_port,
-        persist_dir=settings.chroma_persist_dir,
-    )
 
     app.state.model_registry = ModelRegistry()
     logger.info("Model registry initialized")

@@ -23,7 +23,6 @@ from rose_server.threads.runs.store import update_run
 from rose_server.tools import parse_xml_tool_call
 from rose_server.tools.handlers.file_search import intercept_file_search_tool_call
 from rose_server.tools.toolbox import BUILTIN_TOOLS
-from rose_server.vector_stores.chroma import Chroma
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +140,6 @@ async def process_tool_outputs(
 async def execute_assistant_run_streaming(
     run: RunResponse,
     assistant: AssistantResponse,
-    chroma: Chroma = None,
 ) -> AsyncGenerator[ServerSentEvent, None]:
     """
     Execute run events as a server-sent event (SSE) compatible async generator.
@@ -252,7 +250,7 @@ async def execute_assistant_run_streaming(
             await create_run_step(step_entity)
             try:
                 if tool_name == "file_search":
-                    result = await intercept_file_search_tool_call(chroma, tool_call, assistant.id)
+                    result = await intercept_file_search_tool_call(tool_call, assistant.id)
                     if result:
                         _, output = result
                         tool_call_detail = {

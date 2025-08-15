@@ -1,4 +1,4 @@
-"""Vector stores implementation using ChromaDB."""
+"""Vector Stores."""
 
 from rose_server.schemas.vector_stores import (
     Vector,
