@@ -35,6 +35,7 @@ cd rose
 
 # Install deps
 mise install
+uv venv
 uv pip install --group cli
 ```
 
@@ -42,7 +43,8 @@ uv pip install --group cli
 
 ```bash
 # Set up the database schema using dbmate
-export DATABASE_URL=sqlite:data/rose.db
+mv env.example .env
+mkdir -p data
 dbmate up
 ```
 

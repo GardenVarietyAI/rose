@@ -3,7 +3,6 @@
 import asyncio
 import json
 import logging
-import os
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import httpx
@@ -26,19 +25,12 @@ class InferenceClient:
         self.uri = uri or settings.inference_uri
         # Extract base URL for HTTP endpoints
         self.base_url = self.uri.replace("ws://", "http://").replace("wss://", "https://").rstrip("/")
-        # Build auth headers once
-        token = os.getenv("ROSE_API_KEY") or ""
-        self.headers = {"Authorization": f"Bearer {token}"} if token else {}
 
     async def evict_models(self) -> Dict[str, Any]:
         """Evict all cached models from the inference service."""
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{self.base_url}/control/evict",
-                    headers=self.headers,
-                    timeout=5.0,
-                )
+                response = await client.post(f"{self.base_url}/control/evict", timeout=5.0)
                 response.raise_for_status()
                 result: Dict[str, Any] = response.json()
 
@@ -74,7 +66,6 @@ class InferenceClient:
 
             async with websockets.connect(
                 inference_uri,
-                additional_headers=self.headers,
                 ping_interval=30,  # Send ping every 30 seconds
                 ping_timeout=120,  # Wait 120 seconds for pong
                 open_timeout=10,  # Wait 10 seconds for connection

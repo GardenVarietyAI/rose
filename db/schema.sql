@@ -27,7 +27,7 @@ CREATE TABLE files (
     status TEXT DEFAULT 'processed',
     status_details TEXT,
     storage_path TEXT NOT NULL
-, vector_store_id TEXT REFERENCES vector_stores(id), content BLOB);
+, vector_store_id TEXT REFERENCES vector_stores(id));
 CREATE INDEX idx_files_created_at ON files(created_at);
 CREATE INDEX idx_files_purpose ON files(purpose);
 CREATE INDEX idx_files_status ON files(status);
@@ -238,8 +238,13 @@ CREATE TABLE models (
 );
 CREATE INDEX idx_models_model_name ON models(model_name);
 CREATE INDEX idx_models_is_fine_tuned ON models(is_fine_tuned);
-CREATE TABLE _litestream_seq (id INTEGER PRIMARY KEY, seq INTEGER);
-CREATE TABLE _litestream_lock (id INTEGER);
+CREATE TABLE _litestream_seq (
+    id INTEGER PRIMARY KEY,
+    seq INTEGER
+);
+CREATE TABLE _litestream_lock (
+    id INTEGER
+);
 -- Dbmate schema migrations
 INSERT INTO "schema_migrations" (version) VALUES
   ('20250810000001'),
@@ -251,4 +256,4 @@ INSERT INTO "schema_migrations" (version) VALUES
   ('20250810000007'),
   ('20250810000008'),
   ('20250810000009'),
-  ('20250812000001');
+  ('20250812000003');

@@ -12,7 +12,7 @@ console = Console()
 
 
 def interactive(
-    model: str = typer.Option("Qwen--Qwen2.5-1.5B-Instruct", "--model", "-m", help="Model to use"),
+    model: str = typer.Option("Qwen/Qwen2.5-1.5B-Instruct", "--model", "-m", help="Model to use"),
     system: Optional[str] = typer.Option(None, "--system", "-s", help="System prompt"),
 ) -> None:
     """Start an interactive chat session with a model."""
@@ -51,8 +51,9 @@ def interactive(
             try:
                 # Streaming response
                 response_text = ""
+                safe_model_name = model.replace("/", "--")
                 stream_response = client.chat.completions.create(
-                    model=model,
+                    model=safe_model_name,
                     messages=messages,
                     stream=True,
                 )

@@ -14,7 +14,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from rose_server import __version__
 from rose_server.config.settings import settings
 from rose_server.database import check_database_setup
-from rose_server.middleware.auth import AuthMiddleware
 from rose_server.models.registry import ModelRegistry
 from rose_server.router import router
 from rose_server.vector_stores.chroma import Chroma
@@ -74,12 +73,6 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    # Add auth middleware if enabled
-    if settings.auth_enabled:
-        app.add_middleware(AuthMiddleware)
-    else:
-        logger.warning("⚠️  API authentication is DISABLED. Set ROSE_SERVER_AUTH_ENABLED=true to enable.")
 
     app.include_router(router)
 
