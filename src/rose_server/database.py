@@ -59,6 +59,13 @@ async def create_all_tables() -> None:
     """Create all database tables."""
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
+        await conn.execute(text("SELECT load_extension('vec0')"))
+        await conn.execute(text("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS vec0 USING vec0(
+                document_id TEXT PRIMARY KEY,
+                embedding float[384]
+            )
+        """))
 
 
 def current_timestamp() -> int:
