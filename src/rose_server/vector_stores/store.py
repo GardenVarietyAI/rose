@@ -4,6 +4,7 @@ import time
 from typing import List, Optional
 
 import numpy as np
+import sqlite_vec
 from sqlalchemy import text
 from sqlmodel import select
 
@@ -21,9 +22,9 @@ async def create_vector_store(name: str) -> VectorStore:
         dimensions=384,  # Default for bge-small-en-v1.5
         created_at=int(time.time()),
         last_used_at=None,
-        meta={}
+        meta={},
     )
-    
+
     async with get_session() as session:
         session.add(vector_store)
         await session.commit()
@@ -46,25 +47,25 @@ async def list_vector_stores() -> List[VectorStore]:
 async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Document:
     """Add a file to a vector store by chunking and embedding it."""
     async with get_session() as session:
-        # Load extension and ensure vec0 table exists
-        await session.execute(text("SELECT load_extension('vec0')"))
-        
+        # Load sqlite-vec extension
+        sqlite_vec.load(session.connection().connection.connection)
+
         # Get the file content
         file_result = await session.execute(select(UploadedFile).where(UploadedFile.id == file_id))
         file_row = file_result.fetchone()
         if not file_row:
             raise ValueError(f"File {file_id} not found")
-        
+
         uploaded_file = file_row[0]
         if not uploaded_file.content:
             raise ValueError(f"File {file_id} has no content")
-        
-        content = uploaded_file.content.decode('utf-8')
-        
+
+        content = uploaded_file.content.decode("utf-8")
+
         # Generate embedding using existing infrastructure
         embedding_model = _get_model("bge-small-en-v1.5")  # 384 dimensions
         embedding = list(embedding_model.embed([content]))[0]
-        
+
         # Create document entry
         document = Document(
             vector_store_id=vector_store_id,
@@ -75,26 +76,49 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
         )
         session.add(document)
         await session.flush()  # Get the document.id
-        
+
         # Store embedding in vec0 virtual table
         embedding_blob = np.array(embedding, dtype=np.float32).tobytes()
         await session.execute(
             text("INSERT INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
-            {"doc_id": document.id, "embedding": embedding_blob}
+            {"doc_id": document.id, "embedding": embedding_blob},
         )
-        
+
         await session.commit()
         return document
 
 
 async def search_vector_store(vector_store_id: str, query: str, max_results: int = 10) -> List[Document]:
-    """Search documents in a vector store using text matching."""
+    """Search documents in a vector store using vector similarity."""
     async with get_session(read_only=True) as session:
-        # Simple text search for now - will add vector search later
+        # Load sqlite-vec extension
+        sqlite_vec.load(session.connection().connection.connection)
+
+        # Generate query embedding
+        embedding_model = _get_model("bge-small-en-v1.5")
+        query_embedding = list(embedding_model.embed([query]))[0]
+        query_blob = np.array(query_embedding, dtype=np.float32).tobytes()
+
+        # Vector similarity search using cosine distance
         result = await session.execute(
-            select(Document)
-            .where(Document.vector_store_id == vector_store_id)
-            .where(Document.content.contains(query))
-            .limit(max_results)
+            text("""
+                SELECT d.id, d.vector_store_id, d.chunk_index, d.content, d.meta, d.created_at,
+                       vec_distance_cosine(v.embedding, :query_vector) as distance
+                FROM documents d
+                JOIN vec0 v ON d.id = v.document_id
+                WHERE d.vector_store_id = :vector_store_id
+                ORDER BY distance
+                LIMIT :max_results
+            """),
+            {"query_vector": query_blob, "vector_store_id": vector_store_id, "max_results": max_results},
         )
-        return [row[0] for row in result.fetchall()]
+
+        # Convert results to Document objects
+        documents = []
+        for row in result.fetchall():
+            doc = Document(
+                id=row[0], vector_store_id=row[1], chunk_index=row[2], content=row[3], meta=row[4], created_at=row[5]
+            )
+            documents.append(doc)
+
+        return documents
