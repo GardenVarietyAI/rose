@@ -60,7 +60,9 @@ class Settings(BaseSettings):
     training_results_dir: str = Field(default="data/results", description="Training results directory")
 
     # File upload settings
-    max_file_upload_size: int = Field(default=100 * 1024 * 1024, description="Maximum file upload size in bytes (default: 100MB)")
+    max_file_upload_size: int = Field(
+        default=100 * 1024 * 1024, description="Maximum file upload size in bytes (default: 100MB)"
+    )
 
     # Inference settings
     inference_uri: str = Field(default="ws://localhost:8005", description="WebSocket URI for inference worker")
