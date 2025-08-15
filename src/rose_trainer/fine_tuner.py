@@ -33,16 +33,14 @@ def resolve_model_path(data_dir: str, model_id: str) -> Path:
     return model_path
 
 
-def resolve_training_file_path(data_dir: str, training_file: str) -> Path:
-    """Resolve training file path and verify it exists."""
-    uploads_dir = Path(data_dir) / "uploads"
-    if not uploads_dir.exists():
-        raise ValueError(f"Uploads directory '{uploads_dir}' does not exist")
-
-    file_path = uploads_dir / training_file
-    if not file_path.exists():
-        raise ValueError(f"Training file '{file_path}' not found")
-    return file_path
+def create_training_file_from_content(data_dir: str, training_file_id: str, content: bytes) -> Path:
+    """Create temporary training file from content."""
+    temp_dir = Path(data_dir) / "temp"
+    temp_dir.mkdir(exist_ok=True)
+    temp_file = temp_dir / f"{training_file_id}.jsonl"
+    temp_file.write_bytes(content)
+    logger.info(f"Created temporary training file: {temp_file}")
+    return temp_file
 
 
 def resolve_checkpoint_dir(data_dir: str, job_id: str) -> Path:
@@ -249,7 +247,14 @@ def train(
         data_dir = config["data_dir"]
 
         local_model_path = resolve_model_path(data_dir, model_info.id)
-        training_file_path = resolve_training_file_path(data_dir, training_file)
+
+        # Fetch training file content from API
+        try:
+            training_file_content = client.get_file_content(training_file)
+        except FileNotFoundError:
+            raise ValueError(f"Training file '{training_file}' not found")
+
+        training_file_path = create_training_file_from_content(data_dir, training_file, training_file_content)
         ft_model_id = generate_name(model_info.id, hyperparameters.suffix)
         output_dir = create_output_dir(data_dir, ft_model_id)
         checkpoint_dir = resolve_checkpoint_dir(data_dir, job_id)
@@ -319,5 +324,11 @@ def train(
         except (RuntimeError, ValueError, OSError) as e:
             logger.error(f"HuggingFace training failed for job {job_id}: {str(e)}")
             raise
+        finally:
+            try:
+                training_file_path.unlink()
+                logger.info(f"Cleaned up temporary training file: {training_file_path}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up temporary training file {training_file_path}: {e}")
     else:
         raise ValueError(f"Unknown trainer: {trainer}")
