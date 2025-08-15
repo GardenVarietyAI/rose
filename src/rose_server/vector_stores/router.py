@@ -11,6 +11,8 @@ from rose_server.schemas.vector_stores import (
     VectorSearch,
     VectorSearchResult,
     VectorStoreCreate,
+    VectorStoreFile,
+    VectorStoreFileCreate,
     VectorStoreList,
     VectorStoreMetadata,
     VectorStoreUpdate,

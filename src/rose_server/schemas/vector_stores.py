@@ -67,3 +67,17 @@ class VectorSearchResult(BaseModel):
     object: str = "list"
     data: List[Vector]
     usage: Dict[str, int]
+
+
+class VectorStoreFileCreate(BaseModel):
+    file_id: str
+    chunking_strategy: Optional[ChunkingStrategy] = None
+
+
+class VectorStoreFile(BaseModel):
+    object: str = "vector_store.file"
+    id: str
+    vector_store_id: str
+    status: str
+    created_at: int
+    last_error: Optional[Dict[str, Any]] = None
