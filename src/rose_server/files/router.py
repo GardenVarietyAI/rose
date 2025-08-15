@@ -7,6 +7,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from openai.types import FileDeleted, FileObject
 
+from rose_server.config.settings import settings
 from rose_server.files.store import create_file, delete_file, get_file, get_file_content, list_files
 from rose_server.schemas.files import FileListResponse
 
@@ -22,6 +23,15 @@ async def create(
     """Upload a file."""
     try:
         content = await file.read()
+
+        if file.size > settings.max_file_upload_size:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    f"File size {file.size} bytes exceeds maximum allowed size of {settings.max_file_upload_size} bytes"
+                ),
+            )
+
         uploaded_file = await create_file(file_size=file.size, purpose=purpose, filename=file.filename, content=content)
 
         # Return response without binary content to avoid serialization issues
