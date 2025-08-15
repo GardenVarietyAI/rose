@@ -16,7 +16,7 @@ from rose_server.schemas.vector_stores import (
     VectorStoreUpdate,
 )
 from rose_server.vector_stores.deps import VectorManager
-from rose_server.vector_stores.store import create_vector_store
+from rose_server.vector_stores.store import create_vector_store, list_vector_stores
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
@@ -28,25 +28,19 @@ class VectorStoreNotFoundError(RuntimeError):
 
 
 @router.get("/vector_stores")
-async def index(vector: VectorManager) -> VectorStoreList:
+async def index() -> VectorStoreList:
     """List all vector stores."""
     try:
-        stores = []
-        for name in vector.list_collections():
-            try:
-                meta = vector.get_collection_info(name).get("metadata", {})
-                stores.append(
-                    VectorStoreMetadata(
-                        id=name,
-                        name=meta.get("display_name", name),
-                        dimensions=meta.get("dimensions", 0),
-                        metadata=meta,
-                        created_at=int(meta.get("created_at", time.time())),
-                    )
-                )
-            except Exception as exc:
-                logger.warning("Skip collection %s: %s", name, exc)
-        return VectorStoreList(data=stores)
+        stores = await list_vector_stores()
+        return VectorStoreList(data=[
+            VectorStoreMetadata(
+                id=store.id,
+                name=store.name,
+                dimensions=store.dimensions,
+                metadata=store.meta or {},
+                created_at=store.created_at,
+            ) for store in stores
+        ])
     except Exception as e:
         logger.error(f"Error listing vector stores: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error listing vector stores: {str(e)}")

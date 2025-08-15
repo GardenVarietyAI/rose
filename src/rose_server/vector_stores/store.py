@@ -2,7 +2,9 @@
 
 import time
 import uuid
-from typing import Optional
+from typing import List, Optional
+
+from sqlmodel import select
 
 from rose_server.database import get_session
 from rose_server.entities.vector_stores import VectorStore
@@ -30,3 +32,10 @@ async def get_vector_store(vector_store_id: str) -> Optional[VectorStore]:
     """Get vector store by ID."""
     async with get_session(read_only=True) as session:
         return await session.get(VectorStore, vector_store_id)
+
+
+async def list_vector_stores() -> List[VectorStore]:
+    """List all vector stores."""
+    async with get_session(read_only=True) as session:
+        result = await session.execute(select(VectorStore))
+        return [row[0] for row in result.fetchall()]
