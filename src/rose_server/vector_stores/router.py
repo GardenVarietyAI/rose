@@ -2,7 +2,6 @@
 
 import logging
 import time
-import uuid
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Body, HTTPException, Path
@@ -17,6 +16,7 @@ from rose_server.schemas.vector_stores import (
     VectorStoreUpdate,
 )
 from rose_server.vector_stores.deps import VectorManager
+from rose_server.vector_stores.store import create_vector_store
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
@@ -53,25 +53,18 @@ async def index(vector: VectorManager) -> VectorStoreList:
 
 
 @router.post("/vector_stores")
-async def create(vector: VectorManager, request: VectorStoreCreate = Body(...)) -> VectorStoreMetadata:
+async def create(request: VectorStoreCreate = Body(...)) -> VectorStoreMetadata:
     """Create a new vector store."""
     try:
-        vid = f"vs_{uuid.uuid4().hex}"
-        meta_in = request.metadata or {}
+        vector_store = await create_vector_store(request.name)
+        logger.info("Created vector store %s (%s)", request.name, vector_store.id)
 
-        meta = {
-            **meta_in,
-            "display_name": request.name,
-            "created_at": int(time.time()),
-        }
-        # Create collection (will log warning about ChromaDB being unavailable)
-        vector.get_or_create_collection(vid, metadata=meta)
-        logger.info("Created vector store %s (%s)", request.name, vid)
-        public_meta = {k: v for k, v in meta.items() if k not in _META_EXCLUDE}
-
-        # ChromaDB's default model uses 384 dimensions
         return VectorStoreMetadata(
-            id=vid, name=request.name, dimensions=384, metadata=public_meta, created_at=meta["created_at"]
+            id=vector_store.id,
+            name=vector_store.name,
+            dimensions=vector_store.dimensions,
+            metadata=vector_store.meta or {},
+            created_at=vector_store.created_at,
         )
     except Exception as e:
         logger.error(f"Error creating vector store: {str(e)}")
