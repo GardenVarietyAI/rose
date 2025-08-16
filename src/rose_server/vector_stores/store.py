@@ -105,7 +105,7 @@ async def search_vector_store(
                 FROM documents d
                 JOIN vec0 v ON d.id = v.document_id
                 WHERE d.vector_store_id = :vector_store_id
-                ORDER BY distance
+                ORDER BY distance ASC, d.created_at DESC, d.id
                 LIMIT :max_results
             """),
             {"query_vector": query_blob, "vector_store_id": vector_store_id, "max_results": max_results},
