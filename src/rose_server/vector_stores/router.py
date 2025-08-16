@@ -4,7 +4,7 @@ import logging
 import time
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Body, HTTPException, Path
+from fastapi import APIRouter, Body, HTTPException, Path, Request
 
 from rose_server.config.settings import settings
 from rose_server.embeddings.embedding import get_tokenizer
@@ -205,6 +205,7 @@ async def delete_vectors(
 
 @router.post("/vector_stores/{vector_store_id}/search")
 async def search_store(
+    http_request: Request,
     vector_store_id: str = Path(..., description="The ID of the vector store"),
     request: VectorSearch = Body(...),
 ) -> VectorSearchResult:
@@ -265,7 +266,11 @@ async def search_store(
         # Generate next_page URL if there are more results
         next_page = None
         if has_more and last_id:
-            next_page = f"/v1/vector_stores/{vector_store_id}/search?after={last_id}&limit={request.max_num_results}"
+            base_url = str(http_request.base_url).rstrip('/')
+            next_page = (
+                f"{base_url}{router.prefix}/vector_stores/{vector_store_id}/search"
+                f"?after={last_id}&limit={request.max_num_results}"
+            )
         
         return VectorSearchResult(
             search_query=query_str,
