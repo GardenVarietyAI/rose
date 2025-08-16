@@ -56,32 +56,52 @@ def test_document_chunking_via_api(client: TestClient):
 
     # Search the vector store
     response = client.post(
-        f"/v1/vector_stores/{vector_store_id}/search", json={"query": "machine learning", "k": 10}
+        f"/v1/vector_stores/{vector_store_id}/search", json={"query": "machine learning", "max_num_results": 10}
     )
     assert response.status_code == 200
     search_results = response.json()
 
+    # max_num_results should be respected
+    assert len(search_results["data"]) <= 10
+
+    # All scores should be numeric
+    scores = [r["score"] for r in search_results["data"]]
+    assert all(isinstance(s, (int, float)) for s in scores)
+
     # Verify chunking occurred
     assert len(search_results["data"]) > 1  # Should have multiple chunks
 
-    # Check first result has proper metadata
+    # Check first result has proper structure
     first_result = search_results["data"][0]
-    metadata = first_result["metadata"]
 
-    assert "file_id" in metadata
-    assert "filename" in metadata
-    assert "total_chunks" in metadata
-    assert "start_index" in metadata
-    assert "end_index" in metadata
-    assert metadata["total_chunks"] > 1  # Should be chunked
-    assert metadata["start_index"] >= 0
-    assert metadata["end_index"] > metadata["start_index"]
+    assert "file_id" in first_result
+    assert "filename" in first_result
+    assert "score" in first_result
+    assert "content" in first_result
+    assert first_result["filename"] == "test_chunking.txt"
+    assert first_result["file_id"] == file_id
 
     # Verify similarity scores are reasonable
-    assert 0.0 <= first_result["score"] <= 1.0
+    assert isinstance(first_result["score"], (int, float))
+    assert first_result["score"] is not None
 
-    # Verify all chunks have consistent metadata
-    total_chunks = metadata["total_chunks"]
+    # Verify content structure
+    assert isinstance(first_result["content"], list)
+    assert len(first_result["content"]) > 0
+    assert first_result["content"][0]["type"] == "text"
+    assert len(first_result["content"][0]["text"]) > 0
+
+    # Verify all chunks have consistent structure
     for result in search_results["data"]:
-        assert result["metadata"]["total_chunks"] == total_chunks
-        assert result["metadata"]["file_id"] == file_id
+        assert result["file_id"] == file_id
+        assert result["filename"] == "test_chunking.txt"
+        assert isinstance(result["score"], (int, float))
+        assert isinstance(result["content"], list)
+
+    # Verify that smaller max_num_results limits results appropriately
+    response = client.post(
+        f"/v1/vector_stores/{vector_store_id}/search", json={"query": "machine learning", "max_num_results": 2}
+    )
+    assert response.status_code == 200
+    limited_results = response.json()["data"]
+    assert len(limited_results) == 2
