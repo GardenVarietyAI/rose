@@ -1,10 +1,10 @@
 """Vector store CRUD operations."""
 
+import json
 import time
 from typing import List, Optional
 
 import numpy as np
-import sqlite_vec
 from sqlalchemy import text
 from sqlmodel import select
 
@@ -111,7 +111,6 @@ async def search_vector_store(vector_store_id: str, query: str, max_results: int
         documents = []
         for row in result.fetchall():
             # Parse meta JSON string back to dict
-            import json
             meta = json.loads(row[4]) if row[4] else {}
             doc = Document(
                 id=row[0], vector_store_id=row[1], chunk_index=row[2], content=row[3], meta=meta, created_at=row[5]
