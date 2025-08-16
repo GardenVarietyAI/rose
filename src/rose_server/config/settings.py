@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     default_embedding_model: str = Field(
         default="bge-small-en-v1.5", description="Default embedding model for vector stores"
     )
+    default_embedding_device: str = Field(
+        default="cpu", description="Default device for embedding models (cpu, cuda, mps)"
+    )
 
     # Webhook settings
     webhook_url: str = Field(

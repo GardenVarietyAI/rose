@@ -10,7 +10,7 @@ from sqlmodel import select
 
 from rose_server.config.settings import settings
 from rose_server.database import get_session
-from rose_server.embeddings.embedding import _get_model
+from rose_server.embeddings.embedding import embedding_model
 from rose_server.entities.files import UploadedFile
 from rose_server.entities.vector_stores import Document, DocumentSearchResult, VectorStore
 
@@ -61,8 +61,8 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
         content = uploaded_file.content.decode("utf-8")
 
         # Generate embedding using existing infrastructure
-        embedding_model = _get_model(settings.default_embedding_model)
-        embedding = list(embedding_model.embed([content]))[0]
+        model = embedding_model()
+        embedding = list(model.embed([content]))[0]
 
         # Create document entry
         document = Document(
@@ -90,8 +90,8 @@ async def search_vector_store(vector_store_id: str, query: str, max_results: int
     """Search documents in a vector store using vector similarity."""
     async with get_session(read_only=True) as session:
         # Generate query embedding
-        embedding_model = _get_model(settings.default_embedding_model)
-        query_embedding = list(embedding_model.embed([query]))[0]
+        model = embedding_model()
+        query_embedding = list(model.embed([query]))[0]
         query_blob = np.array(query_embedding, dtype=np.float32).tobytes()
 
         # Vector similarity search using cosine distance
