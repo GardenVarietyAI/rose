@@ -65,6 +65,8 @@ class VectorSearch(BaseModel):
 
 
 class VectorSearchChunk(BaseModel):
+    """A chunk from a document in vector search results."""
+
     file_id: str
     filename: str
     score: float
@@ -73,6 +75,8 @@ class VectorSearchChunk(BaseModel):
 
 
 class VectorSearchUsage(BaseModel):
+    """Token usage statistics for vector search operations."""
+
     prompt_tokens: int
     total_tokens: int
 
