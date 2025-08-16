@@ -247,9 +247,11 @@ async def search_store(
             out.append(vec)
 
         return VectorSearchResult(data=out, usage=usage)
-    except VectorStoreNotFoundError as e:
-        logger.error(f"Vector store not found: {str(e)}")
-        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"Invalid search parameters: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid search parameters: {str(e)}")
     except Exception as e:
         logger.error(f"Error searching vectors: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error searching vectors: {str(e)}")
