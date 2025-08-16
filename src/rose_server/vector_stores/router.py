@@ -234,7 +234,9 @@ async def search_store(
             # Include metadata if requested
             metadata = doc.document.meta or {} if request.include_metadata else {}
             
-            vec = Vector(id=doc.document.id, values=values, metadata=metadata, score=doc.score)
+            # Normalize distance to similarity score (1 - distance)
+            similarity_score = 1.0 - doc.score
+            vec = Vector(id=doc.document.id, values=values, metadata=metadata, score=similarity_score)
             out.append(vec)
 
         return VectorSearchResult(data=out, usage=usage)
