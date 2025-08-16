@@ -82,9 +82,12 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
                 raise ValueError(f"Embedding dimension mismatch: got {got_dim}, expected {expected_dim}")
 
         created_at = int(time.time())
-        first_document: Optional[Document] = None
+        
+        if not chunks:
+            raise ValueError(f"No chunks generated from file {file_id}")
 
         # Process each chunk
+        documents = []
         for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
             # Create document entry for each chunk
             document = Document(
@@ -103,9 +106,8 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
                 text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
                 {"doc_id": document.id, "embedding": embedding_blob},
             )
-
-            if first_document is None:
-                first_document = document
+            
+            documents.append(document)
 
         # Update vector store last_used_at on ingest
         vector_store = await session.get(VectorStore, vector_store_id)
@@ -113,14 +115,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
             vector_store.last_used_at = created_at
 
         await session.commit()
-        # Return the first chunk's document for backward compatibility
-        return first_document or Document(
-            vector_store_id=vector_store_id,
-            chunk_index=0,
-            content="",
-            meta={"file_id": file_id, "filename": uploaded_file.filename},
-            created_at=created_at,
-        )
+        return documents[0]
 
 
 async def search_vector_store(
