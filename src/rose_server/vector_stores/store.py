@@ -79,7 +79,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
         # Store embedding in vec0 virtual table
         embedding_blob = np.array(embedding, dtype=np.float32).tobytes()
         await session.execute(
-            text("INSERT INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
+            text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
             {"doc_id": document.id, "embedding": embedding_blob},
         )
 
