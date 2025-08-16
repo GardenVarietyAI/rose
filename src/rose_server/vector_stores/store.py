@@ -167,7 +167,8 @@ async def search_vector_store(
                 id=row[0], vector_store_id=row[1], chunk_index=row[2], content=row[3], meta=meta, created_at=row[5]
             )
             distance = row[6]
-            results.append(DocumentSearchResult(document=doc, score=distance))
+            similarity = 1.0 - distance
+            results.append(DocumentSearchResult(document=doc, score=similarity))
 
         # Update last_used_at timestamp if requested (even if 0 hits)
         if update_last_used:
