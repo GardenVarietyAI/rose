@@ -73,7 +73,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
         # Generate embeddings for all chunks
         model = embedding_model()
         chunk_texts = [chunk.text for chunk in chunks]
-        embeddings = await asyncio.to_thread(lambda: list(model.embed(chunk_texts)))
+        embeddings = await asyncio.to_thread(model.embed, chunk_texts)
 
         # Dimension validation
         expected_dim = settings.default_embedding_dimensions
