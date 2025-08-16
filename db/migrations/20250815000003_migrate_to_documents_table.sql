@@ -11,8 +11,9 @@ CREATE TABLE documents (
     FOREIGN KEY (vector_store_id) REFERENCES vector_stores (id) ON DELETE CASCADE
 );
 
--- Add index for vector_store_id queries
+-- Add indexes for vector_store_id queries  
 CREATE INDEX idx_documents_store_id ON documents(vector_store_id);
+CREATE INDEX idx_documents_store_created ON documents(vector_store_id, created_at);
 
 -- Add last_used_at column to vector_stores
 ALTER TABLE vector_stores ADD COLUMN last_used_at INTEGER;
