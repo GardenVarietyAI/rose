@@ -88,34 +88,38 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
 
         # Process each chunk
         documents = []
-        for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
-            # Create document entry for each chunk
-            document = Document(
-                vector_store_id=vector_store_id,
-                chunk_index=idx,
-                content=chunk.text,
-                meta={"file_id": file_id, "filename": uploaded_file.filename, "total_chunks": len(chunks)},
-                created_at=created_at,
-            )
-            session.add(document)
-            await session.flush()  # Get the document.id
+        try:
+            for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+                # Create document entry for each chunk
+                document = Document(
+                    vector_store_id=vector_store_id,
+                    chunk_index=idx,
+                    content=chunk.text,
+                    meta={"file_id": file_id, "filename": uploaded_file.filename, "total_chunks": len(chunks)},
+                    created_at=created_at,
+                )
+                session.add(document)
+                await session.flush()  # Get the document.id
 
-            # Store embedding in vec0 virtual table
-            embedding_blob = np.array(embedding, dtype=np.float32).tobytes()
-            await session.execute(
-                text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
-                {"doc_id": document.id, "embedding": embedding_blob},
-            )
-            
-            documents.append(document)
+                # Store embedding in vec0 virtual table
+                embedding_blob = np.array(embedding, dtype=np.float32).tobytes()
+                await session.execute(
+                    text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
+                    {"doc_id": document.id, "embedding": embedding_blob},
+                )
+                
+                documents.append(document)
 
-        # Update vector store last_used_at on ingest
-        vector_store = await session.get(VectorStore, vector_store_id)
-        if vector_store:
-            vector_store.last_used_at = created_at
+            # Update vector store last_used_at on ingest
+            vector_store = await session.get(VectorStore, vector_store_id)
+            if vector_store:
+                vector_store.last_used_at = created_at
 
-        await session.commit()
-        return documents[0]
+            await session.commit()
+            return documents[0]
+        except Exception:
+            await session.rollback()
+            raise
 
 
 async def search_vector_store(
