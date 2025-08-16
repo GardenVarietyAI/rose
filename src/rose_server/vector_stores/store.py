@@ -114,8 +114,12 @@ async def search_vector_store(
         # Convert results to DocumentSearchResult objects with scores
         results = []
         for row in result.fetchall():
-            # Parse meta JSON string back to dict
-            meta = json.loads(row[4]) if row[4] else {}
+            # Parse meta JSON string back to dict  
+            raw_meta = row[4]
+            if isinstance(raw_meta, (dict, list)):
+                meta = raw_meta
+            else:
+                meta = json.loads(raw_meta) if raw_meta else {}
             doc = Document(
                 id=row[0], vector_store_id=row[1], chunk_index=row[2], content=row[3], meta=meta, created_at=row[5]
             )
