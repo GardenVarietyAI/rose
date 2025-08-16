@@ -19,4 +19,10 @@ poetry run ruff src/
 
 # Fix linting issues
 poetry run ruff src/ --fix
+
+# Install pre-commit hooks
+uv run pre-commit install
+
+# Run the pre-commit hooks
+uv run pre-commit run --all-files
 ```

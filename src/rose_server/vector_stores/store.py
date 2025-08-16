@@ -94,7 +94,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
                 raise ValueError(f"Embedding dimension mismatch: got {got_dim}, expected {expected_dim}")
 
         created_at = int(time.time())
-        
+
         if not chunks:
             raise ValueError(f"No chunks generated from file {file_id}")
 
@@ -104,15 +104,15 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
             for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
                 # Create document entry for each chunk
                 chunk_meta = {
-                    "file_id": file_id, 
-                    "filename": uploaded_file.filename, 
+                    "file_id": file_id,
+                    "filename": uploaded_file.filename,
                     "total_chunks": len(chunks),
                     "start_index": chunk.start_index,  # type: ignore
                     "end_index": chunk.end_index,  # type: ignore
                 }
                 if decode_errors:
                     chunk_meta["decode_errors"] = True
-                    
+
                 document = Document(
                     vector_store_id=vector_store_id,
                     chunk_index=idx,
@@ -129,7 +129,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
                     text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
                     {"doc_id": document.id, "embedding": embedding_blob},
                 )
-                
+
                 documents.append(document)
 
             # Update vector store last_used_at on ingest
@@ -149,7 +149,7 @@ async def search_vector_store(
 ) -> List[DocumentSearchResult]:
     """Search documents in a vector store using vector similarity."""
     max_results = max(1, min(100, max_results))
-    
+
     async with get_session(read_only=not update_last_used) as session:
         # Handle both text and vector queries
         if isinstance(query, str):

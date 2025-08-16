@@ -218,4 +218,3 @@ poetry run rose chat "Hello" --local --url http://localhost:8004/v1
 # Batch operations with files
 poetry run rose files list | grep training | xargs -I {} poetry run rose files delete {}
 ```
-

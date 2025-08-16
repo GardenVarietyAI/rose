@@ -77,4 +77,3 @@ GET /v1/files/{file_id}/content
 # Delete file
 DELETE /v1/files/{file_id}
 ```
-

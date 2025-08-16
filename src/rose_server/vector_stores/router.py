@@ -239,39 +239,39 @@ async def search_store(
         for doc in documents:
             # Extract file info from metadata
             meta = doc.document.meta or {}
-            
+
             # Create attributes from metadata (excluding our internal fields)
             attributes = {k: v for k, v in meta.items() if k not in _INTERNAL_FIELDS}
-            
+
             chunk = VectorSearchChunk(
                 file_id=meta.get("file_id", ""),
                 filename=meta.get("filename", ""),
                 score=doc.score,  # Already converted to similarity (1 - distance)
                 attributes=attributes,
-                content=[{"type": "text", "text": doc.document.content}]
+                content=[{"type": "text", "text": doc.document.content}],
             )
             search_chunks.append(chunk)
 
         # Determine query string for response
         query_str = request.query if isinstance(request.query, str) else "[vector query]"
-        
+
         # Calculate pagination fields
         first_id = documents[0].document.id if documents else None
         last_id = documents[-1].document.id if documents else None
         has_more = len(documents) > request.max_num_results
         # Trim results to requested limit
-        documents = documents[:request.max_num_results]
-        search_chunks = search_chunks[:request.max_num_results]
-        
+        documents = documents[: request.max_num_results]
+        search_chunks = search_chunks[: request.max_num_results]
+
         # Generate next_page URL if there are more results
         next_page = None
         if has_more and last_id:
-            base_url = str(http_request.base_url).rstrip('/')
+            base_url = str(http_request.base_url).rstrip("/")
             next_page = (
                 f"{base_url}{router.prefix}/vector_stores/{vector_store_id}/search"
                 f"?after={last_id}&limit={request.max_num_results}"
             )
-        
+
         return VectorSearchResult(
             search_query=query_str,
             data=search_chunks,
@@ -281,8 +281,8 @@ async def search_store(
             next_page=next_page,
             usage=VectorSearchUsage(
                 prompt_tokens=prompt_tokens,
-                total_tokens=prompt_tokens + len(search_chunks)  # Include processing overhead per result
-            )
+                total_tokens=prompt_tokens + len(search_chunks),  # Include processing overhead per result
+            ),
         )
     except HTTPException:
         raise
