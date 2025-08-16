@@ -32,7 +32,7 @@ from rose_server.vector_stores.store import (
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
 _META_EXCLUDE = {"display_name", "dimensions", "created_at"}
-_INTERNAL_FIELDS = ["file_id", "filename", "total_chunks", "start_index", "end_index", "decode_errors"]
+_INTERNAL_FIELDS = frozenset(["file_id", "filename", "total_chunks", "start_index", "end_index", "decode_errors"])
 
 
 class VectorStoreNotFoundError(RuntimeError):
