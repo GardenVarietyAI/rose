@@ -255,11 +255,17 @@ async def search_store(
         query_str = request.query if isinstance(request.query, str) else "[vector query]"
         
         # Calculate pagination fields
-        first_id = search_chunks[0].file_id if search_chunks else None
-        last_id = search_chunks[-1].file_id if search_chunks else None
+        first_id = documents[0].document.id if documents else None
+        last_id = documents[-1].document.id if documents else None
         has_more = len(documents) > request.max_num_results
         # Trim results to requested limit
+        documents = documents[:request.max_num_results]
         search_chunks = search_chunks[:request.max_num_results]
+        
+        # Generate next_page URL if there are more results
+        next_page = None
+        if has_more and last_id:
+            next_page = f"/v1/vector_stores/{vector_store_id}/search?after={last_id}&limit={request.max_num_results}"
         
         return VectorSearchResult(
             search_query=query_str,
@@ -267,10 +273,10 @@ async def search_store(
             first_id=first_id,
             last_id=last_id,
             has_more=has_more,
-            next_page=None,
+            next_page=next_page,
             usage=VectorSearchUsage(
                 prompt_tokens=prompt_tokens,
-                total_tokens=prompt_tokens
+                total_tokens=prompt_tokens + len(search_chunks)  # Include processing overhead per result
             )
         )
     except HTTPException:
