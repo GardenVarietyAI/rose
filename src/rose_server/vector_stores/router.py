@@ -7,8 +7,8 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Body, HTTPException, Path
 
 from rose_server.schemas.vector_stores import (
-    Vector,
     VectorSearch,
+    VectorSearchChunk,
     VectorSearchResult,
     VectorStoreCreate,
     VectorStoreFile,
@@ -220,36 +220,40 @@ async def search_store(
         # Search documents using text query or vector embedding
         if isinstance(request.query, str):
             documents = await search_vector_store(vector_store_id, request.query, request.max_num_results)
-            usage = {
-                "prompt_tokens": len(request.query.split()),
-                "total_tokens": len(request.query.split()),
-            }
         elif isinstance(request.query, list):
             # Direct vector query - skip embedding step
             documents = await search_vector_store(vector_store_id, request.query, request.max_num_results)
-            usage = {"prompt_tokens": 0, "total_tokens": 0}
         else:
             documents = []
-            usage = {"prompt_tokens": 0, "total_tokens": 0}
 
-        # Convert documents to Vector format
-        out = []
+        # Convert documents to API response format
+        search_chunks = []
         for doc in documents:
-            # Include embedding values if requested
-            values = []
-            if request.include_values:
-                # TODO: Fetch embedding from vec0 table if needed
-                pass
+            # Extract file info from metadata
+            meta = doc.document.meta or {}
+            
+            # Create attributes from metadata (excluding our internal fields)
+            internal_fields = ["file_id", "filename", "total_chunks", "start_index", "end_index", "decode_errors"]
+            attributes = {k: v for k, v in meta.items() if k not in internal_fields}
+            
+            chunk = VectorSearchChunk(
+                file_id=meta.get("file_id", ""),
+                filename=meta.get("filename", ""),
+                score=doc.score,  # Already converted to similarity (1 - distance)
+                attributes=attributes,
+                content=[{"type": "text", "text": doc.document.content}]
+            )
+            search_chunks.append(chunk)
 
-            # Include metadata if requested
-            metadata = doc.document.meta or {} if request.include_metadata else {}
-
-            # Normalize distance to similarity score (1 - distance)
-            similarity_score = 1.0 - doc.score
-            vec = Vector(id=doc.document.id, values=values, metadata=metadata, score=similarity_score)
-            out.append(vec)
-
-        return VectorSearchResult(data=out, usage=usage)
+        # Determine query string for response
+        query_str = request.query if isinstance(request.query, str) else "[vector query]"
+        
+        return VectorSearchResult(
+            search_query=query_str,
+            data=search_chunks,
+            has_more=False,  # TODO: Add pagination
+            next_page=None
+        )
     except HTTPException:
         raise
     except ValueError as e:
