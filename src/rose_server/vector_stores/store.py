@@ -122,6 +122,8 @@ async def search_vector_store(
     vector_store_id: str, query: Union[str, List[float]], max_results: int = 10, update_last_used: bool = True
 ) -> List[DocumentSearchResult]:
     """Search documents in a vector store using vector similarity."""
+    max_results = max(1, min(100, max_results))
+    
     async with get_session(read_only=not update_last_used) as session:
         # Handle both text and vector queries
         if isinstance(query, str):
