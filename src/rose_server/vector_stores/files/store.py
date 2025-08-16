@@ -18,6 +18,30 @@ from rose_server.entities.vector_stores import Document, VectorStore, VectorStor
 logger = logging.getLogger(__name__)
 
 
+class VectorStoreNotFoundError(ValueError):
+    """Vector store does not exist."""
+
+    pass
+
+
+class FileNotFoundError(ValueError):
+    """File does not exist."""
+
+    pass
+
+
+class EmptyFileError(ValueError):
+    """File has no content."""
+
+    pass
+
+
+class ChunkingError(ValueError):
+    """Failed to generate chunks from file."""
+
+    pass
+
+
 async def _get_existing_file(session, vector_store_id: str, file_id: str):
     """Check if file is already in vector store."""
     existing = await session.execute(
@@ -34,11 +58,11 @@ async def _get_uploaded_file(session, file_id: str):
     file_result = await session.execute(select(UploadedFile).where(UploadedFile.id == file_id))
     file_row = file_result.fetchone()
     if not file_row:
-        raise ValueError(f"File {file_id} not found")
+        raise FileNotFoundError(f"File {file_id} not found")
 
     uploaded_file = file_row[0]
     if not uploaded_file.content:
-        raise ValueError(f"File {file_id} has no content")
+        raise EmptyFileError(f"File {file_id} has no content")
     return uploaded_file
 
 
@@ -66,7 +90,7 @@ async def _process_file_chunks(content: str, file_id: str):
     chunks = chunker.chunk(content)
 
     if not chunks:
-        raise ValueError(f"No chunks generated from file {file_id}")
+        raise ChunkingError(f"No chunks generated from file {file_id}")
 
     model = embedding_model()
     chunk_texts = [chunk.text for chunk in chunks]  # type: ignore
@@ -121,7 +145,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Vector
         # Validate vector store exists
         vector_store = await session.get(VectorStore, vector_store_id)
         if not vector_store:
-            raise ValueError(f"Vector store {vector_store_id} not found")
+            raise VectorStoreNotFoundError(f"Vector store {vector_store_id} not found")
 
         # Try to create record, handling race conditions with database constraint
         vector_store_file = VectorStoreFile(
