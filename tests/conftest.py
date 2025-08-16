@@ -7,8 +7,6 @@ from sqlmodel import SQLModel
 
 from rose_server import database
 from rose_server.app import create_app
-
-# Import our sqlite-vec factory
 from rose_server.connect import _VecConnection
 
 # Create in-memory engine for testing with sqlite-vec support
@@ -21,7 +19,6 @@ test_engine = create_async_engine(
     },
 )
 
-# Create test session factory
 test_async_session_factory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
 
 
