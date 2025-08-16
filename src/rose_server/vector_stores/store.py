@@ -173,8 +173,8 @@ async def search_vector_store(
             distance = row[6]
             results.append(DocumentSearchResult(document=doc, score=distance))
 
-        # Update last_used_at timestamp if requested
-        if update_last_used and results:
+        # Update last_used_at timestamp if requested (even if 0 hits)
+        if update_last_used:
             vector_store = await session.get(VectorStore, vector_store_id)
             if vector_store:
                 vector_store.last_used_at = int(time.time())
