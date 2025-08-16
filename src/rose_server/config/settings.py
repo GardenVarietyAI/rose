@@ -61,6 +61,9 @@ class Settings(BaseSettings):
 
     # Vector store settings
     default_embedding_dimensions: int = Field(default=384, description="Default embedding dimensions for vector stores")
+    default_embedding_model: str = Field(
+        default="bge-small-en-v1.5", description="Default embedding model for vector stores"
+    )
 
     # Webhook settings
     webhook_url: str = Field(

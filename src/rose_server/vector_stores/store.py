@@ -61,7 +61,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
         content = uploaded_file.content.decode("utf-8")
 
         # Generate embedding using existing infrastructure
-        embedding_model = _get_model("bge-small-en-v1.5")  # dims = settings.default_embedding_dimensions
+        embedding_model = _get_model(settings.default_embedding_model)
         embedding = list(embedding_model.embed([content]))[0]
 
         # Create document entry
@@ -90,7 +90,7 @@ async def search_vector_store(vector_store_id: str, query: str, max_results: int
     """Search documents in a vector store using vector similarity."""
     async with get_session(read_only=True) as session:
         # Generate query embedding
-        embedding_model = _get_model("bge-small-en-v1.5")
+        embedding_model = _get_model(settings.default_embedding_model)
         query_embedding = list(embedding_model.embed([query]))[0]
         query_blob = np.array(query_embedding, dtype=np.float32).tobytes()
 
