@@ -9,7 +9,6 @@ from typing import AsyncGenerator, TypeVar
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel
 
 from rose_server.config.settings import settings
@@ -27,7 +26,6 @@ from rose_server.entities.vector_stores import Document, VectorStore
 
 DB_PATH = Path(settings.data_dir) / "rose.db"
 
-# Use the factory with aiosqlite dialect
 engine = create_async_engine(
     f"sqlite+aiosqlite:///{DB_PATH}",
     echo=False,
@@ -35,12 +33,7 @@ engine = create_async_engine(
     max_overflow=20,
     pool_timeout=30,
     pool_recycle=3600,
-    connect_args={
-        "check_same_thread": False,
-        "timeout": 20,
-        # This is the key - pass our factory to aiosqlite
-        "factory": _VecConnection
-    },
+    connect_args={"check_same_thread": False, "timeout": 20, "factory": _VecConnection},
 )
 T = TypeVar("T")
 async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -65,14 +58,15 @@ async def create_all_tables() -> None:
     """Create all database tables."""
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
-        
-        # Create vec0 table - extension is already loaded via factory
-        await conn.execute(text("""
+
+        await conn.execute(
+            text("""
             CREATE VIRTUAL TABLE IF NOT EXISTS vec0 USING vec0(
                 document_id TEXT PRIMARY KEY,
                 embedding float[384]
             )
-        """))
+        """)
+        )
         print("vec0 table created successfully")
 
 
