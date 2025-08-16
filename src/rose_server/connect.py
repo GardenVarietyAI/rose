@@ -48,7 +48,11 @@ async def connect(path: str, *, pragmas: bool = True, **kwargs: Any) -> aiosqlit
         await db.executescript("""
             PRAGMA journal_mode=WAL;
             PRAGMA synchronous=NORMAL;
+            PRAGMA busy_timeout=5000;
             PRAGMA foreign_keys=ON;
+            PRAGMA temp_store=MEMORY;
+            PRAGMA page_size=8192;
+            PRAGMA mmap_size=268435456;
         """)
         await db.commit()
 
