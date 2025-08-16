@@ -253,6 +253,14 @@ CREATE TABLE documents (
     created_at INTEGER NOT NULL,
     FOREIGN KEY (vector_store_id) REFERENCES vector_stores (id) ON DELETE CASCADE
 );
+CREATE VIRTUAL TABLE vec0 USING vec0(
+                document_id TEXT PRIMARY KEY,
+                embedding float[384]
+            );
+CREATE TABLE IF NOT EXISTS "vec0_info" (key text primary key, value any);
+CREATE TABLE IF NOT EXISTS "vec0_chunks"(chunk_id INTEGER PRIMARY KEY AUTOINCREMENT,size INTEGER NOT NULL,validity BLOB NOT NULL,rowids BLOB NOT NULL);
+CREATE TABLE IF NOT EXISTS "vec0_rowids"(rowid INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE NOT NULL,chunk_id INTEGER,chunk_offset INTEGER);
+CREATE TABLE IF NOT EXISTS "vec0_vector_chunks00"(rowid PRIMARY KEY,vectors BLOB NOT NULL);
 -- Dbmate schema migrations
 INSERT INTO "schema_migrations" (version) VALUES
   ('20250810000001'),
