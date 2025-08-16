@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     inference_timeout: int = Field(default=300, description="Inference timeout in seconds")
     max_concurrent_inference: int = Field(default=1, description="Maximum concurrent inference requests")
 
+    # Vector store settings
+    default_embedding_dimensions: int = Field(default=384, description="Default embedding dimensions for vector stores")
+
     # Webhook settings
     webhook_url: str = Field(
         default="http://localhost:8004/v1/webhooks/jobs", description="Webhook URL for job updates"

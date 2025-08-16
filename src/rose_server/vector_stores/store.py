@@ -8,6 +8,7 @@ import numpy as np
 from sqlalchemy import text
 from sqlmodel import select
 
+from rose_server.config.settings import settings
 from rose_server.database import get_session
 from rose_server.embeddings.embedding import _get_model
 from rose_server.entities.files import UploadedFile
@@ -19,7 +20,7 @@ async def create_vector_store(name: str) -> VectorStore:
     vector_store = VectorStore(
         object="vector_store",
         name=name,
-        dimensions=384,  # Default for bge-small-en-v1.5
+        dimensions=settings.default_embedding_dimensions,
         created_at=int(time.time()),
         last_used_at=None,
         meta={},
@@ -60,7 +61,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
         content = uploaded_file.content.decode("utf-8")
 
         # Generate embedding using existing infrastructure
-        embedding_model = _get_model("bge-small-en-v1.5")  # 384 dimensions
+        embedding_model = _get_model("bge-small-en-v1.5")  # dims = settings.default_embedding_dimensions
         embedding = list(embedding_model.embed([content]))[0]
 
         # Create document entry
