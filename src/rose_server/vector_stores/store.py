@@ -12,7 +12,7 @@ from sqlmodel import select
 
 from rose_server.config.settings import settings
 from rose_server.database import get_session
-from rose_server.embeddings.embedding import embedding_model, _get_tokenizer
+from rose_server.embeddings.embedding import embedding_model, get_tokenizer
 from rose_server.entities.files import UploadedFile
 from rose_server.entities.vector_stores import Document, DocumentSearchResult, VectorStore
 
@@ -63,11 +63,9 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
         content = uploaded_file.content.decode("utf-8")
 
         # Chunk the content using Chonkie with our cached tokenizer
-        tokenizer = _get_tokenizer(settings.default_embedding_model)
+        tokenizer = get_tokenizer(settings.default_embedding_model)
         chunker = TokenChunker(
-            chunk_size=settings.default_chunk_size,
-            chunk_overlap=settings.default_chunk_overlap,
-            tokenizer=tokenizer
+            chunk_size=settings.default_chunk_size, chunk_overlap=settings.default_chunk_overlap, tokenizer=tokenizer
         )
         chunks = chunker.chunk(content)
 
@@ -142,7 +140,7 @@ async def search_vector_store(
             if got_dim != expected_dim:
                 raise ValueError(f"Query vector dimension mismatch: got {got_dim}, expected {expected_dim}")
             query_embedding = query
-            
+
         query_blob = np.array(query_embedding, dtype=np.float32).tobytes()
 
         # Vector similarity search using cosine distance

@@ -34,7 +34,7 @@ def _get_model(model_name: str, device: str = "cpu") -> TextEmbedding:
 
 
 @lru_cache(maxsize=4)
-def _get_tokenizer(model_name: str) -> Tokenizer:
+def get_tokenizer(model_name: str) -> Tokenizer:
     if model_name in EMBEDDING_MODELS:
         model_path = str(EMBEDDING_MODELS[model_name]["model_name"])
     else:
@@ -55,7 +55,7 @@ def clear_embedding_cache() -> None:
     embedding models and tokenizers.
     """
     _get_model.cache_clear()
-    _get_tokenizer.cache_clear()
+    get_tokenizer.cache_clear()
 
 
 def reload_embedding_model() -> TextEmbedding:
@@ -84,7 +84,7 @@ def generate_embeddings(
         batch_embeddings = list(model.embed(batch))
         all_embeddings.extend(batch_embeddings)
 
-    embedding_tokenizer = _get_tokenizer(model_name)
+    embedding_tokenizer = get_tokenizer(model_name)
 
     total_tokens = 0
     for text in texts:
