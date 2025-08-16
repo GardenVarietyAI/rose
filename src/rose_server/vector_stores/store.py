@@ -12,7 +12,7 @@ from rose_server.config.settings import settings
 from rose_server.database import get_session
 from rose_server.embeddings.embedding import _get_model
 from rose_server.entities.files import UploadedFile
-from rose_server.entities.vector_stores import Document, VectorStore
+from rose_server.entities.vector_stores import Document, DocumentSearchResult, VectorStore
 
 
 async def create_vector_store(name: str) -> VectorStore:
@@ -86,7 +86,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
         return document
 
 
-async def search_vector_store(vector_store_id: str, query: str, max_results: int = 10) -> List[Document]:
+async def search_vector_store(vector_store_id: str, query: str, max_results: int = 10) -> List[DocumentSearchResult]:
     """Search documents in a vector store using vector similarity."""
     async with get_session(read_only=True) as session:
         # Generate query embedding
@@ -108,14 +108,16 @@ async def search_vector_store(vector_store_id: str, query: str, max_results: int
             {"query_vector": query_blob, "vector_store_id": vector_store_id, "max_results": max_results},
         )
 
-        # Convert results to Document objects
-        documents = []
+        # Convert results to DocumentSearchResult objects with scores
+        results = []
         for row in result.fetchall():
             # Parse meta JSON string back to dict
             meta = json.loads(row[4]) if row[4] else {}
             doc = Document(
                 id=row[0], vector_store_id=row[1], chunk_index=row[2], content=row[3], meta=meta, created_at=row[5]
             )
-            documents.append(doc)
+            distance = row[6]
+            score = 1.0 - distance  # Convert distance to similarity score
+            results.append(DocumentSearchResult(document=doc, score=score))
 
-        return documents
+        return results
