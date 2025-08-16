@@ -76,7 +76,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
 
         # Generate embeddings for all chunks
         model = embedding_model()
-        chunk_texts = [chunk.text for chunk in chunks]
+        chunk_texts = [chunk.text if hasattr(chunk, 'text') else str(chunk) for chunk in chunks]
         embeddings = await asyncio.to_thread(lambda: list(model.embed(chunk_texts)))
 
         # Dimension validation
@@ -100,8 +100,8 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
                     "file_id": file_id, 
                     "filename": uploaded_file.filename, 
                     "total_chunks": len(chunks),
-                    "start_index": chunk.start_index,
-                    "end_index": chunk.end_index,
+                    "start_index": getattr(chunk, 'start_index', 0),
+                    "end_index": getattr(chunk, 'end_index', 0),
                 }
                 if decode_errors:
                     chunk_meta["decode_errors"] = True
@@ -109,7 +109,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
                 document = Document(
                     vector_store_id=vector_store_id,
                     chunk_index=idx,
-                    content=chunk.text,
+                    content=getattr(chunk, 'text', str(chunk)),
                     meta=chunk_meta,
                     created_at=created_at,
                 )
