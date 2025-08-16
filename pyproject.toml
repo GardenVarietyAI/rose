@@ -31,7 +31,7 @@ dependencies = [
   "tokenizers>=0.21.2",
   "websockets>=13.0",
   "sqlite-vec>=0.1.6",
-  "chonkie>=0.0.36",
+  "chonkie~=1.0.3",
 ]
 
 [dependency-groups]
