@@ -86,9 +86,11 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
         return document
 
 
-async def search_vector_store(vector_store_id: str, query: str, max_results: int = 10, update_last_used: bool = True) -> List[DocumentSearchResult]:
+async def search_vector_store(
+    vector_store_id: str, query: str, max_results: int = 10, update_last_used: bool = True
+) -> List[DocumentSearchResult]:
     """Search documents in a vector store using vector similarity."""
-    async with get_session(read_only=True) as session:
+    async with get_session(read_only=not update_last_used) as session:
         # Generate query embedding
         model = embedding_model()
         query_embedding = list(model.embed([query]))[0]
@@ -117,7 +119,13 @@ async def search_vector_store(vector_store_id: str, query: str, max_results: int
                 id=row[0], vector_store_id=row[1], chunk_index=row[2], content=row[3], meta=meta, created_at=row[5]
             )
             distance = row[6]
-            score = 1.0 - distance  # Convert distance to similarity score
-            results.append(DocumentSearchResult(document=doc, score=score))
+            results.append(DocumentSearchResult(document=doc, score=distance))
+
+        # Update last_used_at timestamp if requested
+        if update_last_used and results:
+            vector_store = await session.get(VectorStore, vector_store_id)
+            if vector_store:
+                vector_store.last_used_at = int(time.time())
+                session.add(vector_store)
 
         return results
