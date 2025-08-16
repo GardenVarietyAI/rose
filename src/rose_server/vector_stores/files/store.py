@@ -3,10 +3,12 @@
 import asyncio
 import logging
 import time
+from typing import Any, List, Sequence, Tuple
 
 import numpy as np
 from chonkie import TokenChunker
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from rose_server.config.settings import settings
@@ -42,7 +44,7 @@ class ChunkingError(ValueError):
     pass
 
 
-async def _get_existing_file(session, vector_store_id: str, file_id: str):
+async def _get_existing_file(session: AsyncSession, vector_store_id: str, file_id: str) -> VectorStoreFile | None:
     """Check if file is already in vector store."""
     existing = await session.execute(
         select(VectorStoreFile).where(
@@ -52,7 +54,7 @@ async def _get_existing_file(session, vector_store_id: str, file_id: str):
     return existing.scalar_one_or_none()
 
 
-async def _get_uploaded_file(session, file_id: str):
+async def _get_uploaded_file(session: AsyncSession, file_id: str) -> UploadedFile:
     """Get uploaded file and validate it exists."""
     file_result = await session.execute(select(UploadedFile).where(UploadedFile.id == file_id))
     uploaded_file = file_result.scalar_one_or_none()
@@ -64,7 +66,7 @@ async def _get_uploaded_file(session, file_id: str):
     return uploaded_file
 
 
-def _decode_file_content(uploaded_file, file_id: str):
+def _decode_file_content(uploaded_file: UploadedFile, file_id: str) -> Tuple[str, bool]:
     """Decode file content with error handling."""
     try:
         content = uploaded_file.content.decode("utf-8")
@@ -79,7 +81,7 @@ def _decode_file_content(uploaded_file, file_id: str):
     return content, decode_errors
 
 
-async def _process_file_chunks(content: str, file_id: str):
+async def _process_file_chunks(content: str, file_id: str) -> Tuple[Sequence[Any], List[Any]]:
     """Chunk content and generate embeddings."""
     tokenizer = get_tokenizer(settings.default_embedding_model)
     chunker = TokenChunker(
@@ -91,7 +93,7 @@ async def _process_file_chunks(content: str, file_id: str):
         raise ChunkingError(f"No chunks generated from file {file_id}")
 
     model = embedding_model()
-    chunk_texts = [chunk.text for chunk in chunks]  # type: ignore
+    chunk_texts = [chunk.text for chunk in chunks]
     embeddings = await asyncio.to_thread(lambda: list(model.embed(chunk_texts)))
 
     expected_dim = settings.default_embedding_dimensions
@@ -103,7 +105,14 @@ async def _process_file_chunks(content: str, file_id: str):
     return chunks, embeddings
 
 
-async def _store_chunk_documents(session, vector_store_id: str, uploaded_file, chunks, embeddings, decode_errors: bool):
+async def _store_chunk_documents(
+    session: AsyncSession,
+    vector_store_id: str,
+    uploaded_file: UploadedFile,
+    chunks: Sequence[Any],
+    embeddings: List[Any],
+    decode_errors: bool,
+) -> int:
     """Store document chunks with embeddings."""
     created_at = int(time.time())
     documents = []
@@ -114,8 +123,8 @@ async def _store_chunk_documents(session, vector_store_id: str, uploaded_file, c
             "file_id": uploaded_file.id,
             "filename": uploaded_file.filename,
             "total_chunks": len(chunks),
-            "start_index": chunk.start_index,  # type: ignore
-            "end_index": chunk.end_index,  # type: ignore
+            "start_index": chunk.start_index,
+            "end_index": chunk.end_index,
         }
         if decode_errors:
             chunk_meta["decode_errors"] = True
@@ -123,7 +132,7 @@ async def _store_chunk_documents(session, vector_store_id: str, uploaded_file, c
         document = Document(
             vector_store_id=vector_store_id,
             chunk_index=idx,
-            content=chunk.text,  # type: ignore
+            content=chunk.text,
             meta=chunk_meta,
             created_at=created_at,
         )
