@@ -217,15 +217,18 @@ async def search_store(
         if not vector_store:
             raise HTTPException(status_code=404, detail=f"Vector store {vector_store_id} not found")
 
-        # Search documents using text query for now
+        # Search documents using text query or vector embedding
         if isinstance(request.query, str):
             documents = await search_vector_store(vector_store_id, request.query, request.max_num_results)
             usage = {
                 "prompt_tokens": len(request.query.split()),
                 "total_tokens": len(request.query.split()),
             }
+        elif isinstance(request.query, list):
+            # Direct vector query - skip embedding step
+            documents = await search_vector_store(vector_store_id, request.query, request.max_num_results)
+            usage = {"prompt_tokens": 0, "total_tokens": 0}
         else:
-            # Vector embeddings not implemented yet
             documents = []
             usage = {"prompt_tokens": 0, "total_tokens": 0}
 

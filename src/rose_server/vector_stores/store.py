@@ -3,7 +3,7 @@
 import asyncio
 import json
 import time
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import numpy as np
 from chonkie import TokenChunker
@@ -125,13 +125,23 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
 
 
 async def search_vector_store(
-    vector_store_id: str, query: str, max_results: int = 10, update_last_used: bool = True
+    vector_store_id: str, query: Union[str, List[float]], max_results: int = 10, update_last_used: bool = True
 ) -> List[DocumentSearchResult]:
     """Search documents in a vector store using vector similarity."""
     async with get_session(read_only=not update_last_used) as session:
-        # Generate query embedding
-        model = embedding_model()
-        query_embedding = await asyncio.to_thread(lambda: list(model.embed([query]))[0])
+        # Handle both text and vector queries
+        if isinstance(query, str):
+            # Generate query embedding
+            model = embedding_model()
+            query_embedding = await asyncio.to_thread(lambda: list(model.embed([query]))[0])
+        else:
+            # Direct vector input - validate dimensions
+            expected_dim = settings.default_embedding_dimensions
+            got_dim = len(query)
+            if got_dim != expected_dim:
+                raise ValueError(f"Query vector dimension mismatch: got {got_dim}, expected {expected_dim}")
+            query_embedding = query
+            
         query_blob = np.array(query_embedding, dtype=np.float32).tobytes()
 
         # Vector similarity search using cosine distance
