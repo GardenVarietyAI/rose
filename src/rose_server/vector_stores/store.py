@@ -83,12 +83,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
 
         # Generate embeddings for all chunks
         model = embedding_model()
-        chunk_texts = []
-        for i, chunk in enumerate(chunks):
-            if hasattr(chunk, 'text'):
-                chunk_texts.append(chunk.text)
-            else:
-                raise AttributeError(f"Chunk at index {i} does not have a 'text' attribute: {repr(chunk)}")
+        chunk_texts = [chunk.text for chunk in chunks]  # type: ignore
         embeddings = await asyncio.to_thread(lambda: list(model.embed(chunk_texts)))
 
         # Dimension validation
@@ -108,18 +103,12 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
         try:
             for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
                 # Create document entry for each chunk
-                # Validate chunk structure
-                start_index = getattr(chunk, 'start_index', None)
-                end_index = getattr(chunk, 'end_index', None)
-                if start_index is None or end_index is None:
-                    raise AttributeError(f"Chunk object missing 'start_index' or 'end_index' attribute: {chunk}")
-                
                 chunk_meta = {
                     "file_id": file_id, 
                     "filename": uploaded_file.filename, 
                     "total_chunks": len(chunks),
-                    "start_index": start_index,
-                    "end_index": end_index,
+                    "start_index": chunk.start_index,  # type: ignore
+                    "end_index": chunk.end_index,  # type: ignore
                 }
                 if decode_errors:
                     chunk_meta["decode_errors"] = True
@@ -127,7 +116,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
                 document = Document(
                     vector_store_id=vector_store_id,
                     chunk_index=idx,
-                    content=chunk.text,
+                    content=chunk.text,  # type: ignore
                     meta=chunk_meta,
                     created_at=created_at,
                 )
