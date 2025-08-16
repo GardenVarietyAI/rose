@@ -32,6 +32,7 @@ from rose_server.vector_stores.store import (
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
 _META_EXCLUDE = {"display_name", "dimensions", "created_at"}
+_INTERNAL_FIELDS = ["file_id", "filename", "total_chunks", "start_index", "end_index", "decode_errors"]
 
 
 class VectorStoreNotFoundError(RuntimeError):
@@ -239,8 +240,7 @@ async def search_store(
             meta = doc.document.meta or {}
             
             # Create attributes from metadata (excluding our internal fields)
-            internal_fields = ["file_id", "filename", "total_chunks", "start_index", "end_index", "decode_errors"]
-            attributes = {k: v for k, v in meta.items() if k not in internal_fields}
+            attributes = {k: v for k, v in meta.items() if k not in _INTERNAL_FIELDS}
             
             chunk = VectorSearchChunk(
                 file_id=meta.get("file_id", ""),
