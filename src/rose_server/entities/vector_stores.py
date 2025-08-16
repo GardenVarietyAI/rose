@@ -36,6 +36,6 @@ class Document(SQLModel, table=True):
 
 class DocumentSearchResult(SQLModel):
     """Document search result with distance score."""
-    
+
     document: Document
     score: float  # Raw distance from sqlite-vec

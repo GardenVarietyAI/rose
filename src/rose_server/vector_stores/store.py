@@ -83,7 +83,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
             text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
             {"doc_id": document.id, "embedding": embedding_blob},
         )
-        
+
         # Update vector store last_used_at on ingest
         vector_store = await session.get(VectorStore, vector_store_id)
         if vector_store:
@@ -120,7 +120,7 @@ async def search_vector_store(
         # Convert results to DocumentSearchResult objects with scores
         results = []
         for row in result.fetchall():
-            # Parse meta JSON string back to dict  
+            # Parse meta JSON string back to dict
             raw_meta = row[4]
             if isinstance(raw_meta, (dict, list)):
                 meta = raw_meta

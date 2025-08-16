@@ -40,15 +40,18 @@ async def index() -> VectorStoreList:
     """List all vector stores."""
     try:
         stores = await list_vector_stores()
-        return VectorStoreList(data=[
-            VectorStoreMetadata(
-                id=store.id,
-                name=store.name,
-                dimensions=store.dimensions,
-                metadata=store.meta or {},
-                created_at=store.created_at,
-            ) for store in stores
-        ])
+        return VectorStoreList(
+            data=[
+                VectorStoreMetadata(
+                    id=store.id,
+                    name=store.name,
+                    dimensions=store.dimensions,
+                    metadata=store.meta or {},
+                    created_at=store.created_at,
+                )
+                for store in stores
+            ]
+        )
     except Exception as e:
         logger.error(f"Error listing vector stores: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error listing vector stores: {str(e)}")
@@ -82,7 +85,7 @@ async def add_file_to_store(
     try:
         document = await add_file_to_vector_store(vector_store_id, request.file_id)
         logger.info("Added file %s to vector store %s", request.file_id, vector_store_id)
-        
+
         return VectorStoreFile(
             id=document.id,
             vector_store_id=document.vector_store_id,
@@ -95,9 +98,7 @@ async def add_file_to_store(
 
 
 @router.get("/vector_stores/{vector_store_id}")
-async def get(
-    vector_store_id: str = Path(..., description="The ID of the vector store")
-) -> VectorStoreMetadata:
+async def get(vector_store_id: str = Path(..., description="The ID of the vector store")) -> VectorStoreMetadata:
     """Get a vector store by ID."""
     try:
         vector_store = await get_vector_store(vector_store_id)
@@ -208,10 +209,9 @@ async def search_store(
         # Validate filters (not supported yet)
         if request.filters:
             raise HTTPException(
-                status_code=400, 
-                detail="Filters are not supported yet. Coming soon in a future release."
+                status_code=400, detail="Filters are not supported yet. Coming soon in a future release."
             )
-        
+
         # Check if vector store exists
         vector_store = await get_vector_store(vector_store_id)
         if not vector_store:
@@ -237,10 +237,10 @@ async def search_store(
             if request.include_values:
                 # TODO: Fetch embedding from vec0 table if needed
                 pass
-            
+
             # Include metadata if requested
             metadata = doc.document.meta or {} if request.include_metadata else {}
-            
+
             # Normalize distance to similarity score (1 - distance)
             similarity_score = 1.0 - doc.score
             vec = Vector(id=doc.document.id, values=values, metadata=metadata, score=similarity_score)
