@@ -6,6 +6,8 @@ import io
 
 from fastapi.testclient import TestClient
 
+CONTENT_REPETITION_COUNT = 5
+
 
 def test_document_chunking_via_api(client: TestClient):
     """Test document chunking through the API endpoints."""
@@ -36,8 +38,8 @@ def test_document_chunking_via_api(client: TestClient):
         "Autonomous vehicles combine computer vision, sensor fusion, "
         "real-time decision making, and advanced control systems. "
         "Manufacturing has been revolutionized by AI-powered predictive "
-        "maintenance and quality control mechanisms. " * 5
-    )  # Repeat 5 times to ensure chunking
+        "maintenance and quality control mechanisms. " * CONTENT_REPETITION_COUNT
+    )  # Repeat to ensure chunking
 
     # Upload file
     file_data = io.BytesIO(large_content.encode("utf-8"))
