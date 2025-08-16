@@ -9,7 +9,9 @@ class Vector(BaseModel):
     id: str
     values: List[float] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
-    score: Optional[float] = Field(default=None, description="Similarity score (higher is more similar)")
+    similarity: Optional[float] = Field(
+        default=None, description="Similarity score (higher is more similar, range: 0-1)"
+    )
 
 
 class StaticChunkingConfig(BaseModel):
@@ -71,7 +73,7 @@ class VectorSearchChunk(BaseModel):
 
     file_id: str
     filename: str
-    score: float
+    similarity: float = Field(description="Similarity score (higher is more similar, range: 0-1)")
     attributes: Dict[str, Any] = Field(default_factory=dict)
     content: List[Dict[str, str]]
 

@@ -226,7 +226,7 @@ async def search_store(
             chunk = VectorSearchChunk(
                 file_id=meta.get("file_id", ""),
                 filename=meta.get("filename", ""),
-                score=doc.score,  # Already converted to similarity (1 - distance)
+                similarity=doc.score,  # Already converted to similarity (1 - distance)
                 attributes=attributes,
                 content=[{"type": "text", "text": doc.document.content}],
             )
