@@ -16,6 +16,8 @@ except Exception:
 
 
 class _VecConnection(sqlite3.Connection):
+    """sqlite3.Connection subclass that preloads sqlite-vec on creation."""
+    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         try:
@@ -32,7 +34,7 @@ class _VecConnection(sqlite3.Connection):
             raise RuntimeError(f"Failed to load sqlite-vec. Error: {e}") from e
 
 
-async def connect(path: str, **kwargs) -> aiosqlite.Connection:
+async def connect(path: str, *, pragmas: bool = True, **kwargs) -> aiosqlite.Connection:
     """
     Open an aiosqlite connection with sqlite-vec preloaded.
     Usage: db = await connect('rose.db')
@@ -40,9 +42,19 @@ async def connect(path: str, **kwargs) -> aiosqlite.Connection:
     factory = functools.partial(_VecConnection)
     # aiosqlite will pass this factory through to sqlite3.connect()
     db = await aiosqlite.connect(path, factory=factory, **kwargs)
-    # Recommended pragmas
-    await db.execute("PRAGMA journal_mode=WAL;")
-    await db.execute("PRAGMA synchronous=NORMAL;")
-    await db.execute("PRAGMA foreign_keys=ON;")
-    await db.commit()
+    
+    # Fail-fast version check
+    row = await (await db.execute("SELECT vss_version()")).fetchone()
+    if not row or not row[0]:
+        raise RuntimeError("sqlite-vec loaded, but vss_version() returned no result")
+    
+    # Optional pragma tuning
+    if pragmas:
+        await db.executescript("""
+            PRAGMA journal_mode=WAL;
+            PRAGMA synchronous=NORMAL;
+            PRAGMA foreign_keys=ON;
+        """)
+        await db.commit()
+    
     return db
