@@ -236,12 +236,12 @@ async def search_store(
         query_str = request.query if isinstance(request.query, str) else "[vector query]"
 
         # Calculate pagination fields
-        first_id = documents[0].document.id if documents else None
-        last_id = documents[-1].document.id if documents else None
         has_more = len(documents) > request.max_num_results
-        # Trim results to requested limit
+        # Trim both lists to requested limit
         documents = documents[: request.max_num_results]
         search_chunks = search_chunks[: request.max_num_results]
+        first_id = documents[0].document.id if documents else None
+        last_id = documents[-1].document.id if documents else None
 
         # Generate next_page URL if there are more results
         next_page = None
