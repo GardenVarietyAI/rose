@@ -96,22 +96,20 @@ async def add_file_to_store(
 
 @router.get("/vector_stores/{vector_store_id}")
 async def get(
-    vector: VectorManager, vector_store_id: str = Path(..., description="The ID of the vector store")
+    vector_store_id: str = Path(..., description="The ID of the vector store")
 ) -> VectorStoreMetadata:
     """Get a vector store by ID."""
     try:
-        if vector_store_id not in vector.list_collections():
+        vector_store = await get_vector_store(vector_store_id)
+        if not vector_store:
             raise HTTPException(status_code=404, detail=f"Vector store {vector_store_id} not found")
 
-        col = vector.client.get_collection(vector_store_id)
-        meta = col.metadata or {}
-
         return VectorStoreMetadata(
-            id=vector_store_id,
-            name=meta.get("display_name", vector_store_id),
-            dimensions=meta.get("dimensions", 0),
-            metadata={k: v for k, v in meta.items() if k not in _META_EXCLUDE},
-            created_at=int(meta.get("created_at", time.time())),
+            id=vector_store.id,
+            name=vector_store.name,
+            dimensions=vector_store.dimensions,
+            metadata=vector_store.meta or {},
+            created_at=vector_store.created_at,
         )
     except HTTPException:
         raise
