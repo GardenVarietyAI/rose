@@ -108,8 +108,10 @@ async def _process_file_chunks(content: str, file_id: str):
 async def _store_chunk_documents(session, vector_store_id: str, uploaded_file, chunks, embeddings, decode_errors: bool):
     """Store document chunks with embeddings."""
     created_at = int(time.time())
+    documents = []
 
-    for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+    # Create all documents first
+    for idx, chunk in enumerate(chunks):
         chunk_meta = {
             "file_id": uploaded_file.id,
             "filename": uploaded_file.filename,
@@ -128,13 +130,20 @@ async def _store_chunk_documents(session, vector_store_id: str, uploaded_file, c
             created_at=created_at,
         )
         session.add(document)
-        await session.flush()
+        documents.append(document)
 
+    # Batch flush all documents
+    await session.flush()
+
+    # Insert embeddings in batch
+    embedding_data = []
+    for doc, embedding in zip(documents, embeddings):
         embedding_blob = np.array(embedding, dtype=np.float32).tobytes()
-        await session.execute(
-            text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
-            {"doc_id": document.id, "embedding": embedding_blob},
-        )
+        embedding_data.append({"doc_id": doc.id, "embedding": embedding_blob})
+
+    await session.execute(
+        text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"), embedding_data
+    )
 
     return created_at
 
