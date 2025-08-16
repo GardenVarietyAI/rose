@@ -63,10 +63,10 @@ async def create_all_tables() -> None:
         await conn.run_sync(SQLModel.metadata.create_all)
 
         await conn.execute(
-            text("""
+            text(f"""
             CREATE VIRTUAL TABLE IF NOT EXISTS vec0 USING vec0(
                 document_id TEXT PRIMARY KEY,
-                embedding float[384]
+                embedding float[{settings.default_embedding_dimensions}]
             )
         """)
         )
