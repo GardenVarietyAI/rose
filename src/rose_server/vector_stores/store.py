@@ -110,8 +110,11 @@ async def search_vector_store(vector_store_id: str, query: str, max_results: int
         # Convert results to Document objects
         documents = []
         for row in result.fetchall():
+            # Parse meta JSON string back to dict
+            import json
+            meta = json.loads(row[4]) if row[4] else {}
             doc = Document(
-                id=row[0], vector_store_id=row[1], chunk_index=row[2], content=row[3], meta=row[4], created_at=row[5]
+                id=row[0], vector_store_id=row[1], chunk_index=row[2], content=row[3], meta=meta, created_at=row[5]
             )
             documents.append(doc)
 

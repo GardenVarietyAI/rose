@@ -7,12 +7,13 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator, TypeVar
 
-import sqlite_vec
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel
 
 from rose_server.config.settings import settings
+from rose_server.connect import _VecConnection
 from rose_server.entities.assistants import Assistant
 from rose_server.entities.files import UploadedFile
 from rose_server.entities.fine_tuning import FineTuningEvent, FineTuningJob
@@ -25,6 +26,8 @@ from rose_server.entities.threads import MessageMetadata, Thread
 from rose_server.entities.vector_stores import Document, VectorStore
 
 DB_PATH = Path(settings.data_dir) / "rose.db"
+
+# Use the factory with aiosqlite dialect
 engine = create_async_engine(
     f"sqlite+aiosqlite:///{DB_PATH}",
     echo=False,
@@ -35,6 +38,8 @@ engine = create_async_engine(
     connect_args={
         "check_same_thread": False,
         "timeout": 20,
+        # This is the key - pass our factory to aiosqlite
+        "factory": _VecConnection
     },
 )
 T = TypeVar("T")
@@ -58,31 +63,17 @@ async def get_session(read_only: bool = False) -> AsyncGenerator[AsyncSession, N
 
 async def create_all_tables() -> None:
     """Create all database tables."""
-    # First create regular tables with async connection
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
-
-    # Then create vec0 table with separate sync connection
-    import sqlite3
-
-    sync_conn = sqlite3.connect(str(DB_PATH))
-    try:
-        print("Enabling extension loading and loading sqlite-vec")
-        sync_conn.enable_load_extension(True)
-        sqlite_vec.load(sync_conn)
-        sync_conn.execute("""
+        
+        # Create vec0 table - extension is already loaded via factory
+        await conn.execute(text("""
             CREATE VIRTUAL TABLE IF NOT EXISTS vec0 USING vec0(
                 document_id TEXT PRIMARY KEY,
                 embedding float[384]
             )
-        """)
-        sync_conn.commit()
+        """))
         print("vec0 table created successfully")
-    except Exception as e:
-        print(f"Error creating vec0 table: {e}")
-        raise
-    finally:
-        sync_conn.close()
 
 
 def current_timestamp() -> int:
