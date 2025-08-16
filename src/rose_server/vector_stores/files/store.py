@@ -118,15 +118,26 @@ async def _store_chunk_documents(session, vector_store_id: str, uploaded_file, c
 async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> VectorStoreFile:
     """Add a file to a vector store by chunking and embedding it."""
     async with get_session() as session:
-        existing = await _get_existing_file(session, vector_store_id, file_id)
-        if existing:
-            return existing
+        # Validate vector store exists
+        vector_store = await session.get(VectorStore, vector_store_id)
+        if not vector_store:
+            raise ValueError(f"Vector store {vector_store_id} not found")
 
+        # Try to create record, handling race conditions with database constraint
         vector_store_file = VectorStoreFile(
             vector_store_id=vector_store_id, file_id=file_id, status="in_progress", created_at=int(time.time())
         )
-        session.add(vector_store_file)
-        await session.flush()
+
+        try:
+            session.add(vector_store_file)
+            await session.flush()
+        except Exception:
+            # Race condition: file already exists, get existing record
+            await session.rollback()
+            existing = await _get_existing_file(session, vector_store_id, file_id)
+            if existing:
+                return existing
+            raise
 
         try:
             uploaded_file = await _get_uploaded_file(session, file_id)
@@ -136,9 +147,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Vector
                 session, vector_store_id, uploaded_file, chunks, embeddings, decode_errors
             )
 
-            vector_store = await session.get(VectorStore, vector_store_id)
-            if vector_store:
-                vector_store.last_used_at = created_at
+            vector_store.last_used_at = created_at
 
             vector_store_file.status = "completed"
             await session.commit()
