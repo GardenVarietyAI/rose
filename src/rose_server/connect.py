@@ -1,6 +1,4 @@
-"""Clean aiosqlite connection with sqlite-vec preloaded."""
-
-from __future__ import annotations
+"""aiosqlite connection with sqlite-vec preloaded."""
 
 import functools
 from typing import Any
