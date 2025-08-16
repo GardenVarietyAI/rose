@@ -205,6 +205,13 @@ async def search_store(
 ) -> VectorSearchResult:
     """Search for vectors in a vector store (OpenAI-compatible)."""
     try:
+        # Validate filters (not supported yet)
+        if request.filters:
+            raise HTTPException(
+                status_code=400, 
+                detail="Filters are not supported yet. Coming soon in a future release."
+            )
+        
         # Check if vector store exists
         vector_store = await get_vector_store(vector_store_id)
         if not vector_store:
