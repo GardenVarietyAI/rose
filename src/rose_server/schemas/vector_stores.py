@@ -72,12 +72,20 @@ class VectorSearchChunk(BaseModel):
     content: List[Dict[str, str]]
 
 
+class VectorSearchUsage(BaseModel):
+    prompt_tokens: int
+    total_tokens: int
+
+
 class VectorSearchResult(BaseModel):
     object: str = "vector_store.search_results.page"
     search_query: str
     data: List[VectorSearchChunk]
+    first_id: Optional[str] = None
+    last_id: Optional[str] = None
     has_more: bool = False
     next_page: Optional[str] = None
+    usage: VectorSearchUsage
 
 
 class VectorStoreFileCreate(BaseModel):
