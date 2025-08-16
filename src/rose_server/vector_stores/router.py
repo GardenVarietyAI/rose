@@ -243,14 +243,8 @@ async def search_store(
         first_id = documents[0].document.id if documents else None
         last_id = documents[-1].document.id if documents else None
 
-        # Generate next_page URL if there are more results
+        # TODO: Implement proper pagination cursor for POST endpoints
         next_page = None
-        if has_more and last_id:
-            base_url = str(http_request.base_url).rstrip("/")
-            next_page = (
-                f"{base_url}{router.prefix}/vector_stores/{vector_store_id}/search"
-                f"?after={last_id}&limit={request.max_num_results}"
-            )
 
         return VectorSearchResult(
             search_query=query_str,
