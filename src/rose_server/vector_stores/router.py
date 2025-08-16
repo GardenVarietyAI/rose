@@ -225,10 +225,10 @@ async def search_store(
         if isinstance(request.query, str):
             tokenizer = get_tokenizer(settings.default_embedding_model)
             prompt_tokens = len(tokenizer.encode(request.query))
-            documents = await search_vector_store(vector_store_id, request.query, request.max_num_results)
+            documents = await search_vector_store(vector_store_id, request.query, request.max_num_results + 1)
         elif isinstance(request.query, list):
             prompt_tokens = 1  # Vector queries use minimal tokens
-            documents = await search_vector_store(vector_store_id, request.query, request.max_num_results)
+            documents = await search_vector_store(vector_store_id, request.query, request.max_num_results + 1)
         else:
             prompt_tokens = 0
             documents = []
@@ -257,7 +257,9 @@ async def search_store(
         # Calculate pagination fields
         first_id = search_chunks[0].file_id if search_chunks else None
         last_id = search_chunks[-1].file_id if search_chunks else None
-        has_more = len(search_chunks) == request.max_num_results
+        has_more = len(documents) > request.max_num_results
+        # Trim results to requested limit
+        search_chunks = search_chunks[:request.max_num_results]
         
         return VectorSearchResult(
             search_query=query_str,
