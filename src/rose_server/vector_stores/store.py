@@ -66,12 +66,13 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
         embedding = await asyncio.to_thread(lambda: list(model.embed([content]))[0])
 
         # Create document entry
+        created_at = int(time.time())
         document = Document(
             vector_store_id=vector_store_id,
             chunk_index=0,
             content=content,
             meta={"file_id": file_id, "filename": uploaded_file.filename},
-            created_at=int(time.time()),
+            created_at=created_at,
         )
         session.add(document)
         await session.flush()  # Get the document.id
@@ -82,6 +83,11 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
             text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
             {"doc_id": document.id, "embedding": embedding_blob},
         )
+        
+        # Update vector store last_used_at on ingest
+        vector_store = await session.get(VectorStore, vector_store_id)
+        if vector_store:
+            vector_store.last_used_at = created_at
 
         await session.commit()
         return document
