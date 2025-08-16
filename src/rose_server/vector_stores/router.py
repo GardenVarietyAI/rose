@@ -205,7 +205,7 @@ async def search_store(
         # Calculate token usage for the query
         if isinstance(request.query, str):
             tokenizer = get_tokenizer(settings.default_embedding_model)
-            prompt_tokens = len(tokenizer.encode(request.query))
+            prompt_tokens = len(tokenizer.encode(request.query).ids)
             documents = await search_vector_store(vector_store_id, request.query, request.max_num_results + 1)
         elif isinstance(request.query, list):
             prompt_tokens = 1  # Vector queries use minimal tokens
