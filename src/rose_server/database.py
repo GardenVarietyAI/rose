@@ -2,6 +2,7 @@
 Database setup stays here. SQLModel classes have been moved to entity files.
 """
 
+import logging
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -23,6 +24,8 @@ from rose_server.entities.run_steps import RunStep
 from rose_server.entities.runs import Run
 from rose_server.entities.threads import MessageMetadata, Thread
 from rose_server.entities.vector_stores import Document, VectorStore
+
+logger = logging.getLogger(__name__)
 
 DB_PATH = Path(settings.data_dir) / "rose.db"
 
@@ -67,7 +70,7 @@ async def create_all_tables() -> None:
             )
         """)
         )
-        print("vec0 table created successfully")
+        logger.info("vec0 table created successfully")
 
 
 def current_timestamp() -> int:
@@ -82,7 +85,7 @@ async def check_database_setup() -> bool:
             await conn.execute(text("SELECT 1"))
             return True
     except Exception as e:
-        print(f"Database check failed: {e}")
+        logger.error(f"Database check failed: {e}")
         return False
 
 
