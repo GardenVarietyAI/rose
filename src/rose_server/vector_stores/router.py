@@ -225,7 +225,16 @@ async def search_store(
         # Convert documents to Vector format
         out = []
         for doc in documents:
-            vec = Vector(id=doc.document.id, metadata=doc.document.meta or {}, score=doc.score)
+            # Include embedding values if requested
+            values = []
+            if request.include_values:
+                # TODO: Fetch embedding from vec0 table if needed
+                pass
+            
+            # Include metadata if requested
+            metadata = doc.document.meta or {} if request.include_metadata else {}
+            
+            vec = Vector(id=doc.document.id, values=values, metadata=metadata, score=doc.score)
             out.append(vec)
 
         return VectorSearchResult(data=out, usage=usage)
