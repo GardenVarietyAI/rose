@@ -49,18 +49,16 @@ async def _get_existing_file(session, vector_store_id: str, file_id: str):
             VectorStoreFile.vector_store_id == vector_store_id, VectorStoreFile.file_id == file_id
         )
     )
-    existing_file = existing.fetchone()
-    return existing_file[0] if existing_file else None
+    return existing.scalar_one_or_none()
 
 
 async def _get_uploaded_file(session, file_id: str):
     """Get uploaded file and validate it exists."""
     file_result = await session.execute(select(UploadedFile).where(UploadedFile.id == file_id))
-    file_row = file_result.fetchone()
-    if not file_row:
+    uploaded_file = file_result.scalar_one_or_none()
+    if not uploaded_file:
         raise FileNotFoundError(f"File {file_id} not found")
 
-    uploaded_file = file_row[0]
     if not uploaded_file.content:
         raise EmptyFileError(f"File {file_id} has no content")
     return uploaded_file
