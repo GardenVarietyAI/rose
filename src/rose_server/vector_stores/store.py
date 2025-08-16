@@ -1,5 +1,6 @@
 """Vector store CRUD operations."""
 
+import asyncio
 import json
 import time
 from typing import List, Optional
@@ -62,7 +63,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
 
         # Generate embedding using existing infrastructure
         model = embedding_model()
-        embedding = list(model.embed([content]))[0]
+        embedding = await asyncio.to_thread(lambda: list(model.embed([content]))[0])
 
         # Create document entry
         document = Document(
@@ -93,7 +94,7 @@ async def search_vector_store(
     async with get_session(read_only=not update_last_used) as session:
         # Generate query embedding
         model = embedding_model()
-        query_embedding = list(model.embed([query]))[0]
+        query_embedding = await asyncio.to_thread(lambda: list(model.embed([query]))[0])
         query_blob = np.array(query_embedding, dtype=np.float32).tobytes()
 
         # Vector similarity search using cosine distance
