@@ -12,7 +12,7 @@ from sqlmodel import select
 
 from rose_server.config.settings import settings
 from rose_server.database import get_session
-from rose_server.embeddings.embedding import embedding_model
+from rose_server.embeddings.embedding import embedding_model, _get_tokenizer
 from rose_server.entities.files import UploadedFile
 from rose_server.entities.vector_stores import Document, DocumentSearchResult, VectorStore
 
@@ -62,18 +62,19 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
 
         content = uploaded_file.content.decode("utf-8")
 
-        # Chunk the content using Chonkie
+        # Chunk the content using Chonkie with our cached tokenizer
+        tokenizer = _get_tokenizer(settings.default_embedding_model)
         chunker = TokenChunker(
             chunk_size=settings.default_chunk_size,
             chunk_overlap=settings.default_chunk_overlap,
-            tokenizer="tiktoken"
+            tokenizer=tokenizer
         )
         chunks = chunker.chunk(content)
 
         # Generate embeddings for all chunks
         model = embedding_model()
         chunk_texts = [chunk.text for chunk in chunks]
-        embeddings = await asyncio.to_thread(model.embed, chunk_texts)
+        embeddings = await asyncio.to_thread(lambda: list(model.embed(chunk_texts)))
 
         # Dimension validation
         expected_dim = settings.default_embedding_dimensions
