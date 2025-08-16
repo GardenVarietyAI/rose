@@ -1,17 +1,11 @@
 """aiosqlite connection with sqlite-vec preloaded."""
 
 import functools
+import sqlite3
 from typing import Any
 
 import aiosqlite
 import sqlite_vec
-
-try:
-    import sqlite3
-
-    _ = sqlite3.connect(":memory:").enable_load_extension  # probe
-except AttributeError:
-    import pysqlite3 as sqlite3  # type: ignore
 
 
 class _VecConnection(sqlite3.Connection):
