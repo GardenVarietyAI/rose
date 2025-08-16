@@ -6,10 +6,13 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Body, HTTPException, Path
 
+from rose_server.config.settings import settings
+from rose_server.embeddings.embedding import get_tokenizer
 from rose_server.schemas.vector_stores import (
     VectorSearch,
     VectorSearchChunk,
     VectorSearchResult,
+    VectorSearchUsage,
     VectorStoreCreate,
     VectorStoreFile,
     VectorStoreFileCreate,
@@ -217,13 +220,16 @@ async def search_store(
         if not vector_store:
             raise HTTPException(status_code=404, detail=f"Vector store {vector_store_id} not found")
 
-        # Search documents using text query or vector embedding
+        # Calculate token usage for the query
         if isinstance(request.query, str):
+            tokenizer = get_tokenizer(settings.default_embedding_model)
+            prompt_tokens = len(tokenizer.encode(request.query))
             documents = await search_vector_store(vector_store_id, request.query, request.max_num_results)
         elif isinstance(request.query, list):
-            # Direct vector query - skip embedding step
+            prompt_tokens = 1  # Vector queries use minimal tokens
             documents = await search_vector_store(vector_store_id, request.query, request.max_num_results)
         else:
+            prompt_tokens = 0
             documents = []
 
         # Convert documents to API response format
@@ -248,11 +254,22 @@ async def search_store(
         # Determine query string for response
         query_str = request.query if isinstance(request.query, str) else "[vector query]"
         
+        # Calculate pagination fields
+        first_id = search_chunks[0].file_id if search_chunks else None
+        last_id = search_chunks[-1].file_id if search_chunks else None
+        has_more = len(search_chunks) == request.max_num_results
+        
         return VectorSearchResult(
             search_query=query_str,
             data=search_chunks,
-            has_more=False,  # TODO: Add pagination
-            next_page=None
+            first_id=first_id,
+            last_id=last_id,
+            has_more=has_more,
+            next_page=None,
+            usage=VectorSearchUsage(
+                prompt_tokens=prompt_tokens,
+                total_tokens=prompt_tokens
+            )
         )
     except HTTPException:
         raise
