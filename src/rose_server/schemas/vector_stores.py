@@ -64,10 +64,20 @@ class VectorSearch(BaseModel):
     include_values: bool = False
 
 
+class VectorSearchChunk(BaseModel):
+    file_id: str
+    filename: str
+    score: float
+    attributes: Dict[str, Any] = Field(default_factory=dict)
+    content: List[Dict[str, str]]
+
+
 class VectorSearchResult(BaseModel):
-    object: str = "list"
-    data: List[Vector]
-    usage: Dict[str, int]
+    object: str = "vector_store.search_results.page"
+    search_query: str
+    data: List[VectorSearchChunk]
+    has_more: bool = False
+    next_page: Optional[str] = None
 
 
 class VectorStoreFileCreate(BaseModel):
