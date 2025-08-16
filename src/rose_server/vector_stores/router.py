@@ -87,14 +87,14 @@ async def add_file_to_store(
 ) -> VectorStoreFile:
     """Add a file to a vector store."""
     try:
-        document = await add_file_to_vector_store(vector_store_id, request.file_id)
+        vector_store_file = await add_file_to_vector_store(vector_store_id, request.file_id)
         logger.info("Added file %s to vector store %s", request.file_id, vector_store_id)
 
         return VectorStoreFile(
-            id=document.id,
-            vector_store_id=document.vector_store_id,
-            status="completed",
-            created_at=document.created_at,
+            id=vector_store_file.id,
+            vector_store_id=vector_store_file.vector_store_id,
+            status=vector_store_file.status,
+            created_at=vector_store_file.created_at,
         )
     except Exception as e:
         logger.error(f"Error adding file to vector store: {str(e)}")

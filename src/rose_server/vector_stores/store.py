@@ -15,7 +15,7 @@ from rose_server.config.settings import settings
 from rose_server.database import get_session
 from rose_server.embeddings.embedding import embedding_model, get_tokenizer
 from rose_server.entities.files import UploadedFile
-from rose_server.entities.vector_stores import Document, DocumentSearchResult, VectorStore
+from rose_server.entities.vector_stores import Document, DocumentSearchResult, VectorStore, VectorStoreFile
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +50,15 @@ async def list_vector_stores() -> List[VectorStore]:
         return [row[0] for row in result.fetchall()]
 
 
-async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Document:
+async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> VectorStoreFile:
     """Add a file to a vector store by chunking and embedding it."""
     async with get_session() as session:
+        # Create status tracking record
+        vector_store_file = VectorStoreFile(
+            vector_store_id=vector_store_id, file_id=file_id, status="in_progress", created_at=int(time.time())
+        )
+        session.add(vector_store_file)
+        await session.flush()
         # Get the file content
         file_result = await session.execute(select(UploadedFile).where(UploadedFile.id == file_id))
         file_row = file_result.fetchone()
@@ -137,11 +143,14 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
             if vector_store:
                 vector_store.last_used_at = created_at
 
+            # Mark processing as completed
+            vector_store_file.status = "completed"
             await session.commit()
-            # Return the first document as the representative for this file
-            return documents[0]
+            return vector_store_file
         except Exception:
             await session.rollback()
+            vector_store_file.status = "failed"
+            await session.commit()
             raise
 
 

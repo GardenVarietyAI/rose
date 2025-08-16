@@ -34,6 +34,20 @@ class Document(SQLModel, table=True):
     created_at: int
 
 
+class VectorStoreFile(SQLModel, table=True):
+    """Vector store file entity for tracking file processing status."""
+
+    __tablename__ = "vector_store_files"
+
+    id: str = Field(primary_key=True, default_factory=lambda: f"vsf_{uuid.uuid4().hex[:24]}")
+    object: str = Field(default="vector_store.file")
+    vector_store_id: str = Field(foreign_key="vector_stores.id")
+    file_id: str = Field(foreign_key="files.id")
+    status: str = Field(default="in_progress")
+    created_at: int
+    last_error: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
+
+
 class DocumentSearchResult(SQLModel):
     """Document search result with distance score."""
 
