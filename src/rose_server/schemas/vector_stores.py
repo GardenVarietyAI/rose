@@ -7,6 +7,7 @@ class Vector(BaseModel):
     id: str
     values: List[float] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    score: Optional[float] = Field(default=None, description="Similarity score (higher is more similar)")
 
 
 class StaticChunkingConfig(BaseModel):

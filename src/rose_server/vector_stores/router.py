@@ -225,7 +225,7 @@ async def search_store(
         # Convert documents to Vector format
         out = []
         for doc in documents:
-            vec = Vector(id=doc.id, metadata=doc.meta or {})
+            vec = Vector(id=doc.document.id, metadata=doc.document.meta or {}, score=doc.score)
             out.append(vec)
 
         return VectorSearchResult(data=out, usage=usage)
