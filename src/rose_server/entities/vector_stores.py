@@ -32,3 +32,10 @@ class Document(SQLModel, table=True):
     content: str
     meta: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
     created_at: int
+
+
+class DocumentSearchResult(SQLModel):
+    """Document search result with similarity score."""
+    
+    document: Document
+    score: float  # 1 - distance, higher is more similar
