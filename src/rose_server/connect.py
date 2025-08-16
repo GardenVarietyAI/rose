@@ -44,9 +44,9 @@ async def connect(path: str, *, pragmas: bool = True, **kwargs) -> aiosqlite.Con
     db = await aiosqlite.connect(path, factory=factory, **kwargs)
     
     # Fail-fast version check
-    row = await (await db.execute("SELECT vss_version()")).fetchone()
+    row = await (await db.execute("SELECT vec_version()")).fetchone()
     if not row or not row[0]:
-        raise RuntimeError("sqlite-vec loaded, but vss_version() returned no result")
+        raise RuntimeError("sqlite-vec loaded, but vec_version() returned no result")
     
     # Optional pragma tuning
     if pragmas:
