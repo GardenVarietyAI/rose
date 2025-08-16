@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import time
 from typing import List, Optional, Union
 
@@ -15,6 +16,8 @@ from rose_server.database import get_session
 from rose_server.embeddings.embedding import embedding_model, get_tokenizer
 from rose_server.entities.files import UploadedFile
 from rose_server.entities.vector_stores import Document, DocumentSearchResult, VectorStore
+
+logger = logging.getLogger(__name__)
 
 
 async def create_vector_store(name: str) -> VectorStore:
@@ -66,6 +69,10 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
         except UnicodeDecodeError:
             content = uploaded_file.content.decode("utf-8", errors="replace")
             decode_errors = True
+            logger.warning(
+                f"File {file_id} ({uploaded_file.filename}) contains invalid UTF-8 bytes. "
+                f"Decoded with replacement characters."
+            )
 
         # Chunk the content using Chonkie with our cached tokenizer
         tokenizer = get_tokenizer(settings.default_embedding_model)
