@@ -23,25 +23,17 @@ logger = logging.getLogger(__name__)
 class VectorStoreNotFoundError(ValueError):
     """Vector store does not exist."""
 
-    pass
-
 
 class FileNotFoundError(ValueError):
     """File does not exist."""
-
-    pass
 
 
 class EmptyFileError(ValueError):
     """File has no content."""
 
-    pass
-
 
 class ChunkingError(ValueError):
     """Failed to generate chunks from file."""
-
-    pass
 
 
 async def _get_existing_file(session: AsyncSession, vector_store_id: str, file_id: str) -> VectorStoreFile | None:
