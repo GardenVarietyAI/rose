@@ -6,6 +6,7 @@ import time
 from typing import List, Optional
 
 import numpy as np
+from chonkie import TokenChunker
 from sqlalchemy import text
 from sqlmodel import select
 
@@ -61,28 +62,51 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
 
         content = uploaded_file.content.decode("utf-8")
 
-        # Generate embedding using existing infrastructure
+        # Chunk the content using Chonkie
+        chunker = TokenChunker(
+            chunk_size=settings.default_chunk_size,
+            chunk_overlap=settings.default_chunk_overlap,
+            tokenizer="tiktoken"
+        )
+        chunks = chunker.chunk(content)
+
+        # Generate embeddings for all chunks
         model = embedding_model()
-        embedding = await asyncio.to_thread(lambda: list(model.embed([content]))[0])
+        chunk_texts = [chunk.text for chunk in chunks]
+        embeddings = await asyncio.to_thread(lambda: list(model.embed(chunk_texts)))
 
-        # Create document entry
+        # Dimension validation
+        expected_dim = settings.default_embedding_dimensions
+        if embeddings:
+            got_dim = len(embeddings[0])
+            if got_dim != expected_dim:
+                raise ValueError(f"Embedding dimension mismatch: got {got_dim}, expected {expected_dim}")
+
         created_at = int(time.time())
-        document = Document(
-            vector_store_id=vector_store_id,
-            chunk_index=0,
-            content=content,
-            meta={"file_id": file_id, "filename": uploaded_file.filename},
-            created_at=created_at,
-        )
-        session.add(document)
-        await session.flush()  # Get the document.id
+        first_document: Optional[Document] = None
 
-        # Store embedding in vec0 virtual table
-        embedding_blob = np.array(embedding, dtype=np.float32).tobytes()
-        await session.execute(
-            text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
-            {"doc_id": document.id, "embedding": embedding_blob},
-        )
+        # Process each chunk
+        for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+            # Create document entry for each chunk
+            document = Document(
+                vector_store_id=vector_store_id,
+                chunk_index=idx,
+                content=chunk.text,
+                meta={"file_id": file_id, "filename": uploaded_file.filename, "total_chunks": len(chunks)},
+                created_at=created_at,
+            )
+            session.add(document)
+            await session.flush()  # Get the document.id
+
+            # Store embedding in vec0 virtual table
+            embedding_blob = np.array(embedding, dtype=np.float32).tobytes()
+            await session.execute(
+                text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
+                {"doc_id": document.id, "embedding": embedding_blob},
+            )
+
+            if first_document is None:
+                first_document = document
 
         # Update vector store last_used_at on ingest
         vector_store = await session.get(VectorStore, vector_store_id)
@@ -90,7 +114,14 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
             vector_store.last_used_at = created_at
 
         await session.commit()
-        return document
+        # Return the first chunk's document for backward compatibility
+        return first_document or Document(
+            vector_store_id=vector_store_id,
+            chunk_index=0,
+            content="",
+            meta={"file_id": file_id, "filename": uploaded_file.filename},
+            created_at=created_at,
+        )
 
 
 async def search_vector_store(

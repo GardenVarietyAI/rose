@@ -67,6 +67,8 @@ class Settings(BaseSettings):
     default_embedding_device: str = Field(
         default="cpu", description="Default device for embedding models (cpu, cuda, mps)"
     )
+    default_chunk_size: int = Field(default=800, description="Default chunk size in tokens for document chunking")
+    default_chunk_overlap: int = Field(default=150, description="Default overlap in tokens between chunks")
 
     # Webhook settings
     webhook_url: str = Field(

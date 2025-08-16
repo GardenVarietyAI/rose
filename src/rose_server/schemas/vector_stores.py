@@ -18,7 +18,7 @@ class StaticChunkingConfig(BaseModel):
         le=4000,
     )
     chunk_overlap_tokens: int = Field(
-        400,
+        150,
         description="Number of tokens shared between consecutive chunks.",
         ge=0,
         le=4000,
