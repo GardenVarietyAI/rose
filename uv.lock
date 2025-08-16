@@ -180,6 +180,25 @@ wheels = [
 ]
 
 [[package]]
+name = "chonkie"
+version = "1.1.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/92/0d/bf6020d591e3a74002d3565dac5a42bfca95878f25840bdff4d58688a737/chonkie-1.1.2.tar.gz", hash = "sha256:ef38fd337354270267ff9f7faf26b14fc3a23af708654cd193dc6fc1288a9e02", size = 271647, upload-time = "2025-08-06T21:56:53.442Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/95/a8/339ab41e439981d32198b63eda290ce822b6cf7f7ad6f046081821efbd00/chonkie-1.1.2-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:1ecafad3d214f54e84fdeb2c3256ceb266a30464ebcba4a099e1988685001549", size = 361195, upload-time = "2025-08-06T21:56:45.31Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/56/3654b5c321ee9310b29014e1f369d5c0960b463dd577c3dae2477a123bcb/chonkie-1.1.2-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:38cac1720b621034f2cd377815d9cdddbbe651b0e315b18b68dd857a56b98c16", size = 663025, upload-time = "2025-08-06T21:56:46.473Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/b0/ced65379958affd325aaa0e2f9d698919402720960a7d4b59cc25eb42a28/chonkie-1.1.2-cp313-cp313-win_amd64.whl", hash = "sha256:38ec740f66f52c7c2f3de8bf197cf1a6bb6182919d296e081fab9e08ceb6fcbc", size = 360288, upload-time = "2025-08-06T21:56:47.561Z" },
+]
+
+[package.optional-dependencies]
+tokenizers = [
+    { name = "tokenizers" },
+]
+
+[[package]]
 name = "click"
 version = "8.2.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1731,6 +1750,7 @@ dependencies = [
     { name = "aiofiles" },
     { name = "aiosqlite" },
     { name = "apscheduler" },
+    { name = "chonkie", extra = ["tokenizers"] },
     { name = "datasets" },
     { name = "evaluate" },
     { name = "fastapi" },
@@ -1783,6 +1803,7 @@ requires-dist = [
     { name = "aiofiles", specifier = ">=24.1.0" },
     { name = "aiosqlite", specifier = ">=0.21.0" },
     { name = "apscheduler", specifier = ">=3.10.4" },
+    { name = "chonkie", extras = ["tokenizers"], specifier = "~=1.1.2" },
     { name = "datasets", specifier = ">=3.3.0" },
     { name = "evaluate", specifier = ">=0.4.5" },
     { name = "fastapi", specifier = ">=0.110.0" },

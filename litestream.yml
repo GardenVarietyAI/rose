@@ -7,8 +7,8 @@ dbs:
       - "vec0_*"
     replicas:
       - name: local
-        path: ./data/replica 
-        retention: 72h 
-        snapshot-interval: 6h 
-        sync-interval: 1s 
-        validation-interval: 12h 
+        path: ./data/replica
+        retention: 72h
+        snapshot-interval: 6h
+        sync-interval: 1s
+        validation-interval: 12h

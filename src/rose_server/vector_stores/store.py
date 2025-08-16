@@ -2,8 +2,9 @@
 
 import asyncio
 import json
+import logging
 import time
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import numpy as np
 from sqlalchemy import text
@@ -12,8 +13,9 @@ from sqlmodel import select
 from rose_server.config.settings import settings
 from rose_server.database import get_session
 from rose_server.embeddings.embedding import embedding_model
-from rose_server.entities.files import UploadedFile
 from rose_server.entities.vector_stores import Document, DocumentSearchResult, VectorStore
+
+logger = logging.getLogger(__name__)
 
 
 async def create_vector_store(name: str) -> VectorStore:
@@ -46,61 +48,26 @@ async def list_vector_stores() -> List[VectorStore]:
         return [row[0] for row in result.fetchall()]
 
 
-async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Document:
-    """Add a file to a vector store by chunking and embedding it."""
-    async with get_session() as session:
-        # Get the file content
-        file_result = await session.execute(select(UploadedFile).where(UploadedFile.id == file_id))
-        file_row = file_result.fetchone()
-        if not file_row:
-            raise ValueError(f"File {file_id} not found")
-
-        uploaded_file = file_row[0]
-        if not uploaded_file.content:
-            raise ValueError(f"File {file_id} has no content")
-
-        content = uploaded_file.content.decode("utf-8")
-
-        # Generate embedding using existing infrastructure
-        model = embedding_model()
-        embedding = await asyncio.to_thread(lambda: list(model.embed([content]))[0])
-
-        # Create document entry
-        created_at = int(time.time())
-        document = Document(
-            vector_store_id=vector_store_id,
-            chunk_index=0,
-            content=content,
-            meta={"file_id": file_id, "filename": uploaded_file.filename},
-            created_at=created_at,
-        )
-        session.add(document)
-        await session.flush()  # Get the document.id
-
-        # Store embedding in vec0 virtual table
-        embedding_blob = np.array(embedding, dtype=np.float32).tobytes()
-        await session.execute(
-            text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
-            {"doc_id": document.id, "embedding": embedding_blob},
-        )
-
-        # Update vector store last_used_at on ingest
-        vector_store = await session.get(VectorStore, vector_store_id)
-        if vector_store:
-            vector_store.last_used_at = created_at
-
-        await session.commit()
-        return document
-
-
 async def search_vector_store(
-    vector_store_id: str, query: str, max_results: int = 10, update_last_used: bool = True
+    vector_store_id: str, query: Union[str, List[float]], max_results: int = 10, update_last_used: bool = True
 ) -> List[DocumentSearchResult]:
     """Search documents in a vector store using vector similarity."""
+    max_results = max(1, min(100, max_results))
+
     async with get_session(read_only=not update_last_used) as session:
-        # Generate query embedding
-        model = embedding_model()
-        query_embedding = await asyncio.to_thread(lambda: list(model.embed([query]))[0])
+        # Handle both text and vector queries
+        if isinstance(query, str):
+            # Generate query embedding
+            model = embedding_model()
+            query_embedding = await asyncio.to_thread(lambda: list(model.embed([query]))[0])
+        else:
+            # Direct vector input - validate dimensions
+            expected_dim = settings.default_embedding_dimensions
+            got_dim = len(query)
+            if got_dim != expected_dim:
+                raise ValueError(f"Query vector dimension mismatch: got {got_dim}, expected {expected_dim}")
+            query_embedding = query
+
         query_blob = np.array(query_embedding, dtype=np.float32).tobytes()
 
         # Vector similarity search using cosine distance
@@ -130,10 +97,11 @@ async def search_vector_store(
                 id=row[0], vector_store_id=row[1], chunk_index=row[2], content=row[3], meta=meta, created_at=row[5]
             )
             distance = row[6]
-            results.append(DocumentSearchResult(document=doc, score=distance))
+            similarity = 1.0 - distance
+            results.append(DocumentSearchResult(document=doc, score=similarity))
 
-        # Update last_used_at timestamp if requested
-        if update_last_used and results:
+        # Update last_used_at timestamp if requested (even if 0 hits)
+        if update_last_used:
             vector_store = await session.get(VectorStore, vector_store_id)
             if vector_store:
                 vector_store.last_used_at = int(time.time())

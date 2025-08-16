@@ -4,22 +4,23 @@ import logging
 import time
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Body, HTTPException, Path
+from fastapi import APIRouter, Body, HTTPException, Path, Request
 
+from rose_server.config.settings import settings
+from rose_server.embeddings.embedding import get_tokenizer
 from rose_server.schemas.vector_stores import (
-    Vector,
     VectorSearch,
+    VectorSearchChunk,
     VectorSearchResult,
+    VectorSearchUsage,
     VectorStoreCreate,
-    VectorStoreFile,
-    VectorStoreFileCreate,
     VectorStoreList,
     VectorStoreMetadata,
     VectorStoreUpdate,
 )
 from rose_server.vector_stores.deps import VectorManager
+from rose_server.vector_stores.files.router import router as files_router
 from rose_server.vector_stores.store import (
-    add_file_to_vector_store,
     create_vector_store,
     get_vector_store,
     list_vector_stores,
@@ -28,7 +29,11 @@ from rose_server.vector_stores.store import (
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
+
+router.include_router(files_router, prefix="/vector_stores/{vector_store_id}/files", tags=["vector_store_files"])
+
 _META_EXCLUDE = {"display_name", "dimensions", "created_at"}
+_INTERNAL_FIELDS = frozenset(["file_id", "filename", "total_chunks", "start_index", "end_index", "decode_errors"])
 
 
 class VectorStoreNotFoundError(RuntimeError):
@@ -74,27 +79,6 @@ async def create(request: VectorStoreCreate = Body(...)) -> VectorStoreMetadata:
     except Exception as e:
         logger.error(f"Error creating vector store: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error creating vector store: {str(e)}")
-
-
-@router.post("/vector_stores/{vector_store_id}/files")
-async def add_file_to_store(
-    vector_store_id: str = Path(..., description="The ID of the vector store"),
-    request: VectorStoreFileCreate = Body(...),
-) -> VectorStoreFile:
-    """Add a file to a vector store."""
-    try:
-        document = await add_file_to_vector_store(vector_store_id, request.file_id)
-        logger.info("Added file %s to vector store %s", request.file_id, vector_store_id)
-
-        return VectorStoreFile(
-            id=document.id,
-            vector_store_id=document.vector_store_id,
-            status="completed",
-            created_at=document.created_at,
-        )
-    except Exception as e:
-        logger.error(f"Error adding file to vector store: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error adding file to vector store: {str(e)}")
 
 
 @router.get("/vector_stores/{vector_store_id}")
@@ -201,6 +185,7 @@ async def delete_vectors(
 
 @router.post("/vector_stores/{vector_store_id}/search")
 async def search_store(
+    http_request: Request,
     vector_store_id: str = Path(..., description="The ID of the vector store"),
     request: VectorSearch = Body(...),
 ) -> VectorSearchResult:
@@ -217,36 +202,62 @@ async def search_store(
         if not vector_store:
             raise HTTPException(status_code=404, detail=f"Vector store {vector_store_id} not found")
 
-        # Search documents using text query for now
+        # Calculate token usage for the query
         if isinstance(request.query, str):
-            documents = await search_vector_store(vector_store_id, request.query, request.max_num_results)
-            usage = {
-                "prompt_tokens": len(request.query.split()),
-                "total_tokens": len(request.query.split()),
-            }
+            tokenizer = get_tokenizer(settings.default_embedding_model)
+            prompt_tokens = len(tokenizer.encode(request.query).ids)
+            documents = await search_vector_store(vector_store_id, request.query, request.max_num_results + 1)
+        elif isinstance(request.query, list):
+            prompt_tokens = 1  # Vector queries use minimal tokens
+            documents = await search_vector_store(vector_store_id, request.query, request.max_num_results + 1)
         else:
-            # Vector embeddings not implemented yet
+            prompt_tokens = 0
             documents = []
-            usage = {"prompt_tokens": 0, "total_tokens": 0}
 
-        # Convert documents to Vector format
-        out = []
+        # Convert documents to API response format
+        search_chunks = []
         for doc in documents:
-            # Include embedding values if requested
-            values = []
-            if request.include_values:
-                # TODO: Fetch embedding from vec0 table if needed
-                pass
+            # Extract file info from metadata
+            meta = doc.document.meta or {}
 
-            # Include metadata if requested
-            metadata = doc.document.meta or {} if request.include_metadata else {}
+            # Create attributes from metadata (excluding our internal fields)
+            attributes = {k: v for k, v in meta.items() if k not in _INTERNAL_FIELDS}
 
-            # Normalize distance to similarity score (1 - distance)
-            similarity_score = 1.0 - doc.score
-            vec = Vector(id=doc.document.id, values=values, metadata=metadata, score=similarity_score)
-            out.append(vec)
+            chunk = VectorSearchChunk(
+                file_id=meta.get("file_id", ""),
+                filename=meta.get("filename", ""),
+                similarity=doc.score,  # Already converted to similarity (1 - distance)
+                attributes=attributes,
+                content=[{"type": "text", "text": doc.document.content}],
+            )
+            search_chunks.append(chunk)
 
-        return VectorSearchResult(data=out, usage=usage)
+        # Determine query string for response
+        query_str = request.query if isinstance(request.query, str) else "[vector query]"
+
+        # Calculate pagination fields
+        has_more = len(documents) > request.max_num_results
+        # Trim both lists to requested limit
+        documents = documents[: request.max_num_results]
+        search_chunks = search_chunks[: request.max_num_results]
+        first_id = documents[0].document.id if documents else None
+        last_id = documents[-1].document.id if documents else None
+
+        # TODO: Implement proper pagination cursor for POST endpoints
+        next_page = None
+
+        return VectorSearchResult(
+            search_query=query_str,
+            data=search_chunks,
+            first_id=first_id,
+            last_id=last_id,
+            has_more=has_more,
+            next_page=next_page,
+            usage=VectorSearchUsage(
+                prompt_tokens=prompt_tokens,
+                total_tokens=prompt_tokens + len(search_chunks),  # Include processing overhead per result
+            ),
+        )
     except HTTPException:
         raise
     except ValueError as e:

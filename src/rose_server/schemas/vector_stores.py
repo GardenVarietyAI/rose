@@ -2,23 +2,27 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
+from rose_server.config.settings import settings
+
 
 class Vector(BaseModel):
     id: str
     values: List[float] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
-    score: Optional[float] = Field(default=None, description="Similarity score (higher is more similar)")
+    similarity: Optional[float] = Field(
+        default=None, description="Similarity score (higher is more similar, range: 0-1)"
+    )
 
 
 class StaticChunkingConfig(BaseModel):
     max_chunk_size_tokens: int = Field(
-        800,
+        default=settings.default_chunk_size,
         description="Maximum number of tokens in each chunk.",
         ge=50,
         le=4000,
     )
     chunk_overlap_tokens: int = Field(
-        400,
+        default=settings.default_chunk_overlap,
         description="Number of tokens shared between consecutive chunks.",
         ge=0,
         le=4000,
@@ -58,16 +62,38 @@ class VectorStoreList(BaseModel):
 
 class VectorSearch(BaseModel):
     query: Union[str, List[float]]
-    max_num_results: int = 10
+    max_num_results: int = Field(default=10, ge=1, le=100, description="Maximum number of results to return (1-100)")
     filters: Optional[Dict[str, Any]] = None
     include_metadata: bool = True
     include_values: bool = False
 
 
+class VectorSearchChunk(BaseModel):
+    """A chunk from a document in vector search results."""
+
+    file_id: str
+    filename: str
+    similarity: float = Field(description="Similarity score (higher is more similar, range: 0-1)")
+    attributes: Dict[str, Any] = Field(default_factory=dict)
+    content: List[Dict[str, str]]
+
+
+class VectorSearchUsage(BaseModel):
+    """Token usage statistics for vector search operations."""
+
+    prompt_tokens: int
+    total_tokens: int
+
+
 class VectorSearchResult(BaseModel):
-    object: str = "list"
-    data: List[Vector]
-    usage: Dict[str, int]
+    object: str = "vector_store.search_results.page"
+    search_query: str
+    data: List[VectorSearchChunk]
+    first_id: Optional[str] = None
+    last_id: Optional[str] = None
+    has_more: bool = False
+    next_page: Optional[str] = None
+    usage: VectorSearchUsage
 
 
 class VectorStoreFileCreate(BaseModel):
