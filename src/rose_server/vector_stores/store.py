@@ -138,6 +138,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
                 vector_store.last_used_at = created_at
 
             await session.commit()
+            # Return the first document as the representative for this file
             return documents[0]
         except Exception:
             await session.rollback()
