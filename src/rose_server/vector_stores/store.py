@@ -86,7 +86,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
         return document
 
 
-async def search_vector_store(vector_store_id: str, query: str, max_results: int = 10) -> List[DocumentSearchResult]:
+async def search_vector_store(vector_store_id: str, query: str, max_results: int = 10, update_last_used: bool = True) -> List[DocumentSearchResult]:
     """Search documents in a vector store using vector similarity."""
     async with get_session(read_only=True) as session:
         # Generate query embedding
