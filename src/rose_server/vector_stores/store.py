@@ -60,7 +60,12 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
         if not uploaded_file.content:
             raise ValueError(f"File {file_id} has no content")
 
-        content = uploaded_file.content.decode("utf-8")
+        try:
+            content = uploaded_file.content.decode("utf-8")
+            decode_errors = False
+        except UnicodeDecodeError:
+            content = uploaded_file.content.decode("utf-8", errors="replace")
+            decode_errors = True
 
         # Chunk the content using Chonkie with our cached tokenizer
         tokenizer = get_tokenizer(settings.default_embedding_model)
@@ -91,11 +96,21 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Docume
         try:
             for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
                 # Create document entry for each chunk
+                chunk_meta = {
+                    "file_id": file_id, 
+                    "filename": uploaded_file.filename, 
+                    "total_chunks": len(chunks),
+                    "start_index": chunk.start_index,
+                    "end_index": chunk.end_index,
+                }
+                if decode_errors:
+                    chunk_meta["decode_errors"] = True
+                    
                 document = Document(
                     vector_store_id=vector_store_id,
                     chunk_index=idx,
                     content=chunk.text,
-                    meta={"file_id": file_id, "filename": uploaded_file.filename, "total_chunks": len(chunks)},
+                    meta=chunk_meta,
                     created_at=created_at,
                 )
                 session.add(document)
