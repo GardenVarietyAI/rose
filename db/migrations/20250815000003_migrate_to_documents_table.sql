@@ -21,5 +21,5 @@ ALTER TABLE files DROP COLUMN vector_store_id;
 -- migrate:down
 ALTER TABLE files ADD COLUMN vector_store_id TEXT REFERENCES vector_stores(id);
 CREATE INDEX idx_files_vector_store_id ON files(vector_store_id);
-ALTER TABLE vector_stores ADD COLUMN object TEXT NOT NULL DEFAULT 'vector_store';
+ALTER TABLE vector_stores DROP COLUMN last_used_at;
 DROP TABLE IF EXISTS documents;
