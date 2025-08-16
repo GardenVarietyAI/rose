@@ -3,6 +3,8 @@ logging:
 
 dbs:
   - path: ./data/rose.db
+    exclude:
+      - "vec0_*"
     replicas:
       - name: local
         path: ./data/replica 

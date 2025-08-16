@@ -7,17 +7,18 @@ from sqlmodel import SQLModel
 
 from rose_server import database
 from rose_server.app import create_app
+from rose_server.connect import _VecConnection
 
-# Create in-memory engine for testing
+# Create in-memory engine for testing with sqlite-vec support
 test_engine = create_async_engine(
     "sqlite+aiosqlite:///:memory:",
     echo=False,
     connect_args={
         "check_same_thread": False,
+        "factory": _VecConnection,
     },
 )
 
-# Create test session factory
 test_async_session_factory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -26,6 +27,18 @@ async def test_db():
     """Create test database tables."""
     async with test_engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
+
+        # Create vec0 table
+        from sqlalchemy import text
+
+        await conn.execute(
+            text("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS vec0 USING vec0(
+                document_id TEXT PRIMARY KEY,
+                embedding float[384]
+            )
+        """)
+        )
     yield
     async with test_engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.drop_all)

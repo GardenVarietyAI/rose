@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from rose_server import __version__
 from rose_server.config.settings import settings
-from rose_server.database import check_database_setup
+from rose_server.database import check_database_setup, create_all_tables
 from rose_server.models.registry import ModelRegistry
 from rose_server.router import router
 
@@ -40,6 +40,8 @@ async def lifespan(app: FastAPI) -> Any:
 
     if not await check_database_setup():
         raise RuntimeError("Database not found. Please run 'dbmate up' and try again.")
+
+    await create_all_tables()
 
     app.state.model_registry = ModelRegistry()
     logger.info("Model registry initialized")

@@ -30,6 +30,7 @@ dependencies = [
   "evaluate>=0.4.5",
   "tokenizers>=0.21.2",
   "websockets>=13.0",
+  "sqlite-vec>=0.1.6",
 ]
 
 [dependency-groups]

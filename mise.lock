@@ -15,6 +15,10 @@ backend = "core:python"
 version = "1.88.0"
 backend = "core:rust"
 
+[tools.sqlite]
+version = "3.50.4"
+backend = "asdf:sqlite"
+
 [tools."ubi:benbjohnson/litestream"]
 version = "0.3.13"
 backend = "ubi:benbjohnson/litestream"

@@ -6,6 +6,8 @@ import numpy as np
 from fastembed import TextEmbedding
 from tokenizers import Tokenizer
 
+from rose_server.config.settings import settings
+
 EMBEDDING_MODELS = {
     "nomic-embed-text": {
         "model_name": "nomic-ai/nomic-embed-text-v1",
@@ -23,12 +25,12 @@ EMBEDDING_MODELS = {
 
 
 @lru_cache(maxsize=4)
-def _get_model(model_name: str) -> TextEmbedding:
+def _get_model(model_name: str, device: str = "cpu") -> TextEmbedding:
     if model_name in EMBEDDING_MODELS:
         model_path = str(EMBEDDING_MODELS[model_name]["model_name"])
     else:
         model_path = str(model_name)
-    return TextEmbedding(model_name=model_path)
+    return TextEmbedding(model_name=model_path, device=device)
 
 
 @lru_cache(maxsize=4)
@@ -40,15 +42,26 @@ def _get_tokenizer(model_name: str) -> Tokenizer:
     return Tokenizer.from_pretrained(model_path)
 
 
+def embedding_model() -> TextEmbedding:
+    """Get the default embedding model from settings."""
+    device = getattr(settings, "default_embedding_device", "cpu")
+    return _get_model(settings.default_embedding_model, device)
+
+
 def clear_embedding_cache() -> None:
     """Clear cached models and tokenizers.
 
     This can be used when memory pressure is detected to free cached
     embedding models and tokenizers.
     """
-
     _get_model.cache_clear()
     _get_tokenizer.cache_clear()
+
+
+def reload_embedding_model() -> TextEmbedding:
+    """Reload the default embedding model, clearing cache first."""
+    clear_embedding_cache()
+    return embedding_model()
 
 
 def generate_embeddings(
