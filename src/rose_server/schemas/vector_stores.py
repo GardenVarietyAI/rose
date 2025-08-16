@@ -58,7 +58,7 @@ class VectorStoreList(BaseModel):
 
 class VectorSearch(BaseModel):
     query: Union[str, List[float]]
-    max_num_results: int = 10
+    max_num_results: int = Field(default=10, ge=1, le=100, description="Maximum number of results to return (1-100)")
     filters: Optional[Dict[str, Any]] = None
     include_metadata: bool = True
     include_values: bool = False
