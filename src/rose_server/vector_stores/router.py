@@ -27,10 +27,10 @@ from rose_server.vector_stores.store import (
     update_vector_store,
 )
 
-router = APIRouter(prefix="/v1")
+router = APIRouter(prefix="/v1/vector_stores")
 logger = logging.getLogger(__name__)
 
-router.include_router(files_router, prefix="/vector_stores/{vector_store_id}/files", tags=["vector_store_files"])
+router.include_router(files_router)
 
 _INTERNAL_FIELDS = frozenset(["file_id", "filename", "total_chunks", "start_index", "end_index", "decode_errors"])
 
@@ -39,7 +39,7 @@ class VectorStoreNotFoundError(RuntimeError):
     pass
 
 
-@router.get("/vector_stores")
+@router.get("")
 async def index() -> VectorStoreList:
     """List all vector stores."""
     try:
@@ -61,7 +61,7 @@ async def index() -> VectorStoreList:
         raise HTTPException(status_code=500, detail=f"Error listing vector stores: {str(e)}")
 
 
-@router.post("/vector_stores")
+@router.post("")
 async def create(request: VectorStoreCreate = Body(...)) -> VectorStoreMetadata:
     """Create a new vector store."""
     try:
@@ -80,7 +80,7 @@ async def create(request: VectorStoreCreate = Body(...)) -> VectorStoreMetadata:
         raise HTTPException(status_code=500, detail=f"Error creating vector store: {str(e)}")
 
 
-@router.get("/vector_stores/{vector_store_id}")
+@router.get("/{vector_store_id}")
 async def get(vector_store_id: str = Path(..., description="The ID of the vector store")) -> VectorStoreMetadata:
     """Get a vector store by ID."""
     try:
@@ -102,7 +102,7 @@ async def get(vector_store_id: str = Path(..., description="The ID of the vector
         raise HTTPException(status_code=500, detail=f"Error getting vector store: {str(e)}")
 
 
-@router.post("/vector_stores/{vector_store_id}")
+@router.post("/{vector_store_id}")
 async def update(vector_store_id: str = Path(...), request: VectorStoreUpdate = Body(...)) -> VectorStoreMetadata:
     """Update a vector store."""
     try:
@@ -131,7 +131,18 @@ async def update(vector_store_id: str = Path(...), request: VectorStoreUpdate = 
         raise HTTPException(status_code=500, detail=f"Error updating vector store: {str(e)}")
 
 
-@router.post("/vector_stores/{vector_store_id}/search")
+@router.delete("/{vector_store_id}")
+async def delete(
+    vector_store_id: str = Path(..., description="The ID of the vector store"),  # noqa: ARG001
+) -> Dict[str, Any]:
+    """Delete a vector store."""
+    success = await delete_vector_store(vector_store_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="VectorStore not found")
+    return {"id": vector_store_id, "object": "vector_store.deleted", "deleted": True}
+
+
+@router.post("/{vector_store_id}/search")
 async def search_store(vector_store_id: str = Path(...), request: VectorSearch = Body(...)) -> VectorSearchResult:
     """Search for vectors in a vector store (OpenAI-compatible)."""
     try:
@@ -203,14 +214,3 @@ async def search_store(vector_store_id: str = Path(...), request: VectorSearch =
     except Exception:
         logger.exception("Error searching vectors")
         raise HTTPException(status_code=500, detail="Error searching vectors")
-
-
-@router.delete("/vector_stores/{vector_store_id}")
-async def delete(
-    vector_store_id: str = Path(..., description="The ID of the vector store"),  # noqa: ARG001
-) -> Dict[str, Any]:
-    """Delete a vector store."""
-    success = await delete_vector_store(vector_store_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="VectorStore not found")
-    return {"id": vector_store_id, "object": "vector_store.deleted", "deleted": True}

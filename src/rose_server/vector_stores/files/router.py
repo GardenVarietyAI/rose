@@ -13,7 +13,7 @@ from rose_server.vector_stores.files.store import (
     list_vector_store_files,
 )
 
-router = APIRouter()
+router = APIRouter(prefix="/{vector_store_id}/files", tags=["vector_store_files"])
 logger = logging.getLogger(__name__)
 
 
