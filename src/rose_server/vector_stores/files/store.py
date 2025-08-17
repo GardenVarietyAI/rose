@@ -7,9 +7,8 @@ from typing import Any, List, Optional, Sequence, Tuple
 
 import numpy as np
 from chonkie import TokenChunker
-from sqlalchemy import text
+from sqlalchemy import bindparam, delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select
 
 from rose_server.config.settings import settings
 from rose_server.database import get_session
@@ -192,6 +191,12 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Vector
             raise
 
 
+async def get_vector_store_file(vector_store_file_id: str) -> Optional[VectorStoreFile]:
+    """Get vector store by ID."""
+    async with get_session(read_only=True) as session:
+        return await session.get(VectorStoreFile, vector_store_file_id)
+
+
 async def list_vector_store_files(
     vector_store_id: str,
     limit: int = 20,
@@ -218,29 +223,38 @@ async def list_vector_store_files(
         return list(result.scalars().all())
 
 
-async def delete_file_from_vector_store(vector_store_id: str, file_id: str) -> None:
-    """Remove a file from a vector store and delete associated documents."""
+async def delete_file_from_vector_store(vector_store_id: str, file_id: str) -> int:
+    """Remove a file from a vector store and delete associated documents & embeddings.
+    Returns the number of documents deleted.
+    """
     async with get_session() as session:
-        vector_store_file = await session.get(VectorStoreFile, file_id)
+        # Find the mapping row using both keys (safer than .get with a single id)
+        vector_store_file = await session.scalar(
+            select(VectorStoreFile).where(
+                VectorStoreFile.vector_store_id == vector_store_id,
+                VectorStoreFile.file_id == file_id,
+            )
+        )
         if not vector_store_file:
             raise FileNotFoundError(f"File {file_id} not found in vector store {vector_store_id}")
 
-        # Delete associated documents and embeddings
-        docs_result = await session.execute(select(Document).where(Document.vector_store_id == vector_store_id))
-        documents = docs_result.scalars().all()
+        # Collect document ids for this file in this vector store
+        rows = (
+            await session.execute(select(Document.id, Document.meta).where(Document.vector_store_id == vector_store_id))
+        ).all()
+        doc_ids = [doc_id for (doc_id, meta) in rows if meta and meta.get("file_id") == file_id]
 
-        # Filter documents by file_id in metadata
-        file_documents = [doc for doc in documents if doc.meta and doc.meta.get("file_id") == file_id]
+        if doc_ids:
+            # Delete embeddings in vec0 for these docs (expanding IN)
+            stmt_vec_del = text("DELETE FROM vec0 WHERE document_id IN :ids").bindparams(
+                bindparam("ids", expanding=True)
+            )
+            await session.execute(stmt_vec_del, {"ids": doc_ids})
 
-        # Delete embeddings from vec0 table
-        if file_documents:
-            doc_ids = [doc.id for doc in file_documents]
-            await session.execute(text("DELETE FROM vec0 WHERE document_id IN :ids"), {"ids": doc_ids})
+            # Bulk delete documents
+            await session.execute(delete(Document).where(Document.id.in_(doc_ids)))
 
-            # Delete documents
-            for doc in file_documents:
-                await session.delete(doc)
-
-        # Delete the vector store file record
+        # Remove the vector store ↔ file link
         await session.delete(vector_store_file)
         await session.commit()
+        return len(doc_ids)

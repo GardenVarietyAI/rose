@@ -9,6 +9,7 @@ from rose_server.schemas.vector_stores import VectorStoreFile, VectorStoreFileCr
 from rose_server.vector_stores.files.store import (
     add_file_to_vector_store,
     delete_file_from_vector_store,
+    get_vector_store_file,
     list_vector_store_files,
 )
 
@@ -68,17 +69,21 @@ async def list_files(
         raise HTTPException(status_code=500, detail=f"Error listing vector store files: {str(e)}")
 
 
-@router.delete("/{file_id}")
+@router.delete("/{vector_store_file_id}")
 async def delete_file(
     vector_store_id: str = Path(..., description="The ID of the vector store"),
-    file_id: str = Path(..., description="The ID of the file to delete"),
+    vector_store_file_id: str = Path(..., description="The ID of the file to delete"),
 ) -> Dict[str, Any]:
     """Remove a file from a vector store."""
     try:
-        await delete_file_from_vector_store(vector_store_id, file_id)
-        logger.info(f"Deleted file {file_id} from vector store {vector_store_id}")
+        vector_store_file = await get_vector_store_file(vector_store_file_id=vector_store_file_id)
+        if not vector_store_file:
+            raise HTTPException(status_code=404, detail="VectorStoreFile not found")
 
-        return {"id": file_id, "object": "vector_store.file.deleted", "deleted": True}
+        await delete_file_from_vector_store(vector_store_id, vector_store_file.file_id)
+        logger.info(f"Deleted file {vector_store_file_id} from vector store {vector_store_id}")
+
+        return {"id": vector_store_file_id, "object": "vector_store.file.deleted", "deleted": True}
     except Exception as e:
         logger.error(f"Error deleting file from vector store: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error deleting file from vector store: {str(e)}")
