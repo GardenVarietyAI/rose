@@ -4,16 +4,16 @@ import asyncio
 import json
 import logging
 import time
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 from sqlalchemy import text
-from sqlmodel import select
+from sqlmodel import delete, func, select
 
 from rose_server.config.settings import settings
 from rose_server.database import get_session
 from rose_server.embeddings.embedding import embedding_model
-from rose_server.entities.vector_stores import Document, DocumentSearchResult, VectorStore
+from rose_server.entities.vector_stores import Document, DocumentSearchResult, VectorStore, VectorStoreFile
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +24,7 @@ async def create_vector_store(name: str) -> VectorStore:
         object="vector_store",
         name=name,
         dimensions=settings.default_embedding_dimensions,
-        created_at=int(time.time()),
         last_used_at=None,
-        meta={},
     )
 
     async with get_session() as session:
@@ -41,6 +39,29 @@ async def get_vector_store(vector_store_id: str) -> Optional[VectorStore]:
         return await session.get(VectorStore, vector_store_id)
 
 
+async def update_vector_store(
+    vector_store_id: str, name: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None
+) -> Optional[VectorStore]:
+    """Update vector store metadata."""
+    async with get_session() as session:
+        vector_store = await session.get(VectorStore, vector_store_id)
+
+        if not vector_store:
+            return None
+
+        if name is not None:
+            vector_store.name = name
+
+        if metadata is not None:
+            base = (vector_store.meta or {}).copy()
+            base.update(metadata)
+            vector_store.meta = base  # reassign so SQLAlchemy tracks the change
+
+        await session.flush()
+        await session.refresh(vector_store)
+        return vector_store
+
+
 async def list_vector_stores() -> List[VectorStore]:
     """List all vector stores."""
     async with get_session(read_only=True) as session:
@@ -52,8 +73,6 @@ async def search_vector_store(
     vector_store_id: str, query: Union[str, List[float]], max_results: int = 10, update_last_used: bool = True
 ) -> List[DocumentSearchResult]:
     """Search documents in a vector store using vector similarity."""
-    max_results = max(1, min(100, max_results))
-
     async with get_session(read_only=not update_last_used) as session:
         # Handle both text and vector queries
         if isinstance(query, str):
@@ -69,6 +88,7 @@ async def search_vector_store(
             query_embedding = query
 
         query_blob = np.array(query_embedding, dtype=np.float32).tobytes()
+        max_results = max(1, min(100, max_results))
 
         # Vector similarity search using cosine distance
         result = await session.execute(
@@ -93,9 +113,16 @@ async def search_vector_store(
                 meta = raw_meta
             else:
                 meta = json.loads(raw_meta) if raw_meta else {}
+
             doc = Document(
-                id=row[0], vector_store_id=row[1], chunk_index=row[2], content=row[3], meta=meta, created_at=row[5]
+                id=row[0],
+                vector_store_id=row[1],
+                chunk_index=row[2],
+                content=row[3],
+                meta=meta,
+                created_at=row[5],
             )
+
             distance = row[6]
             similarity = 1.0 - distance
             results.append(DocumentSearchResult(document=doc, score=similarity))
@@ -108,3 +135,24 @@ async def search_vector_store(
                 session.add(vector_store)
 
         return results
+
+
+async def delete_vector_store(vector_store_id: str) -> bool:
+    """Delete a vector store."""
+    async with get_session() as session:
+        vector_store = await session.get(VectorStore, vector_store_id)
+
+        if not vector_store:
+            return False
+
+        file_count_result = await session.execute(
+            select(func.count(VectorStoreFile.id)).where(VectorStoreFile.vector_store_id == vector_store_id)
+        )
+
+        file_count = file_count_result.scalar()
+        await session.execute(delete(VectorStoreFile).where(VectorStoreFile.vector_store_id == vector_store_id))
+        await session.delete(vector_store)
+        await session.commit()
+
+        logger.info(f"Deleted vector store: {vector_store_id} and {file_count} files")
+        return True
