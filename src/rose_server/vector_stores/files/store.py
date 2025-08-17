@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import time
-from typing import Any, List, Sequence, Tuple
+from typing import Any, List, Optional, Sequence, Tuple
 
 import numpy as np
 from chonkie import TokenChunker
@@ -190,3 +190,57 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Vector
             vector_store_file.status = "failed"
             await session.commit()
             raise
+
+
+async def list_vector_store_files(
+    vector_store_id: str,
+    limit: int = 20,
+    order: str = "desc",
+    after: Optional[str] = None,
+    before: Optional[str] = None,
+) -> List[VectorStoreFile]:
+    """List files in a vector store with pagination."""
+    async with get_session() as session:
+        query = select(VectorStoreFile).where(VectorStoreFile.vector_store_id == vector_store_id)
+
+        if after:
+            query = query.where(VectorStoreFile.id > after)
+        if before:
+            query = query.where(VectorStoreFile.id < before)
+
+        if order == "asc":
+            query = query.order_by(VectorStoreFile.created_at.asc())
+        else:
+            query = query.order_by(VectorStoreFile.created_at.desc())
+
+        query = query.limit(limit)
+        result = await session.execute(query)
+        return list(result.scalars().all())
+
+
+async def delete_file_from_vector_store(vector_store_id: str, file_id: str) -> None:
+    """Remove a file from a vector store and delete associated documents."""
+    async with get_session() as session:
+        vector_store_file = await session.get(VectorStoreFile, file_id)
+        if not vector_store_file:
+            raise FileNotFoundError(f"File {file_id} not found in vector store {vector_store_id}")
+
+        # Delete associated documents and embeddings
+        docs_result = await session.execute(select(Document).where(Document.vector_store_id == vector_store_id))
+        documents = docs_result.scalars().all()
+
+        # Filter documents by file_id in metadata
+        file_documents = [doc for doc in documents if doc.meta and doc.meta.get("file_id") == file_id]
+
+        # Delete embeddings from vec0 table
+        if file_documents:
+            doc_ids = [doc.id for doc in file_documents]
+            await session.execute(text("DELETE FROM vec0 WHERE document_id IN :ids"), {"ids": doc_ids})
+
+            # Delete documents
+            for doc in file_documents:
+                await session.delete(doc)
+
+        # Delete the vector store file record
+        await session.delete(vector_store_file)
+        await session.commit()

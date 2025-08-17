@@ -1,5 +1,6 @@
 """Vector store entity models."""
 
+import time
 import uuid
 from typing import Any, Dict, Optional
 
@@ -16,7 +17,7 @@ class VectorStore(SQLModel, table=True):
     object: str = Field(default="vector_store")
     name: str
     dimensions: int
-    created_at: int
+    created_at: int = Field(default_factory=lambda: int(time.time()))
     last_used_at: Optional[int] = Field(default=None)
     meta: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
 
@@ -31,7 +32,7 @@ class Document(SQLModel, table=True):
     chunk_index: int
     content: str
     meta: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
-    created_at: int
+    created_at: int = Field(default_factory=lambda: int(time.time()))
 
 
 class VectorStoreFile(SQLModel, table=True):
@@ -44,7 +45,7 @@ class VectorStoreFile(SQLModel, table=True):
     vector_store_id: str = Field(foreign_key="vector_stores.id")
     file_id: str = Field(foreign_key="files.id")
     status: str = Field(default="in_progress")
-    created_at: int
+    created_at: int = Field(default_factory=lambda: int(time.time()))
     last_error: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
 
 

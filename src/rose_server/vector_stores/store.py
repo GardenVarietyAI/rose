@@ -24,7 +24,6 @@ async def create_vector_store(name: str) -> VectorStore:
         object="vector_store",
         name=name,
         dimensions=settings.default_embedding_dimensions,
-        created_at=int(time.time()),
         last_used_at=None,
     )
 
@@ -74,8 +73,6 @@ async def search_vector_store(
     vector_store_id: str, query: Union[str, List[float]], max_results: int = 10, update_last_used: bool = True
 ) -> List[DocumentSearchResult]:
     """Search documents in a vector store using vector similarity."""
-    max_results = max(1, min(100, max_results))
-
     async with get_session(read_only=not update_last_used) as session:
         # Handle both text and vector queries
         if isinstance(query, str):
@@ -91,6 +88,7 @@ async def search_vector_store(
             query_embedding = query
 
         query_blob = np.array(query_embedding, dtype=np.float32).tobytes()
+        max_results = max(1, min(100, max_results))
 
         # Vector similarity search using cosine distance
         result = await session.execute(
@@ -115,9 +113,16 @@ async def search_vector_store(
                 meta = raw_meta
             else:
                 meta = json.loads(raw_meta) if raw_meta else {}
+
             doc = Document(
-                id=row[0], vector_store_id=row[1], chunk_index=row[2], content=row[3], meta=meta, created_at=row[5]
+                id=row[0],
+                vector_store_id=row[1],
+                chunk_index=row[2],
+                content=row[3],
+                meta=meta,
+                created_at=row[5],
             )
+
             distance = row[6]
             similarity = 1.0 - distance
             results.append(DocumentSearchResult(document=doc, score=similarity))

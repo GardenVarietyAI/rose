@@ -99,3 +99,8 @@ class VectorStoreFile(BaseModel):
     status: str
     created_at: int
     last_error: Optional[Dict[str, Any]] = None
+
+
+class VectorStoreFileList(BaseModel):
+    object: str = "list"
+    data: List[VectorStoreFile]
