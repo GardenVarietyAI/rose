@@ -42,7 +42,7 @@ async def get_vector_store(vector_store_id: str) -> Optional[VectorStore]:
 async def update_vector_store(
     vector_store_id: str, name: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None
 ) -> Optional[VectorStore]:
-    """Update thread metadata."""
+    """Update vector store metadata."""
     async with get_session() as session:
         vector_store = await session.get(VectorStore, vector_store_id)
 

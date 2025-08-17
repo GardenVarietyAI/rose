@@ -192,7 +192,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Vector
 
 
 async def get_vector_store_file(vector_store_file_id: str) -> Optional[VectorStoreFile]:
-    """Get vector store by ID."""
+    """Get vector store file by ID."""
     async with get_session(read_only=True) as session:
         return await session.get(VectorStoreFile, vector_store_file_id)
 
