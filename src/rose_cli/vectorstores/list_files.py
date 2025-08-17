@@ -14,7 +14,7 @@ def list_vectorstore_files(vector_store_id: str = typer.Argument(..., help="Vect
     client = get_client()
     try:
         vector_stores_files = client.vector_stores.files.list(vector_store_id=vector_store_id, order="desc")
-        table = Table(title="Vector Stores")
+        table = Table(title="Vector Store Files")
         table.add_column("ID", style="cyan")
         table.add_column("Status", style="green")
         table.add_column("Last Error", style="yellow")
