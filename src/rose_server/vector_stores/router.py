@@ -110,6 +110,10 @@ async def update(vector_store_id: str = Path(...), request: VectorStoreUpdate = 
             name=request.name,
             metadata=request.metadata,
         )
+
+        if not vector_store:
+            raise HTTPException(status_code=404, detail="VectorStore not found")
+
         logger.info(f"Updated vector store {vector_store_id}")
 
         return VectorStoreMetadata(
