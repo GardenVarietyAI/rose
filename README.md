@@ -42,7 +42,7 @@ uv pip install --group cli
 
 ```bash
 # Set up the database schema using dbmate
-mv env.example .env
+cp env.example .env
 mkdir -p data
 dbmate up
 ```
