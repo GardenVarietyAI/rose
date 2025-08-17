@@ -24,7 +24,7 @@ async def create(
     """Add a file to a vector store."""
     try:
         vector_store_file = await add_file_to_vector_store(vector_store_id, request.file_id)
-        logger.info("Added file {request.file_id} to vector store {vector_store_id}")
+        logger.info(f"Added file {request.file_id} to vector store {vector_store_id}")
 
         return VectorStoreFile(
             id=vector_store_file.id,
@@ -76,7 +76,7 @@ async def delete_file(
     """Remove a file from a vector store."""
     try:
         await delete_file_from_vector_store(vector_store_id, file_id)
-        logger.info("Deleted file {file_id} from vector store {vector_store_id}")
+        logger.info(f"Deleted file {file_id} from vector store {vector_store_id}")
 
         return {"id": file_id, "object": "vector_store.file.deleted", "deleted": True}
     except Exception as e:
