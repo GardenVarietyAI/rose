@@ -10,7 +10,7 @@ def delete_vectorstore_file(
     vector_store_id: str = typer.Argument(..., help="VectorStore ID associated with the file to delete."),
     vector_store_file_id: str = typer.Argument(..., help="VectorStoreFile ID to delete"),
 ) -> None:
-    """Delete a thread and all its messages."""
+    """Delete a vector store file."""
     client = get_client()
     if not typer.confirm(f"Are you sure you want to delete vector store file {vector_store_file_id}?"):
         console.print("Cancelled.")
