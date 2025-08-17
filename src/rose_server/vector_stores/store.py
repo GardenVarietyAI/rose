@@ -8,12 +8,12 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 from sqlalchemy import text
-from sqlmodel import select
+from sqlmodel import delete, func, select
 
 from rose_server.config.settings import settings
 from rose_server.database import get_session
 from rose_server.embeddings.embedding import embedding_model
-from rose_server.entities.vector_stores import Document, DocumentSearchResult, VectorStore
+from rose_server.entities.vector_stores import Document, DocumentSearchResult, VectorStore, VectorStoreFile
 
 logger = logging.getLogger(__name__)
 
@@ -135,3 +135,24 @@ async def search_vector_store(
                 session.add(vector_store)
 
         return results
+
+
+async def delete_vector_store(vector_store_id: str) -> bool:
+    """Delete a vector store."""
+    async with get_session() as session:
+        vector_store = await session.get(VectorStore, vector_store_id)
+
+        if not vector_store:
+            return False
+
+        file_count_result = await session.execute(
+            select(func.count(VectorStoreFile.id)).where(VectorStoreFile.vector_store_id == vector_store_id)
+        )
+
+        file_count = file_count_result.scalar()
+        await session.execute(delete(VectorStoreFile).where(VectorStoreFile.vector_store_id == vector_store_id))
+        await session.delete(vector_store)
+        await session.commit()
+
+        logger.info(f"Deleted vector store: {vector_store_id} and {file_count} files")
+        return True

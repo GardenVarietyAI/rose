@@ -20,6 +20,7 @@ from rose_server.schemas.vector_stores import (
 from rose_server.vector_stores.files.router import router as files_router
 from rose_server.vector_stores.store import (
     create_vector_store,
+    delete_vector_store,
     get_vector_store,
     list_vector_stores,
     search_vector_store,
@@ -208,5 +209,8 @@ async def search_store(vector_store_id: str = Path(...), request: VectorSearch =
 async def delete(
     vector_store_id: str = Path(..., description="The ID of the vector store"),  # noqa: ARG001
 ) -> Dict[str, Any]:
-    """Delete a vector store - not implemented."""
-    raise HTTPException(status_code=501, detail="Vector store deletion not implemented")
+    """Delete a vector store."""
+    success = await delete_vector_store(vector_store_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="VectorStore not found")
+    return {"id": vector_store_id, "object": "vector_store.deleted", "deleted": True}
