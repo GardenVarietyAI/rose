@@ -19,7 +19,6 @@ from rose_server.threads.runs import execute_assistant_run_streaming, get_run
 from rose_server.threads.runs.router import router as runs_router
 from rose_server.threads.runs.store import create_run
 from rose_server.threads.store import create_thread, delete_thread, get_thread, list_threads, update_thread
-from rose_server.vector_stores.deps import VectorManager
 
 router = APIRouter(prefix="/v1/threads")
 logger = logging.getLogger(__name__)
@@ -74,7 +73,7 @@ async def create(request: ThreadCreateRequest = Body(...)) -> ThreadResponse:
 
 @router.post("/runs", response_model=None)
 async def create_thread_and_run(
-    request: ThreadAndRunCreateRequest = Body(...), vector: VectorManager = VectorManager
+    request: ThreadAndRunCreateRequest = Body(...),
 ) -> Union[RunResponse, EventSourceResponse]:
     """Create a thread and immediately run it with an assistant."""
     try:
@@ -128,10 +127,10 @@ async def create_thread_and_run(
         )
 
         if request.stream:
-            return EventSourceResponse(execute_assistant_run_streaming(run, assistant, vector))
+            return EventSourceResponse(execute_assistant_run_streaming(run, assistant))
         else:
             events = []
-            async for event in execute_assistant_run_streaming(run, assistant, vector):
+            async for event in execute_assistant_run_streaming(run, assistant):
                 events.append(event)
             updated_run = await get_run(run.id)
             return RunResponse(**updated_run.model_dump())
