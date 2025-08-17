@@ -5,15 +5,6 @@ from pydantic import BaseModel, Field
 from rose_server.config.settings import settings
 
 
-class Vector(BaseModel):
-    id: str
-    values: List[float] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    similarity: Optional[float] = Field(
-        default=None, description="Similarity score (higher is more similar, range: 0-1)"
-    )
-
-
 class StaticChunkingConfig(BaseModel):
     max_chunk_size_tokens: int = Field(
         default=settings.default_chunk_size,
