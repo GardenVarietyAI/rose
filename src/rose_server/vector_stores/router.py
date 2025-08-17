@@ -176,6 +176,9 @@ async def search_store(vector_store_id: str = Path(...), request: VectorSearch =
 
         # Calculate pagination fields
         has_more = len(documents) > request.max_num_results
+        # Trim both lists to requested limit
+        documents = documents[: request.max_num_results]
+        search_chunks = search_chunks[: request.max_num_results]
         first_id = documents[0].document.id if documents else None
         last_id = documents[-1].document.id if documents else None
 
