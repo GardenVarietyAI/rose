@@ -105,7 +105,11 @@ async def get(vector_store_id: str = Path(..., description="The ID of the vector
 async def update(vector_store_id: str = Path(...), request: VectorStoreUpdate = Body(...)) -> VectorStoreMetadata:
     """Update a vector store."""
     try:
-        vector_store = await update_vector_store(vector_store_id=vector_store_id, metadata=request.metadata)
+        vector_store = await update_vector_store(
+            vector_store_id=vector_store_id,
+            name=request.name,
+            metadata=request.metadata,
+        )
         logger.info(f"Updated vector store {vector_store_id}")
 
         return VectorStoreMetadata(

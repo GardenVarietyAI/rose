@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 from sqlalchemy import text
@@ -26,7 +26,6 @@ async def create_vector_store(name: str) -> VectorStore:
         dimensions=settings.default_embedding_dimensions,
         created_at=int(time.time()),
         last_used_at=None,
-        meta={},
     )
 
     async with get_session() as session:
@@ -39,6 +38,29 @@ async def get_vector_store(vector_store_id: str) -> Optional[VectorStore]:
     """Get vector store by ID."""
     async with get_session(read_only=True) as session:
         return await session.get(VectorStore, vector_store_id)
+
+
+async def update_vector_store(
+    vector_store_id: str, name: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None
+) -> Optional[VectorStore]:
+    """Update thread metadata."""
+    async with get_session() as session:
+        vector_store = await session.get(VectorStore, vector_store_id)
+
+        if not vector_store:
+            return None
+
+        if name is not None:
+            vector_store.name = name
+
+        if metadata is not None:
+            base = (vector_store.meta or {}).copy()
+            base.update(metadata)
+            vector_store.meta = base  # reassign so SQLAlchemy tracks the change
+
+        await session.flush()
+        await session.refresh(vector_store)
+        return vector_store
 
 
 async def list_vector_stores() -> List[VectorStore]:
