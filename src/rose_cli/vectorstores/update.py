@@ -10,7 +10,7 @@ def update_vectorstore(
     name: Optional[str] = typer.Option(None, help="New name"),
     metadata: Optional[List[str]] = typer.Option(None, "--files", "-f", help="Previously uploaded file IDs"),
 ) -> None:
-    """Create a vector store."""
+    """Update a vector store."""
     client = get_client()
     try:
         vector_store = client.vector_stores.update(
