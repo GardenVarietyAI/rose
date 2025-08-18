@@ -1,5 +1,4 @@
 import logging
-import time
 from typing import List, Optional
 
 from openai.types import FilePurpose
@@ -16,11 +15,9 @@ async def create_file(file_size: int, purpose: FilePurpose, filename: str, conte
     uploaded_file = UploadedFile(
         object="file",
         bytes=file_size,
-        created_at=int(time.time()),
         filename=filename,
         purpose=purpose,
         status="processed",
-        storage_path="BLOB",
         content=content,
     )
 
