@@ -18,7 +18,11 @@ from rose_server.schemas.vector_stores import (
     VectorStoreUpdate,
 )
 from rose_server.vector_stores.files.router import router as files_router
-from rose_server.vector_stores.files.store import add_file_to_vector_store
+from rose_server.vector_stores.files.store import (
+    FileNotFoundError as StoreFileNotFoundError,
+    VectorStoreNotFoundError as StoreVectorStoreNotFoundError,
+    add_file_to_vector_store,
+)
 from rose_server.vector_stores.store import (
     create_vector_store,
     delete_vector_store,
@@ -72,8 +76,13 @@ async def create(request: VectorStoreCreate = Body(...)) -> VectorStoreMetadata:
         # TODO: batch this operation
         if request.file_ids:
             for file_id in request.file_ids:
-                await add_file_to_vector_store(vector_store_id=vector_store.id, file_id=file_id)
-                logger.info(f"Added file {file_id} to vector store {request.name} ({vector_store.id})")
+                try:
+                    await add_file_to_vector_store(vector_store_id=vector_store.id, file_id=file_id)
+                    logger.info(f"Added file {file_id} to vector store {request.name} ({vector_store.id})")
+                except (StoreVectorStoreNotFoundError, StoreFileNotFoundError) as e:
+                    raise HTTPException(status_code=404, detail=str(e))
+                except Exception as e:
+                    raise HTTPException(status_code=422, detail=f"Failed to process file {file_id}: {str(e)}")
 
         return VectorStoreMetadata(
             id=vector_store.id,
@@ -82,6 +91,8 @@ async def create(request: VectorStoreCreate = Body(...)) -> VectorStoreMetadata:
             metadata=vector_store.meta or {},
             created_at=vector_store.created_at,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error creating vector store: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error creating vector store: {str(e)}")

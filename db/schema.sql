@@ -26,8 +26,7 @@ CREATE TABLE files (
     purpose TEXT NOT NULL,
     status TEXT DEFAULT 'processed',
     status_details TEXT,
-    storage_path TEXT NOT NULL
-, content BLOB);
+    content BLOB, storage_path TEXT);
 CREATE INDEX idx_files_created_at ON files(created_at);
 CREATE INDEX idx_files_purpose ON files(purpose);
 CREATE INDEX idx_files_status ON files(status);
@@ -291,4 +290,5 @@ INSERT INTO "schema_migrations" (version) VALUES
   ('20250812000001'),
   ('20250812000003'),
   ('20250815000003'),
-  ('20250816000001');
+  ('20250816000001'),
+  ('20250817000001');

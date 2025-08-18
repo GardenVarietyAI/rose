@@ -7,9 +7,12 @@ from fastapi import APIRouter, Body, HTTPException, Path, Query
 
 from rose_server.schemas.vector_stores import VectorStoreFile, VectorStoreFileCreate, VectorStoreFileList
 from rose_server.vector_stores.files.store import (
+    ChunkingError,
+    EmptyFileError,
+    FileNotFoundError,
+    VectorStoreNotFoundError,
     add_file_to_vector_store,
     delete_file_from_vector_store,
-    get_vector_store_file,
     list_vector_store_files,
 )
 
@@ -25,7 +28,7 @@ async def create(
     """Add a file to a vector store."""
     try:
         vector_store_file = await add_file_to_vector_store(vector_store_id, request.file_id)
-        logger.info(f"Added file {request.file_id} to vector store {vector_store_id}")
+        logger.info("Added file %s to vector store %s", request.file_id, vector_store_id)
 
         return VectorStoreFile(
             id=vector_store_file.id,
@@ -33,6 +36,10 @@ async def create(
             status=vector_store_file.status,
             created_at=vector_store_file.created_at,
         )
+    except (VectorStoreNotFoundError, FileNotFoundError) as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except (EmptyFileError, ChunkingError) as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         logger.error(f"Error adding file to vector store: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error adding file to vector store: {str(e)}")
@@ -49,7 +56,7 @@ async def list_files(
     """List files in a vector store."""
     try:
         files = await list_vector_store_files(vector_store_id, limit, order, after, before)
-        logger.info(f"Listed {len(files)} files for vector store {vector_store_id}")
+        logger.info("Listed %d files for vector store %s", len(files), vector_store_id)
 
         return VectorStoreFileList(
             data=[
@@ -64,23 +71,25 @@ async def list_files(
             ]
         )
 
+    except VectorStoreNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Error listing vector store files: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error listing vector store files: {str(e)}")
 
 
-@router.delete("/{vector_store_file_id}")
+@router.delete("/{file_id}")
 async def delete_file(
     vector_store_id: str = Path(..., description="The ID of the vector store"),
-    vector_store_file_id: str = Path(..., description="The ID of the file to delete"),
+    file_id: str = Path(..., description="The ID of the file to remove from vector store"),
 ) -> Dict[str, Any]:
-    """Remove a file from a vector store."""
+    """Remove a file from a vector store. The file itself remains in storage."""
     try:
-        vector_store_file = await get_vector_store_file(vector_store_file_id=vector_store_file_id)
-        if vector_store_file:
-            await delete_file_from_vector_store(vector_store_id, vector_store_file.file_id)
-        logger.info(f"Deleted file {vector_store_file_id} from vector store {vector_store_id}")
-        return {"id": vector_store_file_id, "object": "vector_store.file.deleted", "deleted": True}
+        deleted_count = await delete_file_from_vector_store(vector_store_id, file_id)
+        logger.info("Deleted file %s from vector store %s (%d docs removed)", file_id, vector_store_id, deleted_count)
+        return {"id": file_id, "object": "vector_store.file.deleted", "deleted": True}
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Error deleting file from vector store: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error deleting file from vector store: {str(e)}")

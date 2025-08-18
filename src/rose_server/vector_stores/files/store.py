@@ -1,12 +1,15 @@
 """Vector store file operations."""
 
 import asyncio
+import io
 import logging
 import time
 from typing import Any, List, Optional, Sequence, Tuple
 
 import numpy as np
 from chonkie import TokenChunker
+from pypdf import PdfReader
+from pypdf.errors import PdfReadError
 from sqlalchemy import bindparam, delete, select, text, update
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +21,7 @@ from rose_server.entities.files import UploadedFile
 from rose_server.entities.vector_stores import Document, VectorStore, VectorStoreFile
 
 logger = logging.getLogger(__name__)
+PDF_MAGIC_BYTES = b"%PDF-"
 
 
 class VectorStoreNotFoundError(ValueError):
@@ -37,18 +41,45 @@ class ChunkingError(ValueError):
 
 
 def _decode_file_content(uploaded_file: UploadedFile, file_id: str) -> Tuple[str, bool]:
-    """Decode file content with error handling."""
+    """Decode file content with PDF and text support."""
+    content = uploaded_file.content
+
+    # Handle PDF files - check magic bytes for actual PDF content
+    if content.startswith(PDF_MAGIC_BYTES):
+        try:
+            # Create BytesIO wrapper for pypdf (content already in memory from upload)
+            reader = PdfReader(io.BytesIO(content))
+
+            # Extract text from all pages
+            text_parts = []
+            for page in reader.pages:
+                page_text = page.extract_text()
+                if page_text.strip():  # Only add non-empty pages
+                    text_parts.append(page_text)
+
+            text_content = "\n\n".join(text_parts)
+            if not text_content.strip():
+                raise ValueError("No text content found in PDF")
+
+            logger.info("Extracted text from PDF %s (%d pages)", file_id, len(reader.pages))
+            return text_content, False
+
+        except (PdfReadError, ValueError) as e:
+            logger.error("Failed to extract text from PDF %s: %s", file_id, str(e))
+            raise ValueError(f"Failed to process PDF file: {str(e)}")
+
+    # Handle text files
     try:
-        content = uploaded_file.content.decode("utf-8")
+        text_content = content.decode("utf-8")
         decode_errors = False
     except UnicodeDecodeError:
-        content = uploaded_file.content.decode("utf-8", errors="replace")
+        text_content = content.decode("utf-8", errors="replace")
         decode_errors = True
         logger.warning(
             f"File {file_id} ({uploaded_file.filename}) contains invalid UTF-8 bytes. "
             f"Decoded with replacement characters."
         )
-    return content, decode_errors
+    return text_content, decode_errors
 
 
 def _get_chunker() -> TokenChunker:
@@ -161,33 +192,37 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Vector
                 decode_errors,
             )
 
+            # Update objects through ORM for proper transaction handling
             vector_store.last_used_at = created_at
             vector_store_file.status = "completed"
-            await session.execute(
-                update(VectorStoreFile)
-                .where(
-                    VectorStoreFile.vector_store_id == vector_store_id,
-                    VectorStoreFile.file_id == file_id,
-                )
-                .values(status="completed")
-            )
+
+            # Add modified objects to session
+            session.add(vector_store)
+            session.add(vector_store_file)
+
+            # Commit all changes atomically
             await session.commit()
 
             return vector_store_file
 
         except Exception:
             await session.rollback()
-            # mark failed in a fresh tx (so the status actually persists)
-            async with get_session() as s:
-                await s.execute(
-                    update(VectorStoreFile)
-                    .where(
-                        VectorStoreFile.vector_store_id == vector_store_id,
-                        VectorStoreFile.file_id == file_id,
+
+            # Mark as failed in a separate transaction to ensure status persists
+            try:
+                async with get_session() as error_session:
+                    await error_session.execute(
+                        update(VectorStoreFile)
+                        .where(
+                            VectorStoreFile.vector_store_id == vector_store_id,
+                            VectorStoreFile.file_id == file_id,
+                        )
+                        .values(status="failed")
                     )
-                    .values(status="failed")
-                )
-                await s.commit()
+                    await error_session.commit()
+            except Exception as e:
+                logger.error("Failed to mark file %s as failed: %s", file_id, str(e))
+
             raise
 
 
