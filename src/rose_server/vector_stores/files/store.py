@@ -20,6 +20,7 @@ from rose_server.entities.files import UploadedFile
 from rose_server.entities.vector_stores import Document, VectorStore, VectorStoreFile
 
 logger = logging.getLogger(__name__)
+PDF_MAGIC_BYTES = b"%PDF-"
 
 
 class VectorStoreNotFoundError(ValueError):
@@ -43,7 +44,7 @@ def _decode_file_content(uploaded_file: UploadedFile, file_id: str) -> Tuple[str
     content = uploaded_file.content
 
     # Handle PDF files - check magic bytes for actual PDF content
-    if content.startswith(b"%PDF-"):
+    if content.startswith(PDF_MAGIC_BYTES):
         try:
             pdf_bytes = io.BytesIO(uploaded_file.content)
             reader = PdfReader(pdf_bytes)
