@@ -8,7 +8,7 @@ authors = [{ name = "Garden Variety AI" }]
 dependencies = [
   "fastapi>=0.110.0",
   "uvicorn>=0.27.1",
-  "pydantic>=2.6.3",
+  "pydantic~=2.11.7",
   "fastembed>=0.3.6",
   "numpy>=1.26.4",
   "transformers>=4.51.2",
