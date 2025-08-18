@@ -7,6 +7,10 @@ from fastapi import APIRouter, Body, HTTPException, Path, Query
 
 from rose_server.schemas.vector_stores import VectorStoreFile, VectorStoreFileCreate, VectorStoreFileList
 from rose_server.vector_stores.files.store import (
+    ChunkingError,
+    EmptyFileError,
+    FileNotFoundError,
+    VectorStoreNotFoundError,
     add_file_to_vector_store,
     delete_file_from_vector_store,
     list_vector_store_files,
@@ -32,6 +36,10 @@ async def create(
             status=vector_store_file.status,
             created_at=vector_store_file.created_at,
         )
+    except (VectorStoreNotFoundError, FileNotFoundError) as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except (EmptyFileError, ChunkingError) as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         logger.error(f"Error adding file to vector store: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error adding file to vector store: {str(e)}")
@@ -63,6 +71,8 @@ async def list_files(
             ]
         )
 
+    except VectorStoreNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Error listing vector store files: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error listing vector store files: {str(e)}")
