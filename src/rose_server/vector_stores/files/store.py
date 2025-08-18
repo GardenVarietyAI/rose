@@ -1,12 +1,14 @@
 """Vector store file operations."""
 
 import asyncio
+import io
 import logging
 import time
 from typing import Any, List, Optional, Sequence, Tuple
 
 import numpy as np
 from chonkie import TokenChunker
+from pypdf import PdfReader
 from sqlalchemy import bindparam, delete, select, text, update
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,18 +39,45 @@ class ChunkingError(ValueError):
 
 
 def _decode_file_content(uploaded_file: UploadedFile, file_id: str) -> Tuple[str, bool]:
-    """Decode file content with error handling."""
+    """Decode file content with PDF and text support."""
+    content = uploaded_file.content
+
+    # Handle PDF files - check magic bytes for actual PDF content
+    if content.startswith(b"%PDF-"):
+        try:
+            pdf_bytes = io.BytesIO(uploaded_file.content)
+            reader = PdfReader(pdf_bytes)
+
+            # Extract text from all pages
+            text_parts = []
+            for page in reader.pages:
+                page_text = page.extract_text()
+                if page_text.strip():  # Only add non-empty pages
+                    text_parts.append(page_text)
+
+            text_content = "\n\n".join(text_parts)
+            if not text_content.strip():
+                raise ValueError("No text content found in PDF")
+
+            logger.info(f"Extracted text from PDF {file_id} ({len(reader.pages)} pages)")
+            return text_content, False
+
+        except Exception as e:
+            logger.error(f"Failed to extract text from PDF {file_id}: {str(e)}")
+            raise ValueError(f"Failed to process PDF file: {str(e)}")
+
+    # Handle text files
     try:
-        content = uploaded_file.content.decode("utf-8")
+        text_content = content.decode("utf-8")
         decode_errors = False
     except UnicodeDecodeError:
-        content = uploaded_file.content.decode("utf-8", errors="replace")
+        text_content = content.decode("utf-8", errors="replace")
         decode_errors = True
         logger.warning(
             f"File {file_id} ({uploaded_file.filename}) contains invalid UTF-8 bytes. "
             f"Decoded with replacement characters."
         )
-    return content, decode_errors
+    return text_content, decode_errors
 
 
 def _get_chunker() -> TokenChunker:
