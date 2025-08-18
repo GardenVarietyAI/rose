@@ -9,6 +9,7 @@ from typing import Any, List, Optional, Sequence, Tuple
 import numpy as np
 from chonkie import TokenChunker
 from pypdf import PdfReader
+from pypdf.errors import PdfReadError
 from sqlalchemy import bindparam, delete, select, text, update
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,8 +47,8 @@ def _decode_file_content(uploaded_file: UploadedFile, file_id: str) -> Tuple[str
     # Handle PDF files - check magic bytes for actual PDF content
     if content.startswith(PDF_MAGIC_BYTES):
         try:
-            pdf_bytes = io.BytesIO(uploaded_file.content)
-            reader = PdfReader(pdf_bytes)
+            # Use file-like object directly to avoid loading all content into memory
+            reader = PdfReader(io.BytesIO(content))
 
             # Extract text from all pages
             text_parts = []
@@ -63,7 +64,7 @@ def _decode_file_content(uploaded_file: UploadedFile, file_id: str) -> Tuple[str
             logger.info(f"Extracted text from PDF {file_id} ({len(reader.pages)} pages)")
             return text_content, False
 
-        except Exception as e:
+        except (PdfReadError, ValueError) as e:
             logger.error(f"Failed to extract text from PDF {file_id}: {str(e)}")
             raise ValueError(f"Failed to process PDF file: {str(e)}")
 
