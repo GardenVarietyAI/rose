@@ -7,7 +7,8 @@ from typing import Any, List, Optional, Sequence, Tuple
 
 import numpy as np
 from chonkie import TokenChunker
-from sqlalchemy import bindparam, delete, select, text
+from sqlalchemy import bindparam, delete, select, text, update
+from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rose_server.config.settings import settings
@@ -102,47 +103,49 @@ async def _store_chunk_documents(
 
 
 async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> VectorStoreFile:
-    """Add a file to a vector store by chunking and embedding it."""
     async with get_session() as session:
-        # Validate vector store exists
         vector_store = await session.get(VectorStore, vector_store_id)
         if not vector_store:
             raise VectorStoreNotFoundError(f"Vector store {vector_store_id} not found")
 
-        # Try to create record, handling race conditions with database constraint
-        vector_store_file = VectorStoreFile(vector_store_id=vector_store_id, file_id=file_id)
+        uploaded_file = await session.get(UploadedFile, file_id)
+        if not uploaded_file:
+            raise FileNotFoundError(f"Uploaded file {file_id} not found")
+
+        # Upsert
+        await session.execute(
+            insert(VectorStoreFile)
+            .values(vector_store_id=vector_store_id, file_id=file_id, status="in_progress")
+            .on_conflict_do_nothing(index_elements=[VectorStoreFile.vector_store_id, VectorStoreFile.file_id])
+        )
+
+        # Get the newly inserted or already existent row
+        vector_store_file = await session.scalar(
+            select(VectorStoreFile).where(
+                VectorStoreFile.vector_store_id == vector_store_id,
+                VectorStoreFile.file_id == file_id,
+            )
+        )
+
+        if vector_store_file.status != "in_progress":
+            return vector_store_file  # don’t double-ingest
 
         try:
-            existing = await session.execute(
-                select(VectorStoreFile).where(
-                    VectorStoreFile.vector_store_id == vector_store_id, VectorStoreFile.file_id == file_id
-                )
-            )
-            if existing:
-                return existing
-
-            session.add(vector_store_file)
-
-            uploaded_file = await session.execute(
-                select(UploadedFile).where(UploadedFile.id == file_id)
-            ).scalar_one_or_none()
-
             content, decode_errors = _decode_file_content(uploaded_file, file_id)
-
             chunker = _get_chunker()
             chunks = chunker.chunk(content)
             if not chunks:
                 raise ChunkingError(f"No chunks generated from file {file_id}")
-            chunk_texts = [chunk.text for chunk in chunks]
+
+            texts = [c.text for c in chunks]
+            print(vector_store_file.status)
 
             model = embedding_model()
-            embeddings = await asyncio.to_thread(lambda: list(model.embed(chunk_texts)))
-
-            expected_dim = settings.default_embedding_dimensions
+            embeddings = await asyncio.to_thread(lambda: list(model.embed(texts)))
             if embeddings:
-                got_dim = len(embeddings[0])
-                if got_dim != expected_dim:
-                    raise ValueError(f"Embedding dimension mismatch: got {got_dim}, expected {expected_dim}")
+                got, exp = len(embeddings[0]), settings.default_embedding_dimensions
+                if got != exp:
+                    raise ValueError(f"Embedding dimension mismatch: got {got}, expected {exp}")
 
             created_at = await _store_chunk_documents(
                 session,
@@ -155,13 +158,31 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Vector
 
             vector_store.last_used_at = created_at
             vector_store_file.status = "completed"
+            await session.execute(
+                update(VectorStoreFile)
+                .where(
+                    VectorStoreFile.vector_store_id == vector_store_id,
+                    VectorStoreFile.file_id == file_id,
+                )
+                .values(status="completed")
+            )
             await session.commit()
+
             return vector_store_file
 
         except Exception:
             await session.rollback()
-            vector_store_file.status = "failed"
-            await session.commit()
+            # mark failed in a fresh tx (so the status actually persists)
+            async with get_session() as s:
+                await s.execute(
+                    update(VectorStoreFile)
+                    .where(
+                        VectorStoreFile.vector_store_id == vector_store_id,
+                        VectorStoreFile.file_id == file_id,
+                    )
+                    .values(status="failed")
+                )
+                await s.commit()
             raise
 
 

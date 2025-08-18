@@ -18,6 +18,7 @@ from rose_server.schemas.vector_stores import (
     VectorStoreUpdate,
 )
 from rose_server.vector_stores.files.router import router as files_router
+from rose_server.vector_stores.files.store import add_file_to_vector_store
 from rose_server.vector_stores.store import (
     create_vector_store,
     delete_vector_store,
@@ -66,7 +67,12 @@ async def create(request: VectorStoreCreate = Body(...)) -> VectorStoreMetadata:
     """Create a new vector store."""
     try:
         vector_store = await create_vector_store(request.name)
-        logger.info("Created vector store %s (%s)", request.name, vector_store.id)
+        logger.info(f"Created vector store {request.name} ({vector_store.id})")
+
+        # TODO: batch this operation
+        for file_id in request.file_ids:
+            await add_file_to_vector_store(vector_store_id=vector_store.id, file_id=file_id)
+            logger.info(f"Created vector store {request.name} ({vector_store.id})")
 
         return VectorStoreMetadata(
             id=vector_store.id,
