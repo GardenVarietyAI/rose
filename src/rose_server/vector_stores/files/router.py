@@ -28,7 +28,7 @@ async def create(
     """Add a file to a vector store."""
     try:
         vector_store_file = await add_file_to_vector_store(vector_store_id, request.file_id)
-        logger.info(f"Added file {request.file_id} to vector store {vector_store_id}")
+        logger.info("Added file %s to vector store %s", request.file_id, vector_store_id)
 
         return VectorStoreFile(
             id=vector_store_file.id,
@@ -56,7 +56,7 @@ async def list_files(
     """List files in a vector store."""
     try:
         files = await list_vector_store_files(vector_store_id, limit, order, after, before)
-        logger.info(f"Listed {len(files)} files for vector store {vector_store_id}")
+        logger.info("Listed %d files for vector store %s", len(files), vector_store_id)
 
         return VectorStoreFileList(
             data=[
@@ -86,7 +86,7 @@ async def delete_file(
     """Remove a file from a vector store. The file itself remains in storage."""
     try:
         deleted_count = await delete_file_from_vector_store(vector_store_id, file_id)
-        logger.info(f"Deleted file {file_id} from vector store {vector_store_id} (removed {deleted_count} documents)")
+        logger.info("Deleted file %s from vector store %s (%d docs removed)", file_id, vector_store_id, deleted_count)
         return {"id": file_id, "object": "vector_store.file.deleted", "deleted": True}
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

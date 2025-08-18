@@ -61,11 +61,11 @@ def _decode_file_content(uploaded_file: UploadedFile, file_id: str) -> Tuple[str
             if not text_content.strip():
                 raise ValueError("No text content found in PDF")
 
-            logger.info(f"Extracted text from PDF {file_id} ({len(reader.pages)} pages)")
+            logger.info("Extracted text from PDF %s (%d pages)", file_id, len(reader.pages))
             return text_content, False
 
         except (PdfReadError, ValueError) as e:
-            logger.error(f"Failed to extract text from PDF {file_id}: {str(e)}")
+            logger.error("Failed to extract text from PDF %s: %s", file_id, str(e))
             raise ValueError(f"Failed to process PDF file: {str(e)}")
 
     # Handle text files
@@ -221,7 +221,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Vector
                     )
                     await error_session.commit()
             except Exception as e:
-                logger.error(f"Failed to mark file {file_id} as failed: {str(e)}")
+                logger.error("Failed to mark file %s as failed: %s", file_id, str(e))
 
             raise
 
