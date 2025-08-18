@@ -138,7 +138,6 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Vector
                 raise ChunkingError(f"No chunks generated from file {file_id}")
 
             texts = [c.text for c in chunks]
-            print(vector_store_file.status)
 
             model = embedding_model()
             embeddings = await asyncio.to_thread(lambda: list(model.embed(texts)))
