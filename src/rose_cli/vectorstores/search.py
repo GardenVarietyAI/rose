@@ -25,9 +25,9 @@ def search_vectorstore(
             return
 
         console.print(f"[green]Found {len(response.data)} results for:[/green] '{query}'")
-        console.print(
-            f"[dim]Token usage: {response.usage['prompt_tokens']} prompt, {response.usage['total_tokens']} total[/dim]"
-        )
+        prompt_tokens = response.usage.get("prompt_tokens", 0)
+        total_tokens = response.usage.get("total_tokens", 0)
+        console.print(f"[dim]Token usage: {prompt_tokens} prompt, {total_tokens} total[/dim]")
         console.print()
 
         table = Table(title="Search Results")
@@ -42,7 +42,7 @@ def search_vectorstore(
         for i, result in enumerate(response.data, 1):
             similarity = f"{result.similarity:.3f}"
             filename = result.filename or result.file_id
-            content_text = result.content[0].text if result.content else ""
+            content_text = result.content[0].text if result.content and len(result.content) > 0 else ""
 
             if show_content:
                 display_text = content_text
