@@ -47,7 +47,7 @@ def _decode_file_content(uploaded_file: UploadedFile, file_id: str) -> Tuple[str
     # Handle PDF files - check magic bytes for actual PDF content
     if content.startswith(PDF_MAGIC_BYTES):
         try:
-            # Use file-like object directly to avoid loading all content into memory
+            # Create BytesIO wrapper for pypdf (content already in memory from upload)
             reader = PdfReader(io.BytesIO(content))
 
             # Extract text from all pages
