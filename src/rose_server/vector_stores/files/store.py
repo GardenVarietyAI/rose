@@ -190,33 +190,37 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Vector
                 decode_errors,
             )
 
+            # Update objects through ORM for proper transaction handling
             vector_store.last_used_at = created_at
             vector_store_file.status = "completed"
-            await session.execute(
-                update(VectorStoreFile)
-                .where(
-                    VectorStoreFile.vector_store_id == vector_store_id,
-                    VectorStoreFile.file_id == file_id,
-                )
-                .values(status="completed")
-            )
+
+            # Add modified objects to session
+            session.add(vector_store)
+            session.add(vector_store_file)
+
+            # Commit all changes atomically
             await session.commit()
 
             return vector_store_file
 
         except Exception:
             await session.rollback()
-            # mark failed in a fresh tx (so the status actually persists)
-            async with get_session() as s:
-                await s.execute(
-                    update(VectorStoreFile)
-                    .where(
-                        VectorStoreFile.vector_store_id == vector_store_id,
-                        VectorStoreFile.file_id == file_id,
+
+            # Mark as failed in a separate transaction to ensure status persists
+            try:
+                async with get_session() as error_session:
+                    await error_session.execute(
+                        update(VectorStoreFile)
+                        .where(
+                            VectorStoreFile.vector_store_id == vector_store_id,
+                            VectorStoreFile.file_id == file_id,
+                        )
+                        .values(status="failed")
                     )
-                    .values(status="failed")
-                )
-                await s.commit()
+                    await error_session.commit()
+            except Exception as e:
+                logger.error(f"Failed to mark file {file_id} as failed: {str(e)}")
+
             raise
 
 
