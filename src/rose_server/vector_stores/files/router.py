@@ -9,7 +9,6 @@ from rose_server.schemas.vector_stores import VectorStoreFile, VectorStoreFileCr
 from rose_server.vector_stores.files.store import (
     add_file_to_vector_store,
     delete_file_from_vector_store,
-    get_vector_store_file,
     list_vector_store_files,
 )
 
@@ -69,18 +68,21 @@ async def list_files(
         raise HTTPException(status_code=500, detail=f"Error listing vector store files: {str(e)}")
 
 
-@router.delete("/{vector_store_file_id}")
+@router.delete("/{file_id}")
 async def delete_file(
     vector_store_id: str = Path(..., description="The ID of the vector store"),
-    vector_store_file_id: str = Path(..., description="The ID of the file to delete"),
+    file_id: str = Path(..., description="The ID of the file to remove from vector store"),
 ) -> Dict[str, Any]:
-    """Remove a file from a vector store."""
+    """Remove a file from a vector store. The file itself remains in storage."""
     try:
-        vector_store_file = await get_vector_store_file(vector_store_file_id=vector_store_file_id)
-        if vector_store_file:
-            await delete_file_from_vector_store(vector_store_id, vector_store_file.file_id)
-        logger.info(f"Deleted file {vector_store_file_id} from vector store {vector_store_id}")
-        return {"id": vector_store_file_id, "object": "vector_store.file.deleted", "deleted": True}
+        deleted_count = await delete_file_from_vector_store(vector_store_id, file_id)
+        if deleted_count == 0:
+            raise HTTPException(status_code=404, detail=f"File {file_id} not found in vector store {vector_store_id}")
+
+        logger.info(f"Deleted file {file_id} from vector store {vector_store_id} (removed {deleted_count} documents)")
+        return {"id": file_id, "object": "vector_store.file.deleted", "deleted": True}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error deleting file from vector store: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error deleting file from vector store: {str(e)}")
