@@ -82,7 +82,13 @@ async def _store_chunk_documents(
         if decode_errors:
             chunk_meta["decode_errors"] = True
 
-        document = Document(vector_store_id=vector_store_id, chunk_index=idx, content=chunk.text, meta=chunk_meta)
+        document = Document(
+            vector_store_id=vector_store_id,
+            chunk_index=idx,
+            content=chunk.text,
+            meta=chunk_meta,
+            created_at=created_at,
+        )
         session.add(document)
         documents.append(document)
 
