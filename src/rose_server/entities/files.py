@@ -23,5 +23,5 @@ class UploadedFile(SQLModel, table=True):
     # deprecated
     status_details: Optional[str] = Field(default=None, description="Deprecated. Details on validation errors")
     # todo: remove this column
-    storage_path: str = Field(default="BLOB", description="Internal storage path relative to uploads directory")
+    storage_path: Optional[str] = Field(default=None, description="Internal storage path relative to uploads directory")
     content: Any = Field(default=None, sa_column=Column(LargeBinary), description="File content stored as BLOB (bytes)")
