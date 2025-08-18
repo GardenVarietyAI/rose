@@ -4,7 +4,7 @@ import time
 import uuid
 from typing import Any, Dict, Optional
 
-from sqlalchemy import JSON, Column
+from sqlalchemy import JSON, Column, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -39,6 +39,7 @@ class VectorStoreFile(SQLModel, table=True):
     """Vector store file entity for tracking file processing status."""
 
     __tablename__ = "vector_store_files"
+    __table_args__ = (UniqueConstraint("vector_store_id", "file_id", name="idx_vector_store_files_unique"),)
 
     id: str = Field(primary_key=True, default_factory=lambda: f"vsf_{uuid.uuid4().hex[:24]}")
     object: str = Field(default="vector_store.file")

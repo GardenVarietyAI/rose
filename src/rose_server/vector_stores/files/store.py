@@ -121,7 +121,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Vector
         # Upsert
         await session.execute(
             insert(VectorStoreFile)
-            .values(vector_store_id=vector_store_id, file_id=file_id, status="in_progress")
+            .values(vector_store_id=vector_store_id, file_id=file_id)
             .on_conflict_do_nothing(index_elements=[VectorStoreFile.vector_store_id, VectorStoreFile.file_id])
         )
 
