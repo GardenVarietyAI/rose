@@ -76,13 +76,10 @@ async def delete_file(
     """Remove a file from a vector store. The file itself remains in storage."""
     try:
         deleted_count = await delete_file_from_vector_store(vector_store_id, file_id)
-        if deleted_count == 0:
-            raise HTTPException(status_code=404, detail=f"File {file_id} not found in vector store {vector_store_id}")
-
         logger.info(f"Deleted file {file_id} from vector store {vector_store_id} (removed {deleted_count} documents)")
         return {"id": file_id, "object": "vector_store.file.deleted", "deleted": True}
-    except HTTPException:
-        raise
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Error deleting file from vector store: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error deleting file from vector store: {str(e)}")
