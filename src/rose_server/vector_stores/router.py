@@ -70,9 +70,10 @@ async def create(request: VectorStoreCreate = Body(...)) -> VectorStoreMetadata:
         logger.info(f"Created vector store {request.name} ({vector_store.id})")
 
         # TODO: batch this operation
-        for file_id in request.file_ids:
-            await add_file_to_vector_store(vector_store_id=vector_store.id, file_id=file_id)
-            logger.info(f"Added file {file_id} to vector store {request.name} ({vector_store.id})")
+        if request.file_ids:
+            for file_id in request.file_ids:
+                await add_file_to_vector_store(vector_store_id=vector_store.id, file_id=file_id)
+                logger.info(f"Added file {file_id} to vector store {request.name} ({vector_store.id})")
 
         return VectorStoreMetadata(
             id=vector_store.id,
