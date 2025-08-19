@@ -29,7 +29,7 @@ This is pre-release software. Use at your own risk!
 curl https://mise.run | sh
 
 # Clone the repository
-git clone --branch 0.1.1 --depth 1 git@github.com:GardenVarietyAI/rose.git
+git clone --branch 0.1.2 --depth 1 git@github.com:GardenVarietyAI/rose.git
 cd rose
 
 # Install deps
