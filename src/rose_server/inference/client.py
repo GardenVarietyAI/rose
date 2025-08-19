@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
 from rose_inference_rs import InferenceServer
@@ -6,6 +7,8 @@ from rose_server.events.event_types.generation import (
     ResponseCompleted,
     TokenGenerated,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class InferenceClient:
@@ -24,16 +27,14 @@ class InferenceClient:
         response_id: str,
         messages: Optional[List[Dict[str, str]]] = None,
     ) -> AsyncGenerator[Union[TokenGenerated, ResponseCompleted], None]:
+        """Call the inference service."""
         req: Dict[str, Any] = {
-            "config": {
-                "model_path": model_config.get("model_path", ""),
-                "temperature": generation_kwargs.get("temperature", 0.7),
-            },
-            "generation_kwargs": {
-                "max_input_tokens": generation_kwargs.get("max_input_tokens", 16),
-                "max_output_tokens": generation_kwargs.get("max_output_tokens", 16),
-            },
+            "model_path": model_config.get("model_path", ""),
+            "temperature": generation_kwargs.get("temperature", 0.7),
+            "max_input_tokens": generation_kwargs.get("max_input_tokens", 4096),
+            "max_output_tokens": generation_kwargs.get("max_output_tokens", 256),
         }
+
         if prompt is not None:
             req["prompt"] = prompt
         elif messages is not None:
@@ -45,7 +46,15 @@ class InferenceClient:
         def on_event(ev: Dict[str, Any]) -> None:
             loop.call_soon_threadsafe(q.put_nowait, ev)
 
+        def _on_done(t: asyncio.Future[Any]) -> None:
+            if t.cancelled():
+                return
+            exc = t.exception()
+            if exc is not None:
+                loop.call_soon_threadsafe(q.put_nowait, {"type": "Error", "error": repr(exc)})
+
         task = asyncio.ensure_future(self._srv.stream(req, on_event))
+        task.add_done_callback(_on_done)
 
         input_tokens = 0
         completion_tokens = 0
@@ -82,13 +91,14 @@ class InferenceClient:
                     break
 
                 elif et == "Error":
+                    logger.error(f"Error occurred during inference: {completion_tokens}")
                     yield ResponseCompleted(
                         response_id=response_id,
                         model_name=model_name,
                         input_tokens=input_tokens,
                         output_tokens=completion_tokens,
                         total_tokens=input_tokens + completion_tokens,
-                        finish_reason="error",
+                        finish_reason="stop",
                     )
                     break
         finally:

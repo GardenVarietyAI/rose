@@ -1,9 +1,27 @@
+use candle_core::Device;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-
-// Alias the shim so `tokio` remains the real crate name.
 use pyo3_async_runtimes::tokio as pyo3_tokio;
 use pyo3_async_runtimes::tokio::future_into_py;
+
+mod error;
+mod generate;
+mod models;
+mod types;
+
+use crate::models::ModelKind;
+use crate::types::{InferenceRequest, InferenceResponse, Message};
+
+macro_rules! send_error {
+    ($cb:expr, $($arg:tt)*) => {
+        Python::with_gil(|py| {
+            let d = PyDict::new(py);
+            let _ = d.set_item("type", "Error");
+            let _ = d.set_item("error", format!($($arg)*));
+            let _ = $cb.bind(py).call1((d,));
+        });
+    };
+}
 
 #[pymodule]
 fn rose_inference_rs(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -22,14 +40,55 @@ fn rose_inference_rs(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-#[pyclass]
-pub struct InferenceServer;
+fn format_messages(messages: &[Message]) -> String {
+    let mut out = Vec::new();
+    for m in messages {
+        out.push(format!("<|im_start|>{}\n{}<|im_end|>", m.role, m.content));
+    }
+    out.push("<|im_start|>assistant\n".to_string());
+    out.join("\n")
+}
 
+#[pyclass]
+pub struct InferenceServer {
+    device: Device,
+}
 #[pymethods]
 impl InferenceServer {
     #[new]
-    fn new() -> Self {
-        Self
+    #[pyo3(signature = (device=None))]
+    fn py_new(device: Option<&str>) -> PyResult<Self> {
+        // let resolved = match device.unwrap_or("auto") {
+        //     "cpu" => Device::Cpu,
+        //     #[cfg(feature = "cuda")]
+        //     "cuda" => candle_core::Device::new_cuda(0)
+        //         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?,
+        //     #[cfg(feature = "metal")]
+        //     "metal" => candle_core::Device::new_metal(0)
+        //         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?,
+        //     _ => {
+        //         let mut chosen: Option<Device> = None;
+        //         #[cfg(feature = "cuda")]
+        //         {
+        //             if let Ok(d) = candle_core::Device::new_cuda(0) {
+        //                 chosen = Some(d);
+        //             }
+        //         }
+        //         #[cfg(feature = "metal")]
+        //         {
+        //             if chosen.is_none() {
+        //                 if let Ok(d) = candle_core::Device::new_metal(0) {
+        //                     chosen = Some(d);
+        //                 }
+        //             }
+        //         }
+        //         chosen.unwrap_or(Device::Cpu)
+        //     }
+        // };
+        print!("device: {:#?}, but using cpu instead", device);
+        Ok(Self {
+            device: Device::Cpu,
+        })
     }
 
     #[pyo3(signature = (request, on_event))]
@@ -39,33 +98,165 @@ impl InferenceServer {
         request: PyObject,
         on_event: PyObject,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let _ = request;
+        let req: InferenceRequest = pythonize::depythonize(&request.bind(py))
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("bad request: {e}")))?;
+        let device = self.device.clone();
         let cb = on_event.clone_ref(py);
 
         future_into_py(py, async move {
-            Python::with_gil(|py| {
-                let d = PyDict::new(py);
-                d.set_item("type", "InputTokensCounted").ok();
-                d.set_item("input_tokens", 0u32).ok();
-                let _ = cb.bind(py).call1((d,));
+            let have_prompt = req.prompt.as_ref().map_or(false, |p| !p.is_empty());
+            let have_msgs = req.messages.as_ref().map_or(false, |m| !m.is_empty());
+            if (have_prompt && have_msgs) || (!have_prompt && !have_msgs) {
+                send_error!(cb, "Provide either prompt OR messages (exclusively)");
+                return Ok(Python::with_gil(|py| py.None()));
+            }
+
+            let prompt_str = if let Some(p) = &req.prompt {
+                p.clone()
+            } else {
+                format_messages(req.messages.as_ref().unwrap())
+            };
+
+            let tok_path =
+                std::path::Path::new(&req.generation_kwargs.model_path).join("tokenizer.json");
+            let tokenizer = match tokenizers::Tokenizer::from_file(&tok_path) {
+                Ok(t) => t,
+                Err(e) => {
+                    send_error!(cb, "tokenizer load failed at {}: {}", tok_path.display(), e);
+                    return Ok(Python::with_gil(|py| py.None()));
+                }
+            };
+
+            let model = match models::load_causal_lm(
+                ModelKind::Qwen2,
+                &req.generation_kwargs.model_path,
+                &device,
+            ) {
+                Ok(m) => m,
+                Err(e) => {
+                    send_error!(cb, "model: {}", e);
+                    return Ok(Python::with_gil(|py| py.None()));
+                }
+            };
+
+            let max_in = req.generation_kwargs.max_input_tokens.unwrap_or(4096);
+            let max_out = req.generation_kwargs.max_output_tokens.unwrap_or(256);
+            let temp = req
+                .generation_kwargs
+                .temperature
+                .or(req.generation_kwargs.temperature)
+                .unwrap_or(0.7) as f32;
+            let top_p = req.generation_kwargs.top_p.map(|v| v as f32);
+            let seed = req.generation_kwargs.seed.unwrap_or(42);
+            let rp = req.generation_kwargs.repeat_penalty.unwrap_or(1.1);
+            let rlast = req.generation_kwargs.repeat_last_n.unwrap_or(64);
+
+            let (tx, mut rx) = ::tokio::sync::mpsc::channel::<InferenceResponse>(64);
+
+            eprintln!(
+                "gen args: max_in={} max_out={} temp={} top_p={:?} stop_len={}",
+                max_in,
+                max_out,
+                temp,
+                top_p,
+                req.generation_kwargs
+                    .stop
+                    .as_ref()
+                    .map(|v| v.len())
+                    .unwrap_or(0)
+            );
+
+            let gen = ::tokio::spawn({
+                let mut model = model; // move it into the task
+                let tokenizer = tokenizer.clone();
+                let device = device.clone();
+                let prompt = prompt_str.clone();
+                async move {
+                    let _ = generate::stream(
+                        model.as_mut(),
+                        &tokenizer,
+                        device,
+                        &prompt,
+                        max_in,
+                        max_out,
+                        temp,
+                        top_p,
+                        req.generation_kwargs.stop.as_deref(),
+                        tx,
+                        seed,
+                        rp,
+                        rlast,
+                    )
+                    .await;
+                }
             });
-            Python::with_gil(|py| {
-                let d = PyDict::new(py);
-                d.set_item("type", "Token").ok();
-                d.set_item("token", "hello").ok();
-                d.set_item("token_id", 0u32).ok();
-                d.set_item("position", 0u32).ok();
-                let _ = cb.bind(py).call1((d,));
-            });
-            Python::with_gil(|py| {
-                let d = PyDict::new(py);
-                d.set_item("type", "Complete").ok();
-                d.set_item("input_tokens", 0u32).ok();
-                d.set_item("output_tokens", 1u32).ok();
-                d.set_item("total_tokens", 1u32).ok();
-                d.set_item("finish_reason", "stop").ok();
-                let _ = cb.bind(py).call1((d,));
-            });
+
+            while let Some(ev) = rx.recv().await {
+                let is_terminal = matches!(
+                    ev,
+                    InferenceResponse::Complete { .. } | InferenceResponse::Error { .. }
+                );
+
+                Python::with_gil(|py| {
+                    let d = PyDict::new(py);
+                    match &ev {
+                        InferenceResponse::InputTokensCounted { input_tokens } => {
+                            d.set_item("type", "InputTokensCounted").ok();
+                            d.set_item("input_tokens", *input_tokens).ok();
+                        }
+                        InferenceResponse::Token {
+                            token,
+                            position,
+                            logprob,
+                            top_logprobs,
+                        } => {
+                            d.set_item("type", "Token").ok();
+                            d.set_item("token", token.as_str()).ok();
+                            d.set_item("position", *position).ok();
+                            if let Some(lp) = *logprob {
+                                d.set_item("logprob", lp).ok();
+                            }
+                            if let Some(tlps) = top_logprobs {
+                                if let Ok(py_tlps) = pythonize::pythonize(py, tlps) {
+                                    d.set_item("top_logprobs", py_tlps).ok();
+                                }
+                            }
+                        }
+                        InferenceResponse::Complete {
+                            input_tokens,
+                            output_tokens,
+                            total_tokens,
+                            finish_reason,
+                        } => {
+                            d.set_item("type", "Complete").ok();
+                            d.set_item("input_tokens", *input_tokens).ok();
+                            d.set_item("output_tokens", *output_tokens).ok();
+                            d.set_item("total_tokens", *total_tokens).ok();
+                            let reason = match finish_reason {
+                                crate::types::FinishReason::Stop => "stop",
+                                crate::types::FinishReason::Length => "length",
+                                crate::types::FinishReason::ToolCalls => "tool_calls",
+                                crate::types::FinishReason::ContentFilter => "content_filter",
+                                crate::types::FinishReason::FunctionCall => "function_call",
+                            };
+                            d.set_item("finish_reason", reason).ok();
+                        }
+                        InferenceResponse::Error { error } => {
+                            d.set_item("type", "Error").ok();
+                            d.set_item("error", error.as_str()).ok();
+                        }
+                    }
+                    if let Err(err) = cb.bind(py).call1((d,)) {
+                        err.print(py);
+                    }
+                });
+
+                if is_terminal {
+                    break;
+                }
+            }
+            let _ = gen.await;
+
             Ok(Python::with_gil(|py| py.None()))
         })
     }

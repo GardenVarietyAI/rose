@@ -7,13 +7,8 @@ pub struct Message {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct InferenceConfig {
-    pub model_path: String,
-    pub temperature: Option<f64>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
 pub struct GenerationKwargs {
+    pub model_path: String,
     pub max_input_tokens: Option<usize>,
     pub max_output_tokens: Option<usize>,
     pub top_p: Option<f64>,
@@ -28,12 +23,26 @@ pub struct GenerationKwargs {
 pub struct InferenceRequest {
     pub prompt: Option<String>,
     pub messages: Option<Vec<Message>>,
-    pub config: InferenceConfig,
     pub generation_kwargs: GenerationKwargs,
 }
 
-#[derive(Debug, Serialize)]
-#[serde(tag = "type")]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FinishReason {
+    Stop,
+    Length,
+    ToolCalls,
+    ContentFilter,
+    FunctionCall,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TopLogProb {
+    pub token: String,
+    pub logprob: f32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub enum InferenceResponse {
     InputTokensCounted {
         input_tokens: u32,
@@ -50,15 +59,9 @@ pub enum InferenceResponse {
         input_tokens: u32,
         output_tokens: u32,
         total_tokens: u32,
-        finish_reason: String,
+        finish_reason: FinishReason,
     },
     Error {
         error: String,
     },
-}
-
-#[derive(Debug, Serialize)]
-pub struct TopLogProb {
-    pub token: String,
-    pub logprob: f32,
 }
