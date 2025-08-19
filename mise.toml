@@ -1,5 +1,5 @@
 [tools]
-python = "3.13.5"
+python = "3.12"
 rust = "1.88"
 uv = "0.8.3"
 dbmate = "2.22.0"

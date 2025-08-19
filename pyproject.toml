@@ -1,9 +1,9 @@
 [project]
 name = "rose_server"
-version = "0.1.0"
+version = "0.1.2"
 description = "ROSE - Run your own LLM server"
 readme = "README.md"
-requires-python = ">=3.13,<4.0"
+requires-python = ">=3.12,<4.0"
 authors = [{ name = "Garden Variety AI" }]
 dependencies = [
   "fastapi>=0.110.0",
@@ -98,7 +98,7 @@ force-wrap-aliases = true
 combine-as-imports = true
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.12"
 plugins = ["sqlalchemy.ext.mypy.plugin"]
 ignore_missing_imports = true
 strict = true
