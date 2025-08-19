@@ -65,7 +65,8 @@ dev-dependencies = [
   "pytest>=8.3.5",
   "pytest-cov>=6.0.0",
   "pytest-asyncio>=0.26.0",
-  "httpx>=0.28.1"
+  "httpx>=0.28.1",
+  "maturin~=1.9.3"
 ]
 
 

@@ -9,6 +9,8 @@ sqlite = "3.50.4"
 [tasks]
 backup = "litestream replicate -config ./litestream.yml"
 restore = "litestream restore -config ./litestream.yml -replica local -o ./data/rose.db ./data/rose.db"
+dev = "uv run maturin develop -m src/rose_inference_rs/Cargo.toml"
+build = "uv run maturin build -m src/rose_inference_rs/Cargo.toml"
 
 [settings]
 lockfile = true
