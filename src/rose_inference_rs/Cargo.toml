@@ -8,10 +8,14 @@ name = "rose_inference_rs"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["accelerate", "metal"]
+default = []
 python = ["pyo3/extension-module", "pyo3-async-runtimes/tokio-runtime"]
 cuda = ["candle-core/cuda"]
-metal = ["candle-core/metal"]
+metal = [
+  "candle-core/metal",
+  "candle-nn/metal",
+  "candle-transformers/metal",
+]
 mkl = ["candle-core/mkl"]
 accelerate = ["candle-core/accelerate"]
 
@@ -33,3 +37,9 @@ thiserror = "1"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 uuid = { version = "1", features = ["v4"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

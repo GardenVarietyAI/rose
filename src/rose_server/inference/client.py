@@ -94,7 +94,8 @@ class InferenceClient:
                     break
 
                 elif et == "Error":
-                    logger.error(f"Error occurred during inference: {completion_tokens}")
+                    error_msg = ev.get("error", "Unknown error")
+                    logger.error(f"Error occurred during inference: {error_msg}")
                     yield ResponseCompleted(
                         response_id=response_id,
                         model_name=model_name,

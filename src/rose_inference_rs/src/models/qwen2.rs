@@ -34,7 +34,6 @@ impl CausalLM for Qwen2CausalLM {
 
     #[allow(unused_variables)]
     fn sample_logits(&self, _logits: &Tensor) -> Result<u32> {
-        // TODO: Implement proper sampling (use LogitsProcessor or similar)
         unimplemented!()
     }
 

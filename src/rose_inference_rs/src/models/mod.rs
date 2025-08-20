@@ -12,6 +12,7 @@ pub trait CausalLM: Send {
     fn im_end_token_id(&self, tokenizer: &Tokenizer) -> u32;
 }
 
+#[derive(Debug)]
 pub enum ModelKind {
     Qwen2,
     Qwen3,

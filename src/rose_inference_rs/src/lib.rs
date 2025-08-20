@@ -52,15 +52,55 @@ fn format_messages(messages: &[Message]) -> String {
 }
 
 fn detect_model_kind(model_path: &str) -> anyhow::Result<ModelKind> {
-    let config_path = std::path::Path::new(model_path).join("config.json");
-    let config_json = std::fs::read_to_string(&config_path)?;
-    let config: serde_json::Value = serde_json::from_str(&config_json)?;
+    let path = std::path::Path::new(model_path);
 
-    match config["model_type"].as_str() {
-        Some("qwen2") => Ok(ModelKind::Qwen2),
-        Some("qwen3") => Ok(ModelKind::Qwen3),
-        Some(other) => Err(anyhow::anyhow!("Unsupported model type: {}", other)),
-        None => Err(anyhow::anyhow!("No model_type found in config.json")),
+    // Check if it's a direct GGUF file
+    if path.extension().and_then(|s| s.to_str()) == Some("gguf") {
+        // For GGUF files, detect from filename
+        if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
+            if name.to_lowercase().contains("qwen3") {
+                return Ok(ModelKind::Qwen3);
+            } else if name.to_lowercase().contains("qwen2") {
+                return Ok(ModelKind::Qwen2);
+            }
+        }
+        return Err(anyhow::anyhow!("Could not detect model type from GGUF filename: {}", model_path));
+    }
+
+    // For directory paths, check for GGUF files first, then config.json
+    if path.is_dir() {
+        // Look for GGUF files in directory
+        for entry in std::fs::read_dir(path)? {
+            let entry = entry?;
+            let file_path = entry.path();
+            if file_path.extension().and_then(|s| s.to_str()) == Some("gguf") {
+                if let Some(name) = file_path.file_name().and_then(|s| s.to_str()) {
+                    if name.to_lowercase().contains("qwen3") {
+                        return Ok(ModelKind::Qwen3);
+                    } else if name.to_lowercase().contains("qwen2") {
+                        return Ok(ModelKind::Qwen2);
+                    }
+                }
+            }
+        }
+
+        // If no GGUF found, look for config.json
+        let config_path = path.join("config.json");
+        if config_path.exists() {
+            let config_json = std::fs::read_to_string(&config_path)?;
+            let config: serde_json::Value = serde_json::from_str(&config_json)?;
+
+            match config["model_type"].as_str() {
+                Some("qwen2") => Ok(ModelKind::Qwen2),
+                Some("qwen3") => Ok(ModelKind::Qwen3),
+                Some(other) => Err(anyhow::anyhow!("Unsupported model type: {}", other)),
+                None => Err(anyhow::anyhow!("No model_type found in config.json")),
+            }
+        } else {
+            Err(anyhow::anyhow!("No GGUF files or config.json found in directory: {}", model_path))
+        }
+    } else {
+        Err(anyhow::anyhow!("Path is not a directory or GGUF file: {}", model_path))
     }
 }
 
@@ -73,36 +113,67 @@ impl InferenceServer {
     #[new]
     #[pyo3(signature = (device=None))]
     fn py_new(device: Option<&str>) -> PyResult<Self> {
-        // let resolved = match device.unwrap_or("auto") {
-        //     "cpu" => Device::Cpu,
-        //     #[cfg(feature = "cuda")]
-        //     "cuda" => candle_core::Device::new_cuda(0)
-        //         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?,
-        //     #[cfg(feature = "metal")]
-        //     "metal" => candle_core::Device::new_metal(0)
-        //         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?,
-        //     _ => {
-        //         let mut chosen: Option<Device> = None;
-        //         #[cfg(feature = "cuda")]
-        //         {
-        //             if let Ok(d) = candle_core::Device::new_cuda(0) {
-        //                 chosen = Some(d);
-        //             }
-        //         }
-        //         #[cfg(feature = "metal")]
-        //         {
-        //             if chosen.is_none() {
-        //                 if let Ok(d) = candle_core::Device::new_metal(0) {
-        //                     chosen = Some(d);
-        //                 }
-        //             }
-        //         }
-        //         chosen.unwrap_or(Device::Cpu)
-        //     }
-        // };
-        print!("device: {:#?}, but using cpu instead", device);
+        #[cfg(feature = "metal")]
+        eprintln!("METAL FEATURE IS COMPILED IN");
+        #[cfg(not(feature = "metal"))]
+        eprintln!("METAL FEATURE NOT COMPILED");
+        let resolved = match device.unwrap_or("auto") {
+            "cpu" => {
+                eprintln!("Using CPU device");
+                Device::Cpu
+            },
+            #[cfg(feature = "cuda")]
+            "cuda" => {
+                eprintln!("Attempting CUDA device");
+                candle_core::Device::new_cuda(0)
+                    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?
+            },
+            #[cfg(feature = "metal")]
+            "metal" => {
+                eprintln!("Attempting Metal device");
+                match candle_core::Device::new_metal(0) {
+                    Ok(d) => {
+                        eprintln!("Metal device created successfully");
+                        d
+                    },
+                    Err(e) => {
+                        eprintln!("Metal device creation failed: {}", e);
+                        return Err(pyo3::exceptions::PyRuntimeError::new_err(e.to_string()));
+                    }
+                }
+            },
+            #[cfg(not(feature = "metal"))]
+            "metal" => {
+                eprintln!("Metal feature not compiled in");
+                return Err(pyo3::exceptions::PyRuntimeError::new_err("Metal support not compiled"));
+            },
+            _ => {
+                eprintln!("Auto-detecting device");
+                let mut chosen: Option<Device> = None;
+                #[cfg(feature = "metal")]
+                {
+                    match candle_core::Device::new_metal(0) {
+                        Ok(d) => {
+                            eprintln!("Selected Metal device for better performance");
+                            chosen = Some(d);
+                        },
+                        Err(e) => {
+                            eprintln!("Metal device creation failed: {}, falling back to CPU", e);
+                        }
+                    }
+                }
+                #[cfg(not(feature = "metal"))]
+                {
+                    eprintln!("Metal feature not compiled in, using CPU");
+                }
+                if chosen.is_none() {
+                    eprintln!("Using CPU device");
+                }
+                chosen.unwrap_or(Device::Cpu)
+            }
+        };
         Ok(Self {
-            device: Device::Cpu,
+            device: resolved,
         })
     }
 
@@ -113,15 +184,23 @@ impl InferenceServer {
         request: PyObject,
         on_event: PyObject,
     ) -> PyResult<Bound<'py, PyAny>> {
+        eprintln!("=== RUST STREAM FUNCTION CALLED ===");
         let req: InferenceRequest = pythonize::depythonize(&request.bind(py))
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("bad request: {e}")))?;
+            .map_err(|e| {
+                eprintln!("Failed to deserialize request: {}", e);
+                pyo3::exceptions::PyValueError::new_err(format!("bad request: {e}"))
+            })?;
+        eprintln!("Request deserialized successfully. Model path: {}", req.generation_kwargs.model_path);
         let device = self.device.clone();
         let cb = on_event.clone_ref(py);
 
         future_into_py(py, async move {
+            eprintln!("=== ENTERING ASYNC INFERENCE BLOCK ===");
             let have_prompt = req.prompt.as_ref().map_or(false, |p| !p.is_empty());
             let have_msgs = req.messages.as_ref().map_or(false, |m| !m.is_empty());
+            eprintln!("Prompt check: have_prompt={}, have_msgs={}", have_prompt, have_msgs);
             if (have_prompt && have_msgs) || (!have_prompt && !have_msgs) {
+                eprintln!("Invalid prompt/message configuration");
                 send_error!(cb, "Provide either prompt OR messages (exclusively)");
                 return Ok(Python::with_gil(|py| py.None()));
             }
@@ -132,19 +211,57 @@ impl InferenceServer {
                 format_messages(req.messages.as_ref().unwrap())
             };
 
-            let tok_path =
-                std::path::Path::new(&req.generation_kwargs.model_path).join("tokenizer.json");
-            let tokenizer = match tokenizers::Tokenizer::from_file(&tok_path) {
-                Ok(t) => t,
-                Err(e) => {
-                    send_error!(cb, "tokenizer load failed at {}: {}", tok_path.display(), e);
-                    return Ok(Python::with_gil(|py| py.None()));
+            let tokenizer = {
+                let model_path = std::path::Path::new(&req.generation_kwargs.model_path);
+
+                // Check if this is a GGUF directory or file
+                let is_gguf = if model_path.extension().and_then(|s| s.to_str()) == Some("gguf") {
+                    true
+                } else if model_path.is_dir() {
+                    // Check if directory contains GGUF files
+                    std::fs::read_dir(model_path)
+                        .unwrap_or_else(|_| std::fs::read_dir(".").unwrap())
+                        .any(|entry| {
+                            entry.map(|e| e.path().extension().and_then(|s| s.to_str()) == Some("gguf"))
+                                .unwrap_or(false)
+                        })
+                } else {
+                    false
+                };
+
+                if is_gguf {
+                    eprintln!("Loading tokenizer from HuggingFace for GGUF model");
+                    // Use Qwen3 tokenizer from HuggingFace
+                    match tokenizers::Tokenizer::from_pretrained("Qwen/Qwen3-0.6B", None) {
+                        Ok(t) => t,
+                        Err(e) => {
+                            eprintln!("Failed to load Qwen3 tokenizer from HuggingFace: {}", e);
+                            send_error!(cb, "Failed to load Qwen3 tokenizer from HuggingFace: {}", e);
+                            return Ok(Python::with_gil(|py| py.None()));
+                        }
+                    }
+                } else {
+                    eprintln!("Loading tokenizer from local file");
+                    // For directory models, look for tokenizer.json
+                    let tok_path = model_path.join("tokenizer.json");
+                    match tokenizers::Tokenizer::from_file(&tok_path) {
+                        Ok(t) => t,
+                        Err(e) => {
+                            eprintln!("tokenizer load failed at {}: {}", tok_path.display(), e);
+                            send_error!(cb, "tokenizer load failed at {}: {}", tok_path.display(), e);
+                            return Ok(Python::with_gil(|py| py.None()));
+                        }
+                    }
                 }
             };
 
             let model_kind = match detect_model_kind(&req.generation_kwargs.model_path) {
-                Ok(kind) => kind,
+                Ok(kind) => {
+                    eprintln!("Detected model kind: {:?}", kind);
+                    kind
+                },
                 Err(e) => {
+                    eprintln!("Failed to detect model type: {}", e);
                     send_error!(cb, "Failed to detect model type: {}", e);
                     return Ok(Python::with_gil(|py| py.None()));
                 }
@@ -155,9 +272,13 @@ impl InferenceServer {
                 &req.generation_kwargs.model_path,
                 &device,
             ) {
-                Ok(m) => m,
+                Ok(m) => {
+                    eprintln!("Model loaded successfully");
+                    m
+                },
                 Err(e) => {
-                    send_error!(cb, "model: {}", e);
+                    eprintln!("Model loading failed: {}", e);
+                    send_error!(cb, "Model loading failed: {}", e);
                     return Ok(Python::with_gil(|py| py.None()));
                 }
             };
