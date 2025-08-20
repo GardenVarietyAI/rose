@@ -174,7 +174,7 @@ impl InferenceServer {
             let rp = req.generation_kwargs.repeat_penalty.unwrap_or(1.1);
             let rlast = req.generation_kwargs.repeat_last_n.unwrap_or(64);
 
-            let (tx, mut rx) = ::tokio::sync::mpsc::channel::<InferenceResponse>(64);
+            let (tx, mut rx) = ::tokio::sync::mpsc::channel::<InferenceResponse>(1);
 
             eprintln!(
                 "gen args: max_in={} max_out={} temp={} top_p={:?} stop_len={}",
