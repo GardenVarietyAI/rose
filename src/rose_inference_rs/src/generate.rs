@@ -2,7 +2,8 @@ use anyhow::Result;
 use candle_core::{Device, Tensor};
 use candle_transformers::generation::LogitsProcessor;
 use tokenizers::Tokenizer;
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::UnboundedSender;
+// use tokio::sync::mpsc;
 
 use crate::error::InferenceError;
 use crate::models::CausalLM;
@@ -17,8 +18,9 @@ pub async fn stream(
     max_output_tokens: usize,
     temperature: f32,
     top_p: Option<f32>,
-    stop: Option<&[String]>,
-    stream_tx: mpsc::Sender<InferenceResponse>,
+    _stop: Option<&[String]>, // custom stop token unused for now
+    // stream_tx: mpsc::Sender<InferenceResponse>,
+    stream_tx: UnboundedSender<InferenceResponse>,
     seed: u64,
     repeat_penalty: f32,
     repeat_last_n: usize,
@@ -38,9 +40,16 @@ pub async fn stream(
     let input_tokens = all_tokens.len() as u32;
 
     // Notify input token count
+    // if stream_tx
+    //     .send(InferenceResponse::InputTokensCounted { input_tokens })
+    //     .await
+    //     .is_err()
+    // {
+    //     // Consumer gone
+    //     return Ok(());
+    // }
     if stream_tx
         .send(InferenceResponse::InputTokensCounted { input_tokens })
-        .await
         .is_err()
     {
         // Consumer gone
@@ -64,7 +73,7 @@ pub async fn stream(
     let mut logits_processor = LogitsProcessor::from_sampling(seed, sampling);
 
     let mut next_token: Option<u32> = None;
-    let mut decoded_so_far = String::new();
+    // let mut decoded_so_far = String::new();
     let mut finish_reason = FinishReason::Length;
 
     for index in 0..max_output_tokens {
@@ -94,16 +103,16 @@ pub async fn stream(
             .map_err(|e| InferenceError::TokenizerError(e.to_string()))?;
 
         // Check for stop sequences
-        decoded_so_far.push_str(&token_text);
-        if let Some(stops) = stop {
-            if stops.iter().any(|s| decoded_so_far.ends_with(s)) {
-                // don't emit this stop piece; keep counts consistent by removing it
-                decoded_so_far.truncate(decoded_so_far.len() - token_text.len());
-                let _ = all_tokens.pop();
-                finish_reason = FinishReason::Stop;
-                break;
-            }
-        }
+        // decoded_so_far.push_str(&token_text);
+        // if let Some(stops) = stop {
+        //     if stops.iter().any(|s| decoded_so_far.ends_with(s)) {
+        //         // don't emit this stop piece; keep counts consistent by removing it
+        //         decoded_so_far.truncate(decoded_so_far.len() - token_text.len());
+        //         let _ = all_tokens.pop();
+        //         finish_reason = FinishReason::Stop;
+        //         break;
+        //     }
+        // }
 
         // Emit token
         let token_msg = InferenceResponse::Token {
@@ -112,7 +121,11 @@ pub async fn stream(
             logprob: None,
             top_logprobs: None,
         };
-        if stream_tx.send(token_msg).await.is_err() {
+        // if stream_tx.send(token_msg).await.is_err() {
+        //     finish_reason = FinishReason::Stop;
+        //     break;
+        // }
+        if stream_tx.send(token_msg).is_err() {
             finish_reason = FinishReason::Stop;
             break;
         }
@@ -143,7 +156,8 @@ pub async fn stream(
         total_tokens: input_tokens + output_tokens,
         finish_reason,
     };
-    let _ = stream_tx.send(complete_msg).await;
+    // let _ = stream_tx.send(complete_msg).await;
+    let _ = stream_tx.send(complete_msg);
 
     Ok(())
 }
