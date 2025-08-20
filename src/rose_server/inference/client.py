@@ -29,10 +29,13 @@ class InferenceClient:
     ) -> AsyncGenerator[Union[TokenGenerated, ResponseCompleted], None]:
         """Call the inference service."""
         req: Dict[str, Any] = {
-            "model_path": model_config.get("model_path", ""),
-            "temperature": generation_kwargs.get("temperature", 0.7),
-            "max_input_tokens": generation_kwargs.get("max_input_tokens", 4096),
-            "max_output_tokens": generation_kwargs.get("max_output_tokens", 256),
+            "generation_kwargs": {
+                "model_path": model_config.get("model_path", ""),
+                "temperature": generation_kwargs.get("temperature", 0.7),
+                "max_input_tokens": generation_kwargs.get("max_input_tokens", 4096),
+                "max_output_tokens": generation_kwargs.get("max_output_tokens", 256),
+                "stop": None,
+            }
         }
 
         if prompt is not None:
