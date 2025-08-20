@@ -1,4 +1,5 @@
 pub mod qwen2;
+pub mod qwen3;
 
 use anyhow::Result;
 use candle_core::{Device, Tensor};
@@ -13,6 +14,7 @@ pub trait CausalLM: Send {
 
 pub enum ModelKind {
     Qwen2,
+    Qwen3,
 }
 
 pub fn load_causal_lm(
@@ -22,5 +24,6 @@ pub fn load_causal_lm(
 ) -> Result<Box<dyn CausalLM>> {
     match model_kind {
         ModelKind::Qwen2 => Ok(Box::new(qwen2::Qwen2CausalLM::load(model_path, device)?)),
+        ModelKind::Qwen3 => Ok(Box::new(qwen3::Qwen3CausalLM::load(model_path, device)?)),
     }
 }

@@ -10,6 +10,8 @@ mod models;
 mod types;
 
 use crate::models::ModelKind;
+
+use anyhow;
 use crate::types::{InferenceRequest, InferenceResponse, Message};
 
 macro_rules! send_error {
@@ -47,6 +49,19 @@ fn format_messages(messages: &[Message]) -> String {
     }
     out.push("<|im_start|>assistant\n".to_string());
     out.join("\n")
+}
+
+fn detect_model_kind(model_path: &str) -> anyhow::Result<ModelKind> {
+    let config_path = std::path::Path::new(model_path).join("config.json");
+    let config_json = std::fs::read_to_string(&config_path)?;
+    let config: serde_json::Value = serde_json::from_str(&config_json)?;
+
+    match config["model_type"].as_str() {
+        Some("qwen2") => Ok(ModelKind::Qwen2),
+        Some("qwen3") => Ok(ModelKind::Qwen3),
+        Some(other) => Err(anyhow::anyhow!("Unsupported model type: {}", other)),
+        None => Err(anyhow::anyhow!("No model_type found in config.json")),
+    }
 }
 
 #[pyclass]
@@ -127,8 +142,16 @@ impl InferenceServer {
                 }
             };
 
+            let model_kind = match detect_model_kind(&req.generation_kwargs.model_path) {
+                Ok(kind) => kind,
+                Err(e) => {
+                    send_error!(cb, "Failed to detect model type: {}", e);
+                    return Ok(Python::with_gil(|py| py.None()));
+                }
+            };
+
             let model = match models::load_causal_lm(
-                ModelKind::Qwen2,
+                model_kind,
                 &req.generation_kwargs.model_path,
                 &device,
             ) {
