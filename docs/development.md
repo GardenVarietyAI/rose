@@ -33,6 +33,7 @@ uv run pre-commit run --all-files
 cd src/rose_inference_rs
 cargo clean
 cd ../..
-mise dev
+mise dev-metal
+# or dev-cpu
 uv pip install -e src/rose_inference_rs
 ```
