@@ -18,7 +18,12 @@ use crate::models::{ModelKind, CausalLM};
 use anyhow;
 use crate::types::{InferenceRequest, InferenceResponse, Message};
 
-static CACHED_MODEL: OnceLock<Arc<Mutex<Option<(String, Arc<Mutex<Box<dyn CausalLM>>>)>>>> = OnceLock::new();
+struct ModelEntry {
+    key: (String, String), // (path, device_kind)
+    model: Arc<Mutex<Box<dyn CausalLM>>>,
+}
+
+static CACHED_MODEL: OnceLock<Arc<Mutex<Option<ModelEntry>>>> = OnceLock::new();
 
 macro_rules! send_error {
     ($cb:expr, $($arg:tt)*) => {
@@ -46,6 +51,14 @@ fn _inference(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_class::<InferenceServer>()?;
     Ok(())
+}
+
+fn device_kind(device: &Device) -> String {
+    match device {
+        Device::Cpu => "cpu".to_string(),
+        Device::Cuda(id) => format!("cuda:{:?}", id),
+        Device::Metal(id) => format!("metal:{:?}", id),
+    }
 }
 
 fn format_messages(messages: &[Message], template: Option<&str>) -> String {
