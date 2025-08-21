@@ -3,16 +3,20 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use pyo3_async_runtimes::tokio as pyo3_tokio;
 use pyo3_async_runtimes::tokio::future_into_py;
+use std::sync::{Arc, OnceLock};
+use tokio::sync::Mutex;
 
 mod error;
 mod generate;
 mod models;
 mod types;
 
-use crate::models::ModelKind;
+use crate::models::{ModelKind, CausalLM};
 
 use anyhow;
 use crate::types::{InferenceRequest, InferenceResponse, Message};
+
+static CACHED_MODEL: OnceLock<Arc<Mutex<Option<(String, Arc<Mutex<Box<dyn CausalLM>>>)>>>> = OnceLock::new();
 
 macro_rules! send_error {
     ($cb:expr, $($arg:tt)*) => {
@@ -136,9 +140,31 @@ impl InferenceServer {
                 Device::Cpu
             }
         };
+
+        CACHED_MODEL.get_or_init(|| Arc::new(Mutex::new(None)));
+
         Ok(Self {
             device: resolved,
         })
+    }
+
+    fn flush_model(&self) -> PyResult<()> {
+        let cache = CACHED_MODEL.get().unwrap();
+
+        // Use try_lock since we can't await in a sync function
+        match cache.try_lock() {
+            Ok(mut model_cache) => {
+                if model_cache.is_some() {
+                    *model_cache = None;
+                    Ok(())
+                } else {
+                    Err(pyo3::exceptions::PyRuntimeError::new_err("No model loaded"))
+                }
+            }
+            Err(_) => {
+                Err(pyo3::exceptions::PyRuntimeError::new_err("Model is currently in use"))
+            }
+        }
     }
 
     #[pyo3(signature = (request, on_event))]
@@ -213,15 +239,49 @@ impl InferenceServer {
                 }
             };
 
-            let model = match models::load_causal_lm(
-                model_kind,
-                &req.generation_kwargs.model_path,
-                &device,
-            ) {
-                Ok(m) => m,
-                Err(e) => {
-                    send_error!(cb, "Model loading failed: {}", e);
-                    return Ok(Python::with_gil(|py| py.None()));
+            let model = {
+                let cache = CACHED_MODEL.get().unwrap();
+                let mut model_cache = cache.lock().await;
+
+                // Check if we have a cached model for this path
+                if let Some((cached_path, cached_model)) = &*model_cache {
+                    if cached_path == &req.generation_kwargs.model_path {
+                        cached_model.clone()
+                    } else {
+                        // Different model path, load new one
+                        match models::load_causal_lm(
+                            model_kind,
+                            &req.generation_kwargs.model_path,
+                            &device,
+                        ) {
+                            Ok(m) => {
+                                let shared_model = Arc::new(Mutex::new(m));
+                                *model_cache = Some((req.generation_kwargs.model_path.clone(), shared_model.clone()));
+                                shared_model
+                            },
+                            Err(e) => {
+                                send_error!(cb, "Model loading failed: {}", e);
+                                return Ok(Python::with_gil(|py| py.None()));
+                            }
+                        }
+                    }
+                } else {
+                    // No cached model, load new one
+                    match models::load_causal_lm(
+                        model_kind,
+                        &req.generation_kwargs.model_path,
+                        &device,
+                    ) {
+                        Ok(m) => {
+                            let shared_model = Arc::new(Mutex::new(m));
+                            *model_cache = Some((req.generation_kwargs.model_path.clone(), shared_model.clone()));
+                            shared_model
+                        },
+                        Err(e) => {
+                            send_error!(cb, "Model loading failed: {}", e);
+                            return Ok(Python::with_gil(|py| py.None()));
+                        }
+                    }
                 }
             };
 
@@ -241,13 +301,14 @@ impl InferenceServer {
 
 
             let gen = ::tokio::spawn({
-                let mut model = model; // move it into the task
+                let model = model; // move it into the task
                 let tokenizer = tokenizer.clone();
                 let device = device.clone();
                 let prompt = prompt_str.clone();
                 async move {
+                    let mut model_guard = model.lock().await;
                     let _ = generate::stream(
-                        model.as_mut(),
+                        model_guard.as_mut(),
                         &tokenizer,
                         device,
                         &prompt,

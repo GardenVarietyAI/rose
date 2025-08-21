@@ -15,7 +15,7 @@ class InferenceClient:
     """Minimal local client that bridges Rust events to your event types."""
 
     def __init__(self, device: str = "auto") -> None:
-        self._srv = InferenceServer()
+        self._srv = InferenceServer(device)
 
     async def stream_inference(
         self,
@@ -110,3 +110,7 @@ class InferenceClient:
                 await task
             except Exception:
                 pass
+
+    def flush_model(self) -> None:
+        """Free cached model memory"""
+        self._srv.flush_model()
