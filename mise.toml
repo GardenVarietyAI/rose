@@ -9,14 +9,14 @@ sqlite = "3.50.4"
 [tasks]
 backup = "litestream replicate -config ./litestream.yml"
 restore = "litestream restore -config ./litestream.yml -replica local -o ./data/rose.db ./data/rose.db"
-dev = "uv run maturin develop -m src/rose_inference_rs/Cargo.toml"
-dev-metal = "uv run maturin develop -m src/rose_inference_rs/Cargo.toml -F metal --release"
-dev-cpu = "uv run maturin develop -m src/rose_inference_rs/Cargo.toml --release"
-build = "uv run maturin build -m src/rose_inference_rs/Cargo.toml"
-build-metal = "uv run maturin build -m src/rose_inference_rs/Cargo.toml -F metal --release"
-build-cpu = "uv run maturin build -m src/rose_inference_rs/Cargo.toml --release"
-test-metal = "uv run python -c 'from rose_inference_rs import InferenceServer; s = InferenceServer(device=\"metal\"); print(\"Metal OK\")'"
-test-cpu = "uv run python -c 'from rose_inference_rs import InferenceServer; s = InferenceServer(device=\"cpu\"); print(\"CPU OK\")'"
+dev = "uv run maturin develop"
+dev-metal = "uv run maturin develop -F metal --release"
+dev-cpu = "uv run maturin develop --release"
+build = "uv run maturin build"
+build-metal = "uv run maturin build -F metal --release"
+build-cpu = "uv run maturin build --release"
+test-metal = "uv run python -c 'from rose_server._inference import InferenceServer; s = InferenceServer(device=\"metal\"); print(\"Metal OK\")'"
+test-cpu = "uv run python -c 'from rose_server._inference import InferenceServer; s = InferenceServer(device=\"cpu\"); print(\"CPU OK\")'"
 
 [settings]
 lockfile = true
