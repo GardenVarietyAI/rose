@@ -35,6 +35,7 @@ pub async fn stream(
 
     // Sliding context window
     if all_tokens.len() > max_input_tokens {
+        tracing::warn!("Truncating input from {} to {} tokens", all_tokens.len(), max_input_tokens);
         all_tokens = all_tokens[all_tokens.len() - max_input_tokens..].to_vec();
     }
 
