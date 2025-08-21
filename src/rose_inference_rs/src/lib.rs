@@ -27,12 +27,16 @@ static CACHED_MODEL: OnceLock<Arc<Mutex<Option<ModelEntry>>>> = OnceLock::new();
 
 macro_rules! send_error {
     ($cb:expr, $($arg:tt)*) => {
-        Python::with_gil(|py| {
-            let d = PyDict::new(py);
-            let _ = d.set_item("type", "Error");
-            let _ = d.set_item("error", format!($($arg)*));
-            let _ = $cb.bind(py).call1((d,));
-        });
+        {
+            let error_msg = format!($($arg)*);
+            tracing::error!("{}", error_msg);
+            Python::with_gil(|py| {
+                let d = PyDict::new(py);
+                let _ = d.set_item("type", "Error");
+                let _ = d.set_item("error", &error_msg);
+                let _ = $cb.bind(py).call1((d,));
+            });
+        }
     };
 }
 
@@ -283,7 +287,8 @@ impl InferenceServer {
                                 shared_model
                             },
                             Err(e) => {
-                                send_error!(cb, "Model loading failed: {}", e);
+                                send_error!(cb, "Failed to load model '{}' on device '{}': {}",
+                                    req.generation_kwargs.model_path, device_kind(&device), e);
                                 return Ok(Python::with_gil(|py| py.None()));
                             }
                         }
@@ -304,7 +309,8 @@ impl InferenceServer {
                             shared_model
                         },
                         Err(e) => {
-                            send_error!(cb, "Model loading failed: {}", e);
+                            send_error!(cb, "Failed to load model '{}' on device '{}': {}",
+                                req.generation_kwargs.model_path, device_kind(&device), e);
                             return Ok(Python::with_gil(|py| py.None()));
                         }
                     }
