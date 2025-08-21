@@ -35,8 +35,8 @@ class InferenceClient:
                 "generation_kwargs": {
                     "model_path": model_config.get("model_path", ""),
                     "temperature": generation_kwargs.get("temperature", 0.7),
-                    "max_input_tokens": generation_kwargs.get("max_input_tokens", 4096),
-                    "max_output_tokens": generation_kwargs.get("max_output_tokens", 256),
+                    "max_input_tokens": generation_kwargs.get("max_input_tokens", 8192),
+                    "max_output_tokens": generation_kwargs.get("max_output_tokens", 1024),
                     "stop": None,
                     "logprobs": generation_kwargs.get("logprobs"),
                     "top_logprobs": generation_kwargs.get("top_logprobs"),
