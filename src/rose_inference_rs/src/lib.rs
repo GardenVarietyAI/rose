@@ -349,6 +349,10 @@ impl InferenceServer {
                 }
             });
 
+            // Add a 5 minute timeout for generation task
+            let timeout_duration = std::time::Duration::from_secs(300);
+            let gen_with_timeout = tokio::time::timeout(timeout_duration, gen);
+
             while let Some(ev) = rx.recv().await {
                 let is_terminal = matches!(
                     ev,
@@ -413,7 +417,20 @@ impl InferenceServer {
                     break;
                 }
             }
-            let _ = gen.await;
+            match gen_with_timeout.await {
+                Ok(Ok(_)) => {}, // Task completed successfully
+                Ok(Err(e)) => tracing::error!("Generation task failed: {:?}", e),
+                Err(_) => {
+                    tracing::error!("Generation timed out after {} seconds", timeout_duration.as_secs());
+                    // Send timeout error through callback
+                    Python::with_gil(|py| {
+                        let d = PyDict::new(py);
+                        let _ = d.set_item("type", "Error");
+                        let _ = d.set_item("error", "Generation timed out");
+                        let _ = cb.bind(py).call1((d,));
+                    });
+                }
+            }
 
             Ok(Python::with_gil(|py| py.None()))
         })
