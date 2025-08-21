@@ -40,6 +40,7 @@ class InferenceClient:
                     "stop": None,
                     "logprobs": generation_kwargs.get("logprobs"),
                     "top_logprobs": generation_kwargs.get("top_logprobs"),
+                    "chat_template": generation_kwargs.get("chat_template"),
                 }
             }
 
