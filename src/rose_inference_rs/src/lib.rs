@@ -205,6 +205,14 @@ impl InferenceServer {
                 )
             };
 
+            let model_kind = match detect_model_kind(&req.generation_kwargs.model_path) {
+                Ok(kind) => kind,
+                Err(e) => {
+                    send_error!(cb, "Failed to detect model type: {}", e);
+                    return Ok(Python::with_gil(|py| py.None()));
+                }
+            };
+
             let tokenizer = {
                 let model_path = std::path::Path::new(&req.generation_kwargs.model_path);
 
@@ -224,10 +232,16 @@ impl InferenceServer {
                 };
 
                 if is_gguf {
-                    match tokenizers::Tokenizer::from_pretrained("Qwen/Qwen3-0.6B", None) {
+                    // Try to infer tokenizer from model kind
+                    let tokenizer_repo = match model_kind {
+                        ModelKind::Qwen2 => "Qwen/Qwen2-0.5B",
+                        ModelKind::Qwen3 => "Qwen/Qwen3-0.6B",
+                    };
+
+                    match tokenizers::Tokenizer::from_pretrained(tokenizer_repo, None) {
                         Ok(t) => t,
                         Err(e) => {
-                            send_error!(cb, "Failed to load Qwen3 tokenizer from HuggingFace: {}", e);
+                            send_error!(cb, "Failed to load {} tokenizer from HuggingFace: {}", tokenizer_repo, e);
                             return Ok(Python::with_gil(|py| py.None()));
                         }
                     }
@@ -240,14 +254,6 @@ impl InferenceServer {
                             return Ok(Python::with_gil(|py| py.None()));
                         }
                     }
-                }
-            };
-
-            let model_kind = match detect_model_kind(&req.generation_kwargs.model_path) {
-                Ok(kind) => kind,
-                Err(e) => {
-                    send_error!(cb, "Failed to detect model type: {}", e);
-                    return Ok(Python::with_gil(|py| py.None()));
                 }
             };
 
