@@ -305,8 +305,8 @@ impl InferenceServer {
                 }
             };
 
-            let max_in = req.generation_kwargs.max_input_tokens.unwrap_or(4096);
-            let max_out = req.generation_kwargs.max_output_tokens.unwrap_or(256);
+            let max_in = req.generation_kwargs.max_input_tokens.unwrap_or(8192);
+            let max_out = req.generation_kwargs.max_output_tokens.unwrap_or(1024);
             let temp = req.generation_kwargs.temperature.unwrap_or(0.7) as f32;
             let top_p = req.generation_kwargs.top_p.map(|v| v as f32);
             let seed = req.generation_kwargs.seed.unwrap_or(42);
