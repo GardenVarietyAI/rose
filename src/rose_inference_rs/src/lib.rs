@@ -6,6 +6,7 @@ use pyo3_async_runtimes::tokio::future_into_py;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::Mutex;
 
+mod chat_templates;
 mod error;
 mod generate;
 mod logprobs;
@@ -47,13 +48,11 @@ fn _inference(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-fn format_messages(messages: &[Message]) -> String {
-    let mut out = Vec::new();
-    for m in messages {
-        out.push(format!("<|im_start|>{}\n{}<|im_end|>", m.role, m.content));
-    }
-    out.push("<|im_start|>assistant\n".to_string());
-    out.join("\n")
+fn format_messages(messages: &[Message], template: Option<&str>) -> String {
+    let chat_template = crate::chat_templates::ChatTemplate::from_string(
+        template.unwrap_or("qwen3")
+    );
+    chat_template.format_messages(messages)
 }
 
 fn detect_model_kind(model_path: &str) -> anyhow::Result<ModelKind> {
@@ -191,7 +190,10 @@ impl InferenceServer {
             let prompt_str = if let Some(p) = &req.prompt {
                 p.clone()
             } else {
-                format_messages(req.messages.as_ref().unwrap())
+                format_messages(
+                    req.messages.as_ref().unwrap(),
+                    req.generation_kwargs.chat_template.as_deref()
+                )
             };
 
             let tokenizer = {

@@ -19,6 +19,7 @@ pub struct GenerationKwargs {
     pub stop: Option<Vec<String>>,
     pub logprobs: Option<bool>,
     pub top_logprobs: Option<usize>,
+    pub chat_template: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
