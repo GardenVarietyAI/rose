@@ -38,6 +38,8 @@ class InferenceClient:
                     "max_input_tokens": generation_kwargs.get("max_input_tokens", 4096),
                     "max_output_tokens": generation_kwargs.get("max_output_tokens", 256),
                     "stop": None,
+                    "logprobs": generation_kwargs.get("logprobs"),
+                    "top_logprobs": generation_kwargs.get("top_logprobs"),
                 }
             }
 
