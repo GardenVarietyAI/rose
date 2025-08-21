@@ -56,10 +56,6 @@ impl CausalLM for Qwen3CausalLM {
         self.model.forward(input, past_length).map_err(Into::into)
     }
 
-    #[allow(unused_variables)]
-    fn sample_logits(&self, _logits: &Tensor) -> Result<u32> {
-        unimplemented!()
-    }
 
     fn eos_token_id(&self) -> u32 {
         self.eos_token

@@ -7,7 +7,6 @@ use tokenizers::Tokenizer;
 
 pub trait CausalLM: Send {
     fn forward(&mut self, input: &Tensor, past_length: usize) -> Result<Tensor>;
-    fn sample_logits(&self, logits: &Tensor) -> Result<u32>;
     fn eos_token_id(&self) -> u32;
     fn im_end_token_id(&self, tokenizer: &Tokenizer) -> u32;
 }
