@@ -17,6 +17,8 @@ pub struct GenerationKwargs {
     pub repeat_penalty: Option<f32>,
     pub repeat_last_n: Option<usize>,
     pub stop: Option<Vec<String>>,
+    pub logprobs: Option<bool>,
+    pub top_logprobs: Option<usize>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

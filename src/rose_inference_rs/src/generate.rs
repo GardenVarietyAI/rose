@@ -5,6 +5,7 @@ use tokenizers::Tokenizer;
 use tokio::sync::mpsc;
 
 use crate::error::InferenceError;
+use crate::logprobs;
 use crate::models::CausalLM;
 use crate::types::{FinishReason, InferenceResponse};
 
@@ -22,6 +23,8 @@ pub async fn stream(
     seed: u64,
     repeat_penalty: f32,
     repeat_last_n: usize,
+    logprobs: Option<bool>,
+    top_logprobs: Option<usize>,
 ) -> Result<()> {
     // Tokenize prompt
     let encoding = tokenizer
@@ -99,6 +102,19 @@ pub async fn stream(
             .decode(&[sampled_token], true)
             .map_err(|e| InferenceError::TokenizerError(e.to_string()))?;
 
+        // Calculate logprobs if requested
+        let (logprob, top_logprobs_data) = if logprobs.unwrap_or(false) {
+            let logprobs_result = logprobs::calculate_logprobs(
+                &logits,
+                sampled_token,
+                tokenizer,
+                top_logprobs,
+            )?;
+            (Some(logprobs_result.logprob), logprobs_result.top_logprobs)
+        } else {
+            (None, None)
+        };
+
         // Check for stop sequences
         decoded_so_far.push_str(&token_text);
         if let Some(stops) = stop {
@@ -115,8 +131,8 @@ pub async fn stream(
         let token_msg = InferenceResponse::Token {
             token: token_text,
             position: index as u32,
-            logprob: None,
-            top_logprobs: None,
+            logprob,
+            top_logprobs: top_logprobs_data,
         };
         if stream_tx.send(token_msg).await.is_err() {
             finish_reason = FinishReason::Stop;

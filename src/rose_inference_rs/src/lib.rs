@@ -8,6 +8,7 @@ use tokio::sync::Mutex;
 
 mod error;
 mod generate;
+mod logprobs;
 mod models;
 mod types;
 
@@ -321,6 +322,8 @@ impl InferenceServer {
                         seed,
                         rp,
                         rlast,
+                        req.generation_kwargs.logprobs,
+                        req.generation_kwargs.top_logprobs,
                     )
                     .await;
                 }
