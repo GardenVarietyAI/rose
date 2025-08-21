@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
-from rose_inference_rs import InferenceServer
+from rose_server._inference import InferenceServer
 from rose_server.events.event_types.generation import (
     ResponseCompleted,
     TokenGenerated,

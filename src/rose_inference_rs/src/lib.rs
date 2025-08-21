@@ -26,7 +26,7 @@ macro_rules! send_error {
 }
 
 #[pymodule]
-fn rose_inference_rs(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn _inference(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Build a Tokio runtime and register it
     static INIT: std::sync::Once = std::sync::Once::new();
     INIT.call_once(|| {
