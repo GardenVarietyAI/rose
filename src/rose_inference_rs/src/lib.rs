@@ -167,12 +167,8 @@ impl InferenceServer {
         // Use try_lock since we can't await in a sync function
         match cache.try_lock() {
             Ok(mut model_cache) => {
-                if model_cache.is_some() {
-                    *model_cache = None;
-                    Ok(())
-                } else {
-                    Err(pyo3::exceptions::PyRuntimeError::new_err("No model loaded"))
-                }
+                *model_cache = None;
+                Ok(())
             }
             Err(_) => {
                 Err(pyo3::exceptions::PyRuntimeError::new_err("Model is currently in use"))
@@ -258,13 +254,15 @@ impl InferenceServer {
             let model = {
                 let cache = CACHED_MODEL.get().unwrap();
                 let mut model_cache = cache.lock().await;
+                let device_str = device_kind(&device);
+                let cache_key = (req.generation_kwargs.model_path.clone(), device_str);
 
-                // Check if we have a cached model for this path
-                if let Some((cached_path, cached_model)) = &*model_cache {
-                    if cached_path == &req.generation_kwargs.model_path {
-                        cached_model.clone()
+                // Check if we have a cached model for this path+device
+                if let Some(ref entry) = *model_cache {
+                    if entry.key == cache_key {
+                        entry.model.clone()
                     } else {
-                        // Different model path, load new one
+                        // Different model path or device, load new one
                         match models::load_causal_lm(
                             model_kind,
                             &req.generation_kwargs.model_path,
@@ -272,7 +270,10 @@ impl InferenceServer {
                         ) {
                             Ok(m) => {
                                 let shared_model = Arc::new(Mutex::new(m));
-                                *model_cache = Some((req.generation_kwargs.model_path.clone(), shared_model.clone()));
+                                *model_cache = Some(ModelEntry {
+                                    key: cache_key,
+                                    model: shared_model.clone(),
+                                });
                                 shared_model
                             },
                             Err(e) => {
@@ -290,7 +291,10 @@ impl InferenceServer {
                     ) {
                         Ok(m) => {
                             let shared_model = Arc::new(Mutex::new(m));
-                            *model_cache = Some((req.generation_kwargs.model_path.clone(), shared_model.clone()));
+                            *model_cache = Some(ModelEntry {
+                                key: cache_key,
+                                model: shared_model.clone(),
+                            });
                             shared_model
                         },
                         Err(e) => {
@@ -310,7 +314,6 @@ impl InferenceServer {
             let rlast = req.generation_kwargs.repeat_last_n.unwrap_or(64);
 
             let (tx, mut rx) = ::tokio::sync::mpsc::channel::<InferenceResponse>(1);
-
 
             let gen = ::tokio::spawn({
                 let model = model; // move it into the task
