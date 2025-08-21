@@ -113,63 +113,27 @@ impl InferenceServer {
     #[new]
     #[pyo3(signature = (device=None))]
     fn py_new(device: Option<&str>) -> PyResult<Self> {
-        #[cfg(feature = "metal")]
-        eprintln!("METAL FEATURE IS COMPILED IN");
-        #[cfg(not(feature = "metal"))]
-        eprintln!("METAL FEATURE NOT COMPILED");
         let resolved = match device.unwrap_or("auto") {
-            "cpu" => {
-                eprintln!("Using CPU device");
-                Device::Cpu
-            },
+            "cpu" => Device::Cpu,
             #[cfg(feature = "cuda")]
-            "cuda" => {
-                eprintln!("Attempting CUDA device");
-                candle_core::Device::new_cuda(0)
-                    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?
-            },
+            "cuda" => candle_core::Device::new_cuda(0)
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?,
             #[cfg(feature = "metal")]
-            "metal" => {
-                eprintln!("Attempting Metal device");
-                match candle_core::Device::new_metal(0) {
-                    Ok(d) => {
-                        eprintln!("Metal device created successfully");
-                        d
-                    },
-                    Err(e) => {
-                        eprintln!("Metal device creation failed: {}", e);
-                        return Err(pyo3::exceptions::PyRuntimeError::new_err(e.to_string()));
-                    }
-                }
-            },
+            "metal" => candle_core::Device::new_metal(0)
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?,
             #[cfg(not(feature = "metal"))]
-            "metal" => {
-                eprintln!("Metal feature not compiled in");
-                return Err(pyo3::exceptions::PyRuntimeError::new_err("Metal support not compiled"));
-            },
+            "metal" => return Err(pyo3::exceptions::PyRuntimeError::new_err("Metal support not compiled")),
             _ => {
-                eprintln!("Auto-detecting device");
-                let mut chosen: Option<Device> = None;
                 #[cfg(feature = "metal")]
                 {
-                    match candle_core::Device::new_metal(0) {
-                        Ok(d) => {
-                            eprintln!("Selected Metal device for better performance");
-                            chosen = Some(d);
-                        },
-                        Err(e) => {
-                            eprintln!("Metal device creation failed: {}, falling back to CPU", e);
-                        }
+                    if let Ok(d) = candle_core::Device::new_metal(0) {
+                        d
+                    } else {
+                        Device::Cpu
                     }
                 }
                 #[cfg(not(feature = "metal"))]
-                {
-                    eprintln!("Metal feature not compiled in, using CPU");
-                }
-                if chosen.is_none() {
-                    eprintln!("Using CPU device");
-                }
-                chosen.unwrap_or(Device::Cpu)
+                Device::Cpu
             }
         };
         Ok(Self {
@@ -184,23 +148,15 @@ impl InferenceServer {
         request: PyObject,
         on_event: PyObject,
     ) -> PyResult<Bound<'py, PyAny>> {
-        eprintln!("=== RUST STREAM FUNCTION CALLED ===");
         let req: InferenceRequest = pythonize::depythonize(&request.bind(py))
-            .map_err(|e| {
-                eprintln!("Failed to deserialize request: {}", e);
-                pyo3::exceptions::PyValueError::new_err(format!("bad request: {e}"))
-            })?;
-        eprintln!("Request deserialized successfully. Model path: {}", req.generation_kwargs.model_path);
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("bad request: {e}")))?;
         let device = self.device.clone();
         let cb = on_event.clone_ref(py);
 
         future_into_py(py, async move {
-            eprintln!("=== ENTERING ASYNC INFERENCE BLOCK ===");
             let have_prompt = req.prompt.as_ref().map_or(false, |p| !p.is_empty());
             let have_msgs = req.messages.as_ref().map_or(false, |m| !m.is_empty());
-            eprintln!("Prompt check: have_prompt={}, have_msgs={}", have_prompt, have_msgs);
             if (have_prompt && have_msgs) || (!have_prompt && !have_msgs) {
-                eprintln!("Invalid prompt/message configuration");
                 send_error!(cb, "Provide either prompt OR messages (exclusively)");
                 return Ok(Python::with_gil(|py| py.None()));
             }
@@ -230,24 +186,18 @@ impl InferenceServer {
                 };
 
                 if is_gguf {
-                    eprintln!("Loading tokenizer from HuggingFace for GGUF model");
-                    // Use Qwen3 tokenizer from HuggingFace
                     match tokenizers::Tokenizer::from_pretrained("Qwen/Qwen3-0.6B", None) {
                         Ok(t) => t,
                         Err(e) => {
-                            eprintln!("Failed to load Qwen3 tokenizer from HuggingFace: {}", e);
                             send_error!(cb, "Failed to load Qwen3 tokenizer from HuggingFace: {}", e);
                             return Ok(Python::with_gil(|py| py.None()));
                         }
                     }
                 } else {
-                    eprintln!("Loading tokenizer from local file");
-                    // For directory models, look for tokenizer.json
                     let tok_path = model_path.join("tokenizer.json");
                     match tokenizers::Tokenizer::from_file(&tok_path) {
                         Ok(t) => t,
                         Err(e) => {
-                            eprintln!("tokenizer load failed at {}: {}", tok_path.display(), e);
                             send_error!(cb, "tokenizer load failed at {}: {}", tok_path.display(), e);
                             return Ok(Python::with_gil(|py| py.None()));
                         }
@@ -256,12 +206,8 @@ impl InferenceServer {
             };
 
             let model_kind = match detect_model_kind(&req.generation_kwargs.model_path) {
-                Ok(kind) => {
-                    eprintln!("Detected model kind: {:?}", kind);
-                    kind
-                },
+                Ok(kind) => kind,
                 Err(e) => {
-                    eprintln!("Failed to detect model type: {}", e);
                     send_error!(cb, "Failed to detect model type: {}", e);
                     return Ok(Python::with_gil(|py| py.None()));
                 }
@@ -272,12 +218,8 @@ impl InferenceServer {
                 &req.generation_kwargs.model_path,
                 &device,
             ) {
-                Ok(m) => {
-                    eprintln!("Model loaded successfully");
-                    m
-                },
+                Ok(m) => m,
                 Err(e) => {
-                    eprintln!("Model loading failed: {}", e);
                     send_error!(cb, "Model loading failed: {}", e);
                     return Ok(Python::with_gil(|py| py.None()));
                 }
@@ -297,18 +239,6 @@ impl InferenceServer {
 
             let (tx, mut rx) = ::tokio::sync::mpsc::channel::<InferenceResponse>(1);
 
-            eprintln!(
-                "gen args: max_in={} max_out={} temp={} top_p={:?} stop_len={}",
-                max_in,
-                max_out,
-                temp,
-                top_p,
-                req.generation_kwargs
-                    .stop
-                    .as_ref()
-                    .map(|v| v.len())
-                    .unwrap_or(0)
-            );
 
             let gen = ::tokio::spawn({
                 let mut model = model; // move it into the task

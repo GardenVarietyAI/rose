@@ -23,12 +23,7 @@ pub async fn stream(
     repeat_penalty: f32,
     repeat_last_n: usize,
 ) -> Result<()> {
-    eprintln!("=== STARTING GENERATION STREAM ===");
-    eprintln!("Device: {:?}", device);
-    eprintln!("Prompt length: {}", prompt.len());
-
     // Tokenize prompt
-    eprintln!("Tokenizing prompt...");
     let encoding = tokenizer
         .encode(prompt, false)
         .map_err(|e| InferenceError::TokenizerError(e.to_string()))?;
@@ -75,7 +70,6 @@ pub async fn stream(
     let mut single_token_buf = vec![0u32; 1];
 
     for index in 0..max_output_tokens {
-        eprintln!("=== GENERATION STEP {} ===", index);
         let (input_slice, input_len) = match next_token {
             Some(tok) => {
                 single_token_buf[0] = tok;
@@ -83,13 +77,9 @@ pub async fn stream(
             }
             None => (all_tokens.as_slice(), all_tokens.len())
         };
-        eprintln!("Input tokens: {:?}", &input_slice[..input_len.min(10)]);
-        eprintln!("Creating input tensor...");
         let input_tensor = Tensor::from_slice(input_slice, (1, input_len), &device)?;
-        eprintln!("Running forward pass...");
         let past_length = if next_token.is_some() { all_tokens.len() - 1 } else { 0 };
         let logits = model.forward(&input_tensor, past_length)?;
-        eprintln!("Forward pass completed");
         let logits = logits.squeeze(0)?.squeeze(0)?;
         let logits = if repeat_penalty == 1.0 {
             logits
