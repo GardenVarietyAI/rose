@@ -48,7 +48,7 @@ class EventGenerator:
         # Emit start event
         start_event = ResponseStarted(
             model_name=self.model_name,
-            input_tokens=0,
+            input_tokens=0,  # Passed in ResponseCompleted
             max_tokens=max_tokens,
             temperature=temperature,
         )

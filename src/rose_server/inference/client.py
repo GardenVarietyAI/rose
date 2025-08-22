@@ -75,6 +75,7 @@ class InferenceClient:
 
                     if et == "InputTokensCounted":
                         input_tokens = int(ev.get("input_tokens", 0))
+                        logger.debug(f"Input tokens counted: {input_tokens}")
 
                     elif et == "Token":
                         completion_tokens += 1
