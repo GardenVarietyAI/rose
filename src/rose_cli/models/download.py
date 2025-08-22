@@ -6,6 +6,15 @@ from huggingface_hub import HfFolder, hf_hub_download, snapshot_download
 
 from rose_cli.utils import console, get_client
 
+blessed_models = [
+    "Qwen/Qwen3-0.6B",
+    "Qwen/Qwen3-1.7B",
+    "Qwen/Qwen3-1.7B-Base",
+    "Qwen/Qwen3-4B",
+    "Qwen/Qwen3-0.6B-GGUF",
+    "janhq/Jan-v1-4B-GGUF",
+]
+
 
 def _get_gguf_config(model_name: str) -> dict[str, str] | None:
     """Get GGUF file and base model config for blessed models."""
@@ -70,17 +79,7 @@ def download_model(
         return
 
     try:
-        # Check for blessed models only
         gguf_config = _get_gguf_config(hf_model_name)
-        blessed_models = [
-            "Qwen/Qwen3-0.6B",
-            "Qwen/Qwen3-1.7B",
-            "Qwen/Qwen3-1.7B-Base",
-            "Qwen/Qwen3-4B",
-            "Qwen/Qwen3-0.6B-GGUF",
-            "janhq/Jan-v1-4B-GGUF",
-        ]
-
         if not (gguf_config or hf_model_name in blessed_models):
             console.print(f"[red]Model '{hf_model_name}' is not supported.[/red]")
             console.print("[yellow]Supported models:[/yellow]")

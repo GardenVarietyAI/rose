@@ -57,12 +57,12 @@ class Settings(BaseSettings):
     # Inference settings
     inference_uri: str = Field(default="ws://localhost:8005", description="WebSocket URI for inference worker")
     inference_timeout: int = Field(default=300, description="Inference timeout in seconds")
-    max_concurrent_inference: int = Field(default=1, description="Maximum concurrent inference requests")
+    max_concurrent_inference: int = Field(default=10, description="Maximum concurrent inference requests")
 
     # Vector store settings
-    default_embedding_dimensions: int = Field(default=384, description="Default embedding dimensions for vector stores")
+    default_embedding_dimensions: int = Field(default=768, description="Default embedding dimensions for vector stores")
     default_embedding_model: str = Field(
-        default="bge-small-en-v1.5", description="Default embedding model for vector stores"
+        default="qwen3-embedding-0.6b", description="Default embedding model for vector stores"
     )
     default_embedding_device: str = Field(
         default="cpu", description="Default device for embedding models (cpu, cuda, mps)"
@@ -76,6 +76,11 @@ class Settings(BaseSettings):
     )
 
     # Derived properties
+    @property
+    def models_dir(self) -> str:
+        """Directory for storing models."""
+        return f"{self.data_dir}/models"
+
     @property
     def model_offload_dir(self) -> str:
         """Directory for model offloading."""

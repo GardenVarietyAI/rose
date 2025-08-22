@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 
-from rose_server.embeddings import generate_embeddings
+from rose_server.embeddings import generate_embeddings_async
 from rose_server.schemas.embeddings import EmbeddingRequest, EmbeddingResponse
 
 router = APIRouter(prefix="/v1/embeddings")
@@ -18,7 +18,7 @@ async def create_embeddings(request: EmbeddingRequest) -> EmbeddingResponse:
         JSON response in OpenAI format with embeddings
     """
     try:
-        response = generate_embeddings(texts=request.input, model_name=request.model)
+        response = await generate_embeddings_async(texts=request.input, model_name=request.model)
         return EmbeddingResponse(**response)
     except ValueError as e:
         raise HTTPException(status_code=400, detail={"error": {"message": str(e), "type": "invalid_request_error"}})

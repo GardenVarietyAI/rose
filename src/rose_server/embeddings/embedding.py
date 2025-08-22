@@ -1,36 +1,50 @@
 import asyncio
+import logging
 from functools import lru_cache
 from typing import Any, Dict, List, Union
 
 import numpy as np
 from fastembed import TextEmbedding
+from fastembed.common.model_description import ModelSource, PoolingType
 from tokenizers import Tokenizer
 
 from rose_server.config.settings import settings
 
+logger = logging.getLogger(__name__)
+
 EMBEDDING_MODELS = {
-    "nomic-embed-text": {
-        "model_name": "nomic-ai/nomic-embed-text-v1",
+    "qwen3-embedding-0.6b": {
+        "model_name": "onnx-community/Qwen3-Embedding-0.6B-ONNX",
         "dimensions": 768,
-        "description": "Very fast, good all-rounder, GPU/CPU friendly",
-        "format": "HuggingFace",
-    },
-    "bge-small-en-v1.5": {
-        "model_name": "BAAI/bge-small-en-v1.5",
-        "dimensions": 384,
-        "description": "Tiny and very RAG-optimized, fast and low-memory",
-        "format": "HuggingFace",
+        "description": "Qwen3 embedding model",
+        "format": "ONNX",
     },
 }
 
 
+def _register_qwen3_model() -> None:
+    """Register qwen3 embedding model with FastEmbed."""
+    try:
+        TextEmbedding.add_custom_model(
+            model=str(EMBEDDING_MODELS["qwen3-embedding-0.6b"]["model_name"]),
+            pooling=PoolingType.MEAN,
+            normalization=True,
+            sources=ModelSource(hf=str(EMBEDDING_MODELS["qwen3-embedding-0.6b"]["model_name"])),
+            dim=768,
+            model_file="onnx/model.onnx",
+            description="Qwen3 embedding model",
+        )
+    except Exception as e:
+        print(f"Failed to register Qwen3 embedding model: {e}")
+        pass
+
+
+_register_qwen3_model()
+
+
 @lru_cache(maxsize=4)
 def _get_model(model_name: str, device: str = "cpu") -> TextEmbedding:
-    if model_name in EMBEDDING_MODELS:
-        model_path = str(EMBEDDING_MODELS[model_name]["model_name"])
-    else:
-        model_path = str(model_name)
-    return TextEmbedding(model_name=model_path, device=device)
+    return TextEmbedding(model=model_name, device=device)
 
 
 @lru_cache(maxsize=4)
@@ -44,8 +58,7 @@ def get_tokenizer(model_name: str) -> Tokenizer:
 
 def embedding_model() -> TextEmbedding:
     """Get the default embedding model from settings."""
-    device = getattr(settings, "default_embedding_device", "cpu")
-    return _get_model(settings.default_embedding_model, device)
+    return _get_model(settings.default_embedding_model, settings.default_embedding_device)
 
 
 def clear_embedding_cache() -> None:
@@ -66,11 +79,11 @@ def reload_embedding_model() -> TextEmbedding:
 
 def generate_embeddings(
     texts: Union[str, List[str]],
-    model_name: str = "bge-small-en-v1.5",
+    model_name: str = "qwen3-embedding-0.6b",
     batch_size: int = 32,
 ) -> Dict[str, Any]:
     if model_name == "text-embedding-ada-002":
-        model_name = "bge-small-en-v1.5"
+        model_name = "qwen3-embedding-0.6b"
 
     if isinstance(texts, str):
         texts = [texts]
@@ -111,7 +124,7 @@ def generate_embeddings(
 
 async def generate_embeddings_async(
     texts: Union[str, List[str]],
-    model_name: str = "bge-small-en-v1.5",
+    model_name: str = "qwen3-embedding-0.6b",
     batch_size: int = 32,
 ) -> Dict[str, Any]:
     return await asyncio.to_thread(generate_embeddings, texts, model_name, batch_size)
