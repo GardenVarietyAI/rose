@@ -43,10 +43,16 @@ impl Qwen3CausalLM {
         let content = gguf_file::Content::read(&mut file)
             .map_err(|e| anyhow::anyhow!("Failed to read GGUF content: {}", e))?;
 
+        // Try to extract EOS token from GGUF metadata
+        let eos_token = content.metadata.get("tokenizer.ggml.eos_token_id")
+            .and_then(|v| match v {
+                gguf_file::Value::U32(val) => Some(*val),
+                _ => None,
+            })
+            .unwrap_or(151643u32);
+
         let model = Qwen3::from_gguf(content, &mut file, device)
             .map_err(|e| anyhow::anyhow!("Failed to create Qwen3 from GGUF: {}", e))?;
-
-        let eos_token = 151643u32;
         Ok(Self { model, eos_token })
     }
 }
