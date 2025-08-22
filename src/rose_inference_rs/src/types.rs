@@ -45,7 +45,7 @@ pub struct TopLogProb {
     pub logprob: f32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum InferenceResponse {
     InputTokensCounted {
         input_tokens: u32,

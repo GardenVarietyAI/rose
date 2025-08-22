@@ -165,19 +165,17 @@ impl InferenceServer {
         })
     }
 
-    fn flush_model(&self) -> PyResult<()> {
-        let cache = CACHED_MODEL.get().unwrap();
+    fn flush_model<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let cache_clone = CACHED_MODEL.get().unwrap().clone();
 
-        // Use try_lock since we can't await in a sync function
-        match cache.try_lock() {
-            Ok(mut model_cache) => {
-                *model_cache = None;
-                Ok(())
-            }
-            Err(_) => {
-                Err(pyo3::exceptions::PyRuntimeError::new_err("Model is currently in use"))
-            }
-        }
+        future_into_py(py, async move {
+            let mut model_cache = cache_clone.lock().await;
+            *model_cache = None;
+            Ok(Python::with_gil(|py| py.None()))
+        })
     }
 
     #[pyo3(signature = (request, on_event))]
@@ -242,10 +240,17 @@ impl InferenceServer {
                         ModelKind::Qwen3 => "Qwen/Qwen3-0.6B",
                     };
 
-                    match tokenizers::Tokenizer::from_pretrained(tokenizer_repo, None) {
-                        Ok(t) => t,
-                        Err(e) => {
+                    match tokio::task::spawn_blocking({
+                        let repo = tokenizer_repo.to_string();
+                        move || tokenizers::Tokenizer::from_pretrained(&repo, None)
+                    }).await {
+                        Ok(Ok(t)) => t,
+                        Ok(Err(e)) => {
                             send_error!(cb, "Failed to load {} tokenizer from HuggingFace: {}", tokenizer_repo, e);
+                            return Ok(Python::with_gil(|py| py.None()));
+                        }
+                        Err(e) => {
+                            send_error!(cb, "Tokenizer loading task failed: {}", e);
                             return Ok(Python::with_gil(|py| py.None()));
                         }
                     }
@@ -365,6 +370,7 @@ impl InferenceServer {
                     InferenceResponse::Complete { .. } | InferenceResponse::Error { .. }
                 );
 
+                // Call Python callback immediately without spawn_blocking to avoid Send issues
                 Python::with_gil(|py| {
                     let d = PyDict::new(py);
                     match &ev {
