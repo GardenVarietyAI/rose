@@ -12,6 +12,41 @@ from rose_server.events.event_types.generation import (
 logger = logging.getLogger(__name__)
 
 
+# Model ID to model kind mapping
+MODEL_KIND_MAP = {
+    "Qwen--Qwen3-0.6B-GGUF": "qwen3",
+    "Qwen--Qwen2.5-0.5B-Instruct": "qwen2",
+    "Qwen--Qwen2.5-1.5B-Instruct": "qwen2",
+    "Qwen--Qwen2.5-Coder-1.5B-Instruct": "qwen2",
+}
+
+
+def resolve_model_paths(model_path: str) -> Dict[str, str]:
+    """Resolve model and tokenizer paths."""
+    from pathlib import Path
+
+    path = Path(model_path)
+
+    if path.is_dir():
+        gguf_files = list(path.glob("*.gguf"))
+        if gguf_files:
+            gguf_file = str(gguf_files[0])
+            # use tokenizer from base model directory for GGUF models
+            # TODO:
+            base_model_name = path.name.replace("-GGUF", "")
+            base_model_dir = path.parent / base_model_name
+            tokenizer_file = str(base_model_dir / "tokenizer.json")
+            return {"model_path": gguf_file, "tokenizer_path": tokenizer_file}
+        else:
+            # pass directory path to Rust for regular models,
+            tokenizer_file = str(path / "tokenizer.json")
+            return {"model_path": str(path), "tokenizer_path": tokenizer_file}
+    elif path.suffix == ".gguf":
+        return {"model_path": str(path), "tokenizer_path": str(path)}
+    else:
+        raise ValueError(f"Unsupported model path: {path}")
+
+
 class InferenceClient:
     """Minimal local client that bridges Rust events to your event types."""
 
@@ -31,9 +66,15 @@ class InferenceClient:
     ) -> AsyncGenerator[Union[TokenGenerated, ResponseCompleted], None]:
         """Call the inference service."""
         async with self._semaphore:
+            # Resolve paths and get model kind
+            resolved_paths = resolve_model_paths(model_config.get("model_path", ""))
+            model_kind = MODEL_KIND_MAP.get(model_config.get("model_id", ""), "qwen2")
+
             req: Dict[str, Any] = {
                 "generation_kwargs": {
-                    "model_path": model_config.get("model_path", ""),
+                    "model_path": resolved_paths["model_path"],
+                    "tokenizer_path": resolved_paths["tokenizer_path"],
+                    "model_kind": model_kind,
                     "temperature": generation_kwargs.get("temperature", 0.7),
                     "max_input_tokens": generation_kwargs.get("max_input_tokens", 8192),
                     "max_output_tokens": generation_kwargs.get("max_output_tokens", 1024),
