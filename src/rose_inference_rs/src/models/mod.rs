@@ -17,6 +17,16 @@ pub enum ModelKind {
     Qwen3,
 }
 
+impl ModelKind {
+    pub fn from_string(s: &str) -> Result<Self> {
+        match s.to_lowercase().as_str() {
+            "qwen2" => Ok(Self::Qwen2),
+            "qwen3" => Ok(Self::Qwen3),
+            _ => Err(anyhow::anyhow!("Unsupported model kind: {}", s)),
+        }
+    }
+}
+
 pub fn load_causal_lm(
     model_kind: ModelKind,
     model_path: &str,

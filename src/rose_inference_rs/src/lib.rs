@@ -14,8 +14,6 @@ mod models;
 mod types;
 
 use crate::models::{ModelKind, CausalLM};
-
-use anyhow;
 use crate::types::{InferenceRequest, InferenceResponse, Message};
 
 struct ModelEntry {
@@ -72,58 +70,6 @@ fn format_messages(messages: &[Message], template: Option<&str>) -> String {
     chat_template.format_messages(messages)
 }
 
-fn detect_model_kind(model_path: &str) -> anyhow::Result<ModelKind> {
-    let path = std::path::Path::new(model_path);
-
-    // Check if it's a direct GGUF file
-    if path.extension().and_then(|s| s.to_str()) == Some("gguf") {
-        // For GGUF files, detect from filename
-        if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
-            if name.to_lowercase().contains("qwen3") {
-                return Ok(ModelKind::Qwen3);
-            } else if name.to_lowercase().contains("qwen2") {
-                return Ok(ModelKind::Qwen2);
-            }
-        }
-        return Err(anyhow::anyhow!("Could not detect model type from GGUF filename: {}", model_path));
-    }
-
-    // For directory paths, check for GGUF files first, then config.json
-    if path.is_dir() {
-        // Look for GGUF files in directory
-        for entry in std::fs::read_dir(path)? {
-            let entry = entry?;
-            let file_path = entry.path();
-            if file_path.extension().and_then(|s| s.to_str()) == Some("gguf") {
-                if let Some(name) = file_path.file_name().and_then(|s| s.to_str()) {
-                    if name.to_lowercase().contains("qwen3") {
-                        return Ok(ModelKind::Qwen3);
-                    } else if name.to_lowercase().contains("qwen2") {
-                        return Ok(ModelKind::Qwen2);
-                    }
-                }
-            }
-        }
-
-        // If no GGUF found, look for config.json
-        let config_path = path.join("config.json");
-        if config_path.exists() {
-            let config_json = std::fs::read_to_string(&config_path)?;
-            let config: serde_json::Value = serde_json::from_str(&config_json)?;
-
-            match config["model_type"].as_str() {
-                Some("qwen2") => Ok(ModelKind::Qwen2),
-                Some("qwen3") => Ok(ModelKind::Qwen3),
-                Some(other) => Err(anyhow::anyhow!("Unsupported model type: {}", other)),
-                None => Err(anyhow::anyhow!("No model_type found in config.json")),
-            }
-        } else {
-            Err(anyhow::anyhow!("No GGUF files or config.json found in directory: {}", model_path))
-        }
-    } else {
-        Err(anyhow::anyhow!("Path is not a directory or GGUF file: {}", model_path))
-    }
-}
 
 #[pyclass]
 pub struct InferenceServer {
@@ -207,61 +153,21 @@ impl InferenceServer {
                 )
             };
 
-            let model_kind = match detect_model_kind(&req.generation_kwargs.model_path) {
+            let model_kind = match ModelKind::from_string(&req.generation_kwargs.model_kind) {
                 Ok(kind) => kind,
                 Err(e) => {
-                    send_error!(cb, "Failed to detect model type: {}", e);
+                    send_error!(cb, "Invalid model kind '{}': {}", req.generation_kwargs.model_kind, e);
                     return Ok(Python::with_gil(|py| py.None()));
                 }
             };
 
             let tokenizer = {
-                let model_path = std::path::Path::new(&req.generation_kwargs.model_path);
-
-                // Check if this is a GGUF directory or file
-                let is_gguf = if model_path.extension().and_then(|s| s.to_str()) == Some("gguf") {
-                    true
-                } else if model_path.is_dir() {
-                    // Check if directory contains GGUF files
-                    std::fs::read_dir(model_path)
-                        .unwrap_or_else(|_| std::fs::read_dir(".").unwrap())
-                        .any(|entry| {
-                            entry.map(|e| e.path().extension().and_then(|s| s.to_str()) == Some("gguf"))
-                                .unwrap_or(false)
-                        })
-                } else {
-                    false
-                };
-
-                if is_gguf {
-                    // Try to infer tokenizer from model kind
-                    let tokenizer_repo = match model_kind {
-                        ModelKind::Qwen2 => "Qwen/Qwen2-0.5B",
-                        ModelKind::Qwen3 => "Qwen/Qwen3-0.6B",
-                    };
-
-                    match tokio::task::spawn_blocking({
-                        let repo = tokenizer_repo.to_string();
-                        move || tokenizers::Tokenizer::from_pretrained(&repo, None)
-                    }).await {
-                        Ok(Ok(t)) => t,
-                        Ok(Err(e)) => {
-                            send_error!(cb, "Failed to load {} tokenizer from HuggingFace: {}", tokenizer_repo, e);
-                            return Ok(Python::with_gil(|py| py.None()));
-                        }
-                        Err(e) => {
-                            send_error!(cb, "Tokenizer loading task failed: {}", e);
-                            return Ok(Python::with_gil(|py| py.None()));
-                        }
-                    }
-                } else {
-                    let tok_path = model_path.join("tokenizer.json");
-                    match tokenizers::Tokenizer::from_file(&tok_path) {
-                        Ok(t) => t,
-                        Err(e) => {
-                            send_error!(cb, "tokenizer load failed at {}: {}", tok_path.display(), e);
-                            return Ok(Python::with_gil(|py| py.None()));
-                        }
+                let tokenizer_path = std::path::Path::new(&req.generation_kwargs.tokenizer_path);
+                match tokenizers::Tokenizer::from_file(&tokenizer_path) {
+                    Ok(t) => t,
+                    Err(e) => {
+                        send_error!(cb, "Failed to load tokenizer from {}: {}", tokenizer_path.display(), e);
+                        return Ok(Python::with_gil(|py| py.None()));
                     }
                 }
             };

@@ -9,6 +9,8 @@ pub struct Message {
 #[derive(Debug, Clone, Deserialize)]
 pub struct GenerationKwargs {
     pub model_path: String,
+    pub tokenizer_path: String,
+    pub model_kind: String,
     pub max_input_tokens: Option<usize>,
     pub max_output_tokens: Option<usize>,
     pub top_p: Option<f64>,
