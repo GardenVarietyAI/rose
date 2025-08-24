@@ -35,7 +35,11 @@ pub async fn stream(
 
     // Sliding context window
     if all_tokens.len() > max_input_tokens {
-        tracing::warn!("Truncating input from {} to {} tokens", all_tokens.len(), max_input_tokens);
+        tracing::warn!(
+            "Truncating input from {} to {} tokens",
+            all_tokens.len(),
+            max_input_tokens
+        );
         all_tokens = all_tokens[all_tokens.len() - max_input_tokens..].to_vec();
     }
 
@@ -79,10 +83,14 @@ pub async fn stream(
                 single_token_buf[0] = tok;
                 (single_token_buf.as_slice(), 1)
             }
-            None => (all_tokens.as_slice(), all_tokens.len())
+            None => (all_tokens.as_slice(), all_tokens.len()),
         };
         let input_tensor = Tensor::from_slice(input_slice, (1, input_len), &device)?;
-        let past_length = if next_token.is_some() { all_tokens.len() - 1 } else { 0 };
+        let past_length = if next_token.is_some() {
+            all_tokens.len() - 1
+        } else {
+            0
+        };
         let logits = model.forward(&input_tensor, past_length)?;
         let logits = logits.squeeze(0)?.squeeze(0)?;
         let logits = if repeat_penalty == 1.0 {
@@ -105,12 +113,8 @@ pub async fn stream(
 
         // Calculate logprobs if requested
         let (logprob, top_logprobs_data) = if logprobs.unwrap_or(false) {
-            let logprobs_result = logprobs::calculate_logprobs(
-                &logits,
-                sampled_token,
-                tokenizer,
-                top_logprobs,
-            )?;
+            let logprobs_result =
+                logprobs::calculate_logprobs(&logits, sampled_token, tokenizer, top_logprobs)?;
             (Some(logprobs_result.logprob), logprobs_result.top_logprobs)
         } else {
             (None, None)

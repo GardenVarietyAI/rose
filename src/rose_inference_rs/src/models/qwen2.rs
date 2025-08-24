@@ -23,7 +23,8 @@ impl Qwen2CausalLM {
             let tokenizer_config_path = Path::new(model_path).join("tokenizer_config.json");
             if tokenizer_config_path.exists() {
                 let tokenizer_config_json = std::fs::read_to_string(&tokenizer_config_path)?;
-                let tokenizer_config: serde_json::Value = serde_json::from_str(&tokenizer_config_json)?;
+                let tokenizer_config: serde_json::Value =
+                    serde_json::from_str(&tokenizer_config_json)?;
                 tokenizer_config["eos_token_id"].as_u64().unwrap_or(151645) as u32
             } else {
                 151645u32
@@ -43,7 +44,6 @@ impl CausalLM for Qwen2CausalLM {
     fn forward(&mut self, input: &Tensor, past_length: usize) -> Result<Tensor> {
         self.model.forward(input, past_length).map_err(Into::into)
     }
-
 
     fn eos_token_id(&self) -> u32 {
         self.eos_token

@@ -13,7 +13,7 @@ mod logprobs;
 mod models;
 mod types;
 
-use crate::models::{ModelKind, CausalLM};
+use crate::models::{CausalLM, ModelKind};
 use crate::types::{InferenceRequest, InferenceResponse, Message};
 
 struct ModelEntry {
@@ -64,12 +64,10 @@ fn device_kind(device: &Device) -> String {
 }
 
 fn format_messages(messages: &[Message], template: Option<&str>) -> String {
-    let chat_template = crate::chat_templates::ChatTemplate::from_string(
-        template.unwrap_or("qwen3")
-    );
+    let chat_template =
+        crate::chat_templates::ChatTemplate::from_string(template.unwrap_or("qwen3"));
     chat_template.format_messages(messages)
 }
-
 
 #[pyclass]
 pub struct InferenceServer {
@@ -89,7 +87,11 @@ impl InferenceServer {
             "metal" => candle_core::Device::new_metal(0)
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?,
             #[cfg(not(feature = "metal"))]
-            "metal" => return Err(pyo3::exceptions::PyRuntimeError::new_err("Metal support not compiled")),
+            "metal" => {
+                return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                    "Metal support not compiled",
+                ))
+            }
             _ => {
                 #[cfg(feature = "metal")]
                 {
@@ -106,15 +108,10 @@ impl InferenceServer {
 
         CACHED_MODEL.get_or_init(|| Arc::new(Mutex::new(None)));
 
-        Ok(Self {
-            device: resolved,
-        })
+        Ok(Self { device: resolved })
     }
 
-    fn flush_model<'py>(
-        &self,
-        py: Python<'py>,
-    ) -> PyResult<Bound<'py, PyAny>> {
+    fn flush_model<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let cache_clone = CACHED_MODEL.get().unwrap().clone();
 
         future_into_py(py, async move {
@@ -149,14 +146,19 @@ impl InferenceServer {
             } else {
                 format_messages(
                     req.messages.as_ref().unwrap(),
-                    req.generation_kwargs.chat_template.as_deref()
+                    req.generation_kwargs.chat_template.as_deref(),
                 )
             };
 
             let model_kind = match ModelKind::from_string(&req.generation_kwargs.model_kind) {
                 Ok(kind) => kind,
                 Err(e) => {
-                    send_error!(cb, "Invalid model kind '{}': {}", req.generation_kwargs.model_kind, e);
+                    send_error!(
+                        cb,
+                        "Invalid model kind '{}': {}",
+                        req.generation_kwargs.model_kind,
+                        e
+                    );
                     return Ok(Python::with_gil(|py| py.None()));
                 }
             };
@@ -166,7 +168,12 @@ impl InferenceServer {
                 match tokenizers::Tokenizer::from_file(&tokenizer_path) {
                     Ok(t) => t,
                     Err(e) => {
-                        send_error!(cb, "Failed to load tokenizer from {}: {}", tokenizer_path.display(), e);
+                        send_error!(
+                            cb,
+                            "Failed to load tokenizer from {}: {}",
+                            tokenizer_path.display(),
+                            e
+                        );
                         return Ok(Python::with_gil(|py| py.None()));
                     }
                 }
@@ -196,10 +203,15 @@ impl InferenceServer {
                                     model: shared_model.clone(),
                                 });
                                 shared_model
-                            },
+                            }
                             Err(e) => {
-                                send_error!(cb, "Failed to load model '{}' on device '{}': {}",
-                                    req.generation_kwargs.model_path, device_kind(&device), e);
+                                send_error!(
+                                    cb,
+                                    "Failed to load model '{}' on device '{}': {}",
+                                    req.generation_kwargs.model_path,
+                                    device_kind(&device),
+                                    e
+                                );
                                 return Ok(Python::with_gil(|py| py.None()));
                             }
                         }
@@ -218,10 +230,15 @@ impl InferenceServer {
                                 model: shared_model.clone(),
                             });
                             shared_model
-                        },
+                        }
                         Err(e) => {
-                            send_error!(cb, "Failed to load model '{}' on device '{}': {}",
-                                req.generation_kwargs.model_path, device_kind(&device), e);
+                            send_error!(
+                                cb,
+                                "Failed to load model '{}' on device '{}': {}",
+                                req.generation_kwargs.model_path,
+                                device_kind(&device),
+                                e
+                            );
                             return Ok(Python::with_gil(|py| py.None()));
                         }
                     }
@@ -336,10 +353,13 @@ impl InferenceServer {
                 }
             }
             match gen_with_timeout.await {
-                Ok(Ok(_)) => {}, // Task completed successfully
+                Ok(Ok(_)) => {} // Task completed successfully
                 Ok(Err(e)) => tracing::error!("Generation task failed: {:?}", e),
                 Err(_) => {
-                    tracing::error!("Generation timed out after {} seconds", timeout_duration.as_secs());
+                    tracing::error!(
+                        "Generation timed out after {} seconds",
+                        timeout_duration.as_secs()
+                    );
                     // Send timeout error through callback
                     Python::with_gil(|py| {
                         let d = PyDict::new(py);

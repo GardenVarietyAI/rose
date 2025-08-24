@@ -11,14 +11,14 @@ impl ChatTemplate {
         match template.to_lowercase().as_str() {
             "qwen2" => Self::Qwen2,
             "qwen3" => Self::Qwen3,
-            _ => Self::Qwen3, // Default to Qwen3
+            _ => Self::Qwen3,
         }
     }
 
     pub fn format_messages(&self, messages: &[Message]) -> String {
         match self {
             Self::Qwen2 | Self::Qwen3 => {
-                // Both use the same <|im_start|> format
+                // Both use the same format
                 self.format_qwen_style(messages)
             }
         }

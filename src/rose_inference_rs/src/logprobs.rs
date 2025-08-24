@@ -1,8 +1,8 @@
+use crate::types::TopLogProb;
 use anyhow::Result;
 use candle_core::Tensor;
 use candle_nn::ops;
 use tokenizers::Tokenizer;
-use crate::types::TopLogProb;
 
 #[derive(Debug, Clone)]
 pub struct LogprobsData {
@@ -20,7 +20,9 @@ pub fn calculate_logprobs(
     let softmax_logits = ops::softmax(logits, 0)?;
 
     // Get logprob for the sampled token
-    let sampled_prob = softmax_logits.get(sampled_token as usize)?.to_scalar::<f32>()?;
+    let sampled_prob = softmax_logits
+        .get(sampled_token as usize)?
+        .to_scalar::<f32>()?;
     let sampled_logprob = sampled_prob.ln();
 
     // Calculate top-k logprobs if requested
