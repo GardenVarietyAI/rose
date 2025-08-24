@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 import typer
-from huggingface_hub import HfFolder, snapshot_download
+from huggingface_hub import HfFolder, list_repo_files, snapshot_download
 
 from rose_cli.utils import console, get_client
 
@@ -38,6 +38,21 @@ def download_model(
         return
 
     try:
+        # Check repo files to detect format before downloading
+        try:
+            repo_files = list_repo_files(repo_id=hf_model_name, token=HfFolder.get_token())
+            has_gguf = any(f.endswith(".gguf") for f in repo_files)
+            has_safetensors = any(f.endswith(".safetensors") for f in repo_files)
+
+            if has_gguf:
+                console.print("[blue]Detected GGUF format - will use quantized model loader[/blue]")
+            elif has_safetensors:
+                console.print("[blue]Detected safetensors format - will use unquantized model loader[/blue]")
+            else:
+                console.print("[yellow]Unknown format detected[/yellow]")
+        except Exception:
+            console.print("[dim]Could not check repo files, proceeding with download...[/dim]")
+
         console.print(f"[yellow]Downloading {hf_model_name} to {local_dir}[/yellow]")
         console.print("[dim]This may take several minutes for large models...[/dim]\n")
 
