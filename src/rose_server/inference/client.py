@@ -14,8 +14,12 @@ logger = logging.getLogger(__name__)
 
 # Model ID to model kind mapping
 MODEL_KIND_MAP = {
-    "Qwen--Qwen3-0.6B-GGUF": "qwen3_gguf",
+    "Qwen--Qwen3-0.6B": "qwen3",
+    "Qwen--Qwen3-1.7B": "qwen3",
     "Qwen--Qwen3-1.7B-Base": "qwen3",
+    "Qwen--Qwen3-4B": "qwen3",
+    "Qwen--Qwen3-0.6B-GGUF": "qwen3_gguf",
+    "janhq--Jan-v1-4B-GGUF": "qwen3_gguf",
     "Qwen--Qwen2.5-0.5B-Instruct": "qwen2",
     "Qwen--Qwen2.5-1.5B-Instruct": "qwen2",
     "Qwen--Qwen2.5-Coder-1.5B-Instruct": "qwen2",
