@@ -1,68 +1,54 @@
 use anyhow::Result;
-use candle_core::quantized::gguf_file;
 use candle_core::{Device, Tensor};
-use candle_transformers::models::quantized_qwen3::ModelWeights as Qwen3;
-use std::fs::File;
+use candle_transformers::models::qwen3::{ModelForCausalLM, Config};
+use candle_nn::VarBuilder;
 use std::path::Path;
 use tokenizers::Tokenizer;
 
 use super::CausalLM;
 
-pub struct Qwen3CausalLM {
-    model: Qwen3,
+pub struct Qwen3UnquantizedCausalLM {
+    model: ModelForCausalLM,
     eos_token: u32,
 }
 
-impl Qwen3CausalLM {
+impl Qwen3UnquantizedCausalLM {
     pub fn load(model_path: &str, device: &Device) -> Result<Self> {
-        let path = Path::new(model_path);
+        let model_dir = Path::new(model_path);
 
-        let gguf_file_path = if path.extension().and_then(|s| s.to_str()) == Some("gguf") {
-            path.to_path_buf()
-        } else {
-            let mut found_gguf = None;
-            if path.is_dir() {
-                for entry in std::fs::read_dir(path)? {
-                    let entry = entry?;
-                    let file_path = entry.path();
-                    if file_path.extension().and_then(|s| s.to_str()) == Some("gguf") {
-                        found_gguf = Some(file_path);
-                        break;
-                    }
-                }
-            }
-            found_gguf
-                .ok_or_else(|| anyhow::anyhow!("No GGUF file found in directory: {}", model_path))?
-        };
+        // Load config to get model parameters
+        let config_path = model_dir.join("config.json");
+        let config_str = std::fs::read_to_string(&config_path)
+            .map_err(|e| anyhow::anyhow!("Failed to read config.json: {}", e))?;
+        let config: Config = serde_json::from_str(&config_str)
+            .map_err(|e| anyhow::anyhow!("Failed to parse config.json: {}", e))?;
 
-        let mut file = File::open(&gguf_file_path).map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to open GGUF file {}: {}",
-                gguf_file_path.display(),
-                e
-            )
-        })?;
+        // Default EOS token for Qwen3
+        let eos_token = 151643u32;
 
-        let content = gguf_file::Content::read(&mut file)
-            .map_err(|e| anyhow::anyhow!("Failed to read GGUF content: {}", e))?;
+        // Load safetensors using VarBuilder
+        let safetensors_files: Vec<_> = std::fs::read_dir(model_dir)?
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.path())
+            .filter(|path| path.extension().and_then(|s| s.to_str()) == Some("safetensors"))
+            .collect();
 
-        // Try to extract EOS token from GGUF metadata
-        let eos_token = content
-            .metadata
-            .get("tokenizer.ggml.eos_token_id")
-            .and_then(|v| match v {
-                gguf_file::Value::U32(val) => Some(*val),
-                _ => None,
-            })
-            .unwrap_or(151643u32);
+        if safetensors_files.is_empty() {
+            return Err(anyhow::anyhow!("No safetensors files found in {}", model_dir.display()));
+        }
 
-        let model = Qwen3::from_gguf(content, &mut file, device)
-            .map_err(|e| anyhow::anyhow!("Failed to create Qwen3 from GGUF: {}", e))?;
-        Ok(Self { model, eos_token })
+        let vb = unsafe { VarBuilder::from_mmaped_safetensors(&safetensors_files, candle_core::DType::BF16, device)? };
+        let model = ModelForCausalLM::new(&config, vb)
+            .map_err(|e| anyhow::anyhow!("Failed to load Qwen3 from safetensors: {}", e))?;
+
+        Ok(Self {
+            model,
+            eos_token,
+        })
     }
 }
 
-impl CausalLM for Qwen3CausalLM {
+impl CausalLM for Qwen3UnquantizedCausalLM {
     fn forward(&mut self, input: &Tensor, past_length: usize) -> Result<Tensor> {
         self.model.forward(input, past_length).map_err(Into::into)
     }
