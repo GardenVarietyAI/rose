@@ -15,7 +15,7 @@ pub trait CausalLM: Send {
 #[derive(Debug)]
 pub enum ModelKind {
     Qwen2,
-    Qwen3,
+    Qwen3Gguf,
     Qwen3Unquantized,
 }
 
@@ -23,7 +23,7 @@ impl ModelKind {
     pub fn from_string(s: &str) -> Result<Self> {
         match s.to_lowercase().as_str() {
             "qwen2" => Ok(Self::Qwen2),
-            "qwen3" => Ok(Self::Qwen3),
+            "qwen3_gguf" => Ok(Self::Qwen3Gguf),
             "qwen3_unquantized" => Ok(Self::Qwen3Unquantized),
             _ => Err(anyhow::anyhow!("Unsupported model kind: {}", s)),
         }
@@ -37,7 +37,7 @@ pub fn load_causal_lm(
 ) -> Result<Box<dyn CausalLM>> {
     match model_kind {
         ModelKind::Qwen2 => Ok(Box::new(qwen2::Qwen2CausalLM::load(model_path, device)?)),
-        ModelKind::Qwen3 => Ok(Box::new(qwen3::Qwen3CausalLM::load(model_path, device)?)),
+        ModelKind::Qwen3Gguf => Ok(Box::new(qwen3::Qwen3CausalLM::load(model_path, device)?)),
         ModelKind::Qwen3Unquantized => Ok(Box::new(qwen3_unquantized::Qwen3UnquantizedCausalLM::load(model_path, device)?)),
     }
 }
