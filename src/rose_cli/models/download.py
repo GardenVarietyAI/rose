@@ -62,7 +62,6 @@ def download_model(
             local_dir=str(local_dir),
             force_download=force,
             token=HfFolder.get_token(),
-            max_workers=num_workers,
         )
 
         console.print(f"[green]✓ Model {model_name} successfully downloaded[/green]")
