@@ -31,6 +31,13 @@ data/
 *.safetensors
 *.gguf
 
+# Rust build artifacts
+target/
+*/target/
+**/target/
+*.so
+*.dylib
+
 # Logs
 *.log
 logs/
