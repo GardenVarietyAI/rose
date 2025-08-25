@@ -47,6 +47,12 @@ mkdir -p data
 dbmate up
 ```
 
+### Build the Inference Service
+
+```bash
+uv run maturin develop -F metal --release
+```
+
 ### Download a Model
 
 ```bash
