@@ -14,11 +14,21 @@ services:
       - ROSE_SERVER_DATA_DIR=/app/data
     volumes:
       - ./data:/app/data
-    depends_on:
-      rose-inference:
-        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+
+  rose-trainer:
+    build: .
+    command: ["uv", "run", "rose-trainer"]
+    environment:
+      - ROSE_SERVER_URL=http://rose-api:8004
+      - ROSE_API_KEY=${ROSE_API_KEY:-docker-dev-key-123456}
+      - ROSE_SERVER_TRAINING_INTERVAL=30
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      rose-api:
+        condition: service_healthy
