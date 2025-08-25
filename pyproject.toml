@@ -5,6 +5,16 @@ description = "ROSE - Run your own LLM server"
 readme = "README.md"
 requires-python = ">=3.12,<4.0"
 authors = [{ name = "Garden Variety AI" }]
+license = { text = "MIT" }
+keywords = ["llm", "ai", "openai", "inference", "server"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+]
 dependencies = [
   "fastapi>=0.110.0",
   "uvicorn>=0.27.1",
@@ -27,6 +37,11 @@ dependencies = [
   "pypdf>=6.0.0",
   "jinja2>=3.1.6",
 ]
+
+[project.urls]
+Homepage = "https://github.com/GardenVarietyAI/rose"
+Repository = "https://github.com/GardenVarietyAI/rose.git"
+Issues = "https://github.com/GardenVarietyAI/rose/issues"
 
 [dependency-groups]
 cli = [
