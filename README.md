@@ -8,10 +8,10 @@ This is pre-release software. Use at your own risk!
 
 ## Features
 
-- **Local Model Inference** - Hugging Face Transformers
-- **Fine-Tuning** - LoRA-based pipeline
-- **Embeddings** - Using bge-small-en-v1.5 as the default
-- **Streaming Support** - SSE for real-time completions
+- Local Model Inference
+- LoRA Fine-Tuning
+- Embeddings
+- SSE Streaming Support
 
 ### OpenAI-Compatible API
 
@@ -35,7 +35,7 @@ cd rose
 # Install deps
 mise install
 uv venv
-uv pip install --group cli
+uv pip install --group cli --group trainer
 ```
 
 ### Initialize Database
@@ -51,22 +51,33 @@ dbmate up
 
 ```bash
 # Download a Hugging Face model
-uv run rose models download Qwen/Qwen2.5-1.5B-Instruct
+uv run rose models download Qwen/Qwen3-0.6B
 ```
 
-### Running the Service
+### Running the Services
 
 ```bash
-# Run via convenience script:
-./start.sh
+uv run rose-server
+uv run rose-trainer
 ```
 
 ### Start a chat
 
 ```bash
-# Chat with Qwen/Qwen2.5-1.5B-Instruct
-uv run rose chat --model Qwen/Qwen2.5-1.5B-Instruct
+# Chat with Qwen/Qwen3-0.6B
+uv run rose chat --model Qwen/Qwen3-0.6B
 ```
+
+## Model Library
+
+| Model | Size | Download |
+| ----- | ---- | -------- |
+| Qwen/Qwen3-0.6B | 0.6B | `uv run rose models download Qwen/Qwen3-0.6B` |
+| Qwen/Qwen3-1.7B | 1.7B | `uv run rose models download Qwen/Qwen3-1.7B` |
+| Qwen/Qwen3-1.7B-Base | 1.7B | `uv run rose models download Qwen/Qwen3-1.7B-Base` |
+| Qwen/Qwen3-4B | 4B | `uv run rose models download Qwen/Qwen3-4B` |
+| Qwen/Qwen3-0.6B-GGUF | 0.6B | `uv run rose models download Qwen/Qwen3-0.6B-GGUF` |
+| janhq/Jan-v1-4B-GGUF | 4B | `uv run rose models download janhq/Jan-v1-4B-GGUF` |
 
 ## Documentation
 
