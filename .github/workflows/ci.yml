@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 jobs:
-  ci:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,9 +28,6 @@ jobs:
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # If your Dockerfile supports extras as ARG:
-          # build-args: |
-          #   EXTRAS=
 
       - name: Install uv
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -62,3 +59,11 @@ jobs:
       - name: Stop container
         if: always()
         run: docker stop rose || true
+
+      - name: Test API startup
+        run: |
+          docker compose up -d
+          sleep 30
+          curl -f http://localhost:8004/health || exit 1
+          docker compose logs rose-api
+          docker compose down
