@@ -19,8 +19,10 @@ WORKDIR /app
 
 COPY . .
 
-RUN uv pip install --system .
+ENV PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu
+RUN uv pip install --system --prerelease=allow .
 
 EXPOSE 8004
 ENV ROSE_SERVER_HOST=0.0.0.0
-CMD ["rose-server", "--port", "8004", "--host", "0.0.0.0"]
+ENV ROSE_SERVER_PORT=8004
+CMD ["rose-server"]
