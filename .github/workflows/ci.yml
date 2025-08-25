@@ -7,43 +7,58 @@ on:
     branches: [ master ]
 
 jobs:
-  test:
+  ci:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - uses: docker/build-push-action@v6
-      with:
-        context: .
-        push: false
-        tags: rose:ci
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
 
-    - name: Build Docker image
-      run: docker build -t rose-server:test .
+      # QEMU only if building multi-arch
+      # - uses: docker/setup-qemu-action@v3
 
-    - name: Run tests in container
-      run: |
-        docker run --rm \
-          -v ${{ github.workspace }}:/app \
-          -w /app \
-          rose-server:test \
-          uv run pytest
+      - name: Build server image (cached)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          tags: rose-server:test
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # If your Dockerfile supports extras as ARG:
+          # build-args: |
+          #   EXTRAS=
 
-    - name: Run linting
-      run: |
-        docker run --rm \
-          -v ${{ github.workspace }}:/app \
-          -w /app \
-          rose-server:test \
-          uv run ruff check src/
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
 
-    - name: Test API startup
-      run: |
-        docker compose up -d
-        sleep 30
-        curl -f http://localhost:8004/health || exit 1
-        docker compose logs rose-api
-        docker compose down
+      - name: Add uv to PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Sync dev environment
+        run: uv sync --dev --frozen
+
+      - name: Run tests
+        run: uv run pytest -q
+
+      - name: Lint
+        run: uv run ruff check src/
+
+      - name: Start container
+        run: |
+          docker run -d --rm --name rose \
+            -p 8004:8004 \
+            rose-server:test
+          # wait up to ~30s
+          for i in {1..30}; do
+            curl -fsS http://localhost:8004/health && exit 0
+            sleep 1
+          done
+          docker logs rose
+          exit 1
+      - name: Stop container
+        if: always()
+        run: docker stop rose || true
