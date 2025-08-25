@@ -3,6 +3,7 @@
 import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, Dict
 
 # Disable PostHog analytics
@@ -39,7 +40,10 @@ async def lifespan(app: FastAPI) -> Any:
         logger.info(f"Ensured directory exists: {dir}")
 
     if not await check_database_setup():
-        raise RuntimeError("Database not found. Please run 'dbmate up' and try again.")
+        logger.info("Creating database...")
+        db_path = Path(settings.data_dir) / "rose.db"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        db_path.touch(exist_ok=True)
 
     await create_all_tables()
 

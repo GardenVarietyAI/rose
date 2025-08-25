@@ -6,6 +6,7 @@ from rose_cli.finetune.events import show_events
 from rose_cli.finetune.get import get_job
 from rose_cli.finetune.list import list_jobs
 from rose_cli.finetune.pause import pause_job
+from rose_cli.finetune.quantize import quantize
 from rose_cli.finetune.resume import resume_job
 
 app = typer.Typer()
@@ -17,3 +18,4 @@ app.command(name="events")(show_events)
 app.command(name="pause")(pause_job)
 app.command(name="resume")(resume_job)
 app.command(name="cancel")(cancel_job)
+app.command(name="quantize")(quantize)

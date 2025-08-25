@@ -116,5 +116,6 @@ class ResponseCompleted(LLMEvent):
     finish_reason: Literal["stop", "length", "tool_calls", "error", "cancelled", "timeout"] = Field(
         ..., description="Reason why generation finished"
     )
+    input_tokens: int = Field(0, ge=0, description="Number of input tokens")
     output_tokens: Optional[int] = Field(None, ge=0, description="Number of output tokens generated")
     completion_time: Optional[float] = Field(None, ge=0, description="Time taken for completion in seconds")

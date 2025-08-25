@@ -26,3 +26,14 @@ uv run pre-commit install
 # Run the pre-commit hooks
 uv run pre-commit run --all-files
 ```
+
+### Building the Inference Service
+
+```bash
+cd src/rose_inference_rs
+cargo clean
+cd ../..
+mise dev-metal
+# or dev-cpu
+uv pip install -e src/rose_inference_rs
+```

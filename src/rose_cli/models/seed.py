@@ -2,6 +2,7 @@
 
 from rich import print
 
+from rose_cli.models.download import download_model
 from rose_cli.utils import get_client
 
 
@@ -13,6 +14,16 @@ def seed_models() -> None:
     headers = {}
     if client.api_key:
         headers["Authorization"] = f"Bearer {client.api_key}"
+
+    # Models to download from HuggingFace
+    models_to_download = [
+        "Qwen/Qwen3-0.6B",
+        "Qwen/Qwen3-1.7B",
+        "Qwen/Qwen3-1.7B-Base",
+        "Qwen/Qwen3-4B",
+        "Qwen/Qwen3-0.6B-GGUF",
+        "janhq/Jan-v1-4B-GGUF",
+    ]
 
     # Default models to seed
     default_models = [
@@ -64,6 +75,27 @@ def seed_models() -> None:
         },
     ]
 
+    # Download models from HuggingFace first
+    print("[bold]Downloading models from HuggingFace collection...[/bold]")
+    downloaded_count = 0
+    for model_name in models_to_download:
+        try:
+            print(f"Downloading {model_name}...")
+            download_model(model_name, force=False)
+            downloaded_count += 1
+        except SystemExit:
+            # download_model raises SystemExit on error, but we want to continue
+            print(f"[red]Failed to download {model_name}[/red]")
+        except Exception as e:
+            if "already downloaded" in str(e):
+                print(f"[dim]{model_name} already exists[/dim]")
+            else:
+                print(f"[red]Failed to download {model_name}: {e}[/red]")
+
+    print(f"[green]✓ Downloaded {downloaded_count} new models[/green]\n")
+
+    # Seed models into database
+    print("[bold]Seeding models into database...[/bold]")
     seeded_count = 0
 
     for model_data in default_models:
@@ -80,6 +112,9 @@ def seed_models() -> None:
             print(f"[green]✓[/green] Seeded model: {model_name} (ID: {result['id']})")
             seeded_count += 1
         except Exception as e:
-            print(f"[red]Failed to seed model '{model_name}': {e}[/red]")
+            if "already exists" in str(e):
+                print(f"[dim]Model {model_name} already exists in database[/dim]")
+            else:
+                print(f"[red]Failed to seed model '{model_name}': {e}[/red]")
 
-    print(f"\n[bold]Seeded {seeded_count} models[/bold]")
+    print(f"\n[bold]Seeded {seeded_count} new models into database[/bold]")

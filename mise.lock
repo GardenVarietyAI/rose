@@ -8,7 +8,7 @@ size = 29838578
 url = "https://github.com/amacneil/dbmate/releases/download/v2.22.0/dbmate-macos-arm64"
 
 [tools.python]
-version = "3.13.5"
+version = "3.12.11"
 backend = "core:python"
 
 [tools.rust]

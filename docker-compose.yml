@@ -12,12 +12,8 @@ services:
       - ROSE_SERVER_HOST=0.0.0.0
       - ROSE_SERVER_PORT=8004
       - ROSE_SERVER_DATA_DIR=/app/data
-      - ROSE_SERVER_INFERENCE_URI=ws://rose-inference:8005
     volumes:
       - ./data:/app/data
-    depends_on:
-      rose-inference:
-        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
       interval: 30s
@@ -36,17 +32,3 @@ services:
     depends_on:
       rose-api:
         condition: service_healthy
-
-  rose-inference:
-    build: .
-    command: ["uv", "run", "rose-inference"]
-    ports:
-      - "8005:8005"
-    environment:
-      - ROSE_SERVER_URL=http://rose-api:8004
-      - ROSE_API_KEY=${ROSE_API_KEY:-docker-dev-key-123456}
-      - ROSE_INFERENCE_HOST=0.0.0.0
-      - ROSE_INFERENCE_PORT=8005
-    volumes:
-      - ./data:/app/data
-      - ./src:/app/src:ro

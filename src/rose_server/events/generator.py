@@ -48,7 +48,7 @@ class EventGenerator:
         # Emit start event
         start_event = ResponseStarted(
             model_name=self.model_name,
-            input_tokens=0,
+            input_tokens=0,  # Passed in ResponseCompleted
             max_tokens=max_tokens,
             temperature=temperature,
         )
@@ -89,7 +89,7 @@ class EventGenerator:
 
         # Build generation parameters
         generation_kwargs = {
-            "max_new_tokens": max_tokens,
+            "max_output_tokens": max_tokens,
             "temperature": temperature,
             "top_p": self.config.top_p,
             "repetition_penalty": self.config.repetition_penalty,
