@@ -56,6 +56,7 @@ jobs:
           done
           docker logs rose
           exit 1
+
       - name: Stop container
         if: always()
         run: docker stop rose || true
