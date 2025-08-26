@@ -4,7 +4,7 @@ import json
 import uuid
 from typing import Any, Dict, Literal, Optional
 
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 
 from rose_server.events.event_types.base import LLMEvent
 
@@ -48,7 +48,8 @@ class TokenGenerated(LLMEvent):
         None, description="Top alternative tokens with their log probabilities"
     )
 
-    @validator("position")
+    @field_validator("position")
+    @classmethod
     def validate_position(cls, v):
         if v < 0:
             raise ValueError("Token position must be non-negative")
