@@ -4,7 +4,7 @@ import time
 import uuid
 from typing import Any, Dict, Optional, Type
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class LLMEvent(BaseModel):
@@ -35,8 +35,4 @@ class LLMEvent(BaseModel):
         """Convenience factory method for creating events."""
         return cls(model_name=model_name, **kwargs)
 
-    class Config:
-        """Pydantic configuration."""
-
-        arbitrary_types_allowed = True
-        use_enum_values = True
+    model_config = ConfigDict(arbitrary_types_allowed=True, use_enum_values=True)
