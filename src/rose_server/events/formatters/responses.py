@@ -162,8 +162,8 @@ class ResponsesFormatter:
 
     def _build_usage(self, event: ResponseCompleted) -> Dict[str, Any]:
         """Build usage stats from event."""
-        input_tokens = getattr(event, "input_tokens", 0)
-        output_tokens = getattr(event, "output_tokens", 0)
+        input_tokens = event.input_tokens
+        output_tokens = event.output_tokens
         return {
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
@@ -216,11 +216,9 @@ class ResponsesFormatter:
             output_items.append(output_item.model_dump())
 
         # Get input tokens and output tokens from ResponseCompleted event
-        input_tokens = end_event.input_tokens if end_event and hasattr(end_event, "input_tokens") else 0
+        input_tokens = end_event.input_tokens if end_event else 0
         output_tokens = (
-            end_event.output_tokens
-            if end_event and hasattr(end_event, "output_tokens") and end_event.output_tokens
-            else len(token_events)
+            end_event.output_tokens if end_event and end_event.output_tokens is not None else len(token_events)
         )
 
         usage = ResponsesUsage(
