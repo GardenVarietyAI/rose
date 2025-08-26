@@ -43,6 +43,8 @@ fn _inference(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Build a Tokio runtime and register it
     static INIT: std::sync::Once = std::sync::Once::new();
     INIT.call_once(|| {
+        tracing_subscriber::fmt::init();
+
         let rt = ::tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
@@ -134,6 +136,7 @@ impl InferenceServer {
         let cb = on_event.clone_ref(py);
 
         future_into_py(py, async move {
+            tracing::info!("Starting stream inference");
             let have_prompt = req.prompt.as_ref().map_or(false, |p| !p.is_empty());
             let have_msgs = req.messages.as_ref().map_or(false, |m| !m.is_empty());
             if (have_prompt && have_msgs) || (!have_prompt && !have_msgs) {
@@ -353,7 +356,9 @@ impl InferenceServer {
                 }
             }
             match gen_with_timeout.await {
-                Ok(Ok(_)) => {} // Task completed successfully
+                Ok(Ok(_)) => {
+                    tracing::info!("Inference generation completed successfully");
+                }
                 Ok(Err(e)) => tracing::error!("Generation task failed: {:?}", e),
                 Err(_) => {
                     tracing::error!(
