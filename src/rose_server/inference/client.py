@@ -36,11 +36,8 @@ def resolve_model_paths(model_path: str) -> Dict[str, str]:
         gguf_files = list(path.glob("*.gguf"))
         if gguf_files:
             gguf_file = str(gguf_files[0])
-            # use tokenizer from base model directory for GGUF models
-            # TODO:
-            base_model_name = path.name.replace("-GGUF", "")
-            base_model_dir = path.parent / base_model_name
-            tokenizer_file = str(base_model_dir / "tokenizer.json")
+            # tokenizer should be in same directory as GGUF file
+            tokenizer_file = str(path / "tokenizer.json")
             return {"model_path": gguf_file, "tokenizer_path": tokenizer_file}
         else:
             # pass directory path to Rust for regular models,
