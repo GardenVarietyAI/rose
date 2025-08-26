@@ -1,0 +1,51 @@
+[package]
+name = "rose_inference_rs"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "rose_inference_rs"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+python = ["pyo3/extension-module", "pyo3-async-runtimes/tokio-runtime"]
+cuda = ["candle-core/cuda"]
+metal = [
+  "candle-core/metal",
+  "candle-nn/metal",
+  "candle-transformers/metal",
+]
+mkl = ["candle-core/mkl"]
+accelerate = ["candle-core/accelerate"]
+
+[dependencies]
+pyo3 = { version = "0.25.1", features = ["extension-module"] }
+pyo3-async-runtimes = { version = "0.25.0", features = ["tokio-runtime"] }
+pythonize = "0.25"
+tokio = { version = "1.47", features = ["rt-multi-thread", "macros", "sync"] }
+candle-core = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "d2e209eee0e2bdc84342f71c78216fcce0b09e98", default-features = false }
+candle-nn = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "d2e209eee0e2bdc84342f71c78216fcce0b09e98" }
+candle-transformers = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "d2e209eee0e2bdc84342f71c78216fcce0b09e98" }
+tokenizers = { version = "0.21", features = ["http"] }
+safetensors = "0.4"
+hf-hub = "0.4"
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+uuid = { version = "1", features = ["v4"] }
+
+[profile.dev]
+incremental = true
+debug = 1
+opt-level = 1
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+incremental = false

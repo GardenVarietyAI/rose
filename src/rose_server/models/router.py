@@ -134,24 +134,10 @@ async def evict_cached_models() -> Dict[str, Any]:
     """Evict all cached models from the inference service to free memory."""
     try:
         client = InferenceClient()
-        result = await client.evict_models()
+        client.flush_model()
 
-        if result.get("status") == "error":
-            raise HTTPException(
-                status_code=503,
-                detail={
-                    "error": {
-                        "message": result.get("message", "Failed to evict models"),
-                        "type": "service_unavailable",
-                        "code": "eviction_failed",
-                    }
-                },
-            )
+        return {"status": "success", "message": "Models evicted from cache"}
 
-        return {"status": "success", "message": "Models evicted from cache", "details": result}
-
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Unexpected error during model eviction: {e}")
         raise HTTPException(

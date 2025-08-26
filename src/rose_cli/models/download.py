@@ -2,9 +2,42 @@ import os
 from pathlib import Path
 
 import typer
-from huggingface_hub import HfFolder, snapshot_download
+from huggingface_hub import HfFolder, hf_hub_download, snapshot_download
 
 from rose_cli.utils import console, get_client
+
+
+def _get_gguf_config(model_name: str) -> dict[str, str] | None:
+    """Get GGUF file and base model config for blessed models."""
+    gguf_configs = {
+        "Qwen/Qwen3-0.6B-GGUF": {
+            "base_model": "Qwen/Qwen3-0.6B",
+            "gguf_file": "Qwen3-0.6B-Q8_0.gguf",
+            "tokenizer_file": "tokenizer.json",
+        },
+        "janhq/Jan-v1-4B-GGUF": {
+            "base_model": "Qwen/Qwen3-4B",
+            "gguf_file": "Jan-v1-4B-Q4_K_M.gguf",
+            "tokenizer_file": "tokenizer.json",
+        },
+    }
+    return gguf_configs.get(model_name)
+
+
+def _download_base_tokenizer(base_model_name: str, tokenizer_file: str, target_dir: Path, force: bool) -> None:
+    """Download tokenizer from base model to target directory."""
+    if (target_dir / tokenizer_file).exists() and not force:
+        return
+
+    try:
+        hf_hub_download(
+            repo_id=base_model_name,
+            filename="tokenizer.json",
+            local_dir=str(target_dir),
+            token=HfFolder.get_token(),
+        )
+    except Exception as e:
+        console.print(f"[red]Failed to download tokenizer: {e}[/red]")
 
 
 def get_models_directory() -> Path:
@@ -20,7 +53,6 @@ def download_model(
     model_name: str = typer.Argument(..., help="HuggingFace model to download (e.g. microsoft/phi-2)"),
     force: bool = typer.Option(False, "--force", "-f", help="Force re-download even if exists"),
     alias: str = typer.Option(None, "--alias", "-a", help="Short alias for the model (defaults to last part of name)"),
-    num_workers: int = typer.Option(1, "--num-workers", "-n", help="Number of files to download simulatneously"),
 ) -> None:
     """Download a model from HuggingFace and register it in the database."""
     # model_name is the HuggingFace model ID
@@ -38,20 +70,54 @@ def download_model(
         return
 
     try:
-        console.print(f"[yellow]Downloading {hf_model_name} to {local_dir}[/yellow]")
-        console.print("[dim]This may take several minutes for large models...[/dim]\n")
+        # Check for blessed models only
+        gguf_config = _get_gguf_config(hf_model_name)
+        blessed_models = [
+            "Qwen/Qwen3-0.6B",
+            "Qwen/Qwen3-1.7B",
+            "Qwen/Qwen3-1.7B-Base",
+            "Qwen/Qwen3-4B",
+            "Qwen/Qwen3-0.6B-GGUF",
+            "janhq/Jan-v1-4B-GGUF",
+        ]
 
-        # Download using snapshot_download
-        local_path = snapshot_download(
+        if not (gguf_config or hf_model_name in blessed_models):
+            console.print(f"[red]Model '{hf_model_name}' is not supported.[/red]")
+            console.print("[yellow]Supported models:[/yellow]")
+            for model in blessed_models:
+                console.print(f"  - {model}")
+            return
+
+        console.print(f"Downloading {hf_model_name}...")
+
+        allow_patterns = None
+        if gguf_config:
+            allow_patterns = [
+                gguf_config["gguf_file"],
+                "*.json",
+                ".gitattributes",
+                "README.md",
+                "LICENSE*",
+            ]
+
+        snapshot_download(
             repo_id=hf_model_name,
             local_dir=str(local_dir),
+            allow_patterns=allow_patterns,
             force_download=force,
             token=HfFolder.get_token(),
-            max_workers=num_workers,
         )
 
-        console.print(f"[green]✓ Model {model_name} successfully downloaded[/green]")
-        console.print(f"[dim]Path: {local_path}[/dim]")
+        console.print(f"[green]✓ {model_name} downloaded[/green]")
+
+        # Download tokenizer for blessed GGUF models
+        if gguf_config:
+            _download_base_tokenizer(
+                gguf_config["base_model"],
+                gguf_config["tokenizer_file"],
+                local_dir,
+                force,
+            )
 
         # Register model in database
         client = get_client()

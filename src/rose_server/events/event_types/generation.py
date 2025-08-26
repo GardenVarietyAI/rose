@@ -4,7 +4,7 @@ import json
 import uuid
 from typing import Any, Dict, Literal, Optional
 
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 
 from rose_server.events.event_types.base import LLMEvent
 
@@ -48,7 +48,8 @@ class TokenGenerated(LLMEvent):
         None, description="Top alternative tokens with their log probabilities"
     )
 
-    @validator("position")
+    @field_validator("position")
+    @classmethod
     def validate_position(cls, v):
         if v < 0:
             raise ValueError("Token position must be non-negative")
@@ -116,5 +117,6 @@ class ResponseCompleted(LLMEvent):
     finish_reason: Literal["stop", "length", "tool_calls", "error", "cancelled", "timeout"] = Field(
         ..., description="Reason why generation finished"
     )
+    input_tokens: int = Field(0, ge=0, description="Number of input tokens")
     output_tokens: Optional[int] = Field(None, ge=0, description="Number of output tokens generated")
     completion_time: Optional[float] = Field(None, ge=0, description="Time taken for completion in seconds")
