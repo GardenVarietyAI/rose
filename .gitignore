@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+.ruff_cache
 
 # C extensions
 *.so
@@ -139,7 +140,7 @@ cython_debug/
 .idea/
 
 # Local data and models
-data/
+/data
 *.db
 *.db-wal
 *.db-shm
@@ -157,4 +158,6 @@ Thumbs.db
 *.bak
 *.swp
 *~
+
 CLAUDE.md
+/candle
