@@ -84,7 +84,6 @@ uv run rose chat --model Qwen/Qwen3-0.6B
 | Qwen/Qwen3-4B | 4B | `uv run rose models download Qwen/Qwen3-4B` |
 | Qwen/Qwen3-0.6B-GGUF | 0.6B | `uv run rose models download Qwen/Qwen3-0.6B-GGUF` |
 | janhq/Jan-v1-4B-GGUF | 4B | `uv run rose models download janhq/Jan-v1-4B-GGUF` |
-| onnx-community/Qwen3-Embedding-0.6B-ONNX | 0.6B | `uv run rose models download onnx-community/Qwen3-Embedding-0.6B-ONNX` |
 
 ## Documentation
 
