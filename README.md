@@ -60,6 +60,14 @@ uv run maturin develop -F metal --release
 uv run rose models download Qwen/Qwen3-0.6B
 ```
 
+### Download and Convert an Embedding Model
+
+```bash
+# This is a temporary step that will be smoothed out in a future release
+uv run rose models download Qwen/Qwen3-Embedding-0.6B
+uv run rose finetune convert data/models/Qwen--Qwen3-Embedding-0.6B data/models/Qwen3-Embedding-0.6B-ONNX
+```
+
 ### Running the Services
 
 ```bash

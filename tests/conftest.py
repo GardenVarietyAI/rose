@@ -35,7 +35,7 @@ async def test_db():
             text("""
             CREATE VIRTUAL TABLE IF NOT EXISTS vec0 USING vec0(
                 document_id TEXT PRIMARY KEY,
-                embedding float[384]
+                embedding float[1024]
             )
         """)
         )

@@ -19,8 +19,8 @@ dependencies = [
   "fastapi>=0.110.0",
   "uvicorn>=0.27.1",
   "pydantic~=2.11.7",
-  "fastembed>=0.3.6",
   "numpy>=1.26.4",
+  "fastembed @ git+https://github.com/GardenVarietyAI/fastembed.git@dc050180022381de01ca19dc0f3b7f9808898add",
   "pydantic-settings>=2.9.1",
   "openai>=1.88.0",
   "openai-agents>=0.0.19",
@@ -48,6 +48,11 @@ cli = [
   "typer>=0.16.0",
   "rich>=13.7.1",
   "httpx>=0.28.1",
+  "sentence-transformers>=2.7.0",
+  "transformers>=4.51.2",
+  "torch>=2.7.0",
+  "onnx>=1.16.0",
+  "optimum[onnxruntime]>=1.23.1",
 ]
 trainer = [
   "apscheduler>=3.10.4",

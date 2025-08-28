@@ -60,7 +60,9 @@ class Settings(BaseSettings):
     max_concurrent_inference: int = Field(default=10, description="Maximum concurrent inference requests")
 
     # Vector store settings
-    default_embedding_dimensions: int = Field(default=768, description="Default embedding dimensions for vector stores")
+    default_embedding_dimensions: int = Field(
+        default=1024, description="Default embedding dimensions for vector stores"
+    )
     default_embedding_model: str = Field(
         default="qwen3-embedding-0.6b", description="Default embedding model for vector stores"
     )

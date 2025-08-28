@@ -1,11 +1,11 @@
 import asyncio
 import logging
 from functools import lru_cache
+from pathlib import Path
 from typing import Any, Dict, List, Union
 
 import numpy as np
 from fastembed import TextEmbedding
-from fastembed.common.model_description import ModelSource, PoolingType
 from tokenizers import Tokenizer
 
 from rose_server.config.settings import settings
@@ -14,46 +14,32 @@ logger = logging.getLogger(__name__)
 
 EMBEDDING_MODELS = {
     "qwen3-embedding-0.6b": {
-        "model_name": "onnx-community/Qwen3-Embedding-0.6B-ONNX",
-        "dimensions": 768,
+        "model_name": "qwen3-embedding-0.6b-onnx",
+        "dimensions": 1024,
         "description": "Qwen3 embedding model",
         "format": "ONNX",
     },
 }
 
 
-def _register_qwen3_model() -> None:
-    """Register qwen3 embedding model with FastEmbed."""
-    try:
-        TextEmbedding.add_custom_model(
-            model=str(EMBEDDING_MODELS["qwen3-embedding-0.6b"]["model_name"]),
-            pooling=PoolingType.MEAN,
-            normalization=True,
-            sources=ModelSource(hf=str(EMBEDDING_MODELS["qwen3-embedding-0.6b"]["model_name"])),
-            dim=768,
-            model_file="onnx/model.onnx",
-            description="Qwen3 embedding model",
-        )
-    except Exception as e:
-        print(f"Failed to register Qwen3 embedding model: {e}")
-        pass
-
-
-_register_qwen3_model()
-
-
 @lru_cache(maxsize=4)
 def _get_model(model_name: str, device: str = "cpu") -> TextEmbedding:
-    return TextEmbedding(model=model_name, device=device)
+    if model_name in EMBEDDING_MODELS:
+        local_path = Path("data/models/Qwen3-Embedding-0.6B-ONNX")
+        return TextEmbedding(
+            model_name=EMBEDDING_MODELS[model_name]["model_name"],
+            device=device,
+            specific_model_path=str(local_path.absolute()),
+        )
+    return TextEmbedding(model_name=model_name, device=device)
 
 
 @lru_cache(maxsize=4)
 def get_tokenizer(model_name: str) -> Tokenizer:
     if model_name in EMBEDDING_MODELS:
-        model_path = str(EMBEDDING_MODELS[model_name]["model_name"])
+        return Tokenizer.from_file("data/models/Qwen3-Embedding-0.6B-ONNX/tokenizer.json")
     else:
-        model_path = model_name
-    return Tokenizer.from_pretrained(model_path)
+        return Tokenizer.from_pretrained(model_name)
 
 
 def embedding_model() -> TextEmbedding:
