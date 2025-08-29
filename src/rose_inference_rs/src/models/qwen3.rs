@@ -23,8 +23,16 @@ impl Qwen3UnquantizedCausalLM {
         let config: Config = serde_json::from_str(&config_str)
             .map_err(|e| anyhow::anyhow!("Failed to parse config.json: {}", e))?;
 
-        // Default EOS token for Qwen3
-        let eos_token = 151643u32;
+        // Get EOS token from config
+        let config_json: serde_json::Value = serde_json::from_str(&config_str)?;
+        let eos_token = config_json
+            .get("eos_token_id")
+            .and_then(|v| match v {
+                serde_json::Value::Number(n) => n.as_u64(),
+                serde_json::Value::Array(arr) => arr.first().and_then(|v| v.as_u64()),
+                _ => None,
+            })
+            .unwrap_or(151645) as u32;
 
         // Load safetensors using VarBuilder
         let safetensors_files: Vec<_> = std::fs::read_dir(model_dir)?
