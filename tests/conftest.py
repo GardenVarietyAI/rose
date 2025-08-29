@@ -65,6 +65,11 @@ def client(test_db, monkeypatch):
     mock_tokenizer.encode.return_value = MagicMock(ids=list(range(100)))
     monkeypatch.setattr(embedding, "get_tokenizer", lambda *args: mock_tokenizer)
 
+    # Mock Tokenizer.from_file
+    mock_tokenizer_class = MagicMock()
+    mock_tokenizer_class.from_file.return_value = mock_tokenizer
+    monkeypatch.setattr("rose_server.embeddings.embedding.Tokenizer", mock_tokenizer_class)
+
     app = create_app()
     with TestClient(app) as test_client:
         # Create the default test model via API
