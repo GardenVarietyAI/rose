@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Union
 
 import numpy as np
 from fastembed import TextEmbedding
+from fastembed.common.model_description import ModelSource, PoolingType
 from tokenizers import Tokenizer
 
 from rose_server.config.settings import settings
@@ -22,12 +23,27 @@ EMBEDDING_MODELS = {
 }
 
 
+def _register_model() -> None:
+    TextEmbedding.add_custom_model(
+        model="qwen3-embedding-0.6b-onnx",
+        pooling=PoolingType.LAST_TOKEN,
+        normalization=True,
+        sources=ModelSource(url="localhost"),
+        dim=1024,
+        model_file="model.onnx",
+    )
+    logger.info("Registered qwen3-embedding-0.6b-onnx")
+
+
+_register_model()
+
+
 @lru_cache(maxsize=4)
 def _get_model(model_name: str, device: str = "cpu") -> TextEmbedding:
     if model_name in EMBEDDING_MODELS:
         local_path = Path("data/models/Qwen3-Embedding-0.6B-ONNX")
         return TextEmbedding(
-            model_name=EMBEDDING_MODELS[model_name]["model_name"],
+            model_name=str(EMBEDDING_MODELS[model_name]["model_name"]),
             device=device,
             specific_model_path=str(local_path.absolute()),
         )

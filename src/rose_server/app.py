@@ -11,8 +11,6 @@ os.environ["POSTHOG_DISABLED"] = "1"
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastembed import TextEmbedding
-from fastembed.common.model_description import ModelSource, PoolingType
 
 from rose_server import __version__
 from rose_server.config.settings import settings
@@ -51,16 +49,6 @@ async def lifespan(app: FastAPI) -> Any:
 
     app.state.model_registry = ModelRegistry()
     logger.info("Model registry initialized")
-
-    TextEmbedding.add_custom_model(
-        model="qwen3-embedding-0.6b-onnx",
-        pooling=PoolingType.LAST_TOKEN,
-        normalization=True,
-        sources=ModelSource(url="localhost"),
-        dim=1024,
-        model_file="model.onnx",
-    )
-    logger.info("Registered qwen3-embedding-0.6b-onnx")
 
     yield
 
