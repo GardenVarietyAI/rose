@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from rose_server.config.settings import settings
 from rose_server.database import get_session
-from rose_server.embeddings.embedding import embedding_model, get_tokenizer
+from rose_server.embeddings.embedding import get_default_embedding_model, get_tokenizer
 from rose_server.entities.files import UploadedFile
 from rose_server.entities.vector_stores import Document, VectorStore, VectorStoreFile
 
@@ -176,7 +176,7 @@ async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> Vector
 
             texts = [c.text for c in chunks]
 
-            model = embedding_model()
+            model = get_default_embedding_model()
             embeddings = await asyncio.to_thread(lambda: list(model.embed(texts)))
             if embeddings:
                 got, exp = len(embeddings[0]), settings.default_embedding_dimensions

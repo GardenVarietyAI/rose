@@ -12,7 +12,7 @@ from sqlmodel import delete, func, select
 
 from rose_server.config.settings import settings
 from rose_server.database import get_session
-from rose_server.embeddings.embedding import embedding_model
+from rose_server.embeddings.embedding import get_default_embedding_model
 from rose_server.entities.vector_stores import Document, DocumentSearchResult, VectorStore, VectorStoreFile
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ async def search_vector_store(
         # Handle both text and vector queries
         if isinstance(query, str):
             # Generate query embedding
-            model = embedding_model()
+            model = get_default_embedding_model()
             query_embedding = await asyncio.to_thread(lambda: list(model.embed([query]))[0])
         else:
             # Direct vector input - validate dimensions

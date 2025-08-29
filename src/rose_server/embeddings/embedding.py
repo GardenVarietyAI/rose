@@ -61,7 +61,7 @@ def get_tokenizer(model_name: str) -> Tokenizer:
         raise ValueError("Missing tokenizer, unsupported embedding model name given")
 
 
-def embedding_model() -> TextEmbedding:
+def get_default_embedding_model() -> TextEmbedding:
     """Get the default embedding model from settings."""
     return get_embedding_model(settings.default_embedding_model, settings.default_embedding_device)
 
@@ -79,7 +79,7 @@ def clear_embedding_cache() -> None:
 def reload_embedding_model() -> TextEmbedding:
     """Reload the default embedding model, clearing cache first."""
     clear_embedding_cache()
-    return embedding_model()
+    return get_default_embedding_model()
 
 
 def generate_embeddings(
