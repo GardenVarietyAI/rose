@@ -1,8 +1,5 @@
 # mypy: ignore-errors
 
-from unittest.mock import MagicMock
-
-import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -11,7 +8,6 @@ from sqlmodel import SQLModel
 from rose_server import database
 from rose_server.app import create_app
 from rose_server.connect import _VecConnection
-from rose_server.embeddings import embedding
 
 # Create in-memory engine for testing with sqlite-vec support
 test_engine = create_async_engine(
@@ -54,21 +50,6 @@ def client(test_db, monkeypatch):
     # Monkey patch the database session factory
     monkeypatch.setattr(database, "async_session_factory", test_async_session_factory)
     monkeypatch.setattr(database, "engine", test_engine)
-
-    # Mock embedding model
-    mock_embedding_model = MagicMock()
-    mock_embedding_model.embed.return_value = [np.random.rand(1024) for _ in range(10)]
-    monkeypatch.setattr(embedding, "get_embedding_model", lambda *args: mock_embedding_model)
-    monkeypatch.setattr(embedding, "get_default_embedding_model", lambda: mock_embedding_model)
-
-    mock_tokenizer = MagicMock()
-    mock_tokenizer.encode.return_value = MagicMock(ids=list(range(100)))
-    monkeypatch.setattr(embedding, "get_tokenizer", lambda *args: mock_tokenizer)
-
-    # Mock Tokenizer.from_file
-    mock_tokenizer_class = MagicMock()
-    mock_tokenizer_class.from_file.return_value = mock_tokenizer
-    monkeypatch.setattr("rose_server.embeddings.embedding.Tokenizer", mock_tokenizer_class)
 
     app = create_app()
     with TestClient(app) as test_client:
