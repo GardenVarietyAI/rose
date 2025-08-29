@@ -19,6 +19,8 @@ EMBEDDING_MODELS = {
         "dimensions": 1024,
         "description": "Qwen3 embedding model",
         "format": "ONNX",
+        "model_path": "data/models/Qwen3-Embedding-0.6B-ONNX",
+        "tokenizer_path": "data/models/Qwen3-Embedding-0.6B-ONNX/tokenizer.json",
     },
 }
 
