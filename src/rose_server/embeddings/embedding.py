@@ -76,12 +76,6 @@ def clear_embedding_cache() -> None:
     get_tokenizer.cache_clear()
 
 
-def reload_embedding_model() -> TextEmbedding:
-    """Reload the default embedding model, clearing cache first."""
-    clear_embedding_cache()
-    return get_default_embedding_model()
-
-
 def generate_embeddings(
     texts: Union[str, List[str]],
     model_name: str = "qwen3-embedding-0.6b",
