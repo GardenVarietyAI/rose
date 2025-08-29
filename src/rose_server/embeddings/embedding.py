@@ -39,7 +39,7 @@ _register_model()
 
 
 @lru_cache(maxsize=4)
-def _get_model(model_name: str, device: str = "cpu") -> TextEmbedding:
+def get_embedding_model(model_name: str, device: str = "cpu") -> TextEmbedding:
     if model_name in EMBEDDING_MODELS:
         local_path = Path("data/models/Qwen3-Embedding-0.6B-ONNX")
         return TextEmbedding(
@@ -60,7 +60,7 @@ def get_tokenizer(model_name: str) -> Tokenizer:
 
 def embedding_model() -> TextEmbedding:
     """Get the default embedding model from settings."""
-    return _get_model(settings.default_embedding_model, settings.default_embedding_device)
+    return get_embedding_model(settings.default_embedding_model, settings.default_embedding_device)
 
 
 def clear_embedding_cache() -> None:
@@ -69,7 +69,7 @@ def clear_embedding_cache() -> None:
     This can be used when memory pressure is detected to free cached
     embedding models and tokenizers.
     """
-    _get_model.cache_clear()
+    get_embedding_model.cache_clear()
     get_tokenizer.cache_clear()
 
 
@@ -90,7 +90,7 @@ def generate_embeddings(
     if isinstance(texts, str):
         texts = [texts]
 
-    model = _get_model(model_name)
+    model = get_embedding_model(model_name)
 
     all_embeddings: List[np.ndarray] = []
 
