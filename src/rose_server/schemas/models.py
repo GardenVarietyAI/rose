@@ -54,7 +54,7 @@ class ModelConfig(BaseModel):
             config_data["base_model"] = model.parent
         else:
             # For base models, construct the expected path where models are stored
-            config_data["model_path"] = str(Path(settings.data_dir) / "models" / model.id)
+            config_data["model_path"] = str(Path(settings.models_dir) / model.id)
 
         # Add LoRA modules if present
         if model.get_lora_modules():

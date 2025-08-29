@@ -3,12 +3,15 @@
 """Tests for vector store chunking functionality."""
 
 import io
+import os
 
+import pytest
 from fastapi.testclient import TestClient
 
 CONTENT_REPETITION_COUNT = 5
 
 
+@pytest.mark.skipif(not os.path.exists("data/models/Qwen3-Embedding-0.6B-ONNX"), reason="Embedding model not available")
 def test_document_chunking_via_api(client: TestClient):
     """Test document chunking through the API endpoints."""
     # Create vector store

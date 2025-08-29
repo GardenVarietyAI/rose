@@ -37,3 +37,13 @@ mise dev-metal
 # or dev-cpu
 uv pip install -e src/rose_inference_rs
 ```
+
+### Working with the FastEmbed Fork
+
+The fork adds Qwen3 support.
+
+```bash
+git clone git@github.com:GardenVarietyAI/fastembed.git
+git checkout fastembed-qwen3
+uv pip install -e ./fastembed --force-reinstall
+```

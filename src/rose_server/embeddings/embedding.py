@@ -1,81 +1,106 @@
 import asyncio
+import logging
+from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 from typing import Any, Dict, List, Union
 
 import numpy as np
 from fastembed import TextEmbedding
+from fastembed.common.model_description import ModelSource, PoolingType
 from tokenizers import Tokenizer
 
 from rose_server.config.settings import settings
 
-EMBEDDING_MODELS = {
-    "nomic-embed-text": {
-        "model_name": "nomic-ai/nomic-embed-text-v1",
-        "dimensions": 768,
-        "description": "Very fast, good all-rounder, GPU/CPU friendly",
-        "format": "HuggingFace",
-    },
-    "bge-small-en-v1.5": {
-        "model_name": "BAAI/bge-small-en-v1.5",
-        "dimensions": 384,
-        "description": "Tiny and very RAG-optimized, fast and low-memory",
-        "format": "HuggingFace",
-    },
-}
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class EmbeddingModelConfig:
+    model_name: str
+    dimensions: int
+    description: str
+    format: str
+    model_path: str
+    model_filename: str
+    tokenizer_path: str
+
+
+EMBEDDING_MODELS: Dict[str, EmbeddingModelConfig] = {}
+
+
+def _register_model() -> None:
+    model_config = EmbeddingModelConfig(
+        model_name="qwen3-embedding-0.6b-onnx",
+        dimensions=1024,
+        description="Qwen3 embedding model",
+        format="ONNX",
+        model_path=f"{settings.models_dir}/Qwen3-Embedding-0.6B-ONNX",
+        model_filename="model.onnx",
+        tokenizer_path=f"{settings.models_dir}/Qwen3-Embedding-0.6B-ONNX/tokenizer.json",
+    )
+
+    EMBEDDING_MODELS.update({"qwen3-embedding-0.6b": model_config})
+
+    TextEmbedding.add_custom_model(
+        model=model_config.model_name,
+        pooling=PoolingType.LAST_TOKEN,
+        normalization=True,
+        sources=ModelSource(url="localhost"),
+        dim=model_config.dimensions,
+        model_file=model_config.model_filename,
+    )
+
+    logger.info("Registered qwen3-embedding-0.6b-onnx")
+
+
+_register_model()
 
 
 @lru_cache(maxsize=4)
-def _get_model(model_name: str, device: str = "cpu") -> TextEmbedding:
+def get_embedding_model(model_name: str, device: str = "cpu") -> TextEmbedding:
+    model_name = model_name.lower()
     if model_name in EMBEDDING_MODELS:
-        model_path = str(EMBEDDING_MODELS[model_name]["model_name"])
+        model_config = EMBEDDING_MODELS[model_name]
+        local_path = Path(model_config.model_path).absolute()
+        return TextEmbedding(model_name=model_config.model_name, device=device, specific_model_path=str(local_path))
     else:
-        model_path = str(model_name)
-    return TextEmbedding(model_name=model_path, device=device)
+        raise ValueError("Unsupported embedding model name given")
 
 
 @lru_cache(maxsize=4)
 def get_tokenizer(model_name: str) -> Tokenizer:
+    model_name = model_name.lower()
     if model_name in EMBEDDING_MODELS:
-        model_path = str(EMBEDDING_MODELS[model_name]["model_name"])
+        model_config = EMBEDDING_MODELS[model_name]
+        return Tokenizer.from_file(model_config.tokenizer_path)
     else:
-        model_path = model_name
-    return Tokenizer.from_pretrained(model_path)
+        raise ValueError("Missing tokenizer, unsupported embedding model name given")
 
 
-def embedding_model() -> TextEmbedding:
+def get_default_embedding_model() -> TextEmbedding:
     """Get the default embedding model from settings."""
-    device = getattr(settings, "default_embedding_device", "cpu")
-    return _get_model(settings.default_embedding_model, device)
+    return get_embedding_model(settings.default_embedding_model, settings.default_embedding_device)
 
 
 def clear_embedding_cache() -> None:
-    """Clear cached models and tokenizers.
-
-    This can be used when memory pressure is detected to free cached
-    embedding models and tokenizers.
-    """
-    _get_model.cache_clear()
+    """Clear cached models and tokenizers."""
+    get_embedding_model.cache_clear()
     get_tokenizer.cache_clear()
-
-
-def reload_embedding_model() -> TextEmbedding:
-    """Reload the default embedding model, clearing cache first."""
-    clear_embedding_cache()
-    return embedding_model()
 
 
 def generate_embeddings(
     texts: Union[str, List[str]],
-    model_name: str = "bge-small-en-v1.5",
+    model_name: str = "qwen3-embedding-0.6b",
     batch_size: int = 32,
 ) -> Dict[str, Any]:
     if model_name == "text-embedding-ada-002":
-        model_name = "bge-small-en-v1.5"
+        model_name = "qwen3-embedding-0.6b"
 
     if isinstance(texts, str):
         texts = [texts]
 
-    model = _get_model(model_name)
+    model = get_embedding_model(model_name)
 
     all_embeddings: List[np.ndarray] = []
 
@@ -111,7 +136,7 @@ def generate_embeddings(
 
 async def generate_embeddings_async(
     texts: Union[str, List[str]],
-    model_name: str = "bge-small-en-v1.5",
+    model_name: str = "qwen3-embedding-0.6b",
     batch_size: int = 32,
 ) -> Dict[str, Any]:
     return await asyncio.to_thread(generate_embeddings, texts, model_name, batch_size)
