@@ -59,6 +59,7 @@ def client(test_db, monkeypatch):
     mock_embedding_model = MagicMock()
     mock_embedding_model.embed.return_value = [np.random.rand(1024) for _ in range(10)]
     monkeypatch.setattr(embedding, "get_embedding_model", lambda *args: mock_embedding_model)
+    monkeypatch.setattr(embedding, "get_default_embedding_model", lambda: mock_embedding_model)
 
     mock_tokenizer = MagicMock()
     mock_tokenizer.encode.return_value = MagicMock(ids=list(range(100)))
