@@ -49,7 +49,8 @@ def get_embedding_model(model_name: str, device: str = "cpu") -> TextEmbedding:
             device=device,
             specific_model_path=str(local_path.absolute()),
         )
-    return TextEmbedding(model_name=model_name, device=device)
+    else:
+        raise ValueError("Unsupported embedding model name given")
 
 
 @lru_cache(maxsize=4)
@@ -57,7 +58,7 @@ def get_tokenizer(model_name: str) -> Tokenizer:
     if model_name in EMBEDDING_MODELS:
         return Tokenizer.from_file("data/models/Qwen3-Embedding-0.6B-ONNX/tokenizer.json")
     else:
-        return Tokenizer.from_pretrained(model_name)
+        raise ValueError("Missing tokenizer, unsupported embedding model name given")
 
 
 def embedding_model() -> TextEmbedding:
