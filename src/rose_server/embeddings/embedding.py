@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Union
@@ -13,27 +14,43 @@ from rose_server.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-EMBEDDING_MODELS = {
-    "qwen3-embedding-0.6b": {
-        "model_name": "qwen3-embedding-0.6b-onnx",
-        "dimensions": 1024,
-        "description": "Qwen3 embedding model",
-        "format": "ONNX",
-        "model_path": "data/models/Qwen3-Embedding-0.6B-ONNX",
-        "tokenizer_path": "data/models/Qwen3-Embedding-0.6B-ONNX/tokenizer.json",
-    },
-}
+
+@dataclass
+class EmbeddingModelConfig:
+    model_name: str
+    dimensions: int
+    description: str
+    format: str
+    model_path: str
+    model_filename: str
+    tokenizer_path: str
+
+
+EMBEDDING_MODELS: Dict[str, EmbeddingModelConfig] = {}
 
 
 def _register_model() -> None:
+    model_config = EmbeddingModelConfig(
+        model_name="qwen3-embedding-0.6b-onnx",
+        dimensions=1024,
+        description="Qwen3 embedding model",
+        format="ONNX",
+        model_path=f"{settings.models_dir}/Qwen3-Embedding-0.6B-ONNX",
+        model_filename="model.onnx",
+        tokenizer_path=f"{settings.models_dir}/Qwen3-Embedding-0.6B-ONNX/tokenizer.json",
+    )
+
+    EMBEDDING_MODELS.update({"qwen3-embedding-0.6b": model_config})
+
     TextEmbedding.add_custom_model(
-        model="qwen3-embedding-0.6b-onnx",
+        model=model_config.model_name,
         pooling=PoolingType.LAST_TOKEN,
         normalization=True,
         sources=ModelSource(url="localhost"),
-        dim=1024,
-        model_file="model.onnx",
+        dim=model_config.dimensions,
+        model_file=model_config.model_filename,
     )
+
     logger.info("Registered qwen3-embedding-0.6b-onnx")
 
 
@@ -42,21 +59,21 @@ _register_model()
 
 @lru_cache(maxsize=4)
 def get_embedding_model(model_name: str, device: str = "cpu") -> TextEmbedding:
+    model_name = model_name.lower()
     if model_name in EMBEDDING_MODELS:
-        local_path = Path("data/models/Qwen3-Embedding-0.6B-ONNX")
-        return TextEmbedding(
-            model_name=str(EMBEDDING_MODELS[model_name]["model_name"]),
-            device=device,
-            specific_model_path=str(local_path.absolute()),
-        )
+        model_config = EMBEDDING_MODELS[model_name]
+        local_path = Path(model_config.model_path).absolute()
+        return TextEmbedding(model_name=model_config.model_name, device=device, specific_model_path=str(local_path))
     else:
         raise ValueError("Unsupported embedding model name given")
 
 
 @lru_cache(maxsize=4)
 def get_tokenizer(model_name: str) -> Tokenizer:
+    model_name = model_name.lower()
     if model_name in EMBEDDING_MODELS:
-        return Tokenizer.from_file("data/models/Qwen3-Embedding-0.6B-ONNX/tokenizer.json")
+        model_config = EMBEDDING_MODELS[model_name]
+        return Tokenizer.from_file(model_config.tokenizer_path)
     else:
         raise ValueError("Missing tokenizer, unsupported embedding model name given")
 
@@ -67,11 +84,7 @@ def get_default_embedding_model() -> TextEmbedding:
 
 
 def clear_embedding_cache() -> None:
-    """Clear cached models and tokenizers.
-
-    This can be used when memory pressure is detected to free cached
-    embedding models and tokenizers.
-    """
+    """Clear cached models and tokenizers."""
     get_embedding_model.cache_clear()
     get_tokenizer.cache_clear()
 
