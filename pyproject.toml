@@ -48,6 +48,10 @@ cli = [
   "typer>=0.16.0",
   "rich>=13.7.1",
   "httpx>=0.28.1",
+]
+utils = [
+  "typer>=0.16.0",
+  "rich>=13.7.1",
   "sentence-transformers>=2.7.0",
   "transformers>=4.51.2",
   "torch>=2.7.0",
@@ -72,6 +76,7 @@ rose = "rose_cli.main:main"
 rose-server = "rose_server.main:main"
 rose-trainer = "rose_trainer.scheduler:main"
 rose-trainer-worker = "rose_trainer.worker:main"
+rose-utils = "rose_utils.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

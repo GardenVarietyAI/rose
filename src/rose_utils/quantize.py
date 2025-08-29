@@ -1,20 +1,19 @@
+"""Quantize safetensors models using Candle tensor-tools."""
+
 import subprocess
 from pathlib import Path
 
+import httpx
 import typer
 from rich import print
 
-from rose_cli.utils import get_client
 
-app = typer.Typer()
-
-
-def quantize(
+def quantize_model(
     in_path: Path,
     out_path: Path,
     quant: str = typer.Option("q4k", help="Quantization preset (e.g., q4k, q5k, q6k, q8_0)"),
     candle_root: Path = typer.Option("candle", help="Path to Candle repo"),
-    register: bool = typer.Option(True, help="Register quantized model with API"),
+    register: bool = typer.Option(False, help="Register quantized model with API"),
     model_name: str = typer.Option(None, help="Model registry name for API registration"),
 ) -> None:
     """Quantize a safetensors model."""
@@ -50,14 +49,8 @@ def quantize(
 
     if register:
         try:
-            client = get_client()
-
-            headers = {}
-            if client.api_key:
-                headers["Authorization"] = f"Bearer {client.api_key}"
-
-            response = client._client.post(
-                "/models",
+            response = httpx.post(
+                "http://localhost:8004/v1/models",
                 json={
                     "model_name": model_name,
                     "temperature": 0.7,
@@ -69,7 +62,6 @@ def quantize(
                     "quantization": quant,
                     "model_path": str(out_path.absolute()),
                 },
-                headers=headers,
             )
             response.raise_for_status()
             result = response.json()

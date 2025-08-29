@@ -35,7 +35,7 @@ cd rose
 # Install deps
 mise install
 uv venv
-uv pip install --group cli --group trainer
+uv pip install --group cli --group trainer --group utils
 ```
 
 ### Initialize Database
@@ -65,7 +65,7 @@ uv run rose models download Qwen/Qwen3-0.6B
 ```bash
 # This is a temporary step that will be smoothed out in a future release
 uv run rose models download Qwen/Qwen3-Embedding-0.6B
-uv run rose finetune convert data/models/Qwen--Qwen3-Embedding-0.6B data/models/Qwen3-Embedding-0.6B-ONNX
+uv run rose-utils convert data/models/Qwen--Qwen3-Embedding-0.6B data/models/Qwen3-Embedding-0.6B-ONNX
 ```
 
 ### Running the Services
