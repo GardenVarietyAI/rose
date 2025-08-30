@@ -423,8 +423,8 @@ wheels = [
 
 [[package]]
 name = "fastembed"
-version = "0.7.2"
-source = { git = "https://github.com/GardenVarietyAI/fastembed.git?rev=dc050180022381de01ca19dc0f3b7f9808898add#dc050180022381de01ca19dc0f3b7f9808898add" }
+version = "0.7.3"
+source = { git = "https://github.com/GardenVarietyAI/fastembed.git?rev=bee6972b8396ceda7f4586e5ecb741bcba814954#bee6972b8396ceda7f4586e5ecb741bcba814954" }
 dependencies = [
     { name = "huggingface-hub" },
     { name = "loguru" },
@@ -2185,7 +2185,7 @@ requires-dist = [
     { name = "aiosqlite", specifier = ">=0.21.0" },
     { name = "chonkie", extras = ["tokenizers"], specifier = "~=1.1.2" },
     { name = "fastapi", specifier = ">=0.110.0" },
-    { name = "fastembed", git = "https://github.com/GardenVarietyAI/fastembed.git?rev=dc050180022381de01ca19dc0f3b7f9808898add" },
+    { name = "fastembed", git = "https://github.com/GardenVarietyAI/fastembed.git?rev=bee6972b8396ceda7f4586e5ecb741bcba814954" },
     { name = "greenlet", specifier = ">=3.2.2" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "numpy", specifier = ">=1.26.4" },
