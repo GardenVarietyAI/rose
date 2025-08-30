@@ -24,9 +24,9 @@ pyo3 = { version = "0.25.1", features = ["extension-module"] }
 pyo3-async-runtimes = { version = "0.25.0", features = ["tokio-runtime"] }
 pythonize = "0.25"
 tokio = { version = "1.47", features = ["rt-multi-thread", "macros", "sync"] }
-candle-core = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "d2e209eee0e2bdc84342f71c78216fcce0b09e98", default-features = false }
-candle-nn = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "d2e209eee0e2bdc84342f71c78216fcce0b09e98" }
-candle-transformers = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "d2e209eee0e2bdc84342f71c78216fcce0b09e98" }
+candle-core = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "603c845c4811ff9439af3d9385be6a5fcc19ab3b", default-features = false }
+candle-nn = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "603c845c4811ff9439af3d9385be6a5fcc19ab3b" }
+candle-transformers = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "603c845c4811ff9439af3d9385be6a5fcc19ab3b" }
 tokenizers = { version = "0.21", features = ["http"] }
 safetensors = "0.4"
 hf-hub = "0.4"
