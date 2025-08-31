@@ -11,7 +11,6 @@ use crate::dtype_config::DTypeConfig;
 pub struct Qwen3UnquantizedCausalLM {
     model: ModelForCausalLM,
     eos_token: u32,
-    dtype_config: DTypeConfig,
 }
 
 impl Qwen3UnquantizedCausalLM {
@@ -62,24 +61,16 @@ impl Qwen3UnquantizedCausalLM {
         Ok(Self {
             model,
             eos_token,
-            dtype_config,
         })
     }
 }
 
 impl CausalLM for Qwen3UnquantizedCausalLM {
     fn forward(&mut self, input: &Tensor, past_length: usize) -> Result<Tensor> {
-        tracing::trace!("Qwen3 forward pass: input shape {:?}, past_length {}, weights_dtype: {:?}, compute_dtype: {:?}",
-            input.shape(), past_length, self.dtype_config.weights_dtype, self.dtype_config.compute_dtype);
-
         // Input tokens should remain as integers for embedding lookup - do not cast
         let result = self.model.forward(input, past_length);
         match result {
-            Ok(tensor) => {
-                tracing::trace!("Qwen3 forward success: output shape {:?}, output dtype: {:?}", tensor.shape(), tensor.dtype());
-                // Keep output in compute dtype for downstream processing
-                Ok(tensor)
-            },
+            Ok(tensor) => Ok(tensor),
             Err(e) => {
                 tracing::error!("Qwen3 forward failed: {}", e);
                 Err(e.into())
