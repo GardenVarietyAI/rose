@@ -35,7 +35,9 @@ cargo clean
 cd ../..
 mise dev-metal
 # or dev-cpu
-uv pip install -e src/rose_inference_rs
+
+# run rust only tests
+cargo test --no-default-features
 ```
 
 ### Working with the FastEmbed Fork
