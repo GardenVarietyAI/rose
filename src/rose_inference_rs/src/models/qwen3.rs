@@ -21,6 +21,9 @@ impl Qwen3UnquantizedCausalLM {
     }
 
     pub fn load_with_config(model_path: &str, device: &Device, dtype_config: DTypeConfig) -> Result<Self> {
+        // Validate dtype config for this device first (fail fast)
+        dtype_config.validate(device).map_err(|e| anyhow::anyhow!("DType config validation failed: {}", e))?;
+
         let model_dir = Path::new(model_path);
 
         // Load config to get model parameters
@@ -51,9 +54,6 @@ impl Qwen3UnquantizedCausalLM {
         if safetensors_files.is_empty() {
             return Err(anyhow::anyhow!("No safetensors files found in {}", model_dir.display()));
         }
-
-        // Validate dtype config for this device
-        dtype_config.validate(device).map_err(|e| anyhow::anyhow!("DType config validation failed: {}", e))?;
 
         let vb = unsafe { VarBuilder::from_mmaped_safetensors(&safetensors_files, dtype_config.weights_dtype, device)? };
         let model = ModelForCausalLM::new(&config, vb)
