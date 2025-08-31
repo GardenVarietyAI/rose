@@ -44,6 +44,9 @@ impl DTypeConfig {
                 if self.weights_dtype != DType::F32 {
                     return Err("Metal backend currently supports F32 for weights".to_string());
                 }
+                if self.kv_cache_dtype != DType::F32 {
+                    return Err("Metal backend currently supports F32 for KV cache".to_string());
+                }
             },
             _ => {}
         }
