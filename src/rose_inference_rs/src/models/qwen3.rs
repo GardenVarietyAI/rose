@@ -68,14 +68,7 @@ impl Qwen3UnquantizedCausalLM {
 impl CausalLM for Qwen3UnquantizedCausalLM {
     fn forward(&mut self, input: &Tensor, past_length: usize) -> Result<Tensor> {
         // Input tokens should remain as integers for embedding lookup - do not cast
-        let result = self.model.forward(input, past_length);
-        match result {
-            Ok(tensor) => Ok(tensor),
-            Err(e) => {
-                tracing::error!("Qwen3 forward failed: {}", e);
-                Err(e.into())
-            }
-        }
+        self.model.forward(input, past_length).map_err(Into::into)
     }
 
     fn eos_token_id(&self) -> u32 {
