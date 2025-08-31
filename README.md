@@ -34,7 +34,7 @@ cd rose
 
 # Install deps
 mise install
-uv venv
+mise exec -- uv venv
 uv pip install --group cli --group trainer --group utils
 ```
 
