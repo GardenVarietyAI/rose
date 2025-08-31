@@ -69,14 +69,14 @@ impl Qwen3UnquantizedCausalLM {
 
 impl CausalLM for Qwen3UnquantizedCausalLM {
     fn forward(&mut self, input: &Tensor, past_length: usize) -> Result<Tensor> {
-        tracing::debug!("Qwen3 forward pass: input shape {:?}, past_length {}, weights_dtype: {:?}, compute_dtype: {:?}",
+        tracing::trace!("Qwen3 forward pass: input shape {:?}, past_length {}, weights_dtype: {:?}, compute_dtype: {:?}",
             input.shape(), past_length, self.dtype_config.weights_dtype, self.dtype_config.compute_dtype);
 
         // Input tokens should remain as integers for embedding lookup - do not cast
         let result = self.model.forward(input, past_length);
         match result {
             Ok(tensor) => {
-                tracing::debug!("Qwen3 forward success: output shape {:?}, output dtype: {:?}", tensor.shape(), tensor.dtype());
+                tracing::trace!("Qwen3 forward success: output shape {:?}, output dtype: {:?}", tensor.shape(), tensor.dtype());
                 // Keep output in compute dtype for downstream processing
                 Ok(tensor)
             },
