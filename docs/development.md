@@ -35,9 +35,6 @@ cargo clean
 cd ../..
 mise dev-metal
 # or dev-cpu
-
-# run rust only tests
-cargo test --no-default-features
 ```
 
 ### Working with the FastEmbed Fork
