@@ -38,10 +38,8 @@ impl DTypeConfig {
         // For now, be conservative and only allow known-good combinations
         match device {
             Device::Metal(_) => {
-                if self.compute_dtype != DType::F16 {
-                    return Err("Metal backend supports F16 for compute operations".to_string());
-                } else if self.compute_dtype != DType::F32 {
-                    return Err("Metal backend supports F32 for compute operations".to_string());
+                if self.compute_dtype != DType::F16 && self.compute_dtype != DType::F32 {
+                    return Err("Metal backend only supports F16 or F32 for compute operations".to_string());
                 }
             },
             _ => {}
