@@ -16,18 +16,18 @@ impl DTypeConfig {
     pub fn auto_detect(device: &Device) -> Self {
         match device {
             Device::Cpu => Self {
-                weights_dtype: DType::F32,
+                weights_dtype: DType::BF16,
                 compute_dtype: DType::F32,
                 kv_cache_dtype: DType::F32,
             },
             Device::Cuda(_) => Self {
-                weights_dtype: DType::F16,
-                compute_dtype: DType::F32,  // Mixed precision: F16 storage, F32 compute
+                weights_dtype: DType::BF16,
+                compute_dtype: DType::F32,
                 kv_cache_dtype: DType::F16,
             },
             Device::Metal(_) => Self {
-                weights_dtype: DType::F32,
-                compute_dtype: DType::F32,  // Start conservative with F32 for Metal
+                weights_dtype: DType::F32, // Use F32 for Metal compatibility
+                compute_dtype: DType::F32,
                 kv_cache_dtype: DType::F32,
             },
         }
@@ -40,6 +40,9 @@ impl DTypeConfig {
             Device::Metal(_) => {
                 if self.compute_dtype != DType::F32 {
                     return Err("Metal backend currently supports F32 for compute operations".to_string());
+                }
+                if self.weights_dtype != DType::F32 {
+                    return Err("Metal backend currently supports F32 for weights".to_string());
                 }
             },
             _ => {}
@@ -55,7 +58,7 @@ mod tests {
     #[test]
     fn test_auto_detect_config() {
         let cpu_config = DTypeConfig::auto_detect(&Device::Cpu);
-        assert_eq!(cpu_config.weights_dtype, DType::F32);
+        assert_eq!(cpu_config.weights_dtype, DType::BF16);
         assert_eq!(cpu_config.compute_dtype, DType::F32);
         assert_eq!(cpu_config.kv_cache_dtype, DType::F32);
     }
