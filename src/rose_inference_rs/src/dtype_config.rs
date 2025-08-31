@@ -40,8 +40,7 @@ impl DTypeConfig {
             Device::Metal(_) => {
                 if self.compute_dtype != DType::F16 {
                     return Err("Metal backend supports F16 for compute operations".to_string());
-                }
-                if self.compute_dtype != DType::F32 {
+                } else if self.compute_dtype != DType::F32 {
                     return Err("Metal backend supports F32 for compute operations".to_string());
                 }
             },
