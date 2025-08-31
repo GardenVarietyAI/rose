@@ -6,14 +6,21 @@ use std::path::Path;
 use tokenizers::Tokenizer;
 
 use super::CausalLM;
+use crate::dtype_config::DTypeConfig;
 
 pub struct Qwen3UnquantizedCausalLM {
     model: ModelForCausalLM,
     eos_token: u32,
+    dtype_config: DTypeConfig,
 }
 
 impl Qwen3UnquantizedCausalLM {
     pub fn load(model_path: &str, device: &Device) -> Result<Self> {
+        let dtype_config = DTypeConfig::auto_detect(device);
+        Self::load_with_config(model_path, device, dtype_config)
+    }
+
+    pub fn load_with_config(model_path: &str, device: &Device, dtype_config: DTypeConfig) -> Result<Self> {
         let model_dir = Path::new(model_path);
 
         // Load config to get model parameters
@@ -45,20 +52,39 @@ impl Qwen3UnquantizedCausalLM {
             return Err(anyhow::anyhow!("No safetensors files found in {}", model_dir.display()));
         }
 
-        let vb = unsafe { VarBuilder::from_mmaped_safetensors(&safetensors_files, candle_core::DType::BF16, device)? };
+        // Validate dtype config for this device
+        dtype_config.validate(device).map_err(|e| anyhow::anyhow!("DType config validation failed: {}", e))?;
+
+        let vb = unsafe { VarBuilder::from_mmaped_safetensors(&safetensors_files, dtype_config.weights_dtype, device)? };
         let model = ModelForCausalLM::new(&config, vb)
             .map_err(|e| anyhow::anyhow!("Failed to load Qwen3 from safetensors: {}", e))?;
 
         Ok(Self {
             model,
             eos_token,
+            dtype_config,
         })
     }
 }
 
 impl CausalLM for Qwen3UnquantizedCausalLM {
     fn forward(&mut self, input: &Tensor, past_length: usize) -> Result<Tensor> {
-        self.model.forward(input, past_length).map_err(Into::into)
+        tracing::debug!("Qwen3 forward pass: input shape {:?}, past_length {}, weights_dtype: {:?}, compute_dtype: {:?}",
+            input.shape(), past_length, self.dtype_config.weights_dtype, self.dtype_config.compute_dtype);
+
+        // Input tokens should remain as integers for embedding lookup - do not cast
+        let result = self.model.forward(input, past_length);
+        match result {
+            Ok(tensor) => {
+                tracing::debug!("Qwen3 forward success: output shape {:?}, output dtype: {:?}", tensor.shape(), tensor.dtype());
+                // Keep output in compute dtype for downstream processing
+                Ok(tensor)
+            },
+            Err(e) => {
+                tracing::error!("Qwen3 forward failed: {}", e);
+                Err(e.into())
+            }
+        }
     }
 
     fn eos_token_id(&self) -> u32 {

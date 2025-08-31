@@ -7,6 +7,7 @@ use std::sync::{Arc, OnceLock};
 use tokio::sync::Mutex;
 
 mod chat_templates;
+mod dtype_config;
 mod error;
 mod generate;
 mod logprobs;
