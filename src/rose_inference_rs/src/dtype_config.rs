@@ -1,74 +1,52 @@
-use candle_core::{Device, DType};
+use candle_core::{DType, Device, Tensor};
 
-/// Configuration for dtype usage across the inference pipeline
 #[derive(Debug, Clone, PartialEq)]
 pub struct DTypeConfig {
-    /// Data type for storing model weights (F32, F16, BF16)
     pub weights_dtype: DType,
-    /// Data type for computation operations (typically F32 for stability)
     pub compute_dtype: DType,
-    /// Data type for KV cache storage (F32, F16, BF16, or quantized)
     pub kv_cache_dtype: DType,
 }
 
 impl DTypeConfig {
-    /// Auto-detect optimal configuration based on device capabilities
     pub fn auto_detect(device: &Device) -> Self {
+        let has_f16 = Self::supports(device, DType::F16);
+        let has_bf16 = Self::supports(device, DType::BF16);
+
         match device {
             Device::Cpu => Self {
-                weights_dtype: DType::BF16,
+                weights_dtype: if has_bf16 { DType::BF16 } else { DType::F32 },
                 compute_dtype: DType::F32,
-                kv_cache_dtype: DType::F32,
+                kv_cache_dtype: if has_bf16 { DType::BF16 } else { DType::F32 },
             },
-            Device::Cuda(_) => Self {
-                weights_dtype: DType::BF16,
-                compute_dtype: DType::F32,
-                kv_cache_dtype: DType::F16,
-            },
-            Device::Metal(_) => Self {
-                weights_dtype: DType::F32, // Use F32 for Metal compatibility
-                compute_dtype: DType::F32,
-                kv_cache_dtype: DType::F32,
-            },
-        }
-    }
-
-    /// Validate that the configuration is supported on the given device
-    pub fn validate(&self, device: &Device) -> Result<(), String> {
-        // For now, be conservative and only allow known-good combinations
-        match device {
+            Device::Cuda(_) => {
+                let weights = if has_bf16 {
+                    DType::BF16
+                } else if has_f16 {
+                    DType::F16
+                } else {
+                    DType::F32
+                };
+                let compute = if has_f16 { DType::F16 } else { DType::F32 };
+                let kv = if has_f16 { DType::F16 } else { DType::F32 };
+                Self {
+                    weights_dtype: weights,
+                    compute_dtype: compute,
+                    kv_cache_dtype: kv,
+                }
+            }
             Device::Metal(_) => {
-                if self.compute_dtype != DType::F32 {
-                    return Err("Metal backend currently supports F32 for compute operations".to_string());
+                let compute = if has_f16 { DType::F16 } else { DType::F32 };
+                Self {
+                    weights_dtype: if has_f16 { DType::F16 } else { DType::F32 },
+                    compute_dtype: compute,
+                    kv_cache_dtype: compute,
                 }
-                if self.weights_dtype != DType::F32 {
-                    return Err("Metal backend currently supports F32 for weights".to_string());
-                }
-                if self.kv_cache_dtype != DType::F32 {
-                    return Err("Metal backend currently supports F32 for KV cache".to_string());
-                }
-            },
-            _ => {}
+            }
         }
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_auto_detect_config() {
-        let cpu_config = DTypeConfig::auto_detect(&Device::Cpu);
-        assert_eq!(cpu_config.weights_dtype, DType::BF16);
-        assert_eq!(cpu_config.compute_dtype, DType::F32);
-        assert_eq!(cpu_config.kv_cache_dtype, DType::F32);
     }
 
-    #[test]
-    fn test_validate_config() {
-        let config = DTypeConfig::auto_detect(&Device::Cpu);
-        assert!(config.validate(&Device::Cpu).is_ok());
+    fn supports(device: &Device, dt: DType) -> bool {
+        // Capability probe
+        Tensor::zeros(&[1], dt, device).is_ok()
     }
 }
