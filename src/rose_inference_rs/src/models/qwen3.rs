@@ -1,7 +1,7 @@
 use anyhow::Result;
 use candle_core::{Device, Tensor};
-use candle_transformers::models::qwen3::{ModelForCausalLM, Config};
 use candle_nn::VarBuilder;
+use candle_transformers::models::qwen3::{Config, ModelForCausalLM};
 use std::path::Path;
 use tokenizers::Tokenizer;
 
@@ -19,10 +19,11 @@ impl Qwen3UnquantizedCausalLM {
         Self::load_with_config(model_path, device, dtype_config)
     }
 
-    pub fn load_with_config(model_path: &str, device: &Device, dtype_config: DTypeConfig) -> Result<Self> {
-        // Validate dtype config for this device first (fail fast)
-        dtype_config.validate(device).map_err(|e| anyhow::anyhow!("DType config validation failed: {}", e))?;
-
+    pub fn load_with_config(
+        model_path: &str,
+        device: &Device,
+        dtype_config: DTypeConfig,
+    ) -> Result<Self> {
         let model_dir = Path::new(model_path);
 
         // Load config to get model parameters
@@ -51,23 +52,28 @@ impl Qwen3UnquantizedCausalLM {
             .collect();
 
         if safetensors_files.is_empty() {
-            return Err(anyhow::anyhow!("No safetensors files found in {}", model_dir.display()));
+            return Err(anyhow::anyhow!(
+                "No safetensors files found in {}",
+                model_dir.display()
+            ));
         }
 
-        let vb = unsafe { VarBuilder::from_mmaped_safetensors(&safetensors_files, dtype_config.weights_dtype, device)? };
+        let vb = unsafe {
+            VarBuilder::from_mmaped_safetensors(
+                &safetensors_files,
+                dtype_config.weights_dtype,
+                device,
+            )?
+        };
         let model = ModelForCausalLM::new(&config, vb)
             .map_err(|e| anyhow::anyhow!("Failed to load Qwen3 from safetensors: {}", e))?;
 
-        Ok(Self {
-            model,
-            eos_token,
-        })
+        Ok(Self { model, eos_token })
     }
 }
 
 impl CausalLM for Qwen3UnquantizedCausalLM {
     fn forward(&mut self, input: &Tensor, past_length: usize) -> Result<Tensor> {
-        // Input tokens should remain as integers for embedding lookup - do not cast
         self.model.forward(input, past_length).map_err(Into::into)
     }
 
