@@ -13,7 +13,7 @@ blessed_models = [
     "Qwen/Qwen3-4B",
     "Qwen/Qwen3-0.6B-GGUF",
     "Qwen/Qwen3-Embedding-0.6B",
-    "janhq/Jan-v1-4B-GGUF",
+    "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF",
 ]
 
 
@@ -25,9 +25,9 @@ def _get_gguf_config(model_name: str) -> dict[str, str] | None:
             "gguf_file": "Qwen3-0.6B-Q8_0.gguf",
             "tokenizer_file": "tokenizer.json",
         },
-        "janhq/Jan-v1-4B-GGUF": {
-            "base_model": "Qwen/Qwen3-4B",
-            "gguf_file": "Jan-v1-4B-Q4_K_M.gguf",
+        "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF": {
+            "base_model": "Qwen/Qwen3-Coder-30B-A3B-Instruct",
+            "gguf_file": "Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf",
             "tokenizer_file": "tokenizer.json",
         },
     }
