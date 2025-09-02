@@ -2,14 +2,12 @@ use crate::types::Message;
 
 #[derive(Debug, Clone)]
 pub enum ChatTemplate {
-    Qwen2,
     Qwen3,
 }
 
 impl ChatTemplate {
     pub fn from_string(template: &str) -> Self {
         match template.to_lowercase().as_str() {
-            "qwen2" => Self::Qwen2,
             "qwen3" => Self::Qwen3,
             _ => Self::Qwen3,
         }
@@ -17,10 +15,7 @@ impl ChatTemplate {
 
     pub fn format_messages(&self, messages: &[Message], enable_thinking: Option<bool>) -> String {
         match self {
-            Self::Qwen2 | Self::Qwen3 => {
-                // Both use the same format
-                self.format_qwen_style(messages, enable_thinking)
-            }
+            Self::Qwen3 => self.format_qwen_style(messages, enable_thinking),
         }
     }
 
