@@ -22,6 +22,7 @@ pub struct GenerationKwargs {
     pub logprobs: Option<bool>,
     pub top_logprobs: Option<usize>,
     pub chat_template: Option<String>,
+    pub enable_thinking: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -7,6 +7,7 @@ use std::sync::{Arc, OnceLock};
 use tokio::sync::Mutex;
 
 mod chat_templates;
+mod dtype_config;
 mod error;
 mod generate;
 mod logprobs;
@@ -65,10 +66,10 @@ fn device_kind(device: &Device) -> String {
     }
 }
 
-fn format_messages(messages: &[Message], template: Option<&str>) -> String {
+fn format_messages(messages: &[Message], template: Option<&str>, enable_thinking: Option<bool>) -> String {
     let chat_template =
         crate::chat_templates::ChatTemplate::from_string(template.unwrap_or("qwen3"));
-    chat_template.format_messages(messages)
+    chat_template.format_messages(messages, enable_thinking)
 }
 
 #[pyclass]
@@ -150,6 +151,7 @@ impl InferenceServer {
                 format_messages(
                     req.messages.as_ref().unwrap(),
                     req.generation_kwargs.chat_template.as_deref(),
+                    req.generation_kwargs.enable_thinking,
                 )
             };
 

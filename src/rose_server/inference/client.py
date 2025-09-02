@@ -84,6 +84,7 @@ class InferenceClient:
                     "logprobs": generation_kwargs.get("logprobs"),
                     "top_logprobs": generation_kwargs.get("top_logprobs"),
                     "chat_template": generation_kwargs.get("chat_template"),
+                    "enable_thinking": generation_kwargs.get("enable_thinking", False),
                 }
             }
 

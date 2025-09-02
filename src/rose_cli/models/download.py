@@ -11,6 +11,7 @@ blessed_models = [
     "Qwen/Qwen3-1.7B",
     "Qwen/Qwen3-1.7B-Base",
     "Qwen/Qwen3-4B",
+    "Qwen/Qwen3-4B-Instruct-2507",
     "Qwen/Qwen3-0.6B-GGUF",
     "Qwen/Qwen3-Embedding-0.6B",
     "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF",

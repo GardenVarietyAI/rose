@@ -35,7 +35,6 @@ cargo clean
 cd ../..
 mise dev-metal
 # or dev-cpu
-uv pip install -e src/rose_inference_rs
 ```
 
 ### Working with the FastEmbed Fork

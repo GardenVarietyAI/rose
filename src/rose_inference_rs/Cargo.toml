@@ -29,7 +29,6 @@ candle-nn = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "143e
 candle-transformers = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "143e9a3d8133e4e2345ea0d81dfae8ccb9dd6ac7" }
 tokenizers = { version = "0.21", features = ["http"] }
 safetensors = "0.4"
-hf-hub = "0.4"
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

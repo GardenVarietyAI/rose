@@ -1,11 +1,12 @@
 use anyhow::Result;
 use candle_core::{Device, Tensor};
-use candle_transformers::models::qwen3::{ModelForCausalLM, Config};
 use candle_nn::VarBuilder;
+use candle_transformers::models::qwen3::{Config, ModelForCausalLM};
 use std::path::Path;
 use tokenizers::Tokenizer;
 
 use super::CausalLM;
+use crate::dtype_config::DTypeConfig;
 
 pub struct Qwen3UnquantizedCausalLM {
     model: ModelForCausalLM,
@@ -14,6 +15,15 @@ pub struct Qwen3UnquantizedCausalLM {
 
 impl Qwen3UnquantizedCausalLM {
     pub fn load(model_path: &str, device: &Device) -> Result<Self> {
+        let dtype_config = DTypeConfig::auto_detect(device);
+        Self::load_with_config(model_path, device, dtype_config)
+    }
+
+    pub fn load_with_config(
+        model_path: &str,
+        device: &Device,
+        dtype_config: DTypeConfig,
+    ) -> Result<Self> {
         let model_dir = Path::new(model_path);
 
         // Load config to get model parameters
@@ -42,17 +52,23 @@ impl Qwen3UnquantizedCausalLM {
             .collect();
 
         if safetensors_files.is_empty() {
-            return Err(anyhow::anyhow!("No safetensors files found in {}", model_dir.display()));
+            return Err(anyhow::anyhow!(
+                "No safetensors files found in {}",
+                model_dir.display()
+            ));
         }
 
-        let vb = unsafe { VarBuilder::from_mmaped_safetensors(&safetensors_files, candle_core::DType::BF16, device)? };
+        let vb = unsafe {
+            VarBuilder::from_mmaped_safetensors(
+                &safetensors_files,
+                dtype_config.weights_dtype,
+                device,
+            )?
+        };
         let model = ModelForCausalLM::new(&config, vb)
             .map_err(|e| anyhow::anyhow!("Failed to load Qwen3 from safetensors: {}", e))?;
 
-        Ok(Self {
-            model,
-            eos_token,
-        })
+        Ok(Self { model, eos_token })
     }
 }
 
