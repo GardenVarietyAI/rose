@@ -15,21 +15,26 @@ impl ChatTemplate {
         }
     }
 
-    pub fn format_messages(&self, messages: &[Message]) -> String {
+    pub fn format_messages(&self, messages: &[Message], enable_thinking: Option<bool>) -> String {
         match self {
             Self::Qwen2 | Self::Qwen3 => {
                 // Both use the same format
-                self.format_qwen_style(messages)
+                self.format_qwen_style(messages, enable_thinking)
             }
         }
     }
 
-    fn format_qwen_style(&self, messages: &[Message]) -> String {
+    fn format_qwen_style(&self, messages: &[Message], enable_thinking: Option<bool>) -> String {
         let mut out = Vec::new();
         for m in messages {
             out.push(format!("<|im_start|>{}\n{}<|im_end|>", m.role, m.content));
         }
         out.push("<|im_start|>assistant\n".to_string());
+
+        if enable_thinking == Some(false) {
+            out.push("<think>\n\n</think>\n\n".to_string());
+        }
+
         out.join("\n")
     }
 }
