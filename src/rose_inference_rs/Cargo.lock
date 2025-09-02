@@ -218,7 +218,7 @@ checksum = "d71b6127be86fdcfddb610f7182ac57211d4b18a3e9c82eb2d17662f2227ad6a"
 [[package]]
 name = "candle-core"
 version = "0.9.1"
-source = "git+https://github.com/GardenVarietyAI/candle.git?rev=8dc07147cb696da79b91d8077c675c67d1f1b931#8dc07147cb696da79b91d8077c675c67d1f1b931"
+source = "git+https://github.com/GardenVarietyAI/candle.git?rev=143e9a3d8133e4e2345ea0d81dfae8ccb9dd6ac7#143e9a3d8133e4e2345ea0d81dfae8ccb9dd6ac7"
 dependencies = [
  "accelerate-src",
  "byteorder",
@@ -250,7 +250,7 @@ dependencies = [
 [[package]]
 name = "candle-kernels"
 version = "0.9.1"
-source = "git+https://github.com/GardenVarietyAI/candle.git?rev=8dc07147cb696da79b91d8077c675c67d1f1b931#8dc07147cb696da79b91d8077c675c67d1f1b931"
+source = "git+https://github.com/GardenVarietyAI/candle.git?rev=143e9a3d8133e4e2345ea0d81dfae8ccb9dd6ac7#143e9a3d8133e4e2345ea0d81dfae8ccb9dd6ac7"
 dependencies = [
  "bindgen_cuda",
 ]
@@ -258,7 +258,7 @@ dependencies = [
 [[package]]
 name = "candle-metal-kernels"
 version = "0.9.1"
-source = "git+https://github.com/GardenVarietyAI/candle.git?rev=8dc07147cb696da79b91d8077c675c67d1f1b931#8dc07147cb696da79b91d8077c675c67d1f1b931"
+source = "git+https://github.com/GardenVarietyAI/candle.git?rev=143e9a3d8133e4e2345ea0d81dfae8ccb9dd6ac7#143e9a3d8133e4e2345ea0d81dfae8ccb9dd6ac7"
 dependencies = [
  "half",
  "objc2",
@@ -272,7 +272,7 @@ dependencies = [
 [[package]]
 name = "candle-nn"
 version = "0.9.1"
-source = "git+https://github.com/GardenVarietyAI/candle.git?rev=8dc07147cb696da79b91d8077c675c67d1f1b931#8dc07147cb696da79b91d8077c675c67d1f1b931"
+source = "git+https://github.com/GardenVarietyAI/candle.git?rev=143e9a3d8133e4e2345ea0d81dfae8ccb9dd6ac7#143e9a3d8133e4e2345ea0d81dfae8ccb9dd6ac7"
 dependencies = [
  "candle-core",
  "candle-metal-kernels",
@@ -289,7 +289,7 @@ dependencies = [
 [[package]]
 name = "candle-transformers"
 version = "0.9.1"
-source = "git+https://github.com/GardenVarietyAI/candle.git?rev=8dc07147cb696da79b91d8077c675c67d1f1b931#8dc07147cb696da79b91d8077c675c67d1f1b931"
+source = "git+https://github.com/GardenVarietyAI/candle.git?rev=143e9a3d8133e4e2345ea0d81dfae8ccb9dd6ac7#143e9a3d8133e4e2345ea0d81dfae8ccb9dd6ac7"
 dependencies = [
  "byteorder",
  "candle-core",
