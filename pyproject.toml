@@ -165,5 +165,4 @@ build-backend = "maturin"
 bindings = "pyo3"
 module-name = "rose_server._inference"
 manifest-path = "src/rose_inference_rs/Cargo.toml"
-features = ["python"]
 python-source = "src"
