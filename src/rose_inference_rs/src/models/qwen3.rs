@@ -6,7 +6,7 @@ use std::path::Path;
 use tokenizers::Tokenizer;
 
 use super::CausalLM;
-use crate::dtype_config::DTypeConfig;
+use crate::device::DeviceConfig;
 
 pub struct Qwen3UnquantizedCausalLM {
     model: ModelForCausalLM,
@@ -15,14 +15,13 @@ pub struct Qwen3UnquantizedCausalLM {
 
 impl Qwen3UnquantizedCausalLM {
     pub fn load(model_path: &str, device: &Device) -> Result<Self> {
-        let dtype_config = DTypeConfig::auto_detect(device);
-        Self::load_with_config(model_path, device, dtype_config)
+        let device_config = DeviceConfig::detect_dtypes(device);
+        Self::load_with_config(model_path, &device_config)
     }
 
     pub fn load_with_config(
         model_path: &str,
-        device: &Device,
-        dtype_config: DTypeConfig,
+        device_config: &DeviceConfig,
     ) -> Result<Self> {
         let model_dir = Path::new(model_path);
 
@@ -61,8 +60,8 @@ impl Qwen3UnquantizedCausalLM {
         let vb = unsafe {
             VarBuilder::from_mmaped_safetensors(
                 &safetensors_files,
-                dtype_config.weights_dtype,
-                device,
+                device_config.weights_dtype,
+                &device_config.device,
             )?
         };
         let model = ModelForCausalLM::new(&config, vb)
