@@ -1,4 +1,3 @@
-use candle_core::Device;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use pyo3_async_runtimes::tokio as pyo3_tokio;
@@ -7,13 +6,14 @@ use std::sync::{Arc, OnceLock};
 use tokio::sync::Mutex;
 
 mod chat_templates;
-mod dtype_config;
+mod device;
 mod error;
 mod generate;
 mod logprobs;
 mod models;
 mod types;
 
+use crate::device::DeviceConfig;
 use crate::models::{CausalLM, ModelKind};
 use crate::types::{InferenceRequest, InferenceResponse, Message};
 
@@ -58,15 +58,11 @@ fn _inference(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-fn device_kind(device: &Device) -> String {
-    match device {
-        Device::Cpu => "cpu".to_string(),
-        Device::Cuda(id) => format!("cuda:{:?}", id),
-        Device::Metal(id) => format!("metal:{:?}", id),
-    }
-}
-
-fn format_messages(messages: &[Message], template: Option<&str>, enable_thinking: Option<bool>) -> String {
+fn format_messages(
+    messages: &[Message],
+    template: Option<&str>,
+    enable_thinking: Option<bool>,
+) -> String {
     let chat_template =
         crate::chat_templates::ChatTemplate::from_string(template.unwrap_or("qwen3"));
     chat_template.format_messages(messages, enable_thinking)
@@ -74,44 +70,16 @@ fn format_messages(messages: &[Message], template: Option<&str>, enable_thinking
 
 #[pyclass]
 pub struct InferenceServer {
-    device: Device,
+    device_config: DeviceConfig,
 }
 #[pymethods]
 impl InferenceServer {
     #[new]
     #[pyo3(signature = (device=None))]
     fn py_new(device: Option<&str>) -> PyResult<Self> {
-        let resolved = match device.unwrap_or("auto") {
-            "cpu" => Device::Cpu,
-            #[cfg(feature = "cuda")]
-            "cuda" => candle_core::Device::new_cuda(0)
-                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?,
-            #[cfg(feature = "metal")]
-            "metal" => candle_core::Device::new_metal(0)
-                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?,
-            #[cfg(not(feature = "metal"))]
-            "metal" => {
-                return Err(pyo3::exceptions::PyRuntimeError::new_err(
-                    "Metal support not compiled",
-                ))
-            }
-            _ => {
-                #[cfg(feature = "metal")]
-                {
-                    if let Ok(d) = candle_core::Device::new_metal(0) {
-                        d
-                    } else {
-                        Device::Cpu
-                    }
-                }
-                #[cfg(not(feature = "metal"))]
-                Device::Cpu
-            }
-        };
-
+        let device_config = DeviceConfig::from_string(device)?;
         CACHED_MODEL.get_or_init(|| Arc::new(Mutex::new(None)));
-
-        Ok(Self { device: resolved })
+        Ok(Self { device_config })
     }
 
     fn flush_model<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
@@ -133,7 +101,7 @@ impl InferenceServer {
     ) -> PyResult<Bound<'py, PyAny>> {
         let req: InferenceRequest = pythonize::depythonize(&request.bind(py))
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("bad request: {e}")))?;
-        let device = self.device.clone();
+        let device_config = self.device_config.clone();
         let cb = on_event.clone_ref(py);
 
         future_into_py(py, async move {
@@ -187,7 +155,7 @@ impl InferenceServer {
             let model = {
                 let cache = CACHED_MODEL.get().unwrap();
                 let mut model_cache = cache.lock().await;
-                let device_str = device_kind(&device);
+                let device_str = DeviceConfig::device_kind(&device_config.device);
                 let cache_key = (req.generation_kwargs.model_path.clone(), device_str);
 
                 // Check if we have a cached model for this path+device
@@ -199,7 +167,7 @@ impl InferenceServer {
                         match models::load_causal_lm(
                             model_kind,
                             &req.generation_kwargs.model_path,
-                            &device,
+                            &device_config.device,
                         ) {
                             Ok(m) => {
                                 let shared_model = Arc::new(Mutex::new(m));
@@ -214,7 +182,7 @@ impl InferenceServer {
                                     cb,
                                     "Failed to load model '{}' on device '{}': {}",
                                     req.generation_kwargs.model_path,
-                                    device_kind(&device),
+                                    DeviceConfig::device_kind(&device_config.device),
                                     e
                                 );
                                 return Ok(Python::with_gil(|py| py.None()));
@@ -226,7 +194,7 @@ impl InferenceServer {
                     match models::load_causal_lm(
                         model_kind,
                         &req.generation_kwargs.model_path,
-                        &device,
+                        &device_config.device,
                     ) {
                         Ok(m) => {
                             let shared_model = Arc::new(Mutex::new(m));
@@ -241,7 +209,7 @@ impl InferenceServer {
                                 cb,
                                 "Failed to load model '{}' on device '{}': {}",
                                 req.generation_kwargs.model_path,
-                                device_kind(&device),
+                                DeviceConfig::device_kind(&device_config.device),
                                 e
                             );
                             return Ok(Python::with_gil(|py| py.None()));
@@ -263,7 +231,7 @@ impl InferenceServer {
             let gen = ::tokio::spawn({
                 let model = model; // move it into the task
                 let tokenizer = tokenizer.clone();
-                let device = device.clone();
+                let device = device_config.device.clone();
                 let prompt = prompt_str.clone();
                 async move {
                     let mut model_guard = model.lock().await;
