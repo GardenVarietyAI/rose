@@ -20,7 +20,6 @@ WORKDIR /app
 COPY . .
 
 ENV PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu
-ENV MATURIN_FEATURES=python
 RUN uv pip install --system --prerelease=allow .
 
 EXPOSE 8004

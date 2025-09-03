@@ -9,7 +9,7 @@ sqlite = "3.50.4"
 [tasks]
 backup = "litestream replicate -config ./litestream.yml"
 restore = "litestream restore -config ./litestream.yml -replica local -o ./data/rose.db ./data/rose.db"
-dev = "uv run maturin develop --release"
+dev-metal = "MATURIN_PEP517_ARGS=\"--features metal\" uv run maturin develop --release"
 build = "uv run maturin build --release"
 test-metal = "uv run python -c 'from rose_server._inference import InferenceServer; s = InferenceServer(device=\"metal\"); print(\"Metal OK\")'"
 test-cpu = "uv run python -c 'from rose_server._inference import InferenceServer; s = InferenceServer(device=\"cpu\"); print(\"CPU OK\")'"

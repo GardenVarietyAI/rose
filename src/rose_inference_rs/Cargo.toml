@@ -8,7 +8,7 @@ name = "rose_inference_rs"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["metal"]
+default = []
 python = ["pyo3/extension-module", "pyo3-async-runtimes/tokio-runtime"]
 cuda = ["candle-core/cuda"]
 metal = [
