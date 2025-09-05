@@ -67,9 +67,9 @@ impl DeviceConfig {
         match device {
             Device::Cpu => Self {
                 device: device.clone(),
-                weights_dtype: if has_bf16 { DType::BF16 } else { DType::F32 },
+                weights_dtype: DType::F32,
                 compute_dtype: DType::F32,
-                kv_cache_dtype: if has_bf16 { DType::BF16 } else { DType::F32 },
+                kv_cache_dtype: DType::F32,
             },
             Device::Cuda(_) => {
                 let weights = if has_bf16 {
