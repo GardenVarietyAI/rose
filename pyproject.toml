@@ -20,7 +20,7 @@ dependencies = [
   "uvicorn>=0.27.1",
   "pydantic~=2.11.7",
   "numpy>=1.26.4",
-  "fastembed @ git+https://github.com/GardenVarietyAI/fastembed.git@bee6972b8396ceda7f4586e5ecb741bcba814954",
+  "fastembed-qwen3>=0.7.3.post3",
   "pydantic-settings>=2.9.1",
   "openai>=1.88.0",
   "openai-agents>=0.0.19",

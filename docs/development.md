@@ -46,3 +46,12 @@ git clone git@github.com:GardenVarietyAI/fastembed.git
 git checkout fastembed-qwen3
 uv pip install -e ./fastembed --force-reinstall
 ```
+
+### Build and publish fastembed-qwen3
+
+```
+cd fastembed
+rm -rf dist/
+poetry build
+twine upload dist/*
+```
