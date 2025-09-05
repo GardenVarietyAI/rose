@@ -422,9 +422,9 @@ wheels = [
 ]
 
 [[package]]
-name = "fastembed"
-version = "0.7.3"
-source = { git = "https://github.com/GardenVarietyAI/fastembed.git?rev=bee6972b8396ceda7f4586e5ecb741bcba814954#bee6972b8396ceda7f4586e5ecb741bcba814954" }
+name = "fastembed-qwen3"
+version = "0.7.3.post3"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "huggingface-hub" },
     { name = "loguru" },
@@ -436,6 +436,10 @@ dependencies = [
     { name = "requests" },
     { name = "tokenizers" },
     { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e5/7a/20df26f6ea029d17a5385f4669616b9ce5b481f09088cc979efa09d41647/fastembed_qwen3-0.7.3.post3.tar.gz", hash = "sha256:91c50f939173955909c5c3fc5bf1c182ce58c735b2e81c962997a268fc5bb218", size = 67153, upload-time = "2025-09-05T02:03:02.666Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d9/12/a6ef7df3b80aa3bd80aeea41aa75125c4977ef54ad047b08d9605fe0b1ae/fastembed_qwen3-0.7.3.post3-py3-none-any.whl", hash = "sha256:30ae44ae111ff64078674e04c8a68f1fd2001ef9e60c51e0c95d9c76606dddfe", size = 105968, upload-time = "2025-09-05T02:03:01.472Z" },
 ]
 
 [[package]]
@@ -2118,7 +2122,7 @@ dependencies = [
     { name = "aiosqlite" },
     { name = "chonkie", extra = ["tokenizers"] },
     { name = "fastapi" },
-    { name = "fastembed" },
+    { name = "fastembed-qwen3" },
     { name = "greenlet" },
     { name = "jinja2" },
     { name = "numpy" },
@@ -2185,7 +2189,7 @@ requires-dist = [
     { name = "aiosqlite", specifier = ">=0.21.0" },
     { name = "chonkie", extras = ["tokenizers"], specifier = "~=1.1.2" },
     { name = "fastapi", specifier = ">=0.110.0" },
-    { name = "fastembed", git = "https://github.com/GardenVarietyAI/fastembed.git?rev=bee6972b8396ceda7f4586e5ecb741bcba814954" },
+    { name = "fastembed-qwen3", specifier = ">=0.7.3.post3" },
     { name = "greenlet", specifier = ">=3.2.2" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "numpy", specifier = ">=1.26.4" },
