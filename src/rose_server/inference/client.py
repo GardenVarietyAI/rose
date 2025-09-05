@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
-from rose_server._inference import InferenceServer
+from rose_server._inference import CompleteEvent, ErrorEvent, InferenceServer, InputTokensCountedEvent, TokenEvent
 from rose_server.config.settings import settings
 from rose_server.events.event_types.generation import (
     ResponseCompleted,
@@ -94,9 +94,9 @@ class InferenceClient:
                 req["messages"] = messages
 
             loop = asyncio.get_running_loop()
-            q: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
+            q: asyncio.Queue[Union[TokenEvent, CompleteEvent, InputTokensCountedEvent, ErrorEvent]] = asyncio.Queue()
 
-            def on_event(ev: Dict[str, Any]) -> None:
+            def on_event(ev: Union[TokenEvent, CompleteEvent, InputTokensCountedEvent, ErrorEvent]) -> None:
                 loop.call_soon_threadsafe(q.put_nowait, ev)
 
             def _on_done(t: asyncio.Future[Any]) -> None:
@@ -104,7 +104,9 @@ class InferenceClient:
                     return
                 exc = t.exception()
                 if exc is not None:
-                    loop.call_soon_threadsafe(q.put_nowait, {"type": "Error", "error": repr(exc)})
+                    error_event = ErrorEvent()
+                    error_event.error = repr(exc)
+                    loop.call_soon_threadsafe(q.put_nowait, error_event)
 
             task = asyncio.ensure_future(self._srv.stream(req, on_event))
             task.add_done_callback(_on_done)
@@ -115,37 +117,36 @@ class InferenceClient:
             try:
                 while True:
                     ev = await q.get()
-                    et = ev.get("type")
 
-                    if et == "InputTokensCounted":
-                        input_tokens = int(ev.get("input_tokens", 0))
+                    if isinstance(ev, InputTokensCountedEvent):
+                        input_tokens = ev.input_tokens
                         logger.debug(f"Input tokens counted: {input_tokens}")
 
-                    elif et == "Token":
+                    elif isinstance(ev, TokenEvent):
                         completion_tokens += 1
                         yield TokenGenerated(
                             response_id=response_id,
                             model_name=model_name,
-                            token=str(ev.get("token", "")),
-                            token_id=int(ev.get("token_id", -1)),
-                            position=int(ev.get("position", 0)),
-                            logprob=ev.get("logprob"),
-                            top_logprobs=ev.get("top_logprobs"),
+                            token=ev.token,
+                            token_id=ev.token_id,
+                            position=ev.position,
+                            logprob=ev.logprob,
+                            top_logprobs=ev.top_logprobs,
                         )
 
-                    elif et == "Complete":
+                    elif isinstance(ev, CompleteEvent):
                         yield ResponseCompleted(
                             response_id=response_id,
                             model_name=model_name,
-                            input_tokens=int(ev.get("input_tokens", input_tokens)),
-                            output_tokens=int(ev.get("output_tokens", completion_tokens)),
-                            total_tokens=int(ev.get("total_tokens", input_tokens + completion_tokens)),
-                            finish_reason=str(ev.get("finish_reason", "stop")),
+                            input_tokens=ev.input_tokens,
+                            output_tokens=ev.output_tokens,
+                            total_tokens=ev.total_tokens,
+                            finish_reason=ev.finish_reason,
                         )
                         break
 
-                    elif et == "Error":
-                        error_msg = ev.get("error", "Unknown error")
+                    elif isinstance(ev, ErrorEvent):
+                        error_msg = ev.error
                         logger.error(f"Error occurred during inference: {error_msg}")
                         yield ResponseCompleted(
                             response_id=response_id,

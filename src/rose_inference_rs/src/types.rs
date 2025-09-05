@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use pyo3::prelude::*;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Message {
@@ -42,10 +43,55 @@ pub enum FinishReason {
     FunctionCall,
 }
 
+#[pyclass]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TopLogProb {
+    #[pyo3(get)]
     pub token: String,
+    #[pyo3(get)]
     pub logprob: f32,
+}
+
+#[pyclass]
+#[derive(Clone, Debug)]
+pub struct TokenEvent {
+    #[pyo3(get)]
+    pub token: String,
+    #[pyo3(get)]
+    pub token_id: u32,
+    #[pyo3(get)]
+    pub position: u32,
+    #[pyo3(get)]
+    pub logprob: Option<f32>,
+    #[pyo3(get)]
+    pub top_logprobs: Option<Vec<TopLogProb>>,
+}
+
+#[pyclass]
+#[derive(Clone, Debug)]
+pub struct CompleteEvent {
+    #[pyo3(get)]
+    pub input_tokens: u32,
+    #[pyo3(get)]
+    pub output_tokens: u32,
+    #[pyo3(get)]
+    pub total_tokens: u32,
+    #[pyo3(get)]
+    pub finish_reason: String,
+}
+
+#[pyclass]
+#[derive(Clone, Debug)]
+pub struct InputTokensCountedEvent {
+    #[pyo3(get)]
+    pub input_tokens: u32,
+}
+
+#[pyclass]
+#[derive(Clone, Debug)]
+pub struct ErrorEvent {
+    #[pyo3(get)]
+    pub error: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -55,6 +101,7 @@ pub enum InferenceResponse {
     },
     Token {
         token: String,
+        token_id: u32,
         position: u32,
         #[serde(skip_serializing_if = "Option::is_none")]
         logprob: Option<f32>,

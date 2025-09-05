@@ -7,7 +7,7 @@ use tokio::sync::mpsc;
 use crate::error::InferenceError;
 use crate::logprobs;
 use crate::models::CausalLM;
-use crate::types::{FinishReason, InferenceResponse};
+use crate::types::{FinishReason, InferenceResponse, TopLogProb};
 
 pub async fn stream(
     model: &mut dyn CausalLM,
@@ -115,7 +115,13 @@ pub async fn stream(
         let (logprob, top_logprobs_data) = if logprobs.unwrap_or(false) {
             let logprobs_result =
                 logprobs::calculate_logprobs(&logits, sampled_token, tokenizer, top_logprobs)?;
-            (Some(logprobs_result.logprob), logprobs_result.top_logprobs)
+            let converted_top_logprobs = logprobs_result.top_logprobs.map(|tlps|
+                tlps.into_iter().map(|tlp| TopLogProb {
+                    token: tlp.token,
+                    logprob: tlp.logprob,
+                }).collect()
+            );
+            (Some(logprobs_result.logprob), converted_top_logprobs)
         } else {
             (None, None)
         };
@@ -135,6 +141,7 @@ pub async fn stream(
         // Emit token
         let token_msg = InferenceResponse::Token {
             token: token_text,
+            token_id: sampled_token,
             position: index as u32,
             logprob,
             top_logprobs: top_logprobs_data,
@@ -164,6 +171,7 @@ pub async fn stream(
     }
 
     let output_tokens = all_tokens.len() as u32 - input_tokens;
+
     let complete_msg = InferenceResponse::Complete {
         input_tokens,
         output_tokens,

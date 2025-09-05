@@ -20,9 +20,9 @@ mkl = ["candle-core/mkl"]
 accelerate = ["candle-core/accelerate"]
 
 [dependencies]
-pyo3 = { version = "0.25.1", features = ["extension-module"] }
-pyo3-async-runtimes = { version = "0.25.0", features = ["tokio-runtime"] }
-pythonize = "0.25"
+pyo3 = { version = "0.26.0", features = ["extension-module"] }
+pyo3-async-runtimes = { version = "0.26.0", features = ["tokio-runtime"] }
+pythonize = "0.26"
 tokio = { version = "1.47", features = ["rt-multi-thread", "macros", "sync"] }
 candle-core = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "52640a298efebba5aa8044d150b696932bcbc63b", default-features = false }
 candle-nn = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "52640a298efebba5aa8044d150b696932bcbc63b" }
