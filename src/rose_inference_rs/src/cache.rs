@@ -1,4 +1,5 @@
 use std::sync::{Arc, OnceLock};
+use std::collections::HashMap;
 use tokio::sync::Mutex;
 use pyo3::prelude::*;
 
@@ -10,6 +11,12 @@ use tokio::sync::mpsc;
 pub struct ModelEntry {
     pub key: (String, String), // (path, device_kind)
     pub model: Arc<Mutex<Box<dyn CausalLM>>>,
+    pub conversations: HashMap<String, ConversationState>,
+}
+
+#[derive(Clone)]
+pub struct ConversationState {
+    pub active: bool,
 }
 
 static CACHED_MODEL: OnceLock<Arc<Mutex<Option<ModelEntry>>>> = OnceLock::new();
@@ -46,6 +53,7 @@ impl ModelCache {
                 *model_cache = Some(ModelEntry {
                     key: cache_key,
                     model: shared_model.clone(),
+                    conversations: HashMap::new(),
                 });
                 Ok(Some(shared_model))
             }
@@ -69,5 +77,46 @@ impl ModelCache {
             *model_cache = None;
         }
         Ok(())
+    }
+
+    pub async fn should_reset_kv_cache(response_chain_id: Option<&str>) -> bool {
+        let Some(chain_id) = response_chain_id else {
+            return true; // Always reset if no chain ID
+        };
+
+        let Some(cache) = CACHED_MODEL.get() else {
+            return true;
+        };
+
+        let Ok(model_cache) = cache.try_lock() else {
+            return true; // Reset if can't acquire lock
+        };
+
+        let Some(ref entry) = *model_cache else {
+            return true;
+        };
+
+        // Reset if conversation is NOT active, don't reset if it IS active
+        entry.conversations.get(chain_id).map_or(true, |state| !state.active)
+    }
+
+    pub async fn mark_conversation_active(response_chain_id: Option<&str>) {
+        let Some(chain_id) = response_chain_id else {
+            return;
+        };
+
+        let Some(cache) = CACHED_MODEL.get() else {
+            return;
+        };
+
+        let Ok(mut model_cache) = cache.try_lock() else {
+            return;
+        };
+
+        if let Some(ref mut entry) = *model_cache {
+            entry.conversations.insert(chain_id.to_string(), ConversationState {
+                active: true,
+            });
+        }
     }
 }

@@ -20,6 +20,8 @@ pub struct GenerationKwargs {
     #[pyo3(get, set)]
     pub model_kind: String,
     #[pyo3(get, set)]
+    pub response_chain_id: Option<String>,
+    #[pyo3(get, set)]
     pub max_input_tokens: Option<usize>,
     #[pyo3(get, set)]
     pub max_output_tokens: Option<usize>,
@@ -60,6 +62,7 @@ impl GenerationKwargs {
         model_path,
         tokenizer_path,
         model_kind,
+        response_chain_id=None,
         max_input_tokens=None,
         max_output_tokens=None,
         top_p=None,
@@ -77,6 +80,7 @@ impl GenerationKwargs {
         model_path: String,
         tokenizer_path: String,
         model_kind: String,
+        response_chain_id: Option<String>,
         max_input_tokens: Option<usize>,
         max_output_tokens: Option<usize>,
         top_p: Option<f64>,
@@ -94,6 +98,7 @@ impl GenerationKwargs {
             model_path,
             tokenizer_path,
             model_kind,
+            response_chain_id,
             max_input_tokens,
             max_output_tokens,
             top_p,

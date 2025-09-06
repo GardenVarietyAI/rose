@@ -180,6 +180,7 @@ impl InferenceServer {
                     generation_kwargs.repeat_last_n.unwrap_or(64),
                     generation_kwargs.logprobs,
                     generation_kwargs.top_logprobs,
+                    generation_kwargs.response_chain_id.clone(),
                 );
 
                 // Process responses from the channel
@@ -264,9 +265,14 @@ fn spawn_generation_task(
     repeat_last_n: usize,
     logprobs: Option<bool>,
     top_logprobs: Option<usize>,
+    response_chain_id: Option<String>,
 ) -> tokio::task::JoinHandle<()> {
     let stop_owned = stop.map(|s| s.to_vec());
     tokio::spawn(async move {
+        // Check if we need to reset KV cache based on conversation state
+        let should_reset = ModelCache::should_reset_kv_cache(response_chain_id.as_deref()).await;
+        tracing::info!("KV cache decision for chain_id {:?}: should_reset={}", response_chain_id, should_reset);
+
         // Acquire model with timeout inline to avoid lifetime issues
         let mut model_guard =
             match tokio::time::timeout(std::time::Duration::from_secs(30), model.lock()).await {
@@ -282,6 +288,12 @@ fn spawn_generation_task(
                     return;
                 }
             };
+
+        // Reset KV cache if needed for new conversation
+        if should_reset {
+            model_guard.reset_state();
+            ModelCache::mark_conversation_active(response_chain_id.as_deref()).await;
+        }
 
         let result = generate::stream(
             model_guard.as_mut(),

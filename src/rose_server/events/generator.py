@@ -142,6 +142,7 @@ class EventGenerator:
         logprobs: Optional[bool] = None,
         top_logprobs: Optional[int] = None,
         seed: Optional[int] = None,
+        chain_id: Optional[str] = None,
         **kwargs: Any,
     ) -> AsyncGenerator[
         Union[ResponseStarted, TokenGenerated, ToolCallStarted, ToolCallCompleted, ResponseCompleted],
@@ -169,6 +170,7 @@ class EventGenerator:
             logprobs=logprobs,
             top_logprobs=top_logprobs,
             seed=seed,
+            chain_id=chain_id,
         )
         async for event in stream:
             yield event
@@ -184,6 +186,7 @@ class EventGenerator:
         logprobs: Optional[bool] = None,
         top_logprobs: Optional[int] = None,
         seed: Optional[int] = None,
+        chain_id: Optional[str] = None,
     ) -> AsyncGenerator[Union[TokenGenerated, ToolCallStarted, ToolCallCompleted, ResponseCompleted], None]:
         prompt = format_tools_for_prompt(tools) if enable_tools and tools else None
         tool_processor = ToolProcessor(self.model_name) if enable_tools else None
@@ -193,6 +196,7 @@ class EventGenerator:
                 model_path=self._resolved_paths["model_path"],
                 tokenizer_path=self._resolved_paths["tokenizer_path"],
                 model_kind=self._model_kind,
+                response_chain_id=chain_id,
                 temperature=temperature,
                 max_input_tokens=8192,
                 max_output_tokens=max_tokens,
