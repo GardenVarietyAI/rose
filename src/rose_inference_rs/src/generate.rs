@@ -109,7 +109,8 @@ pub async fn stream(
 
         let token_text = tokenizer
             .decode(&[sampled_token], true)
-            .map_err(|e| InferenceError::TokenizerError(e.to_string()))?;
+            .map_err(|e| InferenceError::TokenizerError(e.to_string()))?
+            .replace('\u{FFFD}', ""); // Remove replacement characters
 
         // Calculate logprobs if requested
         let (logprob, top_logprobs_data) = if logprobs.unwrap_or(false) {
