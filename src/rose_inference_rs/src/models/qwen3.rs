@@ -64,8 +64,14 @@ impl Qwen3UnquantizedCausalLM {
                 &device_config.device,
             )?
         };
-        let model = ModelForCausalLM::new(&config, vb)
-            .map_err(|e| anyhow::anyhow!("Failed to load Qwen3 from safetensors: {}", e))?;
+
+        let model = ModelForCausalLM::new(
+            &config,
+            device_config.compute_dtype,
+            device_config.kv_cache_dtype,
+            vb,
+        )
+        .map_err(|e| anyhow::anyhow!("Failed to load Qwen3 from safetensors: {}", e))?;
 
         Ok(Self { model, eos_token })
     }
