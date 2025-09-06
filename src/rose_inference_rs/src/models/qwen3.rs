@@ -87,4 +87,8 @@ impl CausalLM for Qwen3UnquantizedCausalLM {
             .copied()
             .unwrap_or(self.eos_token)
     }
+
+    fn reset_state(&mut self) {
+        self.model.clear_kv_cache();
+    }
 }

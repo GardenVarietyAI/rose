@@ -26,6 +26,9 @@ pub async fn stream(
     logprobs: Option<bool>,
     top_logprobs: Option<usize>,
 ) -> Result<()> {
+
+    model.reset_state();
+
     // Tokenize prompt
     let encoding = tokenizer
         .encode(prompt, false)

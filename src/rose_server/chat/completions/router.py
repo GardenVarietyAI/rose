@@ -9,10 +9,11 @@ import time
 import uuid
 from typing import Any, AsyncGenerator, Dict
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Depends
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
+from rose_server.dependencies import InferenceServer, get_inference_server
 from rose_server.events.event_types import LLMEvent
 from rose_server.events.formatters import ChatCompletionsFormatter
 from rose_server.events.generator import EventGenerator
@@ -33,6 +34,7 @@ def _prepare_tool_params(request: ChatRequest) -> Dict[str, Any]:
 @router.post("", response_model=None)
 async def event_based_chat_completions(
     request: ChatRequest = Body(...),
+    inference_server: InferenceServer = Depends(get_inference_server),
 ) -> JSONResponse | EventSourceResponse:
     """Event-based endpoint for chat completions."""
     model = await get_language_model(request.model)
@@ -86,7 +88,7 @@ async def event_based_chat_completions(
     try:
         # Build strongly typed config from model
         config = ModelConfig.from_language_model(model)
-        generator = EventGenerator(config)
+        generator = EventGenerator(config, inference_server)
         formatter = ChatCompletionsFormatter()
         logger.info("[EVENT] Using ChatCompletionsGenerator for chat completions")
         if request.stream:
