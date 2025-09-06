@@ -78,4 +78,8 @@ impl CausalLM for Qwen3CausalLM {
             .copied()
             .unwrap_or(self.eos_token)
     }
+
+    fn reset_state(&mut self) {
+        // Quantized models auto-reset KV cache when offset==0 is passed to forward()
+    }
 }

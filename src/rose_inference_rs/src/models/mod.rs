@@ -9,6 +9,7 @@ pub trait CausalLM: Send {
     fn forward(&mut self, input: &Tensor, past_length: usize) -> Result<Tensor>;
     fn eos_token_id(&self) -> u32;
     fn im_end_token_id(&self, tokenizer: &Tokenizer) -> u32;
+    fn reset_state(&mut self);
 }
 
 #[derive(Debug)]
