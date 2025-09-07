@@ -63,6 +63,7 @@ class EventGenerator:
             "Qwen--Qwen3-1.7B-Base": "qwen3",
             "Qwen--Qwen3-4B": "qwen3",
             "Qwen--Qwen3-0.6B-GGUF": "qwen3_gguf",
+            "Qwen--Qwen3-4B-GGUF": "qwen3",
             "janhq--Jan-v1-4B-GGUF": "qwen3_gguf",
         }
         return model_kind_map.get(model_id, "qwen3")
