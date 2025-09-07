@@ -66,7 +66,6 @@ async def store_response_messages(
         current_user_message = next((msg for msg in reversed(messages) if msg.role == "user"), None)
         if current_user_message:
             user_message = Message(
-                thread_id=None,
                 role="user",
                 content=[{"type": "text", "text": current_user_message.content}],
                 created_at=created_at,
@@ -76,7 +75,6 @@ async def store_response_messages(
             session.add(user_message)
 
         assistant_message = Message(
-            thread_id=None,
             role="assistant",
             content=[{"type": "text", "text": reply_text}],
             created_at=created_at,
