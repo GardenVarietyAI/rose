@@ -74,6 +74,12 @@ impl ModelCache {
     pub async fn flush_model() -> PyResult<()> {
         if let Some(cache) = CACHED_MODEL.get() {
             let mut model_cache = cache.lock().await;
+            if let Some(ref entry) = *model_cache {
+                // Force reset state before dropping
+                if let Ok(mut model) = entry.model.try_lock() {
+                    model.reset_state();
+                }
+            }
             *model_cache = None;
         }
         Ok(())
