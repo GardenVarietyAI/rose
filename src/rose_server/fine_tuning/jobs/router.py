@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from rose_server.config.settings import settings
 from rose_server.entities.fine_tuning import FineTuningJob
+from rose_server.fine_tuning.events.store import add_event
 from rose_server.fine_tuning.jobs.store import create_job, get_job, list_jobs, list_jobs_by_status, update_job_status
 from rose_server.models.store import create as create_language_model
 from rose_server.schemas.fine_tuning import (
@@ -22,7 +23,6 @@ logger = logging.getLogger(__name__)
 
 @router.post("", response_model=FineTuningJobResponse)
 async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTuningJobResponse:
-    """Create a fine-tuning job."""
     try:
         # Extract hyperparameters from method or request
         method_config = getattr(request.method, request.method.type, None)
@@ -101,10 +101,7 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
                 trainer=request.trainer or "huggingface",
             )
         )
-
-        # Job is now ready for worker processing via /queue endpoint
         logger.info(f"Fine-tuning job {job.id} created and queued for direct worker processing")
-
         return FineTuningJobResponse.from_entity(job)
     except Exception as e:
         logger.error(f"Error creating fine-tuning job: {e}")
@@ -116,7 +113,6 @@ async def list_fine_tuning_jobs(
     limit: int = Query(default=20, ge=1, le=100, description="Number of jobs to retrieve"),
     after: Optional[str] = Query(default=None, description="Pagination cursor"),
 ) -> Dict[str, Any]:
-    """List fine-tuning jobs."""
     jobs = await list_jobs(limit=limit, after=after)
     return {
         "object": "list",
@@ -127,9 +123,6 @@ async def list_fine_tuning_jobs(
 
 @router.get("/queue")
 async def get_queued_jobs(limit: int = Query(10, description="Max jobs to return")) -> Dict[str, Any]:
-    """Get queued fine-tuning jobs for worker processing."""
-    jobs = await list_jobs_by_status("queued", limit=limit)
-
     return {
         "object": "list",
         "data": [
@@ -153,14 +146,13 @@ async def get_queued_jobs(limit: int = Query(10, description="Max jobs to return
                 },
                 "created_at": job.created_at,
             }
-            for job in jobs
+            for job in await list_jobs_by_status("queued", limit=limit)
         ],
     }
 
 
 @router.get("/{job_id}", response_model=FineTuningJobResponse)
 async def retrieve_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
-    """Retrieve a fine-tuning job."""
     job = await get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
@@ -169,7 +161,6 @@ async def retrieve_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
 
 @router.post("/{job_id}/cancel", response_model=FineTuningJobResponse)
 async def cancel_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
-    """Cancel a fine-tuning job."""
     job = await get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
@@ -185,7 +176,6 @@ async def cancel_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
 
 @router.get("/{job_id}/checkpoints", response_model=dict)
 async def list_fine_tuning_job_checkpoints(job_id: str) -> Dict[str, Any]:
-    """List checkpoints for a fine-tuning job."""
     job = await get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
@@ -194,7 +184,6 @@ async def list_fine_tuning_job_checkpoints(job_id: str) -> Dict[str, Any]:
 
 @router.post("/{job_id}/pause", response_model=FineTuningJobResponse)
 async def pause_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
-    """Pause a fine-tuning job."""
     job = await get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
@@ -211,8 +200,6 @@ async def pause_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
 
 @router.post("/{job_id}/resume", response_model=FineTuningJobResponse)
 async def resume_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
-    """Resume a paused fine-tuning job."""
-
     job = await get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
@@ -229,7 +216,6 @@ async def resume_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
 
 @router.patch("/{job_id}/status")
 async def update_job_status_direct(job_id: str, request: FineTuningJobStatusUpdateRequest) -> FineTuningJobResponse:
-    """Direct status updates from workers."""
     job = await update_job_status(
         job_id=job_id,
         status=request.status,
@@ -273,9 +259,6 @@ async def update_job_status_direct(job_id: str, request: FineTuningJobStatusUpda
 
 @router.post("/{job_id}/events")
 async def add_job_event(job_id: str, event: FineTuningJobEventRequest) -> Dict[str, Any]:
-    """Add progress events directly."""
-    from rose_server.fine_tuning.events.store import add_event
-
     await add_event(
         job_id=job_id,
         level=event.level,
