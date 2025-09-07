@@ -28,12 +28,13 @@ def process_next_training_job() -> bool:
             return False
 
         job = jobs[0]
-        logger.info(f"Starting training job {job['id']}")
+        job_id = job["id"]  # Now string instead of int
+        logger.info(f"Starting training job {job_id}")
 
         # Process job synchronously
-        process_training_job(job["id"], job["payload"], client)
+        process_training_job(job_id, job["payload"], client)
 
-        logger.info(f"Completed training job {job['id']}")
+        logger.info(f"Completed training job {job_id}")
         return True
 
     except Exception as e:
