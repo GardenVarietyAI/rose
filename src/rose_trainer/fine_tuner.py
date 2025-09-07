@@ -197,8 +197,8 @@ def save_model(
     """Save fine-tuned model."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    if is_peft and not torch.backends.mps.is_available() and hasattr(model, "merge_and_unload"):
-        # Merge LoRA weights for non-MPS devices
+    if is_peft and hasattr(model, "merge_and_unload"):
+        # Merge LoRA weights into base model for inference compatibility
         model = model.merge_and_unload()  # type: ignore
 
     model.save_pretrained(str(output_dir))
