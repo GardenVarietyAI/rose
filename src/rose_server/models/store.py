@@ -25,7 +25,6 @@ async def create(
     model_name: str,
     path: Optional[str] = None,
     parent: Optional[str] = None,
-    name: Optional[str] = None,
     temperature: float = 0.7,
     top_p: float = 0.9,
     timeout: Optional[int] = None,
@@ -49,7 +48,6 @@ async def create(
     model = LanguageModel(
         id=model_id,
         model_name=model_name,
-        name=name,
         path=path,
         is_fine_tuned=is_fine_tuned,
         temperature=temperature,

@@ -14,7 +14,6 @@ console = Console()
 def add_model(
     id: str = typer.Argument(..., help="Model ID (e.g., 'llama-3.2-1b')"),
     model_name: str = typer.Argument(..., help="HuggingFace model name (e.g., 'meta-llama/Llama-3.2-1B-Instruct')"),
-    name: Optional[str] = typer.Option(None, "--name", "-n", help="Display name for the model"),
     temperature: float = typer.Option(0.7, "--temperature", "-t", help="Default temperature"),
     top_p: float = typer.Option(0.9, "--top-p", "-p", help="Default top_p"),
     timeout: Optional[int] = typer.Option(None, "--timeout", help="Timeout in seconds"),
@@ -34,8 +33,6 @@ def add_model(
         "owned_by": owned_by,
     }
 
-    if name:
-        data["name"] = name
     if timeout:
         data["timeout"] = timeout
     if lora_modules:
