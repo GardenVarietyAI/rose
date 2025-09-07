@@ -10,7 +10,6 @@ from rose_server.fine_tuning.router import router as fine_tuning_router
 from rose_server.models.router import router as llms_router
 from rose_server.queues.router import router as jobs_router
 from rose_server.responses.router import router as responses_router
-from rose_server.threads.router import router as threads_router
 from rose_server.vector_stores.router import router as vector_stores_router
 from rose_server.webhooks.router import router as webhooks_router
 
@@ -18,7 +17,6 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 router.include_router(vector_stores_router)
 router.include_router(assistants_router)
-router.include_router(threads_router)
 router.include_router(embeddings_router)
 router.include_router(llms_router)
 router.include_router(responses_router)
