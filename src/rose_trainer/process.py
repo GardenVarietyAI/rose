@@ -16,11 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 def unload_model(model: Optional[Any] = None) -> None:
-    """Enhanced cleanup that handles PEFT models properly.
-
-    Args:
-        model: Optional model to cleanup before general memory cleanup
-    """
     # Clean up specific model if provided
     if model is not None:
         try:
@@ -74,9 +69,7 @@ def unload_model(model: Optional[Any] = None) -> None:
     logger.info("Memory cleanup completed")
 
 
-def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceClient) -> None:
-    """Process a single training job."""
-
+def process_training_job(job_id: str, payload: Dict[str, Any], client: ServiceClient) -> None:
     ft_job_id: str = payload["job_id"]
     model_name: str = payload["model"]
     training_file: str = payload["training_file"]
@@ -90,17 +83,15 @@ def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceCl
     # Create event callback for progress reporting
     def event_callback(level: str, msg: str, data: Dict[str, Any] | None = None) -> None:
         if level in ["info", "warning", "error"]:
-            client.post_webhook(
-                "job.progress", "training", job_id, ft_job_id, {"level": level, "message": msg, **(data or {})}
-            )
+            client.add_fine_tuning_event(ft_job_id, level, msg, data)
 
     def check_cancel_callback() -> str:
         status: str = client.check_fine_tuning_job_status(ft_job_id)
         return status
 
     try:
-        # Send job running webhook
-        client.post_webhook("job.running", "training", job_id, ft_job_id)
+        # Update job status to running
+        client.update_fine_tuning_job_status(ft_job_id, "running")
 
         # Add suffix to hyperparameters if provided
         if suffix:
@@ -111,12 +102,8 @@ def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceCl
             hp = Hyperparameters(**hyperparameters)
         except ValidationError as ve:
             logger.error(f"Validation error for hyperparameters: {ve}")
-            client.post_webhook(
-                "job.failed",
-                "training",
-                job_id,
-                ft_job_id,
-                {"error": {"message": f"Validation error: {ve}", "code": "validation_error"}},
+            client.update_fine_tuning_job_status(
+                ft_job_id, "failed", error={"message": f"Validation error: {ve}", "code": "validation_error"}
             )
             raise
 
@@ -132,38 +119,37 @@ def process_training_job(job_id: int, payload: Dict[str, Any], client: ServiceCl
             trainer=trainer,
         )
 
-        webhook_data = {
-            "fine_tuned_model": result["model_name"],
-            "trained_tokens": int(result.get("tokens_processed", 0)),
-            "final_loss": result.get("final_loss"),
-            "steps": result.get("steps"),
-        }
-
-        # Include perplexity if available (only when validation split was used)
-        if result.get("final_perplexity") is not None:
-            webhook_data["final_perplexity"] = result["final_perplexity"]
-
-        # Include peak memory metrics if available
-        if result.get("cuda_peak_memory_gb") is not None:
-            webhook_data["cuda_peak_memory_gb"] = result["cuda_peak_memory_gb"]
-        if result.get("mps_peak_memory_gb") is not None:
-            webhook_data["mps_peak_memory_gb"] = result["mps_peak_memory_gb"]
-
-        client.post_webhook("job.completed", "training", job_id, ft_job_id, webhook_data)
-
         # Handle cancellation
         if result.get("cancelled"):
-            client.post_webhook("job.cancelled", "training", job_id, ft_job_id)
+            client.update_fine_tuning_job_status(ft_job_id, "cancelled")
+        else:
+            # Build training metrics
+            training_metrics = {
+                "final_loss": result.get("final_loss"),
+                "steps": result.get("steps"),
+            }
+
+            # Include perplexity if available (only when validation split was used)
+            if result.get("final_perplexity") is not None:
+                training_metrics["final_perplexity"] = result["final_perplexity"]
+
+            # Include peak memory metrics if available
+            if result.get("cuda_peak_memory_gb") is not None:
+                training_metrics["cuda_peak_memory_gb"] = result["cuda_peak_memory_gb"]
+            if result.get("mps_peak_memory_gb") is not None:
+                training_metrics["mps_peak_memory_gb"] = result["mps_peak_memory_gb"]
+
+            client.update_fine_tuning_job_status(
+                ft_job_id,
+                "succeeded",
+                fine_tuned_model=result["model_name"],
+                trained_tokens=int(result.get("tokens_processed", 0)),
+                training_metrics=training_metrics,
+            )
 
     except Exception as e:
         logger.exception(f"Training job {job_id} failed with unexpected exception")
-        client.post_webhook(
-            "job.failed",
-            "training",
-            job_id,
-            ft_job_id,
-            {"error": {"message": str(e), "code": "job_error"}},
-        )
+        client.update_fine_tuning_job_status(ft_job_id, "failed", error={"message": str(e), "code": "job_error"})
         raise
     finally:
         unload_model()
