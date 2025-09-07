@@ -210,16 +210,13 @@ CREATE INDEX idx_message_metadata_message ON message_metadata(message_id);
 CREATE INDEX idx_message_metadata_key ON message_metadata(key);
 CREATE TABLE models (
     id TEXT PRIMARY KEY,
-    name TEXT,
     model_name TEXT NOT NULL,
-    model_type TEXT NOT NULL DEFAULT 'huggingface',
     path TEXT,
     is_fine_tuned INTEGER NOT NULL DEFAULT 0,  -- Boolean as integer
 
     -- Model parameters
     temperature REAL NOT NULL DEFAULT 0.7,
     top_p REAL NOT NULL DEFAULT 0.9,
-    memory_gb REAL NOT NULL DEFAULT 2.0,
     timeout INTEGER,
     quantization TEXT,
 
@@ -291,4 +288,5 @@ INSERT INTO "schema_migrations" (version) VALUES
   ('20250812000003'),
   ('20250815000003'),
   ('20250816000001'),
-  ('20250817000001');
+  ('20250817000001'),
+  ('20250907000001');
