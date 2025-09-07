@@ -6,12 +6,10 @@ from fastapi import APIRouter, HTTPException, Query
 
 from rose_server.config.settings import settings
 from rose_server.entities.fine_tuning import FineTuningJob
-from rose_server.fine_tuning.events.store import add_event
 from rose_server.fine_tuning.jobs.store import create_job, get_job, list_jobs, list_jobs_by_status, update_job_status
 from rose_server.models.store import create as create_language_model
 from rose_server.schemas.fine_tuning import (
     FineTuningJobCreateRequest,
-    FineTuningJobEventRequest,
     FineTuningJobResponse,
     FineTuningJobStatusUpdateRequest,
     Hyperparameters,
@@ -255,14 +253,3 @@ async def update_job_status_direct(job_id: str, request: FineTuningJobStatusUpda
             # Don't fail the status update if model registration fails
 
     return FineTuningJobResponse.from_entity(job)
-
-
-@router.post("/{job_id}/events")
-async def add_job_event(job_id: str, event: FineTuningJobEventRequest) -> Dict[str, Any]:
-    await add_event(
-        job_id=job_id,
-        level=event.level,
-        message=event.message,
-        data=event.data,
-    )
-    return {"status": "accepted"}
