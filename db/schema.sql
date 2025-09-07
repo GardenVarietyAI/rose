@@ -230,7 +230,7 @@ CREATE TABLE models (
 
     -- Metadata
     created_at INTEGER NOT NULL
-);
+, kind TEXT);
 CREATE INDEX idx_models_model_name ON models(model_name);
 CREATE INDEX idx_models_is_fine_tuned ON models(is_fine_tuned);
 CREATE TABLE _litestream_seq (
@@ -289,4 +289,5 @@ INSERT INTO "schema_migrations" (version) VALUES
   ('20250815000003'),
   ('20250816000001'),
   ('20250817000001'),
-  ('20250907000001');
+  ('20250907000001'),
+  ('20250907000002');
