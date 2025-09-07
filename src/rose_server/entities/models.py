@@ -11,16 +11,14 @@ class LanguageModel(SQLModel, table=True):
     __tablename__ = "models"
 
     id: str = Field(primary_key=True)
-    name: Optional[str] = Field(default=None)
     model_name: str = Field(index=True)  # HuggingFace model name
-    model_type: str = Field(default="huggingface")
     path: Optional[str] = Field(default=None)  # Local path for fine-tuned models
+    kind: Optional[str] = Field(default=None)
     is_fine_tuned: bool = Field(default=False, index=True)
 
     # Model parameters
     temperature: float = Field(default=0.7)
     top_p: float = Field(default=0.9)
-    memory_gb: float = Field(default=2.0)
     timeout: Optional[int] = Field(default=None)  # Timeout in seconds
     quantization: Optional[str] = Field(default=None)  # Quantization type: "int8", etc.
 

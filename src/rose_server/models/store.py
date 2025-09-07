@@ -17,18 +17,17 @@ async def _generate_model_id(is_fine_tuned: bool, base_model: str, model_name: s
 
     unique_hash = uuid.uuid4().hex[:6]
     suffix_part = suffix if suffix else "default"
-    safe_base_model = base_model.replace("/", "--")
-    return f"ft:{safe_base_model}:user:{suffix_part}:{unique_hash}"
+    flat_base_model = base_model.replace("/", "--")
+    return f"ft:{flat_base_model}:user:{suffix_part}:{unique_hash}"
 
 
 async def create(
     model_name: str,
     path: Optional[str] = None,
     parent: Optional[str] = None,
-    name: Optional[str] = None,
+    kind: Optional[str] = None,
     temperature: float = 0.7,
     top_p: float = 0.9,
-    memory_gb: float = 2.0,
     timeout: Optional[int] = None,
     lora_modules: Optional[List[str]] = None,
     suffix: Optional[str] = None,
@@ -50,12 +49,11 @@ async def create(
     model = LanguageModel(
         id=model_id,
         model_name=model_name,
-        name=name,
         path=path,
+        kind=kind,
         is_fine_tuned=is_fine_tuned,
         temperature=temperature,
         top_p=top_p,
-        memory_gb=memory_gb,
         timeout=timeout,
         owned_by=owned_by,
         parent=parent,

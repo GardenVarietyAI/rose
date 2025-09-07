@@ -51,9 +51,9 @@ def interactive(
             try:
                 # Streaming response
                 response_text = ""
-                safe_model_name = model.replace("/", "--")
+                flat_model_name = model.replace("/", "--")
                 stream_response = client.chat.completions.create(
-                    model=safe_model_name,
+                    model=flat_model_name,
                     messages=messages,
                     stream=True,
                 )

@@ -44,7 +44,7 @@ uv pip install --group cli --group trainer --group utils
 # Set up the database schema using dbmate
 cp env.example .env
 mkdir -p data
-dbmate up
+dbmate --no-dump-schema up
 ```
 
 ### Build the Inference Service

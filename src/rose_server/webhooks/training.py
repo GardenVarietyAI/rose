@@ -41,7 +41,6 @@ async def handle_training_completed(event: WebhookEvent, registry: ModelRegistry
 
         created_model = await create_language_model(
             model_name=model_name or ft_job.model,
-            name=fine_tuned_model,
             path=str(model_path),
             parent=ft_job.model,
             suffix=getattr(ft_job, "suffix", None),

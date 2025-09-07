@@ -55,7 +55,6 @@ def quantize_model(
                     "model_name": model_name,
                     "temperature": 0.7,
                     "top_p": 0.9,
-                    "memory_gb": 3.0,
                     "timeout": 120,
                     "lora_target_modules": ["q_proj", "k_proj", "v_proj", "o_proj"],
                     "quantized": True,

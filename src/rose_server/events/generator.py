@@ -35,7 +35,7 @@ class EventGenerator:
         self._srv = inference_server
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_inference)
         self._resolved_paths = self._resolve_model_paths(config.model_path)
-        self._model_kind = self._get_model_kind(config.model_id)
+        self._model_kind = config.kind or self._get_model_kind(config.model_id)
 
     @staticmethod
     def _resolve_model_paths(model_path: str) -> Dict[str, str]:
@@ -63,7 +63,7 @@ class EventGenerator:
             "Qwen--Qwen3-1.7B-Base": "qwen3",
             "Qwen--Qwen3-4B": "qwen3",
             "Qwen--Qwen3-0.6B-GGUF": "qwen3_gguf",
-            "Qwen--Qwen3-4B-GGUF": "qwen3",
+            "Qwen--Qwen3-4B-GGUF": "qwen3_gguf",
             "janhq--Jan-v1-4B-GGUF": "qwen3_gguf",
         }
         return model_kind_map.get(model_id, "qwen3")
