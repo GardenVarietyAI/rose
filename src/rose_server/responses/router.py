@@ -2,9 +2,10 @@ import json
 import logging
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sse_starlette.sse import EventSourceResponse
 
+from rose_server.dependencies import InferenceServer, get_inference_server
 from rose_server.events.formatters import ResponsesFormatter
 from rose_server.events.generator import EventGenerator
 from rose_server.models.deps import ModelRegistryDep
@@ -99,14 +100,16 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMess
 async def _generate_streaming_response(
     config: ModelConfig,
     messages: list[ChatMessage],
+    inference_server: InferenceServer,
     tools: Optional[list] = None,
     max_output_tokens: Optional[int] = None,
     temperature: Optional[float] = None,
     tool_choice: Optional[str] = None,
+    chain_id: Optional[str] = None,
 ) -> EventSourceResponse:
     async def generate() -> AsyncIterator[Dict[str, Any]]:
         try:
-            generator = EventGenerator(config)
+            generator = EventGenerator(config, inference_server)
             formatter = ResponsesFormatter()
 
             async for event in generator.generate_events(
@@ -116,6 +119,7 @@ async def _generate_streaming_response(
                 max_tokens=max_output_tokens,
                 temperature=temperature,
                 tool_choice=tool_choice,
+                chain_id=chain_id,
             ):
                 formatted = formatter.format_event(event)
                 if formatted:
@@ -132,6 +136,7 @@ async def _generate_streaming_response(
 async def _generate_complete_response(
     config: ModelConfig,
     messages: list[ChatMessage],
+    inference_server: InferenceServer,
     tools: Optional[list] = None,
     max_output_tokens: Optional[int] = None,
     temperature: Optional[float] = None,
@@ -139,7 +144,7 @@ async def _generate_complete_response(
     store: bool = False,
     chain_id: Optional[str] = None,
 ) -> ResponsesResponse:
-    generator = EventGenerator(config)
+    generator = EventGenerator(config, inference_server)
     formatter = ResponsesFormatter()
     all_events = []
 
@@ -150,6 +155,7 @@ async def _generate_complete_response(
         max_tokens=max_output_tokens,
         temperature=temperature,
         tool_choice=tool_choice,
+        chain_id=chain_id,
     ):
         all_events.append(event)
 
@@ -248,7 +254,9 @@ async def retrieve_response(response_id: str) -> ResponsesResponse:
 
 @router.post("/responses", response_model=None)
 async def create_response(
-    request: ResponsesRequest = Body(...), registry: ModelRegistryDep = None
+    request: ResponsesRequest = Body(...),
+    registry: ModelRegistryDep = None,
+    inference_server: InferenceServer = Depends(get_inference_server),
 ) -> Union[EventSourceResponse, ResponsesResponse]:
     try:
         logger.info(f"RESPONSES API - Input type: {type(request.input)}, Input: {request.input}")
@@ -272,7 +280,6 @@ async def create_response(
                 )
 
         messages = await _convert_input_to_messages(request)
-        logger.info(f"RESPONSES API - Converted messages: {messages}")
 
         if not messages:
             logger.error("No messages extracted from request")
@@ -304,21 +311,25 @@ async def create_response(
             return await _generate_streaming_response(
                 config=config,
                 messages=messages,
+                inference_server=inference_server,
                 tools=request.tools,
                 max_output_tokens=request.max_output_tokens,
                 temperature=request.temperature,
                 tool_choice=request.tool_choice,
+                chain_id=previous_response.response_chain_id if previous_response else None,
             )
         else:
+            chain_id = previous_response.response_chain_id if previous_response else None
             return await _generate_complete_response(
                 config=config,
                 messages=messages,
+                inference_server=inference_server,
                 tools=request.tools,
                 max_output_tokens=request.max_output_tokens,
                 temperature=request.temperature,
                 tool_choice=request.tool_choice,
                 store=request.store,
-                chain_id=previous_response.response_chain_id if previous_response else None,
+                chain_id=chain_id,
             )
     except HTTPException:
         raise

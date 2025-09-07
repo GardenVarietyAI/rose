@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from rose_server import __version__
+from rose_server._inference import InferenceServer
 from rose_server.config.settings import settings
 from rose_server.database import check_database_setup, create_all_tables
 from rose_server.models.registry import ModelRegistry
@@ -50,6 +51,9 @@ async def lifespan(app: FastAPI) -> Any:
     app.state.model_registry = ModelRegistry()
     logger.info("Model registry initialized")
 
+    app.state.inference_server = InferenceServer("auto")
+    logger.info("Inference server initialized")
+
     yield
 
     logger.info("Application shutdown completed")
@@ -75,8 +79,15 @@ def create_app() -> FastAPI:
 
     @app.get("/health")
     async def health_check() -> Dict[str, str]:
-        """Simple health check endpoint."""
         return {"status": "ok"}
+
+    @app.get("/routes")
+    def get_routes():
+        routes_dict = {}
+        for route in app.routes:
+            if getattr(route, "include_in_schema", False):
+                routes_dict.setdefault(route.path, set()).update(route.methods)
+        return {path: sorted(methods) for path, methods in routes_dict.items()}
 
     return app
 
