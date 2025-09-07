@@ -47,9 +47,9 @@ def chat(
 
     try:
         # Build kwargs for completion
-        safe_model_name = model.replace("/", "--")
+        flat_model_name = model.replace("/", "--")
         kwargs: dict[str, Any] = {
-            "model": safe_model_name,
+            "model": flat_model_name,
             "messages": messages,
         }
         if temperature is not None:
