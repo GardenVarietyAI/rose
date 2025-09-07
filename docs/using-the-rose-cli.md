@@ -94,47 +94,6 @@ poetry run rose finetune convert job_xyz789 --format gguf
 poetry run rose finetune cancel job_xyz789
 ```
 
-### Thread Management (Assistants API)
-
-```bash
-# List threads
-poetry run rose threads list
-
-# Create a thread
-poetry run rose threads create
-
-# Get thread details
-poetry run rose threads get thread_abc123
-
-# Add a message to thread
-poetry run rose threads add-message thread_abc123 "Hello, assistant!"
-
-# List thread messages
-poetry run rose threads list-messages thread_abc123
-
-# Delete a thread
-poetry run rose threads delete thread_abc123
-```
-
-### Assistant Management
-
-```bash
-# List assistants
-poetry run rose assistants list
-
-# Create an assistant
-poetry run rose assistants create --name "Code Helper" --model qwen-coder
-
-# Get assistant details
-poetry run rose assistants get asst_abc123
-
-# Update an assistant
-poetry run rose assistants update asst_abc123 --name "Python Expert"
-
-# Delete an assistant
-poetry run rose assistants delete asst_abc123
-```
-
 ### Evaluations
 
 ```bash
