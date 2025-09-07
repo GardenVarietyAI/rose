@@ -198,7 +198,7 @@ class EventGenerator:
                 model_kind=self._model_kind,
                 response_chain_id=chain_id,
                 temperature=temperature,
-                max_input_tokens=8192,
+                max_input_tokens=2048,
                 max_output_tokens=max_tokens,
                 top_p=self.config.top_p,
                 repeat_penalty=self.config.repetition_penalty or 1.1,
