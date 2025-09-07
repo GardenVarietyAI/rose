@@ -201,6 +201,12 @@ def save_model(
         # Merge LoRA weights into base model for inference compatibility
         model = model.merge_and_unload()  # type: ignore
 
+        # Make all tensors contiguous to avoid inference engine issues
+        with torch.no_grad():
+            for param in model.parameters():
+                if not param.is_contiguous():
+                    param.data = param.data.contiguous()
+
     model.save_pretrained(str(output_dir))
     tokenizer.save_pretrained(str(output_dir))
 
