@@ -5,11 +5,13 @@ from fastapi import APIRouter, HTTPException, Query
 
 from rose_server.config.settings import settings
 from rose_server.entities.fine_tuning import FineTuningJob
-from rose_server.fine_tuning.jobs.store import create_job, get_job, list_jobs, update_job_status
+from rose_server.fine_tuning.jobs.store import create_job, get_job, list_jobs, list_jobs_by_status, update_job_status
 from rose_server.queues.store import enqueue, find_job_by_payload_field, request_cancel, request_pause
 from rose_server.schemas.fine_tuning import (
     FineTuningJobCreateRequest,
+    FineTuningJobEventRequest,
     FineTuningJobResponse,
+    FineTuningJobStatusUpdateRequest,
     Hyperparameters,
 )
 
@@ -236,3 +238,66 @@ async def resume_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
     updated_job = await get_job(job_id)
 
     return FineTuningJobResponse.from_entity(updated_job)
+
+
+@router.get("/queue")
+async def get_queued_jobs(limit: int = Query(10, description="Max jobs to return")) -> Dict[str, Any]:
+    """Get queued fine-tuning jobs for worker processing."""
+    jobs = await list_jobs_by_status("queued", limit=limit)
+
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": job.id,
+                "type": "training",
+                "status": job.status,
+                "payload": {
+                    "model": job.model,
+                    "training_file": job.training_file,
+                    "job_id": job.id,
+                    "hyperparameters": job.hyperparameters or {},
+                    "suffix": job.suffix or "custom",
+                    "trainer": job.trainer,
+                    "config": {
+                        "data_dir": settings.data_dir,
+                        "checkpoint_dir": settings.fine_tuning_checkpoint_dir,
+                        "checkpoint_interval": settings.fine_tuning_checkpoint_interval,
+                        "max_checkpoints": settings.fine_tuning_max_checkpoints,
+                    },
+                },
+                "created_at": job.created_at,
+            }
+            for job in jobs
+        ],
+    }
+
+
+@router.patch("/{job_id}/status")
+async def update_job_status_direct(job_id: str, request: FineTuningJobStatusUpdateRequest) -> FineTuningJobResponse:
+    """Direct status updates from workers."""
+    job = await update_job_status(
+        job_id=job_id,
+        status=request.status,
+        error=request.error,
+        fine_tuned_model=request.fine_tuned_model,
+        trained_tokens=request.trained_tokens,
+        training_metrics=request.training_metrics,
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    return FineTuningJobResponse.from_entity(job)
+
+
+@router.post("/{job_id}/events")
+async def add_job_event(job_id: str, event: FineTuningJobEventRequest) -> Dict[str, Any]:
+    """Add progress events directly."""
+    from rose_server.fine_tuning.events.store import add_event
+
+    await add_event(
+        job_id=job_id,
+        level=event.level,
+        message=event.message,
+        data=event.data,
+    )
+    return {"status": "accepted"}
