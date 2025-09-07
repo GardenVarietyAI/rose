@@ -66,7 +66,6 @@ def add_model(
 
         table.add_row("ID", model["id"])
         table.add_row("Model Name", model_name)
-        table.add_row("Display Name", name or id)
         table.add_row("Temperature", str(temperature))
         table.add_row("Top P", str(top_p))
         table.add_row("Timeout (s)", str(timeout) if timeout else "None")
