@@ -15,8 +15,6 @@ DEFAULT_TIMEOUT = 30.0
 
 
 class ServiceClient:
-    """HTTP client for worker→server communication."""
-
     def __init__(self, base_url: Optional[str] = None, timeout: float = DEFAULT_TIMEOUT):
         self.base_url = os.getenv("ROSE_SERVER_URL", "http://127.0.0.1:8004")
         self.timeout = timeout
@@ -29,21 +27,17 @@ class ServiceClient:
         self._client.close()
 
     def close(self) -> None:
-        """Close the underlying HTTP client."""
         self._client.close()
 
     def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
-        """Make an HTTP request."""
         response = self._client.request(method, url, **kwargs)
         response.raise_for_status()
         return response
 
     def update_job_status(self, job_id: int, status: str, result: Optional[Dict[str, Any]] = None) -> None:
-        """Update job status in the API."""
         self._request("PATCH", f"/v1/jobs/{job_id}", json={"status": status, "result": result})
 
     def get_model(self, model_id: str) -> ModelConfig:
-        """Get model information from the API."""
         try:
             response = self._request("GET", f"/v1/models/{model_id}")
             result: Dict[str, Any] = response.json()
@@ -62,7 +56,6 @@ class ServiceClient:
         object_id: str,
         data: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Post a webhook event to the server."""
         self._request(
             "POST",
             "/v1/webhooks/jobs",
@@ -76,27 +69,54 @@ class ServiceClient:
             },
         )
 
-    def get_queued_jobs(self, job_type: str, limit: int = 10) -> List[Dict[str, Any]]:
-        """Get queued jobs of a specific type."""
-        response = self._request("GET", "/v1/jobs", params={"type": job_type, "status": "queued", "limit": limit})
+    def get_queued_jobs(self, job_type: str = "training", limit: int = 10) -> List[Dict[str, Any]]:
+        response = self._request("GET", "/v1/fine_tuning/jobs/queue", params={"limit": limit})
         data: Dict[str, Any] = response.json()
         jobs: List[Dict[str, Any]] = data.get("data", [])
         return jobs
 
     def get_job_details(self, job_id: str) -> Dict[str, Any]:
-        """Get detailed information about a specific job."""
         response = self._request("GET", f"/v1/jobs/{job_id}")
         result: Dict[str, Any] = response.json()
         return result
 
     def check_fine_tuning_job_status(self, ft_job_id: str) -> str:
-        """Check if a fine-tuning job has been cancelled."""
         response = self._request("GET", f"/v1/fine_tuning/jobs/{ft_job_id}")
         data = response.json()
         status: str = data.get("status")
         if status in ["cancelled", "failed"]:
             return status
         return "running"
+
+    def update_fine_tuning_job_status(
+        self,
+        job_id: str,
+        status: str,
+        error: Optional[Dict[str, Any]] = None,
+        fine_tuned_model: Optional[str] = None,
+        trained_tokens: Optional[int] = None,
+        training_metrics: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        payload = {"status": status}
+        if error:
+            payload["error"] = error
+        if fine_tuned_model:
+            payload["fine_tuned_model"] = fine_tuned_model
+        if trained_tokens:
+            payload["trained_tokens"] = trained_tokens
+        if training_metrics:
+            payload["training_metrics"] = training_metrics
+
+        self._request("PATCH", f"/v1/fine_tuning/jobs/{job_id}/status", json=payload)
+
+    def add_fine_tuning_event(
+        self, job_id: str, level: str, message: str, data: Optional[Dict[str, Any]] = None
+    ) -> None:
+        self._request(
+            "POST",
+            f"/v1/fine_tuning/jobs/{job_id}/events",
+            json={"level": level, "message": message, "data": data or {}},
+        )
 
     def create_chat_completion(
         self,
@@ -108,7 +128,6 @@ class ServiceClient:
         seed: Optional[int] = None,
         timeout: float = 300.0,
     ) -> Dict[str, Any]:
-        """Create a chat completion via the API."""
         request_data = {
             "model": model,
             "messages": messages,
@@ -131,7 +150,6 @@ class ServiceClient:
             self._client.timeout = old_timeout
 
     def get_file_content(self, file_id: str) -> bytes:
-        """Download file content via the API."""
         response = self._request("GET", f"/v1/files/{file_id}/content")
         if response.status_code == 404:
             raise FileNotFoundError(f"File '{file_id}' not found")
