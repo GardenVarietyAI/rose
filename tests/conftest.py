@@ -60,7 +60,6 @@ def client(test_db, monkeypatch):
                 "model_name": "qwen2.5-0.5b",
                 "temperature": 0.7,
                 "top_p": 0.9,
-                "memory_gb": 1.0,
             },
         )
         assert response.status_code == 201

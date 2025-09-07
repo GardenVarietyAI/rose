@@ -17,7 +17,6 @@ def add_model(
     name: Optional[str] = typer.Option(None, "--name", "-n", help="Display name for the model"),
     temperature: float = typer.Option(0.7, "--temperature", "-t", help="Default temperature"),
     top_p: float = typer.Option(0.9, "--top-p", "-p", help="Default top_p"),
-    memory_gb: float = typer.Option(2.0, "--memory", "-m", help="Memory requirement in GB"),
     timeout: Optional[int] = typer.Option(None, "--timeout", help="Timeout in seconds"),
     lora_modules: Optional[List[str]] = typer.Option(None, "--lora-modules", "-l", help="LoRA target modules"),
     owned_by: str = typer.Option("organization-owner", "--owned-by", "-o", help="Model owner"),
@@ -32,7 +31,6 @@ def add_model(
         "model_name": model_name,
         "temperature": temperature,
         "top_p": top_p,
-        "memory_gb": memory_gb,
         "owned_by": owned_by,
     }
 
@@ -74,7 +72,6 @@ def add_model(
         table.add_row("Display Name", name or id)
         table.add_row("Temperature", str(temperature))
         table.add_row("Top P", str(top_p))
-        table.add_row("Memory (GB)", str(memory_gb))
         table.add_row("Timeout (s)", str(timeout) if timeout else "None")
         table.add_row("Owner", owned_by)
         table.add_row("Quantization", quantization or "None")

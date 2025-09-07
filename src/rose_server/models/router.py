@@ -137,7 +137,6 @@ async def create_model(request: ModelCreateRequest) -> Dict[str, Any]:
         name=request.name,
         temperature=request.temperature,
         top_p=request.top_p,
-        memory_gb=request.memory_gb,
         timeout=request.timeout,
         lora_modules=request.lora_target_modules,
         quantization=request.quantization,

@@ -74,7 +74,6 @@ class ModelCreateRequest(BaseModel):
     name: Optional[str] = None
     temperature: float = 0.7
     top_p: float = 0.9
-    memory_gb: float = 2.0
     timeout: Optional[int] = None
     lora_target_modules: Optional[List[str]] = None
     quantization: Optional[str] = None

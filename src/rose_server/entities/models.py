@@ -20,7 +20,6 @@ class LanguageModel(SQLModel, table=True):
     # Model parameters
     temperature: float = Field(default=0.7)
     top_p: float = Field(default=0.9)
-    memory_gb: float = Field(default=2.0)
     timeout: Optional[int] = Field(default=None)  # Timeout in seconds
     quantization: Optional[str] = Field(default=None)  # Quantization type: "int8", etc.
 
