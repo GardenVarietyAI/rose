@@ -13,6 +13,7 @@ class LanguageModel(SQLModel, table=True):
     id: str = Field(primary_key=True)
     model_name: str = Field(index=True)  # HuggingFace model name
     path: Optional[str] = Field(default=None)  # Local path for fine-tuned models
+    kind: Optional[str] = Field(default=None)
     is_fine_tuned: bool = Field(default=False, index=True)
 
     # Model parameters
