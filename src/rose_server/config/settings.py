@@ -66,11 +66,6 @@ class Settings(BaseSettings):
     default_chunk_size: int = Field(default=512, description="Default chunk size in tokens for document chunking")
     default_chunk_overlap: int = Field(default=64, description="Default overlap in tokens between chunks")
 
-    # Webhook settings
-    webhook_url: str = Field(
-        default="http://localhost:8004/v1/webhooks/jobs", description="Webhook URL for job updates"
-    )
-
     # Derived properties
     @property
     def models_dir(self) -> str:
