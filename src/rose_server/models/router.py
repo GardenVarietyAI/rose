@@ -134,6 +134,7 @@ async def create_model(request: ModelCreateRequest) -> Dict[str, Any]:
 
     model = await create_language_model(
         model_name=request.model_name,
+        kind=request.kind,
         temperature=request.temperature,
         top_p=request.top_p,
         timeout=request.timeout,

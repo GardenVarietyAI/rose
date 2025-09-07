@@ -35,7 +35,7 @@ class EventGenerator:
         self._srv = inference_server
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_inference)
         self._resolved_paths = self._resolve_model_paths(config.model_path)
-        self._model_kind = self._get_model_kind(config.model_id)
+        self._model_kind = config.kind or self._get_model_kind(config.model_id)
 
     @staticmethod
     def _resolve_model_paths(model_path: str) -> Dict[str, str]:

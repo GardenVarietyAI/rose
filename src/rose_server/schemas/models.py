@@ -16,6 +16,7 @@ class ModelConfig(BaseModel):
     model_name: str = Field(..., description="The HuggingFace model identifier")
     model_path: Optional[str] = Field(None, description="Path to fine-tuned model")
     base_model: Optional[str] = Field(None, description="Parent model for fine-tuned models")
+    kind: Optional[str] = Field(None, description="Model kind for inference engine")
     quantization: Optional[str] = Field(None, description="Quantization type (e.g., 'int8')")
     lora_target_modules: Optional[List[str]] = Field(None, description="LoRA target modules")
     temperature: float = Field(0.7, description="Sampling temperature")
@@ -40,6 +41,7 @@ class ModelConfig(BaseModel):
         config_data = {
             "model_id": model.id,
             "model_name": model.model_name,
+            "kind": model.kind,
             "temperature": model.temperature or 0.7,
             "top_p": model.top_p or 0.9,
             "inference_timeout": settings.inference_timeout,
@@ -69,6 +71,7 @@ class ModelCreateRequest(BaseModel):
     """Request schema for creating a new model."""
 
     model_name: str  # HuggingFace model name
+    kind: Optional[str] = None
     temperature: float = 0.7
     top_p: float = 0.9
     timeout: Optional[int] = None
