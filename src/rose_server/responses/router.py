@@ -5,10 +5,9 @@ from typing import Any, AsyncIterator, Dict, List, Optional, Union
 from fastapi import APIRouter, Body, Depends, HTTPException
 from sse_starlette.sse import EventSourceResponse
 
-from rose_server.dependencies import InferenceServer, get_inference_server
+from rose_server.dependencies import InferenceServer, get_inference_server, get_model_config
 from rose_server.events.formatters import ResponsesFormatter
 from rose_server.events.generator import EventGenerator
-from rose_server.models.deps import ModelRegistryDep
 from rose_server.responses.store import get_chain_ids, get_conversation_messages, get_response, store_response_messages
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.models import ModelConfig
@@ -255,7 +254,6 @@ async def retrieve_response(response_id: str) -> ResponsesResponse:
 @router.post("/responses", response_model=None)
 async def create_response(
     request: ResponsesRequest = Body(...),
-    registry: ModelRegistryDep = None,
     inference_server: InferenceServer = Depends(get_inference_server),
 ) -> Union[EventSourceResponse, ResponsesResponse]:
     try:
@@ -294,7 +292,7 @@ async def create_response(
                 },
             )
 
-        config = await registry.get_model_config(request.model)
+        config = await get_model_config(request.model)
         if not config:
             raise HTTPException(
                 status_code=400,
