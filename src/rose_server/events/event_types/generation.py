@@ -1,12 +1,42 @@
 """Generation-related events for text completion and tool calls."""
 
 import json
+import time
 import uuid
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Literal, Optional, Type
 
-from pydantic import Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from rose_server.events.event_types.base import LLMEvent
+
+class LLMEvent(BaseModel):
+    """Base class for all LLM events using Pydantic.
+
+    Every event in the system extends this base class, providing:
+    - Unique identification
+    - Timestamp for ordering and debugging
+    - Model context for multi-model scenarios
+    - Automatic serialization via Pydantic
+    - Type validation and documentation
+    """
+
+    id: str = Field(default_factory=lambda: f"event_{uuid.uuid4().hex[:8]}")
+    timestamp: float = Field(default_factory=time.time)
+    model_name: str = Field(..., description="Name/ID of the model that generated this event")
+    event_type: str = Field(default="", description="Type of event for easy filtering")
+    metadata: Optional[Dict[str, Any]] = Field(default={})
+
+    def __init__(self, **data: Any) -> None:
+        """Initialize and set event_type to class name if not provided."""
+        super().__init__(**data)
+        if not self.event_type:
+            self.event_type = self.__class__.__name__
+
+    @classmethod
+    def create(cls: Type["LLMEvent"], model_name: str, **kwargs: Any) -> "LLMEvent":
+        """Convenience factory method for creating events."""
+        return cls(model_name=model_name, **kwargs)
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, use_enum_values=True)
 
 
 class ResponseStarted(LLMEvent):
@@ -50,7 +80,7 @@ class TokenGenerated(LLMEvent):
 
     @field_validator("position")
     @classmethod
-    def validate_position(cls, v):
+    def validate_position(cls: LLMEvent, v: int) -> int:
         if v < 0:
             raise ValueError("Token position must be non-negative")
         return v
@@ -80,7 +110,7 @@ class ToolCallCompleted(LLMEvent):
     call_id: str = Field(..., description="Unique identifier for this function call")
     parsed_arguments: Optional[Dict[str, Any]] = Field(None, description="Parsed JSON arguments")
 
-    def __init__(self, **data):
+    def __init__(self: LLMEvent, **data: Any) -> None:
         """Initialize and parse JSON arguments if not already provided."""
         super().__init__(**data)
         if self.parsed_arguments is None and self.arguments:

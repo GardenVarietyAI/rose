@@ -4,11 +4,7 @@ import json
 import uuid
 from typing import List, Optional, Tuple, Union
 
-from rose_server.events.event_types import (
-    TokenGenerated,
-    ToolCallCompleted,
-    ToolCallStarted,
-)
+from rose_server.events.event_types import TokenGenerated, ToolCallCompleted, ToolCallStarted
 from rose_server.tools import StreamingXMLDetector
 
 
