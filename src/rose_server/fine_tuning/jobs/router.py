@@ -6,7 +6,9 @@ from fastapi import APIRouter, HTTPException, Query
 
 from rose_server.config.settings import settings
 from rose_server.entities.fine_tuning import FineTuningJob
+from rose_server.fine_tuning.events.store import get_events
 from rose_server.fine_tuning.jobs.store import create_job, get_job, list_jobs, list_jobs_by_status, update_job_status
+from rose_server.fine_tuning.step_metrics import build_training_results
 from rose_server.models.store import create as create_language_model
 from rose_server.schemas.fine_tuning import (
     FineTuningJobCreateRequest,
@@ -251,5 +253,21 @@ async def update_job_status_direct(job_id: str, request: FineTuningJobStatusUpda
         except Exception as e:
             logger.error(f"Failed to register fine-tuned model {request.fine_tuned_model}: {e}")
             # Don't fail the status update if model registration fails
+
+    # Update detailed training results for successful jobs
+    if request.status == "succeeded" and request.training_metrics:
+        try:
+            final_loss = request.training_metrics.get("final_loss", 0.0)
+            steps = request.trained_tokens or 1000  # Use trained_tokens as proxy for steps
+            final_perplexity = request.training_metrics.get("final_perplexity")
+
+            events = await get_events(job_id, limit=1000)
+            detailed_metrics = build_training_results(job, events, final_loss, steps, final_perplexity)
+            if detailed_metrics:
+                await update_job_status(job_id=job_id, status=request.status, training_metrics=detailed_metrics)
+                logger.info(f"Training results updated for job {job_id}")
+        except Exception as e:
+            logger.error(f"Failed to build training results for job {job_id}: {e}")
+            # Don't fail the status update if training results build fails
 
     return FineTuningJobResponse.from_entity(job)

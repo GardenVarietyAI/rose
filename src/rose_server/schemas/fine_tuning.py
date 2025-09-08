@@ -138,6 +138,7 @@ class FineTuningJobResponse(BaseModel):
     suffix: Optional[str] = None
     # ROSE-specific fields
     trainer: Optional[str] = None
+    training_metrics: Optional[Dict[str, Any]] = None
 
     @classmethod
     def from_entity(cls, job: FineTuningJob) -> "FineTuningJobResponse":
