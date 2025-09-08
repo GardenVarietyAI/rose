@@ -183,3 +183,21 @@ class FineTuningJobEventResponse(BaseModel):
     def from_entity(cls, event: FineTuningEvent) -> "FineTuningJobEventResponse":
         """Convert internal FineTuningEvent entity."""
         return cls(**event.model_dump())
+
+
+class FineTuningJobStatusUpdateRequest(BaseModel):
+    """Request to update job status from worker."""
+
+    status: str
+    error: Optional[Dict[str, Any]] = None
+    fine_tuned_model: Optional[str] = None
+    trained_tokens: Optional[int] = None
+    training_metrics: Optional[Dict[str, Any]] = None
+
+
+class FineTuningJobEventRequest(BaseModel):
+    """Request to add event to job from worker."""
+
+    level: str
+    message: str
+    data: Optional[Dict[str, Any]] = None

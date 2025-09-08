@@ -14,15 +14,10 @@ from sqlmodel import SQLModel
 
 from rose_server.config.settings import settings
 from rose_server.connect import _VecConnection
-from rose_server.entities.assistants import Assistant
 from rose_server.entities.files import UploadedFile
 from rose_server.entities.fine_tuning import FineTuningEvent, FineTuningJob
-from rose_server.entities.jobs import Job
 from rose_server.entities.messages import Message
 from rose_server.entities.models import LanguageModel
-from rose_server.entities.run_steps import RunStep
-from rose_server.entities.runs import Run
-from rose_server.entities.threads import MessageMetadata, Thread
 from rose_server.entities.vector_stores import Document, VectorStore
 
 logger = logging.getLogger(__name__)
@@ -98,14 +93,8 @@ __all__ = [
     "UploadedFile",
     "FineTuningJob",
     "FineTuningEvent",
-    "Job",
     "LanguageModel",
-    "Assistant",
-    "Thread",
     "Message",
-    "MessageMetadata",
-    "Run",
-    "RunStep",
     "VectorStore",
     "Document",
 ]

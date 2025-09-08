@@ -43,6 +43,20 @@ async def list_jobs(
         return list(jobs)
 
 
+async def list_jobs_by_status(status: str, limit: int = 20) -> List[FineTuningJob]:
+    """List jobs by status for worker processing."""
+    statement = (
+        select(FineTuningJob)
+        .where(FineTuningJob.status == status)
+        .order_by(FineTuningJob.created_at.asc())
+        .limit(limit)
+    )
+
+    async with get_session(read_only=True) as session:
+        jobs = (await session.execute(statement)).scalars().all()
+        return list(jobs)
+
+
 async def update_job_status(
     job_id: str,
     status: str,

@@ -1,15 +1,17 @@
 import logging
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
 from rose_server.config.settings import settings
 from rose_server.entities.fine_tuning import FineTuningJob
-from rose_server.fine_tuning.jobs.store import create_job, get_job, list_jobs, update_job_status
-from rose_server.queues.store import enqueue, find_job_by_payload_field, request_cancel, request_pause
+from rose_server.fine_tuning.jobs.store import create_job, get_job, list_jobs, list_jobs_by_status, update_job_status
+from rose_server.models.store import create as create_language_model
 from rose_server.schemas.fine_tuning import (
     FineTuningJobCreateRequest,
     FineTuningJobResponse,
+    FineTuningJobStatusUpdateRequest,
     Hyperparameters,
 )
 
@@ -19,7 +21,6 @@ logger = logging.getLogger(__name__)
 
 @router.post("", response_model=FineTuningJobResponse)
 async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTuningJobResponse:
-    """Create a fine-tuning job."""
     try:
         # Extract hyperparameters from method or request
         method_config = getattr(request.method, request.method.type, None)
@@ -98,27 +99,7 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
                 trainer=request.trainer or "huggingface",
             )
         )
-
-        await enqueue(
-            job_type="training",
-            payload={
-                "model": request.model,
-                "training_file": request.training_file,
-                "job_id": job.id,
-                "hyperparameters": hyperparameters,
-                "suffix": request.suffix or "custom",
-                "trainer": job.trainer,  # Pass the trainer from the created job
-                "config": {
-                    "data_dir": settings.data_dir,
-                    "checkpoint_dir": settings.fine_tuning_checkpoint_dir,
-                    "checkpoint_interval": settings.fine_tuning_checkpoint_interval,
-                    "max_checkpoints": settings.fine_tuning_max_checkpoints,
-                    "webhook_url": settings.webhook_url,
-                },
-            },
-            max_attempts=3,
-        )
-
+        logger.info(f"Fine-tuning job {job.id} created and queued for direct worker processing")
         return FineTuningJobResponse.from_entity(job)
     except Exception as e:
         logger.error(f"Error creating fine-tuning job: {e}")
@@ -130,7 +111,6 @@ async def list_fine_tuning_jobs(
     limit: int = Query(default=20, ge=1, le=100, description="Number of jobs to retrieve"),
     after: Optional[str] = Query(default=None, description="Pagination cursor"),
 ) -> Dict[str, Any]:
-    """List fine-tuning jobs."""
     jobs = await list_jobs(limit=limit, after=after)
     return {
         "object": "list",
@@ -139,9 +119,38 @@ async def list_fine_tuning_jobs(
     }
 
 
+@router.get("/queue")
+async def get_queued_jobs(limit: int = Query(10, description="Max jobs to return")) -> Dict[str, Any]:
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": job.id,
+                "type": "training",
+                "status": job.status,
+                "payload": {
+                    "model": job.model,
+                    "training_file": job.training_file,
+                    "job_id": job.id,
+                    "hyperparameters": job.hyperparameters or {},
+                    "suffix": job.suffix or "custom",
+                    "trainer": job.trainer,
+                    "config": {
+                        "data_dir": settings.data_dir,
+                        "checkpoint_dir": settings.fine_tuning_checkpoint_dir,
+                        "checkpoint_interval": settings.fine_tuning_checkpoint_interval,
+                        "max_checkpoints": settings.fine_tuning_max_checkpoints,
+                    },
+                },
+                "created_at": job.created_at,
+            }
+            for job in await list_jobs_by_status("queued", limit=limit)
+        ],
+    }
+
+
 @router.get("/{job_id}", response_model=FineTuningJobResponse)
 async def retrieve_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
-    """Retrieve a fine-tuning job."""
     job = await get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
@@ -150,21 +159,14 @@ async def retrieve_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
 
 @router.post("/{job_id}/cancel", response_model=FineTuningJobResponse)
 async def cancel_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
-    """Cancel a fine-tuning job."""
     job = await get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
 
-    queue_job = await find_job_by_payload_field("training", "job_id", job_id)
-    if queue_job:
-        success = await request_cancel(queue_job.id)
-        if not success:
-            raise HTTPException(status_code=400, detail=f"Cannot cancel job {job_id}")
-        if job.status in ["queued", "running"]:
-            await update_job_status(job_id, "cancelling")
+    if job.status in ["queued", "running"]:
+        await update_job_status(job_id, "cancelled")
     else:
-        if job.status in ["queued", "running"]:
-            await update_job_status(job_id, "cancelled")
+        raise HTTPException(status_code=400, detail=f"Cannot cancel job {job_id} in status {job.status}")
     updated_job = await get_job(job_id)
 
     return FineTuningJobResponse.from_entity(updated_job)
@@ -172,7 +174,6 @@ async def cancel_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
 
 @router.get("/{job_id}/checkpoints", response_model=dict)
 async def list_fine_tuning_job_checkpoints(job_id: str) -> Dict[str, Any]:
-    """List checkpoints for a fine-tuning job."""
     job = await get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
@@ -181,18 +182,14 @@ async def list_fine_tuning_job_checkpoints(job_id: str) -> Dict[str, Any]:
 
 @router.post("/{job_id}/pause", response_model=FineTuningJobResponse)
 async def pause_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
-    """Pause a fine-tuning job."""
     job = await get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
 
-    queue_job = await find_job_by_payload_field("training", "job_id", job_id)
-    if queue_job:
-        success = await request_pause(queue_job.id)
-        if not success:
-            raise HTTPException(status_code=400, detail=f"Cannot pause job {job_id}")
+    if job.status == "running":
+        await update_job_status(job_id, "paused")
     else:
-        raise HTTPException(status_code=400, detail=f"Job {job_id} not found in queue")
+        raise HTTPException(status_code=400, detail=f"Cannot pause job {job_id} in status {job.status}")
 
     updated_job = await get_job(job_id)
 
@@ -201,34 +198,11 @@ async def pause_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
 
 @router.post("/{job_id}/resume", response_model=FineTuningJobResponse)
 async def resume_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
-    """Resume a paused fine-tuning job."""
-
     job = await get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
 
-    if job.status == "queued":
-        # Use the already normalized hyperparameters from the job
-        hyperparameters = job.hyperparameters if job.hyperparameters else {}
-
-        await enqueue(
-            job_type="training",
-            payload={
-                "model": job.model,
-                "training_file": job.training_file,
-                "job_id": job.id,
-                "hyperparameters": hyperparameters,
-                "suffix": job.suffix or "custom",
-                "config": {
-                    "data_dir": settings.data_dir,
-                    "checkpoint_dir": settings.fine_tuning_checkpoint_dir,
-                    "checkpoint_interval": settings.fine_tuning_checkpoint_interval,
-                    "max_checkpoints": settings.fine_tuning_max_checkpoints,
-                    "webhook_url": settings.webhook_url,
-                },
-            },
-            max_attempts=3,
-        )
+    if job.status in ["paused", "failed"]:
         await update_job_status(job_id, "queued")
     else:
         raise HTTPException(status_code=400, detail=f"Cannot resume job {job_id}, current status: {job.status}")
@@ -236,3 +210,46 @@ async def resume_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
     updated_job = await get_job(job_id)
 
     return FineTuningJobResponse.from_entity(updated_job)
+
+
+@router.patch("/{job_id}/status")
+async def update_job_status_direct(job_id: str, request: FineTuningJobStatusUpdateRequest) -> FineTuningJobResponse:
+    job = await update_job_status(
+        job_id=job_id,
+        status=request.status,
+        error=request.error,
+        fine_tuned_model=request.fine_tuned_model,
+        trained_tokens=request.trained_tokens,
+        training_metrics=request.training_metrics,
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    if request.status == "succeeded" and request.fine_tuned_model:
+        try:
+            model_path = Path("models") / request.fine_tuned_model
+
+            created_model = await create_language_model(
+                model_name=request.fine_tuned_model,
+                path=str(model_path),
+                parent=job.model,
+                suffix=job.suffix,
+            )
+
+            logger.info(f"Registered fine-tuned model {request.fine_tuned_model} with ID {created_model.id}")
+
+            updated_job = await update_job_status(
+                job_id=job_id,
+                status=request.status,
+                fine_tuned_model=created_model.id,  # Use the generated ID instead of training name
+                trained_tokens=request.trained_tokens,
+                training_metrics=request.training_metrics,
+            )
+            if updated_job:
+                job = updated_job
+
+        except Exception as e:
+            logger.error(f"Failed to register fine-tuned model {request.fine_tuned_model}: {e}")
+            # Don't fail the status update if model registration fails
+
+    return FineTuningJobResponse.from_entity(job)

@@ -63,20 +63,18 @@ async def store_response_messages(
         chain_id = f"chain_{uuid.uuid4().hex[:16]}"
 
     async with get_session() as session:
-        for msg in messages:
-            if msg.role == "user":
-                user_message = Message(
-                    thread_id=None,
-                    role="user",
-                    content=[{"type": "text", "text": msg.content}],
-                    created_at=created_at,
-                    response_chain_id=chain_id,
-                    meta={"model": model},
-                )
-                session.add(user_message)
+        current_user_message = next((msg for msg in reversed(messages) if msg.role == "user"), None)
+        if current_user_message:
+            user_message = Message(
+                role="user",
+                content=[{"type": "text", "text": current_user_message.content}],
+                created_at=created_at,
+                response_chain_id=chain_id,
+                meta={"model": model},
+            )
+            session.add(user_message)
 
         assistant_message = Message(
-            thread_id=None,
             role="assistant",
             content=[{"type": "text", "text": reply_text}],
             created_at=created_at,
