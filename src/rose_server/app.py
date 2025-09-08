@@ -16,7 +16,6 @@ from rose_server import __version__
 from rose_server._inference import InferenceServer
 from rose_server.config.settings import settings
 from rose_server.database import check_database_setup, create_all_tables
-from rose_server.models.registry import ModelRegistry
 from rose_server.router import router
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -47,9 +46,6 @@ async def lifespan(app: FastAPI) -> Any:
         db_path.touch(exist_ok=True)
 
     await create_all_tables()
-
-    app.state.model_registry = ModelRegistry()
-    logger.info("Model registry initialized")
 
     app.state.inference_server = InferenceServer("auto")
     logger.info("Inference server initialized")
