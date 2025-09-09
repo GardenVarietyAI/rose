@@ -20,6 +20,10 @@ from rose_server.schemas.fine_tuning import (
 router = APIRouter(prefix="/jobs")
 logger = logging.getLogger(__name__)
 
+# Constants
+DEFAULT_STEPS_FALLBACK = 1000
+MAX_EVENTS_LIMIT = 1000
+
 
 @router.post("", response_model=FineTuningJobResponse)
 async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTuningJobResponse:
@@ -258,10 +262,10 @@ async def update_job_status_direct(job_id: str, request: FineTuningJobStatusUpda
     if request.status == "succeeded" and request.training_metrics:
         try:
             final_loss = request.training_metrics.get("final_loss", 0.0)
-            steps = request.trained_tokens or 1000  # Use trained_tokens as proxy for steps
+            steps = request.trained_tokens or DEFAULT_STEPS_FALLBACK
             final_perplexity = request.training_metrics.get("final_perplexity")
 
-            events = await get_events(job_id, limit=1000)
+            events = await get_events(job_id, limit=MAX_EVENTS_LIMIT)
             detailed_metrics = build_training_results(job, events, final_loss, steps, final_perplexity)
             if detailed_metrics:
                 await update_job_status(job_id=job_id, status=request.status, training_metrics=detailed_metrics)
