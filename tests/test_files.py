@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+
 import io
 
 from fastapi.testclient import TestClient

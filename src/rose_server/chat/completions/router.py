@@ -1,8 +1,3 @@
-"""Event-based router for OpenAI-compatible chat completions API.
-This replaces the existing router with our event-native system while
-maintaining 100% API compatibility.
-"""
-
 import json
 import logging
 import time
@@ -17,6 +12,7 @@ from rose_server.dependencies import InferenceServer, get_inference_server, get_
 from rose_server.events.event_types import LLMEvent
 from rose_server.events.formatters import ChatCompletionsFormatter
 from rose_server.events.generator import EventGenerator
+from rose_server.metrics import MetricsCollector
 from rose_server.schemas.chat import ChatMessage, ChatRequest
 
 router = APIRouter(prefix="/completions")
@@ -24,7 +20,6 @@ logger = logging.getLogger(__name__)
 
 
 def _prepare_tool_params(request: ChatRequest) -> Dict[str, Any]:
-    """Extract tool parameters from request and log them."""
     enable_tools = bool(request.tools)
     return {"enable_tools": enable_tools, "tools": request.tools, "tool_choice": request.tool_choice}
 
@@ -34,7 +29,6 @@ async def event_based_chat_completions(
     request: ChatRequest = Body(...),
     inference_server: InferenceServer = Depends(get_inference_server),
 ) -> JSONResponse | EventSourceResponse:
-    """Event-based endpoint for chat completions."""
     config = await get_model_config(request.model)
     if not config:
         return JSONResponse(
@@ -86,11 +80,12 @@ async def event_based_chat_completions(
     try:
         generator = EventGenerator(config, inference_server)
         formatter = ChatCompletionsFormatter()
+        metrics = MetricsCollector(model=request.model)
         logger.info("[EVENT] Using ChatCompletionsGenerator for chat completions")
         if request.stream:
-            return await create_event_streaming_response(generator, messages, formatter, request)
+            return await create_event_streaming_response(generator, messages, formatter, request, metrics)
         else:
-            return await create_event_complete_response(generator, messages, formatter, request)
+            return await create_event_complete_response(generator, messages, formatter, request, metrics)
     except Exception as e:
         logger.error(f"[EVENT] Error in chat completions: {str(e)}", exc_info=True)
         return JSONResponse(status_code=500, content={"error": f"Internal server error: {str(e)}"})
@@ -101,9 +96,8 @@ async def create_event_streaming_response(
     messages: list[ChatMessage],
     formatter: ChatCompletionsFormatter,
     request: ChatRequest,
+    metrics: MetricsCollector,
 ) -> EventSourceResponse:
-    """Create streaming response using events and sse-starlette."""
-
     async def generate() -> AsyncGenerator[Dict[str, Any], None]:
         """Generate SSE events from LLM events."""
         try:
@@ -119,6 +113,7 @@ async def create_event_streaming_response(
                 seed=request.seed,
                 **tool_params,
             ):
+                metrics.process_event(event)
                 chunk = formatter.format_event(event)
                 if chunk:
                     yield {"data": chunk.json()}
@@ -142,8 +137,8 @@ async def create_event_complete_response(
     messages: list[ChatMessage],
     formatter: ChatCompletionsFormatter,
     request: ChatRequest,
+    metrics: MetricsCollector,
 ) -> JSONResponse:
-    """Create complete (non-streaming) response from events."""
     try:
         tool_params = _prepare_tool_params(request)
         # Set seed in formatter for fingerprint generation
@@ -158,8 +153,15 @@ async def create_event_complete_response(
             seed=request.seed,
             **tool_params,
         ):
+            # Process event for metrics
+            metrics.process_event(event)
             all_events.append(event)
+
+        # Get performance metrics and add to response
+        performance_metrics = metrics.get_metrics()
         complete_response = formatter.format_complete_response(all_events)
+        if performance_metrics:
+            complete_response["performance"] = performance_metrics.to_dict()
         complete_response["model"] = request.model
         content_length = 0
         if complete_response.get("choices") and len(complete_response["choices"]) > 0:

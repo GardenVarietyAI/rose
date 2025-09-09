@@ -8,6 +8,7 @@ from sse_starlette.sse import EventSourceResponse
 from rose_server.dependencies import InferenceServer, get_inference_server, get_model_config
 from rose_server.events.formatters import ResponsesFormatter
 from rose_server.events.generator import EventGenerator
+from rose_server.metrics import MetricsCollector
 from rose_server.responses.store import get_chain_ids, get_conversation_messages, get_response, store_response_messages
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.models import ModelConfig
@@ -110,6 +111,7 @@ async def _generate_streaming_response(
         try:
             generator = EventGenerator(config, inference_server)
             formatter = ResponsesFormatter()
+            metrics = MetricsCollector(model=config.model_name)
 
             async for event in generator.generate_events(
                 messages,
@@ -120,6 +122,7 @@ async def _generate_streaming_response(
                 tool_choice=tool_choice,
                 chain_id=chain_id,
             ):
+                metrics.process_event(event)
                 formatted = formatter.format_event(event)
                 if formatted:
                     yield {"data": json.dumps(formatted)}
@@ -145,6 +148,7 @@ async def _generate_complete_response(
 ) -> ResponsesResponse:
     generator = EventGenerator(config, inference_server)
     formatter = ResponsesFormatter()
+    metrics = MetricsCollector(model=config.model_name)
     all_events = []
 
     async for event in generator.generate_events(
@@ -156,10 +160,16 @@ async def _generate_complete_response(
         tool_choice=tool_choice,
         chain_id=chain_id,
     ):
+        metrics.process_event(event)
         all_events.append(event)
 
     complete_response = formatter.format_complete_response(all_events)
     complete_response.model = config.model_name
+
+    # Log performance metrics
+    performance_metrics = metrics.get_metrics()
+    if performance_metrics:
+        logger.info(f"[METRICS] Response generation complete for {config.model_name}")
 
     if store:
         await _store_response(complete_response, messages, config.model_name, chain_id)
