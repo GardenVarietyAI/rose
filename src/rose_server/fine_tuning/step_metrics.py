@@ -67,7 +67,7 @@ def build_training_results(
             metric = StepMetrics.from_event(event.data)
             step_metrics.append(metric)
 
-    epochs_completed = max((m.epoch for m in step_metrics)) if step_metrics else None
+    epochs_from_steps = max((m.epoch for m in step_metrics)) if step_metrics else None
 
     training_time_seconds = None
     if job.started_at and job.finished_at:
@@ -76,7 +76,7 @@ def build_training_results(
     training_summary = {
         "final_loss": final_loss,
         "total_steps": steps,
-        "epochs_completed": epochs_completed,
+        "epochs_completed": epochs_completed if epochs_completed is not None else epochs_from_steps,
         "training_time_seconds": training_time_seconds,
     }
 
@@ -90,7 +90,7 @@ def build_training_results(
         "step_data": [m.to_dict() for m in step_metrics],
         "summary": training_summary,
         "hyperparameters_used": {
-            "n_epochs": epochs_completed,
+            "n_epochs": epochs_completed if epochs_completed is not None else epochs_from_steps,
             "batch_size": job.hyperparameters.get("batch_size") if job.hyperparameters else None,
             "learning_rate_multiplier": (
                 job.hyperparameters.get("learning_rate_multiplier") if job.hyperparameters else None
