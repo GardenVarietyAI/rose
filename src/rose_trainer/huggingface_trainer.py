@@ -162,6 +162,7 @@ class HuggingfaceTrainer:
         self.final_perplexity = compute_perplexity(eval_loss) if eval_loss else None
         self.global_step = trainer.state.global_step
         self.total_tokens = trainer.state.num_input_tokens_seen or 0
+        self.epochs_completed = trainer.state.epoch
 
     def save(self, output_dir: Path, base_model_id: str, model_name: str) -> Dict[str, Any]:
         """Save model and return training metadata."""
@@ -182,6 +183,7 @@ class HuggingfaceTrainer:
             "finish_time": finish_time,
             "steps": self.global_step,
             "tokens_processed": self.total_tokens,
+            "epochs_completed": self.epochs_completed,
             "model_path": str(output_dir),
             "model_name": model_name,
             "success": True,
