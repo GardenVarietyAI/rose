@@ -34,6 +34,17 @@ def test_edge_cases():
     assert metrics.tokens_per_second is None
 
 
+def test_partial_metrics_without_completion():
+    """Requesting metrics before completion returns partial data."""
+    timing = TimingData(request_start=0.0, first_token_time=0.1)
+    tokens = TokenCounts(input_tokens=5, output_tokens=10)
+    metrics = calculate_performance_metrics(timing, tokens)
+
+    assert metrics.ttfb_ms == 100.0
+    assert metrics.total_time_ms is None
+    assert metrics.tokens_per_second is None
+
+
 def test_api_response_format():
     """Test that metrics convert to API response format correctly."""
     timing = TimingData(request_start=0.0, first_token_time=0.123, completion_time=0.456)

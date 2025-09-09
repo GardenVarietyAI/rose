@@ -39,16 +39,16 @@ def calculate_performance_metrics(timing: TimingData, tokens: TokenCounts) -> Pe
     total_time_ms = None
     tokens_per_second = None
 
-    if timing.first_token_time:
+    if timing.first_token_time is not None:
         ttfb_ms = (timing.first_token_time - timing.request_start) * 1000
 
-    if timing.completion_time:
+    if timing.completion_time is not None:
         total_time_ms = (timing.completion_time - timing.request_start) * 1000
 
-        # Calculate tokens/sec based on generation time (excluding TTFB)
-        if ttfb_ms and total_time_ms > ttfb_ms and tokens.output_tokens > 0:
-            generation_time_ms = total_time_ms - ttfb_ms
-            tokens_per_second = (tokens.output_tokens * 1000) / generation_time_ms
+    # Calculate tokens/sec based on generation time (excluding TTFB)
+    if ttfb_ms is not None and total_time_ms is not None and total_time_ms > ttfb_ms and tokens.output_tokens > 0:
+        generation_time_ms = total_time_ms - ttfb_ms
+        tokens_per_second = (tokens.output_tokens * 1000) / generation_time_ms
 
     return PerformanceMetrics(ttfb_ms=ttfb_ms, total_time_ms=total_time_ms, tokens_per_second=tokens_per_second)
 
