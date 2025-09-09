@@ -127,6 +127,7 @@ def process_training_job(job_id: str, payload: Dict[str, Any], client: ServiceCl
             training_metrics = {
                 "final_loss": result.get("final_loss"),
                 "steps": result.get("steps"),
+                "epochs_completed": result.get("epochs_completed"),
             }
 
             # Include perplexity if available (only when validation split was used)

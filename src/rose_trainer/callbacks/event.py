@@ -38,6 +38,8 @@ class EventCallback(_BaseCallback):  # type: ignore[misc]
     ) -> None:
         if not logs or "loss" not in logs:
             return
+
+        loss = logs["loss"]
         total = args.max_steps
         if total <= 0:
             if hasattr(state, "num_train_epochs") and hasattr(args, "num_train_epochs"):
@@ -52,10 +54,12 @@ class EventCallback(_BaseCallback):  # type: ignore[misc]
         self._send(
             "info",
             f"Step {state.global_step}/{total} "
-            f"({pct:.1f} %) - loss {logs['loss']:.4f} - ETA {self._eta(state.global_step, total)}",
+            f"({pct:.1f} %) - loss {loss:.4f} - ETA {self._eta(state.global_step, total)}",
             {
                 "step": state.global_step,
-                "loss": logs["loss"],
+                "loss": loss,
+                "epoch": int(state.epoch) if state.epoch is not None else 0,
+                "learning_rate": logs.get("learning_rate", 0.0),
                 "progress_pct": round(pct, 2),
             },
         )
