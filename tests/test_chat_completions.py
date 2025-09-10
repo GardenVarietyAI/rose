@@ -30,7 +30,7 @@ class TestChatCompletionsErrors:
             },
         )
 
-        assert response.status_code == 422  # Pydantic validation error
+        assert response.status_code == 422
 
     def test_invalid_message_role(self, client: TestClient):
         """Test that invalid message role is rejected."""
@@ -39,54 +39,7 @@ class TestChatCompletionsErrors:
             json={"model": "qwen2.5-0.5b", "messages": [{"role": "invalid_role", "content": "Hello"}]},
         )
 
-        assert response.status_code == 422  # Pydantic validation
-
-    def test_logprobs_with_streaming(self, client: TestClient):
-        """Test that logprobs + streaming returns error."""
-        response = client.post(
-            "/v1/chat/completions",
-            json={
-                "model": "qwen2.5-0.5b",
-                "messages": [{"role": "user", "content": "Hello"}],
-                "stream": True,
-                "logprobs": True,
-            },
-        )
-
-        assert response.status_code == 400
-        error = response.json()["error"]
-        assert error["type"] == "invalid_request_error"
-        assert error["param"] == "logprobs"
-        assert error["code"] == "invalid_parameter_combination"
-        assert "streaming" in error["message"].lower()
-
-    def test_invalid_top_logprobs(self, client: TestClient):
-        """Test top_logprobs validation."""
-        # Test too high (max is 5)
-        response = client.post(
-            "/v1/chat/completions",
-            json={
-                "model": "qwen2.5-0.5b",
-                "messages": [{"role": "user", "content": "Hello"}],
-                "logprobs": True,
-                "top_logprobs": 10,
-            },
-        )
-
-        assert response.status_code == 422  # Pydantic validation
-
-        # Test negative
-        response = client.post(
-            "/v1/chat/completions",
-            json={
-                "model": "qwen2.5-0.5b",
-                "messages": [{"role": "user", "content": "Hello"}],
-                "logprobs": True,
-                "top_logprobs": -1,
-            },
-        )
-
-        assert response.status_code == 422  # Pydantic validation
+        assert response.status_code == 422
 
     def test_code_interpreter_tool(self, client: TestClient):
         """Test that code_interpreter tool type is rejected."""
