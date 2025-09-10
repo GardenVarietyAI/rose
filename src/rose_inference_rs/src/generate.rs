@@ -92,6 +92,9 @@ pub async fn stream(
             0
         };
         let logits = model.forward(&input_tensor, past_length)?;
+
+        tokio::task::yield_now().await;
+
         let logits = logits.squeeze(0)?.squeeze(0)?;
         let logits = if repeat_penalty == 1.0 {
             logits
@@ -151,6 +154,8 @@ pub async fn stream(
             finish_reason = FinishReason::Stop;
             break;
         }
+
+        tokio::time::sleep(Duration::from_millis(1)).await;
 
         if sampled_token == model.eos_token_id()
             || sampled_token == model.im_end_token_id(tokenizer)
