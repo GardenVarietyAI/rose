@@ -8,7 +8,6 @@ mod chat_templates;
 mod device;
 mod error;
 mod generate;
-mod logprobs;
 mod models;
 mod types;
 
