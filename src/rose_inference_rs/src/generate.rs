@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::Result;
 use candle_core::{Device, Tensor};
 use candle_transformers::generation::LogitsProcessor;
@@ -5,9 +7,8 @@ use tokenizers::Tokenizer;
 use tokio::sync::mpsc;
 
 use crate::error::InferenceError;
-use crate::logprobs;
 use crate::models::CausalLM;
-use crate::types::{FinishReason, InferenceResponse, TopLogProb};
+use crate::types::{FinishReason, InferenceResponse};
 
 pub async fn stream(
     model: &mut dyn CausalLM,
@@ -23,8 +24,6 @@ pub async fn stream(
     seed: u64,
     repeat_penalty: f32,
     repeat_last_n: usize,
-    logprobs: Option<bool>,
-    top_logprobs: Option<usize>,
 ) -> Result<()> {
     // Tokenize prompt
     let encoding = tokenizer
@@ -115,21 +114,6 @@ pub async fn stream(
             .map_err(|e| InferenceError::TokenizerError(e.to_string()))?
             .replace('\u{FFFD}', ""); // Remove replacement characters
 
-        // Calculate logprobs if requested
-        let (logprob, top_logprobs_data) = if logprobs.unwrap_or(false) {
-            let logprobs_result =
-                logprobs::calculate_logprobs(&logits, sampled_token, tokenizer, top_logprobs)?;
-            let converted_top_logprobs = logprobs_result.top_logprobs.map(|tlps|
-                tlps.into_iter().map(|tlp| TopLogProb {
-                    token: tlp.token,
-                    logprob: tlp.logprob,
-                }).collect()
-            );
-            (Some(logprobs_result.logprob), converted_top_logprobs)
-        } else {
-            (None, None)
-        };
-
         // Check for stop sequences
         decoded_so_far.push_str(&token_text);
         if let Some(stops) = stop {
@@ -147,8 +131,8 @@ pub async fn stream(
             token: token_text,
             token_id: sampled_token,
             position: index as u32,
-            logprob,
-            top_logprobs: top_logprobs_data,
+            logprob: None,
+            top_logprobs: None,
         };
         if stream_tx.send(token_msg).await.is_err() {
             finish_reason = FinishReason::Stop;
