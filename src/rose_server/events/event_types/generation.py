@@ -73,10 +73,6 @@ class TokenGenerated(LLMEvent):
     token: str = Field(..., description="The generated token text")
     token_id: int = Field(..., description="Token ID from tokenizer vocabulary")
     position: int = Field(..., ge=0, description="Position in the generated sequence")
-    logprob: Optional[float] = Field(None, description="Log probability of this token")
-    top_logprobs: Optional[list[Dict[str, Any]]] = Field(
-        None, description="Top alternative tokens with their log probabilities"
-    )
 
     @field_validator("position")
     @classmethod

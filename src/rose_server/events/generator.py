@@ -88,8 +88,6 @@ class EventGenerator:
                     token=ev.token,
                     token_id=ev.token_id,
                     position=ev.position,
-                    logprob=ev.logprob,
-                    top_logprobs=ev.top_logprobs,
                 )
 
                 # Process tools if needed
@@ -140,8 +138,6 @@ class EventGenerator:
         enable_tools: bool = False,
         tools: Optional[List[Any]] = None,
         tool_choice: Optional[str] = "auto",
-        logprobs: Optional[bool] = None,
-        top_logprobs: Optional[int] = None,
         seed: Optional[int] = None,
         chain_id: Optional[str] = None,
         **kwargs: Any,
@@ -168,8 +164,6 @@ class EventGenerator:
             max_tokens=max_tokens,
             enable_tools=enable_tools,
             tools=tools,
-            logprobs=logprobs,
-            top_logprobs=top_logprobs,
             seed=seed,
             chain_id=chain_id,
         )
@@ -184,8 +178,6 @@ class EventGenerator:
         max_tokens: int,
         enable_tools: bool,
         tools: Optional[List[Any]],
-        logprobs: Optional[bool] = None,
-        top_logprobs: Optional[int] = None,
         seed: Optional[int] = None,
         chain_id: Optional[str] = None,
     ) -> AsyncGenerator[Union[TokenGenerated, ToolCallStarted, ToolCallCompleted, ResponseCompleted], None]:
@@ -205,8 +197,6 @@ class EventGenerator:
                 repeat_penalty=self.config.repetition_penalty or 1.1,
                 repeat_last_n=64,
                 stop=None,
-                logprobs=logprobs,
-                top_logprobs=top_logprobs,
                 seed=seed,
                 chat_template=None,
                 enable_thinking=False,

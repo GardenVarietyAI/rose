@@ -63,20 +63,6 @@ async def event_based_chat_completions(
                     },
                 )
 
-    # Validate logprobs with streaming
-    if request.stream and request.logprobs:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": {
-                    "message": "Logprobs are not supported with streaming. Set stream=false to use logprobs.",
-                    "type": "invalid_request_error",
-                    "param": "logprobs",
-                    "code": "invalid_parameter_combination",
-                }
-            },
-        )
-
     try:
         generator = EventGenerator(config, inference_server)
         formatter = ChatCompletionsFormatter()
@@ -108,8 +94,6 @@ async def create_event_streaming_response(
                 messages,
                 temperature=request.temperature,
                 max_tokens=request.max_tokens,
-                logprobs=request.logprobs,
-                top_logprobs=request.top_logprobs,
                 seed=request.seed,
                 **tool_params,
             ):
@@ -148,8 +132,6 @@ async def create_event_complete_response(
             messages,
             temperature=request.temperature,
             max_tokens=request.max_tokens,
-            logprobs=request.logprobs,
-            top_logprobs=request.top_logprobs,
             seed=request.seed,
             **tool_params,
         ):

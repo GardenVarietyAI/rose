@@ -164,26 +164,6 @@ class ChatCompletionsFormatter:
             ),
         }
 
-        # Add logprobs if any token has them
-        if any(e.logprob is not None for e in token_events):
-            logprobs_content = []
-            for event in token_events:
-                token_logprob = {
-                    "token": event.token,
-                    "logprob": event.logprob if event.logprob is not None else 0.0,
-                    "bytes": list(event.token.encode("utf-8")),
-                }
-
-                # Add top_logprobs if present
-                if event.top_logprobs:
-                    token_logprob["top_logprobs"] = event.top_logprobs
-                else:
-                    token_logprob["top_logprobs"] = []
-
-                logprobs_content.append(token_logprob)
-
-            choice["logprobs"] = {"content": logprobs_content, "refusal": None}
-
         return {
             "id": f"chatcmpl-{start_event.response_id if start_event else uuid.uuid4().hex[:16]}",
             "object": "chat.completion",
