@@ -8,7 +8,6 @@ mod chat_templates;
 mod device;
 mod error;
 mod generate;
-mod logprobs;
 mod models;
 mod types;
 
@@ -178,8 +177,6 @@ impl InferenceServer {
                     generation_kwargs.seed.unwrap_or(42),
                     generation_kwargs.repeat_penalty.unwrap_or(1.1),
                     generation_kwargs.repeat_last_n.unwrap_or(64),
-                    generation_kwargs.logprobs,
-                    generation_kwargs.top_logprobs,
                     generation_kwargs.response_chain_id.clone(),
                 );
 
@@ -263,15 +260,17 @@ fn spawn_generation_task(
     seed: u64,
     repeat_penalty: f32,
     repeat_last_n: usize,
-    logprobs: Option<bool>,
-    top_logprobs: Option<usize>,
     response_chain_id: Option<String>,
 ) -> tokio::task::JoinHandle<()> {
     let stop_owned = stop.map(|s| s.to_vec());
     tokio::spawn(async move {
         // Check if we need to reset KV cache based on conversation state
         let should_reset = ModelCache::should_reset_kv_cache(response_chain_id.as_deref()).await;
-        tracing::info!("KV cache decision for chain_id {:?}: should_reset={}", response_chain_id, should_reset);
+        tracing::info!(
+            "KV cache decision for chain_id {:?}: should_reset={}",
+            response_chain_id,
+            should_reset
+        );
 
         // Acquire model with timeout inline to avoid lifetime issues
         let mut model_guard =
@@ -309,8 +308,6 @@ fn spawn_generation_task(
             seed,
             repeat_penalty,
             repeat_last_n,
-            logprobs,
-            top_logprobs,
         )
         .await;
 

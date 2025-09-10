@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use pyo3::prelude::*;
+use serde::{Deserialize, Serialize};
 
 #[pyclass]
 #[derive(Debug, Clone, Deserialize)]
@@ -114,7 +114,6 @@ impl GenerationKwargs {
         }
     }
 }
-
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
