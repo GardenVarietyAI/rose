@@ -17,7 +17,7 @@ from rose_cli.utils import get_async_client
 class FileReaderActor:
     """Agent that can read files and list directories."""
 
-    def __init__(self, model: str = "Qwen/Qwen2.5-1.5B-Instruct") -> None:
+    def __init__(self, model: str = "Qwen--Qwen3-0.6B-GGUF") -> None:
         client = get_async_client()
         set_default_openai_client(client)
         set_tracing_disabled(True)

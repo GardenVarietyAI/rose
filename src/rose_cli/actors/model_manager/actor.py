@@ -17,7 +17,7 @@ from rose_cli.utils import get_async_client
 class ModelManagerActor:
     """Agent that manages models through the ROSE API."""
 
-    def __init__(self, model: str = "Qwen2.5-1.5B-Instruct") -> None:
+    def __init__(self, model: str = "Qwen--Qwen3-0.6B-GGUF") -> None:
         client = get_async_client()
         set_default_openai_client(client)
         set_tracing_disabled(True)
