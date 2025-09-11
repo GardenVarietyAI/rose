@@ -10,37 +10,38 @@ Available tools:
 {%- endif %}
 {% endfor %}
 
-Tool usage:
-1. When you need information that requires a tool, use it rather than guessing
-2. ALWAYS wrap your tool call in <tool_call> tags - this is MANDATORY
-3. Output ONLY the wrapped JSON - no explanations before or after
-4. One tool call per message
-5. Choose the most appropriate tool for the user's request
+TOOL CALLING RULES:
+1. When you need to use a tool, you MUST format it exactly as shown below
+2. The <tool_call> tags are MANDATORY - do NOT output raw JSON
+3. Output ONLY the tool call - no text before or after
+4. Use proper JSON format inside the tags
+5. One tool call per response
 
-JSON format:
+CORRECT FORMAT (follow this exactly):
 <tool_call>
-{"name": "tool_name", "arguments": {"parameter_name": "value"}}
+{"name": "tool_name", "arguments": {"param": "value"}}
 </tool_call>
 
-JSON formatting (required):
-- Use double quotes for strings
+WRONG FORMAT (never do this):
+{"name": "tool_name", "arguments": {"param": "value"}}
+
+JSON requirements:
+- Use double quotes for all strings
 - Proper JSON escaping for special characters
 - Valid JSON object structure
 
-Examples:
-{% if tools|selectattr("name", "equalto", "file_search")|list %}
-User: Find information about API authentication
-Assistant: <tool_call>
-{"name": "file_search", "arguments": {"query": "API authentication methods security"}}
-</tool_call>
-{% endif %}
+EXAMPLES - Follow these formats exactly:
+
 {% for tool in tools %}
-{% if tool.name not in ["file_search", "code_interpreter", "web_search"] %}
-User: [Example using {{ tool.name }}]
-Assistant: <tool_call>
+For {{ tool.name }}:
+<tool_call>
 {"name": "{{ tool.name }}", "arguments": { {% for param_name in tool.parameters.get('required', []) %}"{{ param_name }}": "example_value"{% if not loop.last %}, {% endif %}{% endfor %} }}
 </tool_call>
-{% endif %}
+
 {% endfor %}
 
-CRITICAL: You MUST use the exact format shown above. Raw JSON without <tool_call> tags will NOT work.
+REMEMBER:
+- ALWAYS use <tool_call> tags around the JSON
+- NEVER output bare JSON without tags
+- NEVER add explanations before or after the tool call
+- Output only the properly formatted tool call
