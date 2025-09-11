@@ -2,22 +2,33 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from jinja2 import Environment, FileSystemLoader
-from openai.types.beta.file_search_tool import FileSearchTool
-from openai.types.beta.function_tool import FunctionTool
-from openai.types.shared_params.function_definition import FunctionDefinition
-
-from rose_server.tools.toolbox import Tool
 
 logger = logging.getLogger(__name__)
 template_dir = Path(__file__).parent / "prompts"
 jinja_env = Environment(loader=FileSystemLoader(str(template_dir)), trim_blocks=True, lstrip_blocks=True)
 
 
+def _most_recent_is_tool_result(messages: List[Any]) -> bool:
+    """Check if the most recent message is a tool result."""
+    if not messages:
+        return False
+
+    last_msg = messages[-1]
+    if hasattr(last_msg, "role") and last_msg.role == "tool":
+        return True
+    elif isinstance(last_msg, dict) and last_msg.get("role") == "tool":
+        return True
+    return False
+
+
 def format_tools_for_prompt(
-    tools: List[Any], assistant_id: Optional[str] = None, user_agent: Optional[str] = None
+    tools: List[Any],
+    messages: Optional[List[Any]] = None,
+    assistant_id: Optional[str] = None,
+    user_agent: Optional[str] = None,
 ) -> str:
     """Format tools into XML prompt instructions for LLMs.
 
@@ -37,7 +48,6 @@ def format_tools_for_prompt(
             tool_type = tool.type
         elif isinstance(tool, dict):
             tool_type = tool.get("type")
-            # Handle OpenAI agents format (name, description, input_schema/params_json_schema)
             if not tool_type and "name" in tool and "description" in tool:
                 tool_type = "function"
         else:
@@ -67,75 +77,20 @@ def format_tools_for_prompt(
             tool_list.append(
                 {"name": name, "description": description, "parameters": parameters if parameters is not None else {}}
             )
-        elif tool_type in ["retrieval", "file_search"]:
-            tool_list.append(
-                {
-                    "name": "file_search",
-                    "description": "Search through attached documents",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {"query": {"type": "string", "description": "search query string"}},
-                        "required": ["query"],
-                    },
-                }
-            )
     if not tool_list:
         return ""
 
-    template = jinja_env.get_template("tool_calling.jinja2")
+    if messages and _most_recent_is_tool_result(messages):
+        template_name = "tool_response.jinja2"
+        logger.info("Using tool response instructions")
+    else:
+        template_name = "tool_calling.jinja2"
+        logger.info("Using tool calling template")
+
+    template = jinja_env.get_template(template_name)
     render_args = {
         "tools": tool_list,
     }
 
     rendered = template.render(**render_args)
-    logger.debug(f"Rendered tool prompt:\n{rendered[:500]}...")  # Log first 500 chars
     return rendered
-
-
-def format_function_output(output: str, exit_code: int = 0, model: str = "gpt-4") -> str:
-    """Format function call output for the model to understand.
-
-    Args:
-        output: The output from the function call
-        exit_code: Exit code of the command (0 = success)
-        model: Model name for token counting
-    Returns:
-        Formatted string to add to the conversation
-    """
-    # Simple truncation for very large outputs
-    if len(output) > 10000:
-        output = output[:9500] + "\n... (output truncated)"
-    template = jinja_env.get_template("function_output.jinja2")
-    return template.render(output=output, exit_code=exit_code)
-
-
-def validate_tools(tools: List[Dict[str, Any]]) -> List[Tool]:
-    """Validate and parse tool definitions.
-
-    Args:
-        tools: List of tool dictionaries from API requests
-    Returns:
-        List of validated Tool objects
-    Raises:
-        ValueError: If tool type is unknown
-    """
-    validated: List[Tool] = []
-    for tool_dict in tools:
-        tool_type = tool_dict.get("type")
-        if tool_type == "function":
-            validated.append(FunctionTool(**tool_dict))
-        elif tool_type == "file_search":
-            validated.append(FileSearchTool(type="file_search"))
-        else:
-            logger.warning(f"Unknown tool type: {tool_type}, treating as custom function tool")
-            validated.append(
-                FunctionTool(
-                    type="function",
-                    function=FunctionDefinition(
-                        name=tool_type or "unknown",
-                        description=f"Custom {tool_type} tool",
-                        parameters={"type": "object", "properties": {}, "required": []},
-                    ),
-                )
-            )
-    return validated

@@ -20,7 +20,7 @@ from rose_server.schemas.responses import (
     ResponsesResponse,
     ResponsesUsage,
 )
-from rose_server.tools import parse_xml_tool_call
+from rose_server.tools import parse_tool_call
 
 
 class ResponsesFormatter:
@@ -133,7 +133,7 @@ class ResponsesFormatter:
             return output_items
 
         # Check for tool calls
-        tool_call, cleaned_text = parse_xml_tool_call(content)
+        tool_call, cleaned_text = parse_tool_call(content)
         if tool_call:
             function_item = ResponsesOutputItem(
                 id=f"call_{uuid.uuid4().hex[:16]}",
@@ -187,7 +187,7 @@ class ResponsesFormatter:
             # The content contains the XML tool calls - we need to strip them
             for tool_event in tool_events:
                 # Remove the XML tool call from content
-                tool_call, cleaned_content = parse_xml_tool_call(content)
+                tool_call, cleaned_content = parse_tool_call(content)
                 if tool_call:
                     content = cleaned_content
 

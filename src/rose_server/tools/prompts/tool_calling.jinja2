@@ -10,46 +10,38 @@ Available tools:
 {%- endif %}
 {% endfor %}
 
-Tool usage:
-1. Output ONLY the XML below - no explanations before or after
-2. One tool call per message
-3. After receiving results, incorporate them in your response
+TOOL CALLING RULES:
+1. When you need to use a tool, you MUST format it exactly as shown below
+2. The <tool_call> tags are MANDATORY - do NOT output raw JSON
+3. Output ONLY the tool call - no text before or after
+4. Use proper JSON format inside the tags
+5. One tool call per response
 
-XML format:
+CORRECT FORMAT (follow this exactly):
 <tool_call>
-  <tool>tool_name</tool>
-  <args>
-    <parameter_name>value</parameter_name>
-  </args>
+{"name": "tool_name", "arguments": {"param": "value"}}
 </tool_call>
 
-XML escaping (required):
-- < becomes &lt;
-- > becomes &gt;
-- & becomes &amp;
-- " becomes &quot;
-- ' becomes &apos;
+WRONG FORMAT (never do this):
+{"name": "tool_name", "arguments": {"param": "value"}}
 
-Examples:
-{% if tools|selectattr("name", "equalto", "file_search")|list %}
-User: Find information about API authentication
-Assistant: <tool_call>
-  <tool>file_search</tool>
-  <args>
-    <query>API authentication methods security</query>
-  </args>
-</tool_call>
-{% endif %}
+JSON requirements:
+- Use double quotes for all strings
+- Proper JSON escaping for special characters
+- Valid JSON object structure
+
+EXAMPLES - Follow these formats exactly:
+
 {% for tool in tools %}
-{% if tool.name not in ["file_search", "code_interpreter", "web_search"] %}
-User: [Example using {{ tool.name }}]
-Assistant: <tool_call>
-  <tool>{{ tool.name }}</tool>
-  <args>
-    {% for param_name in tool.parameters.get('required', []) %}
-    <{{ param_name }}>example_value</{{ param_name }}>
-    {% endfor %}
-  </args>
+For {{ tool.name }}:
+<tool_call>
+{"name": "{{ tool.name }}", "arguments": { {% for param_name in tool.parameters.get('required', []) %}"{{ param_name }}": "example_value"{% if not loop.last %}, {% endif %}{% endfor %} }}
 </tool_call>
-{% endif %}
+
 {% endfor %}
+
+REMEMBER:
+- ALWAYS use <tool_call> tags around the JSON
+- NEVER output bare JSON without tags
+- NEVER add explanations before or after the tool call
+- Output only the properly formatted tool call

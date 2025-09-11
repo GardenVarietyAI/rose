@@ -1,3 +1,5 @@
+import ast
+import json
 import logging
 import re
 import xml.etree.ElementTree as ET
@@ -6,9 +8,8 @@ from typing import Any, Dict, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 # Precompiled regex patterns
-CODE_BLOCK_PATTERN = re.compile(r"```(?:xml)?\s*(.*?)\s*```", re.DOTALL)
-XML_PATTERN_FULL = re.compile(r"<tool_call>(.*?)</tool_call>", re.DOTALL)
-TOOL_PATTERN = re.compile(r"<tool>(.*?)</tool>\s*<args>(.*?)</args>", re.DOTALL)
+CODE_BLOCK_PATTERN = re.compile(r"```(?:xml|json)?\s*(.*?)\s*```", re.DOTALL)
+TOOL_CALL_PATTERN = re.compile(r"<tool_call>(.*?)</tool_call>", re.DOTALL)
 
 
 def _strip_markdown(text: str) -> str:
@@ -40,67 +41,60 @@ def _parse_args(args_element: ET.Element, tool_name: str) -> Dict[str, Any]:
     return args_dict
 
 
-def parse_xml_tool_call(
-    reply: str, available_tools: Optional[List[Any]] = None
-) -> Tuple[Optional[Dict[str, Any]], str]:
-    """Parse XML tool call from LLM response and return (tool_call, cleaned_reply).
-
-    Expected XML format: <tool_call><tool>name</tool><args>...</args></tool_call>
-
-    Args:
-        reply: The LLM response containing potential XML tool calls
-        available_tools: List of available tools for parameter validation
-    Returns:
-        Tuple of (tool_call_dict, cleaned_reply) where tool_call_dict contains
-        the parsed tool information in a format compatible with the runs API
+def parse_tool_call(reply: str, available_tools: Optional[List[Any]] = None) -> Tuple[Optional[Dict[str, Any]], str]:
+    """
+    Expected format: <tool_call>{"name": "tool_name", "arguments": {...}}</tool_call>
     """
     working_reply = _strip_markdown(reply)
 
-    # Look for the wrapped format as primary
-    wrapped_match = XML_PATTERN_FULL.search(working_reply)
-    if not wrapped_match:
-        return None, reply
-
-    original_xml = wrapped_match.group(0)
-    inner_content = wrapped_match.group(1)
-
-    # Extract tool and args from inside the wrapper
-    match = TOOL_PATTERN.search(inner_content)
+    # Look for tool_call tags
+    match = TOOL_CALL_PATTERN.search(working_reply)
     if not match:
         return None, reply
 
-    tool_name = match.group(1).strip()
-    args_content = match.group(2).strip()
-
-    # Wrap in standard format for parsing
-    xml_content = f"<tool_call><tool>{tool_name}</tool><args>{args_content}</args></tool_call>"
-    logger.info(f"Found tool call: {tool_name}")
+    original_call = match.group(0)
+    inner_content = match.group(1).strip()
 
     # Check if there are multiple tool calls
-    all_matches = XML_PATTERN_FULL.findall(working_reply)
+    all_matches = TOOL_CALL_PATTERN.findall(working_reply)
     if len(all_matches) > 1:
-        logger.warning(f"Found {len(all_matches)} tool calls in response - only processing the first one for safety")
+        logger.warning(f"Found {len(all_matches)} tool calls in response, only processing the first...")
 
+    # Python dict parsing
     try:
-        root = ET.fromstring(xml_content)
-        tool_name = root.find("tool")
-        args_element = root.find("args")
+        tool_call_data = ast.literal_eval(inner_content)
+        if isinstance(tool_call_data, dict) and "name" in tool_call_data:
+            parsed_call = {
+                "tool": tool_call_data["name"],
+                "arguments": tool_call_data.get("arguments", {}),
+            }
 
-        if tool_name is None or args_element is None or tool_name.text is None:
-            return None, reply
+            cleaned_reply = _strip_markdown(reply.replace(original_call, "").strip())
 
-        args_dict = _parse_args(args_element, tool_name.text)
+            logger.info(f"Parsed dict tool call: {parsed_call}")
+            logger.info(f"Remaining reply text after tool call removal: '{cleaned_reply}'")
+            return parsed_call, cleaned_reply
 
-        parsed_call = {
-            "tool": tool_name.text,
-            "arguments": args_dict,
-        }
+    except Exception:
+        pass
 
-        cleaned_reply = _strip_markdown(reply.replace(original_xml or "", "").strip())
+    # JSON parsing
+    try:
+        tool_call_data = json.loads(inner_content)
+        if isinstance(tool_call_data, dict) and "name" in tool_call_data:
+            parsed_call = {
+                "tool": tool_call_data["name"],
+                "arguments": tool_call_data.get("arguments", {}),
+            }
 
-        logger.info(f"Parsed XML tool call: {parsed_call}")
-        logger.info(f"Remaining reply text after XML removal: '{cleaned_reply}'")
-        return parsed_call, cleaned_reply
-    except Exception as e:
-        logger.warning(f"Failed to parse XML tool call: {e}")
-        return None, reply
+            cleaned_reply = _strip_markdown(reply.replace(original_call, "").strip())
+
+            logger.info(f"Parsed JSON tool call: {parsed_call}")
+            logger.info(f"Remaining reply text after tool call removal: '{cleaned_reply}'")
+            return parsed_call, cleaned_reply
+
+    except Exception:
+        pass
+
+    logger.info("Failed to parse as both dict and JSON")
+    return None, reply

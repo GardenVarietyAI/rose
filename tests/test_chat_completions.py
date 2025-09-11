@@ -41,42 +41,6 @@ class TestChatCompletionsErrors:
 
         assert response.status_code == 422
 
-    def test_code_interpreter_tool(self, client: TestClient):
-        """Test that code_interpreter tool type is rejected."""
-        response = client.post(
-            "/v1/chat/completions",
-            json={
-                "model": "qwen2.5-0.5b",
-                "messages": [{"role": "user", "content": "Hello"}],
-                "tools": [{"type": "code_interpreter"}],
-            },
-        )
-
-        assert response.status_code == 400
-        error = response.json()["error"]
-        assert error["type"] == "invalid_request_error"
-        assert error["param"] == "tools"
-        assert error["code"] == "unsupported_tool_type"
-        assert "code_interpreter" in error["message"]
-
-    def test_web_search_tool(self, client: TestClient):
-        """Test that web_search tool type is rejected."""
-        response = client.post(
-            "/v1/chat/completions",
-            json={
-                "model": "qwen2.5-0.5b",
-                "messages": [{"role": "user", "content": "Hello"}],
-                "tools": [{"type": "web_search"}],
-            },
-        )
-
-        assert response.status_code == 400
-        error = response.json()["error"]
-        assert error["type"] == "invalid_request_error"
-        assert error["param"] == "tools"
-        assert error["code"] == "unsupported_tool_type"
-        assert "web_search" in error["message"]
-
     def test_malformed_json_body(self, client: TestClient):
         """Test that malformed JSON returns proper error."""
         response = client.post(
@@ -85,4 +49,4 @@ class TestChatCompletionsErrors:
             headers={"Content-Type": "application/json"},
         )
 
-        assert response.status_code == 422  # FastAPI JSON parse error
+        assert response.status_code == 422

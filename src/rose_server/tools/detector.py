@@ -3,7 +3,7 @@
 import logging
 from typing import Any, Dict, Optional, Tuple
 
-from rose_server.tools.parser import parse_xml_tool_call
+from rose_server.tools.parser import parse_tool_call
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ class StreamingXMLDetector:
     emitting text and tool calls as they are detected.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.buffer = ""
         self.max_buffer_size = 8192  # 8KB max buffer to prevent infinite buffering
         # Remove unused state variables
@@ -61,7 +61,7 @@ class StreamingXMLDetector:
                     logger.debug("Stripped markdown wrapper before tool call")
 
                 logger.info(f"Parsing tool XML: {repr(tool_xml)}")
-                tool_call, _ = parse_xml_tool_call(tool_xml)
+                tool_call, _ = parse_tool_call(tool_xml)
                 return (text_before if text_before else None), tool_call
             else:
                 # We have <tool_call> but no </tool_call> yet, keep buffering

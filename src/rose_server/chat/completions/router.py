@@ -46,23 +46,6 @@ async def event_based_chat_completions(
     messages = request.messages
     logger.info(f"[EVENT] Message count: {len(messages)}")
 
-    # Validate tools if provided
-    if request.tools:
-        for tool in request.tools:
-            tool_type = tool.get("type") if isinstance(tool, dict) else getattr(tool, "type", None)
-            if tool_type in ["code_interpreter", "web_search"]:
-                return JSONResponse(
-                    status_code=400,
-                    content={
-                        "error": {
-                            "message": f"Tool type '{tool_type}' is not supported. Please use function tools instead.",
-                            "type": "invalid_request_error",
-                            "param": "tools",
-                            "code": "unsupported_tool_type",
-                        }
-                    },
-                )
-
     try:
         generator = EventGenerator(config, inference_server)
         formatter = ChatCompletionsFormatter()

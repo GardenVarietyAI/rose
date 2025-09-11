@@ -181,7 +181,6 @@ class EventGenerator:
         seed: Optional[int] = None,
         chain_id: Optional[str] = None,
     ) -> AsyncGenerator[Union[TokenGenerated, ToolCallStarted, ToolCallCompleted, ResponseCompleted], None]:
-        prompt = format_tools_for_prompt(tools) if enable_tools and tools else None
         tool_processor = ToolProcessor(self.model_name) if enable_tools else None
 
         async with self._semaphore:
@@ -202,7 +201,21 @@ class EventGenerator:
                 enable_thinking=False,
             )
 
-            rust_messages = [Message(role=msg.role, content=msg.content) for msg in messages]
+            # Add tool instructions to messages if tools are enabled
+            if enable_tools and tools:
+                tool_instructions = format_tools_for_prompt(tools, messages)
+                # Prepend tool instructions as system message
+                rust_messages = [Message(role="system", content=tool_instructions)]
+                rust_messages.extend(
+                    [
+                        Message(role=msg.role, content=msg.content or "", tool_call_id=msg.tool_call_id)
+                        for msg in messages
+                    ]
+                )
+            else:
+                rust_messages = [
+                    Message(role=msg.role, content=msg.content or "", tool_call_id=msg.tool_call_id) for msg in messages
+                ]
             loop = asyncio.get_running_loop()
             q: asyncio.Queue[Union[TokenEvent, CompleteEvent, InputTokensCountedEvent, ErrorEvent]] = asyncio.Queue()
 
@@ -218,7 +231,7 @@ class EventGenerator:
                     error_event.error = repr(exc)
                     loop.call_soon_threadsafe(q.put_nowait, error_event)
 
-            task = asyncio.ensure_future(self._srv.stream_direct(generation_kwargs, on_event, rust_messages, prompt))
+            task = asyncio.ensure_future(self._srv.stream_direct(generation_kwargs, on_event, rust_messages, None))
             task.add_done_callback(_on_done)
 
             input_tokens = 0

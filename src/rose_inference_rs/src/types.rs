@@ -8,6 +8,8 @@ pub struct Message {
     pub role: String,
     #[pyo3(get, set)]
     pub content: String,
+    #[pyo3(get, set)]
+    pub tool_call_id: Option<String>,
 }
 
 #[pyclass]
@@ -50,8 +52,9 @@ pub struct GenerationKwargs {
 #[pymethods]
 impl Message {
     #[new]
-    fn new(role: String, content: String) -> Self {
-        Self { role, content }
+    #[pyo3(signature = (role, content, tool_call_id=None))]
+    fn new(role: String, content: String, tool_call_id: Option<String>) -> Self {
+        Self { role, content, tool_call_id }
     }
 }
 
