@@ -19,7 +19,6 @@ from rose_server.schemas.responses import (
     ResponsesResponse,
     ResponsesUsage,
 )
-from rose_server.tools import format_tools_for_prompt
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["responses"])
@@ -31,7 +30,7 @@ async def chains() -> List[str]:
     return chains
 
 
-async def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMessage]:
+async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMessage]:
     """Convert request to messages, loading history if needed."""
     messages = []
 
@@ -54,12 +53,6 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMess
 
     if request.instructions:
         system_content_parts.append(request.instructions)
-
-    # Auto-inject tool instructions if tools are provided
-    if request.tools:
-        tool_instructions = format_tools_for_prompt(request.tools)
-        if tool_instructions:
-            system_content_parts.append(tool_instructions)
 
     # Combine system instructions
     if system_content_parts:
@@ -99,9 +92,9 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> list[ChatMess
 
 async def _generate_streaming_response(
     config: ModelConfig,
-    messages: list[ChatMessage],
+    messages: List[ChatMessage],
     inference_server: InferenceServer,
-    tools: Optional[list] = None,
+    tools: Optional[List[Any]] = None,
     max_output_tokens: Optional[int] = None,
     temperature: Optional[float] = None,
     tool_choice: Optional[str] = None,
@@ -137,9 +130,9 @@ async def _generate_streaming_response(
 
 async def _generate_complete_response(
     config: ModelConfig,
-    messages: list[ChatMessage],
+    messages: List[ChatMessage],
     inference_server: InferenceServer,
-    tools: Optional[list] = None,
+    tools: Optional[List[Any]] = None,
     max_output_tokens: Optional[int] = None,
     temperature: Optional[float] = None,
     tool_choice: Optional[str] = None,
@@ -178,7 +171,7 @@ async def _generate_complete_response(
 
 
 async def _store_response(
-    complete_response: ResponsesResponse, messages: list[ChatMessage], model: str, chain_id: Optional[str] = None
+    complete_response: ResponsesResponse, messages: List[ChatMessage], model: str, chain_id: Optional[str] = None
 ) -> None:
     reply_text = ""
     for output_item in complete_response.output:
