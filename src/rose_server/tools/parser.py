@@ -41,9 +41,7 @@ def _parse_args(args_element: ET.Element, tool_name: str) -> Dict[str, Any]:
     return args_dict
 
 
-def parse_xml_tool_call(
-    reply: str, available_tools: Optional[List[Any]] = None
-) -> Tuple[Optional[Dict[str, Any]], str]:
+def parse_tool_call(reply: str, available_tools: Optional[List[Any]] = None) -> Tuple[Optional[Dict[str, Any]], str]:
     """
     Expected format: <tool_call>{"name": "tool_name", "arguments": {...}}</tool_call>
     """
