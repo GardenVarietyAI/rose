@@ -48,7 +48,6 @@ def format_tools_for_prompt(
             tool_type = tool.type
         elif isinstance(tool, dict):
             tool_type = tool.get("type")
-            # Handle OpenAI agents format (name, description, input_schema/params_json_schema)
             if not tool_type and "name" in tool and "description" in tool:
                 tool_type = "function"
         else:
@@ -83,10 +82,10 @@ def format_tools_for_prompt(
 
     if messages and _most_recent_is_tool_result(messages):
         template_name = "tool_response.jinja2"
-        logger.info("Using tool response instructions - tool results detected")
+        logger.info("Using tool response instructions")
     else:
         template_name = "tool_calling.jinja2"
-        logger.info("Using tool calling template - no tool results detected")
+        logger.info("Using tool calling template")
 
     template = jinja_env.get_template(template_name)
     render_args = {
@@ -94,22 +93,4 @@ def format_tools_for_prompt(
     }
 
     rendered = template.render(**render_args)
-    logger.debug(f"Rendered tool prompt:\n{rendered[:500]}...")  # Log first 500 chars
     return rendered
-
-
-def format_function_output(output: str, exit_code: int = 0, model: str = "gpt-4") -> str:
-    """Format function call output for the model to understand.
-
-    Args:
-        output: The output from the function call
-        exit_code: Exit code of the command (0 = success)
-        model: Model name for token counting
-    Returns:
-        Formatted string to add to the conversation
-    """
-    # Simple truncation for very large outputs
-    if len(output) > 10000:
-        output = output[:9500] + "\n... (output truncated)"
-    template = jinja_env.get_template("function_output.jinja2")
-    return template.render(output=output, exit_code=exit_code)
