@@ -11,45 +11,32 @@ Available tools:
 {% endfor %}
 
 Tool usage:
-1. Output ONLY the XML below - no explanations before or after
+1. Output ONLY the JSON below - no explanations before or after
 2. One tool call per message
 3. After receiving results, incorporate them in your response
 
-XML format:
+JSON format:
 <tool_call>
-  <tool>tool_name</tool>
-  <args>
-    <parameter_name>value</parameter_name>
-  </args>
+{"name": "tool_name", "arguments": {"parameter_name": "value"}}
 </tool_call>
 
-XML escaping (required):
-- < becomes &lt;
-- > becomes &gt;
-- & becomes &amp;
-- " becomes &quot;
-- ' becomes &apos;
+JSON formatting (required):
+- Use double quotes for strings
+- Proper JSON escaping for special characters
+- Valid JSON object structure
 
 Examples:
 {% if tools|selectattr("name", "equalto", "file_search")|list %}
 User: Find information about API authentication
 Assistant: <tool_call>
-  <tool>file_search</tool>
-  <args>
-    <query>API authentication methods security</query>
-  </args>
+{"name": "file_search", "arguments": {"query": "API authentication methods security"}}
 </tool_call>
 {% endif %}
 {% for tool in tools %}
 {% if tool.name not in ["file_search", "code_interpreter", "web_search"] %}
 User: [Example using {{ tool.name }}]
 Assistant: <tool_call>
-  <tool>{{ tool.name }}</tool>
-  <args>
-    {% for param_name in tool.parameters.get('required', []) %}
-    <{{ param_name }}>example_value</{{ param_name }}>
-    {% endfor %}
-  </args>
+{"name": "{{ tool.name }}", "arguments": { {% for param_name in tool.parameters.get('required', []) %}"{{ param_name }}": "example_value"{% if not loop.last %}, {% endif %}{% endfor %} }}
 </tool_call>
 {% endif %}
 {% endfor %}
