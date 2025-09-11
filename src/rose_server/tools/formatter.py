@@ -11,13 +11,16 @@ template_dir = Path(__file__).parent / "prompts"
 jinja_env = Environment(loader=FileSystemLoader(str(template_dir)), trim_blocks=True, lstrip_blocks=True)
 
 
-def _has_tool_results(messages: List[Any]) -> bool:
-    """Check if conversation contains tool result messages."""
-    for msg in messages:
-        if hasattr(msg, "role") and msg.role == "tool":
-            return True
-        elif isinstance(msg, dict) and msg.get("role") == "tool":
-            return True
+def _most_recent_is_tool_result(messages: List[Any]) -> bool:
+    """Check if the most recent message is a tool result."""
+    if not messages:
+        return False
+
+    last_msg = messages[-1]
+    if hasattr(last_msg, "role") and last_msg.role == "tool":
+        return True
+    elif isinstance(last_msg, dict) and last_msg.get("role") == "tool":
+        return True
     return False
 
 
@@ -78,8 +81,7 @@ def format_tools_for_prompt(
     if not tool_list:
         return ""
 
-    # Choose appropriate instructions based on conversation state
-    if messages and _has_tool_results(messages):
+    if messages and _most_recent_is_tool_result(messages):
         template_name = "tool_response.jinja2"
         logger.info("Using tool response instructions - tool results detected")
     else:
