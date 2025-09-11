@@ -203,12 +203,19 @@ class EventGenerator:
 
             # Add tool instructions to messages if tools are enabled
             if enable_tools and tools:
-                tool_instructions = format_tools_for_prompt(tools)
+                tool_instructions = format_tools_for_prompt(tools, messages)
                 # Prepend tool instructions as system message
                 rust_messages = [Message(role="system", content=tool_instructions)]
-                rust_messages.extend([Message(role=msg.role, content=msg.content) for msg in messages])
+                rust_messages.extend(
+                    [
+                        Message(role=msg.role, content=msg.content or "", tool_call_id=msg.tool_call_id)
+                        for msg in messages
+                    ]
+                )
             else:
-                rust_messages = [Message(role=msg.role, content=msg.content) for msg in messages]
+                rust_messages = [
+                    Message(role=msg.role, content=msg.content or "", tool_call_id=msg.tool_call_id) for msg in messages
+                ]
             loop = asyncio.get_running_loop()
             q: asyncio.Queue[Union[TokenEvent, CompleteEvent, InputTokensCountedEvent, ErrorEvent]] = asyncio.Queue()
 

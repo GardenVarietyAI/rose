@@ -11,9 +11,11 @@ Available tools:
 {% endfor %}
 
 Tool usage:
-1. Output ONLY the JSON below - no explanations before or after
-2. One tool call per message
-3. After receiving results, incorporate them in your response
+1. When you need information that requires a tool, use it rather than guessing
+2. ALWAYS wrap your tool call in <tool_call> tags - this is MANDATORY
+3. Output ONLY the wrapped JSON - no explanations before or after
+4. One tool call per message
+5. Choose the most appropriate tool for the user's request
 
 JSON format:
 <tool_call>
@@ -40,3 +42,5 @@ Assistant: <tool_call>
 </tool_call>
 {% endif %}
 {% endfor %}
+
+CRITICAL: You MUST use the exact format shown above. Raw JSON without <tool_call> tags will NOT work.

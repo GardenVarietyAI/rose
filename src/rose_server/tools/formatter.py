@@ -16,8 +16,21 @@ template_dir = Path(__file__).parent / "prompts"
 jinja_env = Environment(loader=FileSystemLoader(str(template_dir)), trim_blocks=True, lstrip_blocks=True)
 
 
+def _has_tool_results(messages: List[Any]) -> bool:
+    """Check if conversation contains tool result messages."""
+    for msg in messages:
+        if hasattr(msg, "role") and msg.role == "tool":
+            return True
+        elif isinstance(msg, dict) and msg.get("role") == "tool":
+            return True
+    return False
+
+
 def format_tools_for_prompt(
-    tools: List[Any], assistant_id: Optional[str] = None, user_agent: Optional[str] = None
+    tools: List[Any],
+    messages: Optional[List[Any]] = None,
+    assistant_id: Optional[str] = None,
+    user_agent: Optional[str] = None,
 ) -> str:
     """Format tools into XML prompt instructions for LLMs.
 
@@ -82,7 +95,15 @@ def format_tools_for_prompt(
     if not tool_list:
         return ""
 
-    template = jinja_env.get_template("tool_calling.jinja2")
+    # Choose appropriate instructions based on conversation state
+    if messages and _has_tool_results(messages):
+        template_name = "tool_response.jinja2"
+        logger.info("Using tool response instructions - tool results detected")
+    else:
+        template_name = "tool_calling.jinja2"
+        logger.info("Using tool calling template - no tool results detected")
+
+    template = jinja_env.get_template(template_name)
     render_args = {
         "tools": tool_list,
     }
