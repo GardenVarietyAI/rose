@@ -15,7 +15,7 @@ class StreamingXMLDetector:
     emitting text and tool calls as they are detected.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.buffer = ""
         self.max_buffer_size = 8192  # 8KB max buffer to prevent infinite buffering
         # Remove unused state variables
