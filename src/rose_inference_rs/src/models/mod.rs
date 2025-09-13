@@ -1,5 +1,6 @@
 pub mod qwen3;
 pub mod qwen3_gguf;
+pub mod qwen3_lora;
 
 use anyhow::Result;
 use candle_core::{Device, Tensor};
@@ -16,6 +17,7 @@ pub trait CausalLM: Send {
 pub enum ModelKind {
     Qwen3,
     Qwen3Gguf,
+    Qwen3Lora,
 }
 
 impl ModelKind {
@@ -23,14 +25,25 @@ impl ModelKind {
         match s.to_lowercase().as_str() {
             "qwen3" => Ok(Self::Qwen3),
             "qwen3_gguf" => Ok(Self::Qwen3Gguf),
+            "qwen3_lora" => Ok(Self::Qwen3Lora),
             _ => Err(anyhow::anyhow!("Unsupported model kind: {}", s)),
         }
     }
 }
 
+#[allow(dead_code)]
 pub fn load_causal_lm(
     model_kind: ModelKind,
     model_path: &str,
+    device: &Device,
+) -> Result<Box<dyn CausalLM>> {
+    load_causal_lm_with_lora(model_kind, model_path, None, device)
+}
+
+pub fn load_causal_lm_with_lora(
+    model_kind: ModelKind,
+    model_path: &str,
+    lora_adapter_path: Option<&str>,
     device: &Device,
 ) -> Result<Box<dyn CausalLM>> {
     match model_kind {
@@ -39,6 +52,9 @@ pub fn load_causal_lm(
         )?)),
         ModelKind::Qwen3Gguf => Ok(Box::new(qwen3_gguf::Qwen3CausalLM::load(
             model_path, device,
+        )?)),
+        ModelKind::Qwen3Lora => Ok(Box::new(qwen3_lora::Qwen3LoraModel::load(
+            model_path, lora_adapter_path, device,
         )?)),
     }
 }

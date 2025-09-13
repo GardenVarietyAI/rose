@@ -47,6 +47,8 @@ pub struct GenerationKwargs {
     pub chat_template: Option<String>,
     #[pyo3(get, set)]
     pub enable_thinking: Option<bool>,
+    #[pyo3(get, set)]
+    pub lora_adapter_path: Option<String>,
 }
 
 #[pymethods]
@@ -78,6 +80,7 @@ impl GenerationKwargs {
         top_logprobs=None,
         chat_template=None,
         enable_thinking=None,
+        lora_adapter_path=None,
     ))]
     fn new(
         model_path: String,
@@ -96,6 +99,7 @@ impl GenerationKwargs {
         top_logprobs: Option<usize>,
         chat_template: Option<String>,
         enable_thinking: Option<bool>,
+        lora_adapter_path: Option<String>,
     ) -> Self {
         Self {
             model_path,
@@ -114,6 +118,7 @@ impl GenerationKwargs {
             top_logprobs,
             chat_template,
             enable_thinking,
+            lora_adapter_path,
         }
     }
 }
