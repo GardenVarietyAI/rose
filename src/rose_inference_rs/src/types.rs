@@ -56,7 +56,11 @@ impl Message {
     #[new]
     #[pyo3(signature = (role, content, tool_call_id=None))]
     fn new(role: String, content: String, tool_call_id: Option<String>) -> Self {
-        Self { role, content, tool_call_id }
+        Self {
+            role,
+            content,
+            tool_call_id,
+        }
     }
 }
 

@@ -1,7 +1,7 @@
-use std::sync::{Arc, OnceLock};
-use std::collections::HashMap;
-use tokio::sync::Mutex;
 use pyo3::prelude::*;
+use std::collections::HashMap;
+use std::sync::{Arc, OnceLock};
+use tokio::sync::Mutex;
 
 use crate::device::DeviceConfig;
 use crate::models::{load_causal_lm_with_lora, CausalLM, ModelKind};
@@ -67,17 +67,13 @@ impl ModelCache {
         let cache = CACHED_MODEL.get().unwrap();
         let mut model_cache = cache.lock().await;
         let device_str = DeviceConfig::device_kind(&device_config.device);
-        let cache_key = CacheKey::new(
-            &model_kind,
-            model_path,
-            &device_str,
-            lora_adapter_path,
-        );
+        let cache_key = CacheKey::new(&model_kind, model_path, &device_str, lora_adapter_path);
 
         // Check if we have a cached model for this path+device
         if let Some(ref entry) = *model_cache {
             if entry.key == cache_key {
-                tracing::info!("Reusing cached model: kind={} path={} device={} lora={}",
+                tracing::info!(
+                    "Reusing cached model: kind={} path={} device={} lora={}",
                     entry.key.model_kind,
                     entry.key.model_path,
                     entry.key.device_kind,
@@ -100,7 +96,12 @@ impl ModelCache {
         }
 
         // Load new model
-        match load_causal_lm_with_lora(model_kind, model_path, lora_adapter_path, &device_config.device) {
+        match load_causal_lm_with_lora(
+            model_kind,
+            model_path,
+            lora_adapter_path,
+            &device_config.device,
+        ) {
             Ok(m) => {
                 let shared_model = Arc::new(Mutex::new(m));
                 *model_cache = Some(ModelEntry {
@@ -156,7 +157,10 @@ impl ModelCache {
         };
 
         // Reset if conversation is NOT active, don't reset if it IS active
-        entry.conversations.get(chain_id).map_or(true, |state| !state.active)
+        entry
+            .conversations
+            .get(chain_id)
+            .map_or(true, |state| !state.active)
     }
 
     pub async fn mark_conversation_active(response_chain_id: Option<&str>) {
@@ -173,9 +177,9 @@ impl ModelCache {
         };
 
         if let Some(ref mut entry) = *model_cache {
-            entry.conversations.insert(chain_id.to_string(), ConversationState {
-                active: true,
-            });
+            entry
+                .conversations
+                .insert(chain_id.to_string(), ConversationState { active: true });
         }
     }
 }

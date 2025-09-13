@@ -1,8 +1,8 @@
 use anyhow::Result;
 use candle_core::{Device, Tensor};
+use candle_lora::Qwen3LoraForCausalLM;
 use candle_nn::VarBuilder;
 use candle_transformers::models::qwen3::Config;
-use candle_lora::{Qwen3LoraForCausalLM};
 use std::path::Path;
 use tokenizers::Tokenizer;
 
@@ -10,7 +10,6 @@ use super::CausalLM;
 use crate::device::DeviceConfig;
 use crate::lora::{load_lora_weights, LoraConfig};
 
-/// Qwen3 model with LoRA support
 /// Instead of replacing all layers, this intercepts specific linear operations and applies LoRA
 pub struct Qwen3LoraModel {
     base_model: Qwen3LoraForCausalLM,
@@ -18,7 +17,11 @@ pub struct Qwen3LoraModel {
 }
 
 impl Qwen3LoraModel {
-    pub fn load(model_path: &str, lora_adapter_path: Option<&str>, device: &Device) -> Result<Self> {
+    pub fn load(
+        model_path: &str,
+        lora_adapter_path: Option<&str>,
+        device: &Device,
+    ) -> Result<Self> {
         let device_config = DeviceConfig::detect_dtypes(device);
         let model_dir = Path::new(model_path);
 
@@ -66,7 +69,8 @@ impl Qwen3LoraModel {
             device_config.compute_dtype,
             device_config.kv_cache_dtype,
             vb,
-        ).map_err(|e| anyhow::anyhow!("Failed to load Qwen3 (LoRA-aware): {}", e))?;
+        )
+        .map_err(|e| anyhow::anyhow!("Failed to load Qwen3 (LoRA-aware): {}", e))?;
 
         // Load LoRA adapter if specified
         if let Some(adapter_path) = lora_adapter_path {
@@ -95,7 +99,11 @@ impl Qwen3LoraModel {
                 if let Some(cfg) = &lora_config {
                     let scale = (cfg.alpha as f64) / (cfg.r as f64);
                     base_model.apply_adapter(&weights, scale);
-                    tracing::info!("Applied LoRA adapter: scale alpha/r = {}/{}", cfg.alpha, cfg.r);
+                    tracing::info!(
+                        "Applied LoRA adapter: scale alpha/r = {}/{}",
+                        cfg.alpha,
+                        cfg.r
+                    );
                 }
             } else {
                 tracing::error!("No adapter_model.safetensors found in adapter directory");
@@ -110,7 +118,7 @@ impl Qwen3LoraModel {
         })
     }
 
-    /// Switch LoRA adapter at runtime - useful for comparing different fine-tuned versions
+    /// Switch LoRA adapter at runtime
     #[allow(dead_code)]
     pub fn switch_adapter(&mut self, adapter_path: Option<&str>, device: &Device) -> Result<()> {
         if let Some(adapter_path) = adapter_path {
@@ -129,14 +137,20 @@ impl Qwen3LoraModel {
             if adapter_weights_path.exists() {
                 let weights_path = adapter_weights_path.to_string_lossy();
                 let weights = load_lora_weights(&weights_path, device)?;
-                tracing::info!("Loaded {} LoRA weight pairs for adapter switch", weights.len());
+                tracing::info!(
+                    "Loaded {} LoRA weight pairs for adapter switch",
+                    weights.len()
+                );
                 let scale = lora_config
                     .as_ref()
                     .map(|c| (c.alpha as f64) / (c.r as f64))
                     .unwrap_or(1.0);
                 self.base_model.apply_adapter(&weights, scale);
             } else {
-                return Err(anyhow::anyhow!("No adapter_model.safetensors found in {}", adapter_path));
+                return Err(anyhow::anyhow!(
+                    "No adapter_model.safetensors found in {}",
+                    adapter_path
+                ));
             }
         } else {
             tracing::info!("Removing LoRA adapter, using base model only");
@@ -145,8 +159,6 @@ impl Qwen3LoraModel {
 
         Ok(())
     }
-
-    // LoRA is applied within the model layers; no logits-time shim needed.
 }
 
 impl CausalLM for Qwen3LoraModel {

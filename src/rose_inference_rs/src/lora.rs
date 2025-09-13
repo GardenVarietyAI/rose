@@ -1,16 +1,16 @@
 use anyhow::Result;
-use candle_core::{Device, Tensor};
 use candle_core::safetensors::Load;
+use candle_core::{Device, Tensor};
 use serde_json::Value;
 use std::collections::HashMap;
 
 /// LoRA configuration
 #[derive(Debug, Clone)]
 pub struct LoraConfig {
-    pub r: usize,           // rank
-    pub alpha: f32,         // alpha parameter
+    pub r: usize,   // rank
+    pub alpha: f32, // alpha parameter
     #[allow(dead_code)]
-    pub dropout: f32,       // dropout (not used in inference)
+    pub dropout: f32, // dropout (not used in inference)
     pub target_modules: Vec<String>, // which modules to apply LoRA to
 }
 
@@ -39,17 +39,25 @@ impl LoraConfig {
         let json: Value = serde_json::from_str(&content)?;
 
         let r = json.get("r").and_then(|v| v.as_u64()).unwrap_or(16) as usize;
-        let alpha = json.get("lora_alpha").and_then(|v| v.as_f64()).unwrap_or(32.0) as f32;
-        let dropout = json.get("lora_dropout").and_then(|v| v.as_f64()).unwrap_or(0.1) as f32;
+        let alpha = json
+            .get("lora_alpha")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(32.0) as f32;
+        let dropout = json
+            .get("lora_dropout")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.1) as f32;
 
-        let target_modules = if let Some(modules) = json.get("target_modules").and_then(|v| v.as_array()) {
-            modules.iter()
-                .filter_map(|v| v.as_str())
-                .map(String::from)
-                .collect()
-        } else {
-            LoraConfig::default().target_modules
-        };
+        let target_modules =
+            if let Some(modules) = json.get("target_modules").and_then(|v| v.as_array()) {
+                modules
+                    .iter()
+                    .filter_map(|v| v.as_str())
+                    .map(String::from)
+                    .collect()
+            } else {
+                LoraConfig::default().target_modules
+            };
 
         Ok(Self {
             r,
@@ -60,11 +68,12 @@ impl LoraConfig {
     }
 }
 
-/// Loads LoRA adapter weights from safetensors file
-pub fn load_lora_weights(adapter_path: &str, device: &Device) -> Result<HashMap<String, (Tensor, Tensor)>> {
+pub fn load_lora_weights(
+    adapter_path: &str,
+    device: &Device,
+) -> Result<HashMap<String, (Tensor, Tensor)>> {
     let mut weights = HashMap::new();
 
-    // Load the safetensors file
     let file_data = std::fs::read(adapter_path)?;
     let tensors = safetensors::SafeTensors::deserialize(&file_data)?;
 
@@ -95,7 +104,12 @@ pub fn load_lora_weights(adapter_path: &str, device: &Device) -> Result<HashMap<
     // Pair up A and B weights for each module
     for (module_name, lora_a) in lora_a_weights {
         if let Some(lora_b) = lora_b_weights.get(&module_name) {
-            tracing::info!("LoRA pair {}: A={:?}, B={:?}", module_name, lora_a.dims(), lora_b.dims());
+            tracing::info!(
+                "LoRA pair {}: A={:?}, B={:?}",
+                module_name,
+                lora_a.dims(),
+                lora_b.dims()
+            );
             weights.insert(module_name.clone(), (lora_a, lora_b.clone()));
         } else {
             tracing::warn!("Missing LoRA B weight for: {}", module_name);

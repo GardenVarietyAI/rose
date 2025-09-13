@@ -54,7 +54,9 @@ pub fn load_causal_lm_with_lora(
             model_path, device,
         )?)),
         ModelKind::Qwen3Lora => Ok(Box::new(qwen3_lora::Qwen3LoraModel::load(
-            model_path, lora_adapter_path, device,
+            model_path,
+            lora_adapter_path,
+            device,
         )?)),
     }
 }
