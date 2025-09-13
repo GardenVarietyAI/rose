@@ -8,6 +8,7 @@ mod chat_templates;
 mod device;
 mod error;
 mod generate;
+mod lora;
 mod models;
 mod types;
 
@@ -150,6 +151,7 @@ impl InferenceServer {
             let model = match ModelCache::get_or_load_model(
                 model_kind,
                 &generation_kwargs.model_path,
+                generation_kwargs.lora_adapter_path.as_deref(),
                 &device_config,
                 &tx,
             )
