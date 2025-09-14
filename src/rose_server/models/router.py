@@ -50,11 +50,14 @@ async def remove(model: str) -> JSONResponse:
     if not model_obj:
         raise HTTPException(status_code=404, detail=f"The model does not exist: {model}")
 
+    if not model_obj.is_fine_tuned:
+        raise HTTPException(status_code=403, detail=f"Cannot delete base model: {model}")
+
     success = await delete_language_model(model)
     if not success:
         raise HTTPException(status_code=500, detail=f"Failed to delete model: {model}")
 
-    if model_obj.path and model_obj.is_fine_tuned:
+    if model_obj.path:
         model_path = Path(settings.data_dir) / model_obj.path
         file_path_exists = await aiofiles.os.path.exists(model_path)
         if file_path_exists:
