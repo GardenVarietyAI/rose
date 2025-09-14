@@ -17,7 +17,7 @@ def add_model(
     temperature: float = typer.Option(0.7, "--temperature", "-t", help="Default temperature"),
     top_p: float = typer.Option(0.9, "--top-p", "-p", help="Default top_p"),
     timeout: Optional[int] = typer.Option(None, "--timeout", help="Timeout in seconds"),
-    lora_modules: Optional[List[str]] = typer.Option(None, "--lora-modules", "-l", help="LoRA target modules"),
+    lora_target_modules: Optional[List[str]] = typer.Option(None, "--lora-modules", "-l", help="LoRA target modules"),
     owned_by: str = typer.Option("organization-owner", "--owned-by", "-o", help="Model owner"),
     quantization: Optional[str] = typer.Option(None, "--quantization", "-q", help="Quantization type (e.g., 'int8')"),
 ) -> None:
@@ -35,8 +35,8 @@ def add_model(
 
     if timeout:
         data["timeout"] = timeout
-    if lora_modules:
-        data["lora_target_modules"] = lora_modules
+    if lora_target_modules:
+        data["lora_target_modules"] = lora_target_modules
     if quantization:
         data["quantization"] = quantization
 

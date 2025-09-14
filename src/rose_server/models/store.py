@@ -29,7 +29,7 @@ async def create(
     temperature: float = 0.7,
     top_p: float = 0.9,
     timeout: Optional[int] = None,
-    lora_modules: Optional[List[str]] = None,
+    lora_target_modules: Optional[List[str]] = None,
     suffix: Optional[str] = None,
     quantization: Optional[str] = None,
 ) -> LanguageModel:
@@ -58,10 +58,8 @@ async def create(
         owned_by=owned_by,
         parent=parent,
         quantization=quantization,
+        lora_target_modules=lora_target_modules if lora_target_modules is not None else [],
     )
-
-    if lora_modules:
-        model.set_lora_modules(lora_modules)
 
     async with get_session() as session:
         try:
@@ -83,7 +81,6 @@ async def get(model_id: str) -> Optional[LanguageModel]:
 
 
 async def list_all() -> List[LanguageModel]:
-    """List all models (base + fine-tuned)."""
     async with get_session(read_only=True) as session:
         result = await session.execute(select(LanguageModel).order_by(LanguageModel.created_at.desc()))
         return list(result.scalars().all())
