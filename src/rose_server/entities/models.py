@@ -20,6 +20,6 @@ class LanguageModel(SQLModel, table=True):
     quantization: Optional[str] = Field(default=None)  # Quantization type: "int8", etc.
     lora_target_modules: Optional[List[str]] = Field(sa_column=Column(JSON), default=None)
     owned_by: str = Field(default="organization-owner")
-    parent: Optional[str] = Field(default=None)  # Parent model (None for base, base_model for fine-tuned)
-    permissions: Optional[str] = Field(sa_column=Column(JSON), default=None)
+    parent: Optional[str] = Field(default=None)
+    permissions: Optional[List[str]] = Field(sa_column=Column(JSON), default=None)
     created_at: int = Field(default_factory=lambda: int(time.time()))
