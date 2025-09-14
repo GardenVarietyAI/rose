@@ -71,7 +71,7 @@ def add_model(
         table.add_row("Timeout (s)", str(timeout) if timeout else "None")
         table.add_row("Owner", owned_by)
         table.add_row("Quantization", quantization or "None")
-        table.add_row("Created", str(model["created"]))
+        table.add_row("Created", str(model["created_at"]))
 
         console.print(table)
 
