@@ -46,17 +46,20 @@ async def show(model_id: str) -> ModelResponse:
 
 @router.delete("/models/{model}")
 async def remove(model: str) -> JSONResponse:
+    model_obj = await get_language_model(model)
+    if not model_obj:
+        raise HTTPException(status_code=404, detail=f"The model does not exist: {model}")
+
     success = await delete_language_model(model)
-    if success:
-        model_obj = await get_language_model(model)
-        if model and model_obj.path and model_obj.is_fine_tuned:
-            model_path = Path(settings.data_dir) / model_obj.path
-            file_path_exists = await aiofiles.os.path.exists(model_path)
-            if file_path_exists:
-                await asyncio.to_thread(shutil.rmtree, str(model_path))
-                logger.info(f"Deleted model files at: {model_path}")
-    else:
-        raise HTTPException(status_code=403, detail=f"Failed to delete model {model}")
+    if not success:
+        raise HTTPException(status_code=500, detail=f"Failed to delete model: {model}")
+
+    if model_obj.path and model_obj.is_fine_tuned:
+        model_path = Path(settings.data_dir) / model_obj.path
+        file_path_exists = await aiofiles.os.path.exists(model_path)
+        if file_path_exists:
+            await asyncio.to_thread(shutil.rmtree, str(model_path))
+            logger.info(f"Deleted model files at: {model_path}")
 
     logger.info(f"Successfully deleted model: {model}")
     return JSONResponse(content={"id": model, "object": "model", "deleted": success})
