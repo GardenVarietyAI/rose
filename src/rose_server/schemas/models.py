@@ -1,17 +1,14 @@
-"""Schemas for model-related operations."""
-
+import json
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from rose_server.config.settings import settings
 from rose_server.models.store import LanguageModel
 
 
 class ModelConfig(BaseModel):
-    """Configuration for model inference."""
-
     model_id: str = Field(..., description="Database model ID for caching")
     model_name: str = Field(..., description="The HuggingFace model identifier")
     model_path: Optional[str] = Field(None, description="Path to fine-tuned model")
@@ -29,15 +26,6 @@ class ModelConfig(BaseModel):
 
     @classmethod
     def from_language_model(cls, model: LanguageModel) -> "ModelConfig":
-        """Create configuration from a database model.
-
-        Args:
-            model: The LanguageModel from the database
-
-        Returns:
-            A ModelConfig instance with all relevant settings
-        """
-        # Start with basic configuration
         config_data = {
             "model_id": model.id,
             "model_name": model.model_name,
@@ -48,7 +36,6 @@ class ModelConfig(BaseModel):
             "data_dir": settings.data_dir,
         }
 
-        # Add fine-tuning specific configuration
         if model.is_fine_tuned and model.path:
             config_data["model_path"] = str(Path(settings.data_dir) / model.path)
             config_data["base_model"] = model.parent
@@ -56,11 +43,9 @@ class ModelConfig(BaseModel):
             # For base models, construct the expected path where models are stored
             config_data["model_path"] = str(Path(settings.models_dir) / model.id)
 
-        # Add LoRA modules if present
         if model.get_lora_modules():
             config_data["lora_target_modules"] = model.get_lora_modules()
 
-        # Add quantization if specified
         if model.quantization:
             config_data["quantization"] = model.quantization
 
@@ -68,12 +53,32 @@ class ModelConfig(BaseModel):
 
 
 class ModelCreateRequest(BaseModel):
-    """Request schema for creating a new model."""
-
     model_name: str  # HuggingFace model name
     kind: Optional[str] = None
-    temperature: float = 0.7
+    temperature: float = 0.3
     top_p: float = 0.9
     timeout: Optional[int] = None
     lora_target_modules: Optional[List[str]] = None
     quantization: Optional[str] = None
+
+
+class ModelResponse(BaseModel):
+    id: str
+    object: str = "model"
+    created_at: int
+    owned_by: str
+    permissions: Optional[List[str]] = []
+    parent: Optional[str]
+    kind: Optional[str] = ""
+    model_name: Optional[str]
+    lora_target_modules: Optional[List[str]] = []
+    quantization: Optional[str] = None
+
+    @field_validator("permissions", mode="before")
+    def parse_permissions(cls: "ModelResponse", v: Any) -> Any:
+        if isinstance(v, str):
+            return json.loads(v)
+        return v
+
+    class Config:
+        populate_by_name = True

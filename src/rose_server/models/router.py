@@ -1,11 +1,9 @@
 """Router for model-related endpoints."""
 
 import asyncio
-import json
 import logging
 import shutil
 from pathlib import Path
-from typing import Any, Dict
 
 import aiofiles
 import aiofiles.os
@@ -19,136 +17,46 @@ from rose_server.models.store import (
     get as get_language_model,
     list_all,
 )
-from rose_server.schemas.models import ModelCreateRequest
+from rose_server.schemas.models import ModelCreateRequest, ModelResponse
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
 
 
 @router.get("/models")
-async def openai_api_models() -> JSONResponse:
-    """OpenAI API-compatible endpoint that lists available models.
-
-    Returns:
-        JSON response in OpenAI format with available models
-    """
+async def index() -> JSONResponse:
     models = await list_all()
-    model_data = []
-
-    # Add language models from database
-    for model in models:
-        model_data.append(
-            {
-                "id": model.id,
-                "object": "model",
-                "created": model.created_at,
-                "owned_by": model.owned_by,
-                "permission": json.loads(model.permissions) if model.permissions else [],
-                "parent": model.parent,
-            }
-        )
-    openai_response = {"object": "list", "data": model_data}
-    return JSONResponse(content=openai_response)
-
-
-@router.get("/models/{model_id}")
-async def get_model_details(model_id: str) -> JSONResponse:
-    """Get details about a specific model."""
-    model = await get_language_model(model_id)
-    if model:
-        return JSONResponse(
-            content={
-                "id": model.id,
-                "object": "model",
-                "created": model.created_at,
-                "owned_by": model.owned_by,
-                "permission": json.loads(model.permissions) if model.permissions else [],
-                "parent": model.parent,
-                # Extra field for internal use
-                "model_name": model.model_name,
-                "lora_target_modules": model.get_lora_modules(),
-                "quantization": model.quantization,
-            }
-        )
-    raise HTTPException(
-        status_code=404,
-        detail={
-            "error": {
-                "message": f"The model '{model_id}' does not exist",
-                "type": "invalid_request_error",
-                "param": None,
-                "code": "model_not_found",
-            }
-        },
-    )
-
-
-@router.delete("/models/{model}")
-async def delete_model(model: str) -> JSONResponse:
-    """Delete a fine-tuned model."""
-    model_obj = await get_language_model(model)
-    if not model_obj:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": {
-                    "message": f"The model '{model}' does not exist",
-                    "type": "invalid_request_error",
-                    "param": "model",
-                    "code": "model_not_found",
-                }
-            },
-        )
-
-    if not model_obj.is_fine_tuned:
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "error": {
-                    "message": f"Cannot delete base model '{model}'. Only fine-tuned models can be deleted.",
-                    "type": "invalid_request_error",
-                    "param": "model",
-                    "code": "model_not_deletable",
-                }
-            },
-        )
-
-    # Delete from database
-    await delete_language_model(model)
-
-    # Delete model files if they exist
-    if model_obj.path:
-        model_path = Path(settings.data_dir) / model_obj.path
-        file_path_exists = await aiofiles.os.path.exists(model_path)
-        if file_path_exists:
-            await asyncio.to_thread(shutil.rmtree, str(model_path))
-            logger.info(f"Deleted model files at: {model_path}")
-
-    logger.info(f"Successfully deleted fine-tuned model: {model}")
-    return JSONResponse(content={"id": model, "object": "model", "deleted": True})
+    return JSONResponse(content={"object": "list", "data": [model.model_dump() for model in models]})
 
 
 @router.post("/models", status_code=201)
-async def create_model(request: ModelCreateRequest) -> Dict[str, Any]:
-    """Create a new model configuration."""
-
-    model = await create_language_model(
-        model_name=request.model_name,
-        kind=request.kind,
-        temperature=request.temperature,
-        top_p=request.top_p,
-        timeout=request.timeout,
-        lora_modules=request.lora_target_modules,
-        quantization=request.quantization,
-    )
-
+async def create(request: ModelCreateRequest) -> ModelResponse:
+    model = await create_language_model(**request.model_dump())
     logger.info(f"Created model: {model.id} ({model.model_name})")
+    return ModelResponse(**model.model_dump())
 
-    return {
-        "id": model.id,
-        "object": "model",
-        "created": model.created_at,
-        "owned_by": model.owned_by,
-        "permission": json.loads(model.permissions) if model.permissions else [],
-        "parent": model.parent,
-    }
+
+@router.get("/models/{model_id}")
+async def show(model_id: str) -> ModelResponse:
+    model = await get_language_model(model_id)
+    if not model:
+        raise HTTPException(status_code=404, detail=f"The model '{model_id}' does not exist")
+    return ModelResponse(**model.model_dump())
+
+
+@router.delete("/models/{model}")
+async def remove(model: str) -> JSONResponse:
+    success = await delete_language_model(model)
+    if success:
+        model_obj = await get_language_model(model)
+        if model and model_obj.path and model_obj.is_fine_tuned:
+            model_path = Path(settings.data_dir) / model_obj.path
+            file_path_exists = await aiofiles.os.path.exists(model_path)
+            if file_path_exists:
+                await asyncio.to_thread(shutil.rmtree, str(model_path))
+                logger.info(f"Deleted model files at: {model_path}")
+    else:
+        raise HTTPException(status_code=403, detail=f"Failed to delete model {model}")
+
+    logger.info(f"Successfully deleted model: {model}")
+    return JSONResponse(content={"id": model, "object": "model", "deleted": success})

@@ -83,7 +83,6 @@ async def get(model_id: str) -> Optional[LanguageModel]:
 
 
 async def list_all() -> List[LanguageModel]:
-    """List all models (base + fine-tuned)."""
     async with get_session(read_only=True) as session:
         result = await session.execute(select(LanguageModel).order_by(LanguageModel.created_at.desc()))
         return list(result.scalars().all())
