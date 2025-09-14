@@ -34,6 +34,8 @@ class ModelConfig(BaseModel):
             "top_p": model.top_p or 0.9,
             "inference_timeout": settings.inference_timeout,
             "data_dir": settings.data_dir,
+            "lora_target_modules": model.lora_target_modules,
+            "quantization": model.quantization,
         }
 
         if model.is_fine_tuned and model.path:
@@ -42,12 +44,6 @@ class ModelConfig(BaseModel):
         else:
             # For base models, construct the expected path where models are stored
             config_data["model_path"] = str(Path(settings.models_dir) / model.id)
-
-        if model.get_lora_modules():
-            config_data["lora_target_modules"] = model.get_lora_modules()
-
-        if model.quantization:
-            config_data["quantization"] = model.quantization
 
         return cls(**config_data)
 
