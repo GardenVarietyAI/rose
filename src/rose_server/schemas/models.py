@@ -1,8 +1,7 @@
-import json
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import List, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from rose_server.config.settings import settings
 from rose_server.models.store import LanguageModel
@@ -69,12 +68,6 @@ class ModelResponse(BaseModel):
     model_name: Optional[str]
     lora_target_modules: Optional[List[str]] = []
     quantization: Optional[str] = None
-
-    @field_validator("permissions", mode="before")
-    def parse_permissions(cls: "ModelResponse", v: Any) -> Any:
-        if isinstance(v, str):
-            return json.loads(v)
-        return v
 
     class Config:
         populate_by_name = True

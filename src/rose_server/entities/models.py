@@ -21,5 +21,5 @@ class LanguageModel(SQLModel, table=True):
     lora_target_modules: Optional[List[str]] = Field(sa_column=Column(JSON), default=None)
     owned_by: str = Field(default="organization-owner")
     parent: Optional[str] = Field(default=None)  # Parent model (None for base, base_model for fine-tuned)
-    permissions: Optional[str] = Field(default="[]")  # JSON array of permissions
+    permissions: Optional[str] = Field(sa_column=Column(JSON), default=None)
     created_at: int = Field(default_factory=lambda: int(time.time()))
