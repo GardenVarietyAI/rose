@@ -17,13 +17,9 @@ from rose_server.events.event_types.generation import (
     ResponseCompleted,
     ResponseStarted,
     TokenGenerated,
-    ToolCallCompleted,
-    ToolCallStarted,
 )
-from rose_server.events.tool_processor import ToolProcessor
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.models import ModelConfig
-from rose_server.tools import format_tools_for_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +71,7 @@ class EventGenerator:
         response_id: str,
         input_tokens: int,
         completion_tokens: int,
-        tool_processor: Optional[ToolProcessor],
-    ) -> List[Union[TokenGenerated, ToolCallStarted, ToolCallCompleted, ResponseCompleted]]:
+    ) -> List[Union[TokenGenerated, ResponseCompleted]]:
         match ev:
             case InputTokensCountedEvent():
                 logger.debug(f"Input tokens counted: {ev.input_tokens}")
@@ -91,15 +86,7 @@ class EventGenerator:
                     position=ev.position,
                 )
 
-                # Process tools if needed
-                if tool_processor:
-                    tool_events, modified_event = tool_processor.process_token(token_event)
-                    events = list(tool_events)
-                    if modified_event:
-                        events.append(modified_event)
-                    return events
-                else:
-                    return [token_event]
+                return [token_event]
 
             case CompleteEvent():
                 return [
@@ -143,7 +130,7 @@ class EventGenerator:
         chain_id: Optional[str] = None,
         **kwargs: Any,
     ) -> AsyncGenerator[
-        Union[ResponseStarted, TokenGenerated, ToolCallStarted, ToolCallCompleted, ResponseCompleted],
+        Union[ResponseStarted, TokenGenerated, ResponseCompleted],
         None,
     ]:
         """Generate events for a model run."""
@@ -181,9 +168,7 @@ class EventGenerator:
         tools: Optional[List[Any]],
         seed: Optional[int] = None,
         chain_id: Optional[str] = None,
-    ) -> AsyncGenerator[Union[TokenGenerated, ToolCallStarted, ToolCallCompleted, ResponseCompleted], None]:
-        tool_processor = ToolProcessor(self.model_name) if enable_tools else None
-
+    ) -> AsyncGenerator[Union[TokenGenerated, ResponseCompleted], None]:
         async with self._semaphore:
             generation_kwargs = GenerationKwargs(
                 model_path=self._resolved_paths["model_path"],
@@ -202,21 +187,10 @@ class EventGenerator:
                 enable_thinking=False,
             )
 
-            # Add tool instructions to messages if tools are enabled
-            if enable_tools and tools:
-                tool_instructions = format_tools_for_prompt(tools, messages)
-                # Prepend tool instructions as system message
-                rust_messages = [Message(role="system", content=tool_instructions)]
-                rust_messages.extend(
-                    [
-                        Message(role=msg.role, content=msg.content or "", tool_call_id=msg.tool_call_id)
-                        for msg in messages
-                    ]
-                )
-            else:
-                rust_messages = [
-                    Message(role=msg.role, content=msg.content or "", tool_call_id=msg.tool_call_id) for msg in messages
-                ]
+            # Simple message conversion
+            rust_messages = [
+                Message(role=msg.role, content=msg.content or "", tool_call_id=msg.tool_call_id) for msg in messages
+            ]
             loop = asyncio.get_running_loop()
             q: asyncio.Queue[Union[TokenEvent, CompleteEvent, InputTokensCountedEvent, ErrorEvent]] = asyncio.Queue()
 
@@ -247,7 +221,7 @@ class EventGenerator:
                     elif isinstance(ev, TokenEvent):
                         completion_tokens += 1
 
-                    events = self._convert_rust_event(ev, response_id, input_tokens, completion_tokens, tool_processor)
+                    events = self._convert_rust_event(ev, response_id, input_tokens, completion_tokens)
                     for event in events:
                         yield event
 
