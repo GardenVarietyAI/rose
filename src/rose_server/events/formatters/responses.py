@@ -1,6 +1,5 @@
 """Responses API formatter for LLM events."""
 
-import json
 import time
 import uuid
 from typing import Any, Dict, Optional, Sequence
@@ -20,7 +19,6 @@ from rose_server.schemas.responses import (
     ResponsesResponse,
     ResponsesUsage,
 )
-from rose_server.tools import parse_tool_call
 
 
 class ResponsesFormatter:
@@ -132,20 +130,6 @@ class ResponsesFormatter:
         if not content:
             return output_items
 
-        # Check for tool calls
-        tool_call, cleaned_text = parse_tool_call(content)
-        if tool_call:
-            function_item = ResponsesOutputItem(
-                id=f"call_{uuid.uuid4().hex[:16]}",
-                type="function_call",
-                status="completed",
-                role="assistant",
-                name=tool_call["tool"],
-                arguments=json.dumps(tool_call["arguments"]),
-            )
-            output_items.append(function_item)
-            content = cleaned_text
-
         # Add text content if any
         if content and content.strip():
             content_item = ResponsesContentItem(type="output_text", text=content)
@@ -176,32 +160,14 @@ class ResponsesFormatter:
         """Format a complete (non-streaming) response from all events."""
         start_event = next((e for e in events if isinstance(e, ResponseStarted)), None)
         token_events = [e for e in events if isinstance(e, TokenGenerated)]
-        tool_events = [e for e in events if isinstance(e, ToolCallCompleted)]
+        [e for e in events if isinstance(e, ToolCallCompleted)]
         end_event = next((e for e in events if isinstance(e, ResponseCompleted)), None)
         content = "".join(e.token for e in token_events)
 
         output_items = []
 
-        # If we have tool events, parse the content to remove XML
-        if tool_events:
-            # The content contains the XML tool calls - we need to strip them
-            for tool_event in tool_events:
-                # Remove the XML tool call from content
-                tool_call, cleaned_content = parse_tool_call(content)
-                if tool_call:
-                    content = cleaned_content
-
-        # Format function calls as separate items (OpenAI Responses API format)
-        for tool_event in tool_events:
-            function_item = {
-                "id": f"fc_{uuid.uuid4().hex[:12]}",
-                "call_id": tool_event.call_id,
-                "type": "function_call",
-                "role": "assistant",
-                "name": tool_event.function_name,
-                "arguments": tool_event.arguments,
-            }
-            output_items.append(function_item)
+        # Tool events are no longer supported
+        # Just use the content as-is
 
         # Add text content as a message item if any
         if content and content.strip():
