@@ -49,6 +49,8 @@ pub struct GenerationKwargs {
     pub enable_thinking: Option<bool>,
     #[pyo3(get, set)]
     pub lora_adapter_path: Option<String>,
+    #[pyo3(get, set)]
+    pub max_context_length: Option<usize>,
 }
 
 #[pymethods]
@@ -85,6 +87,7 @@ impl GenerationKwargs {
         chat_template=None,
         enable_thinking=None,
         lora_adapter_path=None,
+        max_context_length=None,
     ))]
     fn new(
         model_path: String,
@@ -104,6 +107,7 @@ impl GenerationKwargs {
         chat_template: Option<String>,
         enable_thinking: Option<bool>,
         lora_adapter_path: Option<String>,
+        max_context_length: Option<usize>,
     ) -> Self {
         Self {
             model_path,
@@ -123,6 +127,7 @@ impl GenerationKwargs {
             chat_template,
             enable_thinking,
             lora_adapter_path,
+            max_context_length,
         }
     }
 }

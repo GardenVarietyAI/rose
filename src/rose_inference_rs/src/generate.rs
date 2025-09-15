@@ -8,6 +8,7 @@ use tokio::sync::mpsc;
 
 use crate::error::InferenceError;
 use crate::models::CausalLM;
+use crate::tensor_pool::return_to_pool;
 use crate::types::{FinishReason, InferenceResponse};
 
 pub async fn stream(
@@ -90,7 +91,14 @@ pub async fn stream(
         } else {
             0
         };
-        let logits = model.forward(&input_tensor, past_length)?;
+        let logits = {
+            let result = model.forward(&input_tensor, past_length)?;
+            // Pool intermediate tensors for reuse
+            if input_tensor.shape().dims() == &[1, 1] {
+                return_to_pool(input_tensor);
+            }
+            result
+        };
 
         tokio::task::yield_now().await;
 

@@ -10,6 +10,7 @@ mod error;
 mod generate;
 mod lora;
 mod models;
+mod tensor_pool;
 mod types;
 
 use crate::cache::ModelCache;
