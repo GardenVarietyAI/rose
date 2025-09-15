@@ -63,6 +63,7 @@ class EventGenerator:
             "Qwen--Qwen3-1.7B-Base": "qwen3",
             "Qwen--Qwen3-4B": "qwen3",
             "Qwen--Qwen3-0.6B-GGUF": "qwen3_gguf",
+            "Qwen--Qwen3-1.7B-GGUF": "qwen3_gguf",
             "Qwen--Qwen3-4B-GGUF": "qwen3_gguf",
             "janhq--Jan-v1-4B-GGUF": "qwen3_gguf",
         }
@@ -190,7 +191,7 @@ class EventGenerator:
                 model_kind=self._model_kind,
                 response_chain_id=chain_id,
                 temperature=temperature,
-                max_input_tokens=2048,
+                max_input_tokens=16384,
                 max_output_tokens=max_tokens,
                 top_p=self.config.top_p,
                 repeat_penalty=self.config.repetition_penalty or 1.1,

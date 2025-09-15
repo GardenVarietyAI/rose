@@ -62,11 +62,11 @@ class ModelResponse(BaseModel):
     object: str = "model"
     created_at: int
     owned_by: str
-    permissions: Optional[List[str]] = Field(default_factory=list)
+    permissions: Optional[List[str]] = Field(default_factory=lambda: [])
     parent: Optional[str]
     kind: Optional[str] = ""
     model_name: Optional[str]
-    lora_target_modules: Optional[List[str]] = Field(default_factory=list)
+    lora_target_modules: Optional[List[str]] = Field(default_factory=lambda: [])
     quantization: Optional[str] = None
 
     class Config:
