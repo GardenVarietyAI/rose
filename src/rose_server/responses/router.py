@@ -9,6 +9,7 @@ from rose_server.dependencies import InferenceServer, get_inference_server, get_
 from rose_server.events.formatters import ResponsesFormatter
 from rose_server.events.generator import EventGenerator
 from rose_server.metrics import MetricsCollector
+from rose_server.models.qwen_configs import get_qwen_config
 from rose_server.responses.store import get_chain_ids, get_conversation_messages, get_response, store_response_messages
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.models import ModelConfig
@@ -28,6 +29,57 @@ router = APIRouter(prefix="/v1", tags=["responses"])
 async def chains() -> List[str]:
     chains: List[str] = await get_chain_ids()
     return chains
+
+
+# TODO: Naive token counting as a stop-gap for now
+def _smart_truncate_messages(messages: List[ChatMessage], max_tokens: int) -> List[ChatMessage]:
+    """Smart truncation that preserves system messages using character-based estimation."""
+    if not messages or len(messages) <= 2:
+        return messages
+
+    # Rough estimation: 4 characters per token
+    chars_per_token = 4
+    max_chars = max_tokens * chars_per_token
+
+    # Separate system and other messages
+    system_msgs = []
+    other_msgs = []
+
+    for msg in messages:
+        if msg.role == "system":
+            system_msgs.append(msg)
+        else:
+            other_msgs.append(msg)
+
+    # Count system message characters
+    system_chars = sum(len(msg.content or "") for msg in system_msgs)
+    system_chars += len(system_msgs) * 50  # Overhead for formatting
+
+    if system_chars >= max_chars - 800:
+        # System too large, keep last few messages
+        logger.warning(f"System prompt too large (~{system_chars // chars_per_token} tokens), keeping recent messages")
+        return messages[-5:]
+
+    # Build result with system messages first
+    result = system_msgs.copy()
+    remaining_chars = max_chars - system_chars - 400
+
+    # Add messages from the end backwards
+    for msg in reversed(other_msgs):
+        msg_chars = len(msg.content or "") + 50
+        if msg_chars > remaining_chars:
+            break
+        result.append(msg)
+        remaining_chars -= msg_chars
+
+    # Restore chronological order
+    result = system_msgs + list(reversed(result[len(system_msgs) :]))
+
+    if len(result) < len(messages):
+        est_tokens = (max_chars - remaining_chars) // chars_per_token
+        logger.info(f"Truncated messages: {len(messages)} -> {len(result)} (estimated ~{est_tokens} tokens)")
+
+    return result
 
 
 async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMessage]:
@@ -325,6 +377,17 @@ async def create_response(
                     }
                 },
             )
+
+        # Smart truncation if needed
+        qwen_config = get_qwen_config(config.model_id)
+
+        # Quick estimation check - 4 chars per token average
+        total_chars = sum(len(msg.content or "") for msg in messages)
+        estimated_tokens = total_chars // 4 + len(messages) * 15  # Content + formatting overhead
+
+        if estimated_tokens > qwen_config.max_context_length - 200:
+            logger.warning(f"Estimated {estimated_tokens} tokens exceeds context limit, truncating")
+            messages = _smart_truncate_messages(messages, qwen_config.max_context_length - 200)
 
         if request.stream:
             return await _generate_streaming_response(
