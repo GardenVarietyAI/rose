@@ -153,7 +153,7 @@ pub async fn stream(
                             .cloned()
                             .unwrap_or_else(|| serde_json::json!({}));
 
-                        // TODO: Move this later
+                        // TODO: Generate call_id at response formatting stage, not during inference
                         let call_id = uuid::Uuid::new_v4()
                             .simple()
                             .to_string()
