@@ -131,7 +131,7 @@ def get_model(
         elif torch.backends.mps.is_available():
             torch_dtype = torch.float32  # MPS doesn't support bfloat16
         else:
-            torch_dtype = torch.bfloat16  # Better for CPU memory
+            torch_dtype = torch.bfloat16  # Better for CPU training
 
     model: PreTrainedModel = AutoModelForCausalLM.from_pretrained(  # type: ignore
         local_model_path,
