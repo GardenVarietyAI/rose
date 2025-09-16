@@ -78,7 +78,9 @@ def quantize_model(
 
             # Check if this is a fine-tuned model by looking for the pattern in model_name
             is_fine_tuned = "ft-" in str(model_name_to_register) or "dev-commands" in str(model_name_to_register)
-            parent_model = "Qwen--Qwen3-1.7B" if is_fine_tuned else None
+            # Use provided parent_model or default to Qwen3-1.7B for fine-tuned models
+            if parent_model is None and is_fine_tuned:
+                parent_model = "Qwen--Qwen3-1.7B"
 
             json_payload = {
                 "model_name": model_name_to_register,
