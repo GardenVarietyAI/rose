@@ -66,22 +66,26 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMess
     elif isinstance(request.input, list):
         # Handle list of ResponsesInput objects
         for msg in request.input:
-            # Check message type
             if hasattr(msg, "type"):
                 if msg.type == "function_call":
-                    # Skip function calls - they are handled by the client
+                    # Function calls are handled by the client
                     continue
                 elif msg.type == "function_call_output":
                     # Format tool output in Hermes/Qwen3 format with <tool_response> tags
-                    content = f"<tool_response>\n{msg.output}\n</tool_response>"
-                    messages.append(ChatMessage(role="tool", content=content))
+                    messages.append(
+                        ChatMessage(role="tool", content=f"<tool_response>\n{msg.output}\n</tool_response>")
+                    )
             else:
-                # Standard message format
-                # Map 'developer' role to 'system' for ChatMessage
-                role = "system" if msg.role == "developer" else msg.role
-                # Handle content - if it's a list, convert to string
-                content = msg.content if isinstance(msg.content, str) else str(msg.content) if msg.content else ""
-                messages.append(ChatMessage(role=role, content=content))
+                messages.append(
+                    ChatMessage(
+                        role="system" if msg.role == "developer" else msg.role,
+                        content=msg.content
+                        if isinstance(msg.content, str)
+                        else str(msg.content)
+                        if msg.content
+                        else "",
+                    )
+                )
 
     return messages
 
