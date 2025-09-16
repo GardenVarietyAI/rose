@@ -116,8 +116,20 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMess
         for msg in request.input:
             if hasattr(msg, "type"):
                 if msg.type == "function_call":
-                    # Function calls are handled by the client
-                    continue
+                    # Preserve function calls in conversation history for context
+                    messages.append(
+                        ChatMessage(
+                            role="assistant",
+                            content=None,
+                            tool_calls=[
+                                {
+                                    "id": msg.call_id or msg.id,
+                                    "type": "function",
+                                    "function": {"name": msg.name, "arguments": msg.arguments},
+                                }
+                            ],
+                        )
+                    )
                 elif msg.type == "function_call_output":
                     # Format tool output in Hermes/Qwen3 format with <tool_response> tags
                     messages.append(
