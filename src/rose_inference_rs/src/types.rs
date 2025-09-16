@@ -188,6 +188,17 @@ pub struct InputTokensCountedEvent {
 
 #[pyclass]
 #[derive(Clone, Debug)]
+pub struct ToolCallEvent {
+    #[pyo3(get)]
+    pub name: String,
+    #[pyo3(get)]
+    pub arguments: String,  // JSON string
+    #[pyo3(get)]
+    pub call_id: String,
+}
+
+#[pyclass]
+#[derive(Clone, Debug)]
 pub struct ErrorEvent {
     #[pyo3(get)]
     pub error: String,
@@ -206,6 +217,11 @@ pub enum InferenceResponse {
         logprob: Option<f32>,
         #[serde(skip_serializing_if = "Option::is_none")]
         top_logprobs: Option<Vec<TopLogProb>>,
+    },
+    ToolCall {
+        name: String,
+        arguments: serde_json::Value,
+        call_id: String,
     },
     Complete {
         input_tokens: u32,
