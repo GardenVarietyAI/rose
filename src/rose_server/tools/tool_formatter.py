@@ -44,8 +44,8 @@ def format_tools_for_system_prompt(tools: Optional[List[Dict[str, Any]]]) -> str
     prompt = (
         "You have access to the following functions:\n\n"
         "<tools>"
-        f"{json.dumps(formatted_tools)}\n\n"
-        "</tools>"
+        f"{json.dumps(formatted_tools, indent=2)}\n"
+        "</tools>\n"
         "To use a function, respond ONLY with a tool call block, no additional prose before or after.\n"
         "Format strictly as follows:\n"
         "<tool_call>\n"
