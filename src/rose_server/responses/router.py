@@ -75,10 +75,6 @@ def _smart_truncate_messages(messages: List[ChatMessage], max_tokens: int) -> Li
     # Restore chronological order
     result = system_msgs + list(reversed(result[len(system_msgs) :]))
 
-    if len(result) < len(messages):
-        est_tokens = (max_chars - remaining_chars) // chars_per_token
-        logger.info(f"Truncated messages: {len(messages)} -> {len(result)} (estimated ~{est_tokens} tokens)")
-
     return result
 
 
