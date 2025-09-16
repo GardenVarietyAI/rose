@@ -13,6 +13,8 @@ blessed_models = [
     "Qwen/Qwen3-4B",
     "Qwen/Qwen3-4B-GGUF",
     "Qwen/Qwen3-4B-Instruct-2507",
+    "Qwen/Qwen3-8B",
+    "Qwen/Qwen3-8B-GGUF",
     "Qwen/Qwen3-0.6B-GGUF",
     "Qwen/Qwen3-Embedding-0.6B",
     "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF",
@@ -30,6 +32,11 @@ def _get_gguf_config(model_name: str) -> dict[str, str] | None:
         "Qwen/Qwen3-4B-GGUF": {
             "base_model": "Qwen/Qwen3-4B",
             "gguf_file": "Qwen3-4B-Q4_K_M.gguf",
+            "tokenizer_file": "tokenizer.json",
+        },
+        "Qwen/Qwen3-8B-GGUF": {
+            "base_model": "Qwen/Qwen3-8B",
+            "gguf_file": "Qwen3-8B-Q4_K_M.gguf",
             "tokenizer_file": "tokenizer.json",
         },
         "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF": {
@@ -145,7 +152,7 @@ def download_model(
                     "id": model_id,
                     "model_name": hf_model_name,
                     "name": hf_model_name.split("/")[-1],
-                    "owned_by": hf_model_name.split("/")[0].lower(),
+                    "owned_by": "system",
                 },
                 headers=headers,
             )
