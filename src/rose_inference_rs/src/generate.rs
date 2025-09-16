@@ -83,6 +83,7 @@ pub async fn stream(
     // Tool call detection state
     let mut in_tool_call = false;
     let mut tool_call_tokens: Vec<u32> = Vec::new();
+    let mut consecutive_tool_starts = 0;
 
     let mut single_token_buf = vec![0u32; 1];
 
@@ -128,11 +129,20 @@ pub async fn stream(
 
         // Check for tool call tokens
         if sampled_token == TOOL_CALL_START_TOKEN {
-            tracing::info!("Detected <tool_call> token ({})", sampled_token);
+            consecutive_tool_starts += 1;
+            tracing::info!("Detected <tool_call> token ({}) - occurrence {}", sampled_token, consecutive_tool_starts);
+
+            // Break if we see too many consecutive tool call starts (model is stuck)
+            if consecutive_tool_starts > 3 {
+                tracing::warn!("Model stuck generating tool_call tokens, stopping");
+                finish_reason = FinishReason::Stop;
+                break;
+            }
+
             in_tool_call = true;
             tool_call_tokens.clear();
-            // Use last normal token instead of special token to avoid loops
-            next_token = last_normal_token.or(Some(sampled_token));
+            // Set next_token and continue to skip emission
+            next_token = Some(sampled_token);
             continue;
         } else if sampled_token == TOOL_CALL_END_TOKEN && in_tool_call {
             // Parse and emit tool call
@@ -183,6 +193,7 @@ pub async fn stream(
         } else if in_tool_call {
             // Collect tokens for tool call
             tool_call_tokens.push(sampled_token);
+            consecutive_tool_starts = 0;  // Reset counter when we get non-tool_call tokens
             // Use last normal token instead of current token to avoid issues
             next_token = last_normal_token.or(Some(sampled_token));
             continue;
