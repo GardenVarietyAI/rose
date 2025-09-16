@@ -13,7 +13,6 @@ from rose_server.events.event_types import (
     ToolCallStarted,
 )
 from rose_server.schemas.responses import (
-    ResponseFunctionCallArgumentsDoneEvent,
     ResponsesContentItem,
     ResponsesOutputItem,
     ResponsesResponse,
@@ -28,8 +27,8 @@ class ResponsesFormatter:
         self.response_id: Optional[str] = None
         self.created_at: Optional[int] = None
         self.model_name: Optional[str] = None
-        self.accumulated_content: str = ""  # Track content for streaming
-        self.tool_calls: list[Dict[str, Any]] = []  # Track tool calls
+        self.accumulated_content: str = ""
+        self.tool_calls: list[Dict[str, Any]] = []
 
     def format_event(self, event: LLMEvent) -> Optional[Dict[str, Any]]:
         """Convert an LLM event to Responses API streaming format."""
@@ -41,18 +40,24 @@ class ResponsesFormatter:
         elif isinstance(event, ToolCallStarted):
             return None
         elif isinstance(event, ToolCallCompleted):
-            # Store tool call for later
-            self.tool_calls.append({"id": event.call_id, "name": event.function_name, "arguments": event.arguments})
-            # Emit function call event for streaming
-            done_event = ResponseFunctionCallArgumentsDoneEvent(
-                sequence_number=998,  # Before response.completed
-                item_id=f"fc_{event.call_id[:12]}",
-                output_index=len(self.tool_calls) - 1,
-                call_id=event.call_id,
-                name=event.function_name,
-                arguments=event.arguments,
+            self.tool_calls.append(
+                {
+                    "id": event.call_id,
+                    "name": event.function_name,
+                    "arguments": event.arguments,
+                }
             )
-            return done_event.model_dump()
+            return {
+                "type": "response.output_item.done",
+                "output_index": len(self.tool_calls) - 1,
+                "item": {
+                    "type": "function_call",
+                    "role": "assistant",
+                    "name": event.function_name,
+                    "arguments": event.arguments,
+                    "call_id": event.call_id,
+                },
+            }
         elif isinstance(event, ResponseCompleted):
             return self._handle_response_completed(event)
         return None
@@ -68,7 +73,6 @@ class ResponsesFormatter:
             self.created_at = int(time.time())
             self.model_name = event.model_name
 
-        # Accumulate content
         self.accumulated_content += event.token
 
         return {
@@ -82,10 +86,9 @@ class ResponsesFormatter:
 
     def _handle_response_completed(self, event: ResponseCompleted) -> Dict[str, Any]:
         """Handle ResponseCompleted event."""
-        # Build output items in OpenAI format
         output_items = []
 
-        # Format function calls as separate items (OpenAI Responses API format)
+        # Format function calls as separate items
         for tool_call in self.tool_calls:
             function_item = {
                 "id": f"fc_{uuid.uuid4().hex[:12]}",
@@ -160,14 +163,23 @@ class ResponsesFormatter:
         """Format a complete (non-streaming) response from all events."""
         start_event = next((e for e in events if isinstance(e, ResponseStarted)), None)
         token_events = [e for e in events if isinstance(e, TokenGenerated)]
-        [e for e in events if isinstance(e, ToolCallCompleted)]
+        tool_events = [e for e in events if isinstance(e, ToolCallCompleted)]
         end_event = next((e for e in events if isinstance(e, ResponseCompleted)), None)
         content = "".join(e.token for e in token_events)
 
         output_items = []
 
-        # Tool events are no longer supported
-        # Just use the content as-is
+        # Add tool calls if any
+        for tool_event in tool_events:
+            function_item = {
+                "id": f"fc_{uuid.uuid4().hex[:12]}",
+                "call_id": tool_event.call_id,
+                "type": "function_call",
+                "role": "assistant",
+                "name": tool_event.function_name,
+                "arguments": tool_event.arguments,
+            }
+            output_items.append(function_item)
 
         # Add text content as a message item if any
         if content and content.strip():

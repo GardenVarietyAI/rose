@@ -45,7 +45,8 @@ class ResponsesInputMessage(BaseModel):
 
 class ResponsesInputFunctionCall(BaseModel):
     type: Literal["function_call"] = Field(description="Message type")
-    id: str = Field(description="Function call ID")
+    id: Optional[str] = Field(default=None, description="Function call ID")
+    call_id: Optional[str] = Field(default=None, description="Function call ID (alternative field)")
     name: str = Field(description="Function name")
     arguments: Optional[str] = Field(description="Function arguments as JSON string")
     role: Literal["assistant"] = Field(default="assistant", description="Always assistant role")
@@ -77,6 +78,7 @@ class ResponsesRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata")
     store: Optional[bool] = Field(default=True, description="Whether to store the conversation")
     previous_response_id: Optional[str] = Field(default=None, description="Previous response ID")
+    prompt_cache_key: Optional[str] = Field(default=None, description="Codex conversation ID for caching")
 
 
 class ResponseEventBase(BaseModel):

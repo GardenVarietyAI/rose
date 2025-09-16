@@ -4,6 +4,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from rose_server.config.settings import settings
+from rose_server.models.qwen_configs import get_qwen_config
 from rose_server.models.store import LanguageModel
 
 
@@ -25,12 +26,15 @@ class ModelConfig(BaseModel):
 
     @classmethod
     def from_language_model(cls, model: LanguageModel) -> "ModelConfig":
+        qwen_config = get_qwen_config(model.id)
         config_data = {
             "model_id": model.id,
             "model_name": model.model_name,
             "kind": model.kind,
-            "temperature": model.temperature or 0.7,
-            "top_p": model.top_p or 0.9,
+            "temperature": model.temperature if model.temperature is not None else qwen_config.temperature,
+            "top_p": model.top_p if model.top_p is not None else qwen_config.top_p,
+            "repetition_penalty": qwen_config.repetition_penalty,
+            "max_response_tokens": qwen_config.max_response_tokens,
             "inference_timeout": settings.inference_timeout,
             "data_dir": settings.data_dir,
             "lora_target_modules": model.lora_target_modules,

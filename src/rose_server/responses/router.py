@@ -2,7 +2,7 @@ import json
 import logging
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from sse_starlette.sse import EventSourceResponse
 
 from rose_server.dependencies import InferenceServer, get_inference_server, get_model_config
@@ -69,16 +69,12 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMess
             # Check message type
             if hasattr(msg, "type"):
                 if msg.type == "function_call":
-                    # Function call from assistant - add as a message showing the call
-                    content = f"[Function call: {msg.name}({msg.arguments})]"
-                    messages.append(ChatMessage(role="assistant", content=content))
+                    # Skip function calls - they are handled by the client
+                    continue
                 elif msg.type == "function_call_output":
-                    # Function output - add as a system message with instructions to use the result
-                    content = (
-                        f"The function returned the following result:\n\n{msg.output}\n\n"
-                        "Please provide a natural language response incorporating this information."
-                    )
-                    messages.append(ChatMessage(role="system", content=content))
+                    # Format tool output in Hermes/Qwen3 format with <tool_response> tags
+                    content = f"<tool_response>\n{msg.output}\n</tool_response>"
+                    messages.append(ChatMessage(role="tool", content=content))
             else:
                 # Standard message format
                 # Map 'developer' role to 'system' for ChatMessage
@@ -99,6 +95,7 @@ async def _generate_streaming_response(
     temperature: Optional[float] = None,
     tool_choice: Optional[str] = None,
     chain_id: Optional[str] = None,
+    use_codex_format: bool = False,
 ) -> EventSourceResponse:
     async def generate() -> AsyncIterator[Dict[str, Any]]:
         try:
@@ -106,7 +103,8 @@ async def _generate_streaming_response(
             formatter = ResponsesFormatter()
             metrics = MetricsCollector(model=config.model_name)
 
-            async for event in generator.generate_events(
+            # Create the event stream generator so we can optionally drain it in the background
+            ev_gen = generator.generate_events(
                 messages,
                 enable_tools=bool(tools),
                 tools=tools,
@@ -114,12 +112,24 @@ async def _generate_streaming_response(
                 temperature=temperature,
                 tool_choice=tool_choice,
                 chain_id=chain_id,
-            ):
+            )
+
+            async for event in ev_gen:
                 metrics.process_event(event)
                 formatted = formatter.format_event(event)
                 if formatted:
-                    yield {"data": json.dumps(formatted)}
-            yield {"data": "[DONE]"}
+                    # Include the SSE event name for maximum compatibility with clients
+                    ev_name = formatted.get("type", "")
+                    yield {"data": json.dumps(formatted), "event": ev_name}
+
+                    # No Codex-specific early turn closure; standard Responses stream.
+
+            # Emit completion events for Responses format
+            if hasattr(formatter, "get_completion_events"):
+                for completion_event in formatter.get_completion_events():
+                    yield {"data": json.dumps(completion_event), "event": completion_event.get("type", "")}
+
+            yield {"data": "[DONE]", "event": "done"}
         except Exception as e:
             error_event = {"type": "response.error", "error": str(e)}
             yield {"data": json.dumps(error_event)}
@@ -256,13 +266,17 @@ async def retrieve_response(response_id: str) -> ResponsesResponse:
 
 @router.post("/responses", response_model=None)
 async def create_response(
+    req: Request,
     request: ResponsesRequest = Body(...),
     inference_server: InferenceServer = Depends(get_inference_server),
 ) -> Union[EventSourceResponse, ResponsesResponse]:
     try:
-        logger.info(f"RESPONSES API - Input type: {type(request.input)}, Input: {request.input}")
-        logger.info(f"RESPONSES API - Instructions: {request.instructions}")
+        # Detect if this is a Codex request
+        user_agent = req.headers.get("user-agent", "") if req else ""
+        use_codex_format = user_agent.startswith("codex_cli_rs/")
+
         logger.info(f"RESPONSES API - max_output_tokens: {request.max_output_tokens}")
+        logger.info(f"RESPONSES API - User-Agent: {user_agent}, use_codex_format: {use_codex_format}")
 
         # Validate previous_response_id if provided
         previous_response = None
@@ -317,10 +331,12 @@ async def create_response(
                 max_output_tokens=request.max_output_tokens,
                 temperature=request.temperature,
                 tool_choice=request.tool_choice,
-                chain_id=previous_response.response_chain_id if previous_response else None,
+                chain_id=request.prompt_cache_key
+                or (previous_response.response_chain_id if previous_response else None),
+                use_codex_format=use_codex_format,
             )
         else:
-            chain_id = previous_response.response_chain_id if previous_response else None
+            chain_id = request.prompt_cache_key or (previous_response.response_chain_id if previous_response else None)
             return await _generate_complete_response(
                 config=config,
                 messages=messages,
