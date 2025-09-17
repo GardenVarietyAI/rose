@@ -343,76 +343,41 @@ async def create_response(
     inference_server: InferenceServer = Depends(get_inference_server),
 ) -> Union[EventSourceResponse, ResponsesResponse]:
     try:
-        # Detect if this is a Codex request
-        user_agent = req.headers.get("user-agent", "") if req else ""
-        use_codex_format = user_agent.startswith("codex_cli_rs/")
+        use_codex_format = req.headers.get("user-agent", "").startswith("codex_cli_rs/")
 
         logger.info(f"RESPONSES API - max_output_tokens: {request.max_output_tokens}")
-        logger.info(f"RESPONSES API - User-Agent: {user_agent}, use_codex_format: {use_codex_format}")
+        logger.info(f"RESPONSES API - use_codex_format: {use_codex_format}")
 
-        # Validate previous_response_id if provided
         previous_response = None
         if request.previous_response_id:
             previous_response = await get_response(request.previous_response_id)
-            if not previous_response:
-                raise HTTPException(
-                    status_code=400,
-                    detail={
-                        "error": {
-                            "message": f"Previous response '{request.previous_response_id}' not found",
-                            "type": "invalid_request_error",
-                            "code": "response_not_found",
-                        }
-                    },
-                )
+
+        if request.previous_response_id and not previous_response:
+            raise HTTPException(status_code=400, detail=f"Previous response '{request.previous_response_id}' not found")
 
         messages = await _convert_input_to_messages(request)
-
         if not messages:
             logger.error("No messages extracted from request")
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": {
-                        "message": "No valid messages found in request",
-                        "type": "invalid_request_error",
-                        "code": None,
-                    }
-                },
-            )
+            raise HTTPException(status_code=400, detail="No valid messages found in request")
 
         config = await get_model_config(request.model)
         if not config:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": {
-                        "message": f"No configuration found for model '{request.model}'",
-                        "type": "invalid_request_error",
-                        "code": None,
-                    }
-                },
-            )
+            raise HTTPException(status_code=400, detail=f"No configuration found for model '{request.model}'")
 
-        # Truncate if messages exceed model's max input tokens
-        qwen_config = get_qwen_config(config.model_id)
-
-        if req.app.state.tokenizer:
-            tokenized_messages = [
-                TokenizedMessage(message=msg, token_count=len(req.app.state.tokenizer.encode(msg.content).ids))
-                for msg in messages
-                if msg.content
-            ]
-
-            total_tokens = sum(tm.token_count for tm in tokenized_messages)
-
-            if total_tokens > qwen_config.max_context_length:
-                logger.warning(
-                    f"Messages use {total_tokens} tokens, exceeds {qwen_config.max_context_length}, truncating"
-                )
-                messages = _smart_truncate_messages(tokenized_messages, qwen_config.max_context_length)
-        else:
+        if not req.app.state.tokenizer:
             raise HTTPException(status_code=500, detail="Tokenizer not initialized")
+
+        tokenized_messages = [
+            TokenizedMessage(message=msg, token_count=len(req.app.state.tokenizer.encode(msg.content).ids))
+            for msg in messages
+            if msg.content
+        ]
+
+        total_tokens = sum(tm.token_count for tm in tokenized_messages)
+        qwen_config = get_qwen_config(config.model_id)
+        if total_tokens > qwen_config.max_context_length:
+            logger.warning(f"Messages use {total_tokens} tokens, exceeds {qwen_config.max_context_length}, truncating")
+            messages = _smart_truncate_messages(tokenized_messages, qwen_config.max_context_length)
 
         if request.stream:
             return await _generate_streaming_response(
@@ -444,13 +409,4 @@ async def create_response(
         raise
     except Exception as e:
         logger.error(f"Responses API error: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": {
-                    "message": f"Internal server error: {str(e)}",
-                    "type": "server_error",
-                    "code": None,
-                }
-            },
-        )
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
