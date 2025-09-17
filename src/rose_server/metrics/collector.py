@@ -1,8 +1,7 @@
 import logging
 from typing import Optional
 
-from rose_server.events.event_types import LLMEvent
-from rose_server.events.event_types.generation import ResponseCompleted, ResponseStarted, TokenGenerated
+from rose_server.events.event_types import LLMEvent, ResponseCompleted, ResponseStarted, TokenGenerated
 from rose_server.metrics.timing import (
     PerformanceMetrics,
     TimingData,

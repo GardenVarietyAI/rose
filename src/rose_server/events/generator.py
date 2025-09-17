@@ -13,7 +13,7 @@ from rose_server._inference import (
     TokenEvent,
     ToolCallEvent,
 )
-from rose_server.events.event_types.generation import (
+from rose_server.events.event_types import (
     ResponseCompleted,
     ResponseStarted,
     TokenGenerated,
