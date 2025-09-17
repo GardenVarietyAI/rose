@@ -216,7 +216,7 @@ async def search_store(
             query_embedding = None
 
         # Search with embedding
-        if query_embedding:
+        if query_embedding is not None:
             documents = await search_vector_store(vector_store_id, query_embedding, request.max_num_results + 1)
         else:
             documents = []
