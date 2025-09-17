@@ -97,7 +97,6 @@ Full documentation is available in the `docs/` directory:
 
 - [OpenAI Compatibility](docs/openai-compatibility.md)
 - [Using the ROSE CLI](docs/using-the-rose-cli.md)
-- [Assistant Workflows](docs/assistant-workflows.md)
 - [Available Models](docs/available-models.md)
 - [API Reference](docs/api-reference.md)
 - [Development](docs/development.md)
