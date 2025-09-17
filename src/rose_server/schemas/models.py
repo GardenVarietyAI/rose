@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from rose_server.config.settings import settings
 from rose_server.models.qwen_configs import get_qwen_config
@@ -62,6 +62,8 @@ class ModelCreateRequest(BaseModel):
 
 
 class ModelResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     id: str
     object: str = "model"
     created_at: int
@@ -72,6 +74,3 @@ class ModelResponse(BaseModel):
     model_name: Optional[str]
     lora_target_modules: Optional[List[str]] = Field(default_factory=lambda: [])
     quantization: Optional[str] = None
-
-    class Config:
-        populate_by_name = True
