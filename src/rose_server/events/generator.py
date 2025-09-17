@@ -22,7 +22,7 @@ from rose_server.events.event_types.generation import (
 from rose_server.models.qwen_configs import get_qwen_config, should_use_tool_config
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.models import ModelConfig
-from rose_server.tools.tool_formatter import format_tools_for_system_prompt
+from rose_server.tools.service import format_tools_for_system_prompt
 
 logger = logging.getLogger(__name__)
 

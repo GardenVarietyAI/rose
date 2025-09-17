@@ -1,5 +1,3 @@
-"""Format tools for inclusion in system prompts."""
-
 import json
 from typing import Any, Dict, List, Optional
 
@@ -16,7 +14,6 @@ def format_tools_for_system_prompt(tools: Optional[List[Dict[str, Any]]]) -> str
         if tool.get("type") != "function":
             continue
 
-        # Support both OpenAI-style nested shape and flat shape used by some clients (e.g. Codex)
         if "function" in tool and isinstance(tool["function"], dict):
             fn = tool["function"]
             name = fn.get("name")
