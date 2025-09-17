@@ -8,6 +8,7 @@ from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
+from rose_server.config.settings import settings
 from rose_server.events.event_types import LLMEvent
 from rose_server.events.formatters import ChatCompletionsFormatter
 from rose_server.events.generator import EventGenerator
@@ -45,13 +46,15 @@ async def event_based_chat_completions(
             },
         )
 
-    config = ModelConfig.from_language_model(model)
+    config = ModelConfig.from_language_model(
+        model, inference_timeout=settings.inference_timeout, data_dir=settings.data_dir, models_dir=settings.models_dir
+    )
     logger.info(f"[EVENT] Using model: {request.model}")
     messages = request.messages
     logger.info(f"[EVENT] Message count: {len(messages)}")
 
     try:
-        generator = EventGenerator(config, inference_server)
+        generator = EventGenerator(config, inference_server, settings.max_concurrent_inference)
         formatter = ChatCompletionsFormatter()
         metrics = MetricsCollector(model=request.model)
         logger.info("[EVENT] Using ChatCompletionsGenerator for chat completions")

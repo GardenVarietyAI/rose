@@ -9,19 +9,18 @@ import numpy as np
 from sqlalchemy import text
 from sqlmodel import delete, func, select
 
-from rose_server.config.settings import settings
 from rose_server.database import get_session
 from rose_server.entities.vector_stores import Document, DocumentSearchResult, VectorStore, VectorStoreFile
 
 logger = logging.getLogger(__name__)
 
 
-async def create_vector_store(name: str) -> VectorStore:
+async def create_vector_store(name: str, dimensions: int) -> VectorStore:
     """Create a new vector store."""
     vector_store = VectorStore(
         object="vector_store",
         name=name,
-        dimensions=settings.default_embedding_dimensions,
+        dimensions=dimensions,
         last_used_at=None,
     )
 
@@ -72,10 +71,15 @@ async def search_vector_store(
 ) -> List[DocumentSearchResult]:
     """Search documents in a vector store using vector similarity."""
     async with get_session(read_only=not update_last_used) as session:
+        # Get the vector store to check dimensions
+        vector_store = await session.get(VectorStore, vector_store_id)
+        if not vector_store:
+            raise ValueError(f"Vector store {vector_store_id} not found")
+
         got_dim = len(query_embedding)
-        if got_dim != settings.default_embedding_dimensions:
+        if got_dim != vector_store.dimensions:
             raise ValueError(
-                f"Query vector dimension mismatch: got {got_dim}, expected {settings.default_embedding_dimensions}",
+                f"Query vector dimension mismatch: got {got_dim}, expected {vector_store.dimensions}",
             )
 
         query_blob = np.array(query_embedding, dtype=np.float32).tobytes()

@@ -74,7 +74,7 @@ async def index() -> VectorStoreList:
 async def create(req: Request, request: VectorStoreCreate = Body(...)) -> VectorStoreMetadata:
     """Create a new vector store."""
     try:
-        vector_store = await create_vector_store(request.name)
+        vector_store = await create_vector_store(request.name, settings.default_embedding_dimensions)
         logger.info(f"Created vector store {request.name} ({vector_store.id})")
 
         # TODO: batch this operation

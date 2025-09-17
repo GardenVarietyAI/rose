@@ -7,6 +7,7 @@ from fastapi import APIRouter, Body, HTTPException, Request
 from sse_starlette.sse import EventSourceResponse
 
 from rose_server._inference import InferenceServer
+from rose_server.config.settings import settings
 from rose_server.events.formatters import ResponsesFormatter
 from rose_server.events.generator import EventGenerator
 from rose_server.metrics import MetricsCollector
@@ -157,10 +158,11 @@ async def _generate_streaming_response(
     tool_choice: Optional[str] = None,
     chain_id: Optional[str] = None,
     use_codex_format: bool = False,
+    max_concurrent_inference: int = 2,
 ) -> EventSourceResponse:
     async def generate() -> AsyncIterator[Dict[str, Any]]:
         try:
-            generator = EventGenerator(config, inference_server)
+            generator = EventGenerator(config, inference_server, max_concurrent_inference)
             formatter = ResponsesFormatter()
             metrics = MetricsCollector(model=config.model_name)
 
@@ -198,8 +200,9 @@ async def _generate_complete_response(
     tool_choice: Optional[str] = None,
     store: bool = False,
     chain_id: Optional[str] = None,
+    max_concurrent_inference: int = 2,
 ) -> ResponsesResponse:
-    generator = EventGenerator(config, inference_server)
+    generator = EventGenerator(config, inference_server, max_concurrent_inference)
     formatter = ResponsesFormatter()
     metrics = MetricsCollector(model=config.model_name)
     all_events = []
@@ -330,7 +333,12 @@ async def create_response(
         model = await get_language_model(request.model)
         if not model:
             raise HTTPException(status_code=400, detail=f"No configuration found for model '{request.model}'")
-        config = ModelConfig.from_language_model(model)
+        config = ModelConfig.from_language_model(
+            model,
+            inference_timeout=settings.inference_timeout,
+            data_dir=settings.data_dir,
+            models_dir=settings.models_dir,
+        )
 
         if not req.app.state.tokenizer:
             raise HTTPException(status_code=500, detail="Tokenizer not initialized")
@@ -359,6 +367,7 @@ async def create_response(
                 chain_id=request.prompt_cache_key
                 or (previous_response.response_chain_id if previous_response else None),
                 use_codex_format=use_codex_format,
+                max_concurrent_inference=settings.max_concurrent_inference,
             )
         else:
             chain_id = request.prompt_cache_key or (previous_response.response_chain_id if previous_response else None)
@@ -372,6 +381,7 @@ async def create_response(
                 tool_choice=request.tool_choice,
                 store=request.store,
                 chain_id=chain_id,
+                max_concurrent_inference=settings.max_concurrent_inference,
             )
     except HTTPException:
         raise

@@ -13,7 +13,6 @@ from rose_server._inference import (
     TokenEvent,
     ToolCallEvent,
 )
-from rose_server.config.settings import settings
 from rose_server.events.event_types.generation import (
     ResponseCompleted,
     ResponseStarted,
@@ -29,11 +28,13 @@ logger = logging.getLogger(__name__)
 
 
 class EventGenerator:
-    def __init__(self, config: ModelConfig, inference_server: InferenceServer) -> None:
+    def __init__(
+        self, config: ModelConfig, inference_server: InferenceServer, max_concurrent_inference: int = 2
+    ) -> None:
         self.config = config
         self.model_name = config.model_name
         self._srv = inference_server
-        self._semaphore = asyncio.Semaphore(settings.max_concurrent_inference)
+        self._semaphore = asyncio.Semaphore(max_concurrent_inference)
         self._resolved_paths = self._resolve_model_paths(config.model_path)
         self._model_kind = config.kind or self._get_model_kind(config.model_id)
 
