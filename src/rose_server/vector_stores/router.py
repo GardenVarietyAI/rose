@@ -1,12 +1,11 @@
 """API router for vector stores endpoints."""
 
+import asyncio
 import logging
 from typing import Any, Dict
 
-from fastapi import APIRouter, Body, HTTPException, Path
+from fastapi import APIRouter, Body, HTTPException, Path, Request
 
-from rose_server.config.settings import settings
-from rose_server.embeddings.embedding import get_tokenizer
 from rose_server.schemas.vector_stores import (
     VectorSearch,
     VectorSearchChunk,
@@ -161,7 +160,9 @@ async def delete(
 
 
 @router.post("/{vector_store_id}/search")
-async def search_store(vector_store_id: str = Path(...), request: VectorSearch = Body(...)) -> VectorSearchResult:
+async def search_store(
+    req: Request, vector_store_id: str = Path(...), request: VectorSearch = Body(...)
+) -> VectorSearchResult:
     """Search for vectors in a vector store (OpenAI-compatible)."""
     try:
         if request.filters:
@@ -171,16 +172,29 @@ async def search_store(vector_store_id: str = Path(...), request: VectorSearch =
         if not vector_store:
             raise HTTPException(status_code=404, detail=f"Vector store {vector_store_id} not found")
 
-        # Calculate token usage for the query
+        # Handle text or vector query
         if isinstance(request.query, str):
-            tokenizer = get_tokenizer(settings.default_embedding_model)
-            prompt_tokens = len(tokenizer.encode(request.query).ids)
-            documents = await search_vector_store(vector_store_id, request.query, request.max_num_results + 1)
+            if not req.app.state.embedding_model or not req.app.state.embedding_tokenizer:
+                raise HTTPException(status_code=500, detail="Embedding model not initialized")
+
+            # Convert text to embedding
+            embeddings = await asyncio.to_thread(lambda: list(req.app.state.embedding_model.embed([request.query])))
+            query_embedding = embeddings[0]
+
+            # Calculate token usage
+            prompt_tokens = len(req.app.state.embedding_tokenizer.encode(request.query).ids)
         elif isinstance(request.query, list):
+            query_embedding = request.query
             prompt_tokens = 1  # Vector queries use minimal tokens
-            documents = await search_vector_store(vector_store_id, request.query, request.max_num_results + 1)
         else:
             prompt_tokens = 0
+            documents = []
+            query_embedding = None
+
+        # Search with embedding
+        if query_embedding:
+            documents = await search_vector_store(vector_store_id, query_embedding, request.max_num_results + 1)
+        else:
             documents = []
 
         # Convert documents to API response format

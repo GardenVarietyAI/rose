@@ -1,10 +1,9 @@
 """Vector store CRUD operations."""
 
-import asyncio
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 from sqlalchemy import text
@@ -12,7 +11,6 @@ from sqlmodel import delete, func, select
 
 from rose_server.config.settings import settings
 from rose_server.database import get_session
-from rose_server.embeddings.embedding import get_default_embedding_model
 from rose_server.entities.vector_stores import Document, DocumentSearchResult, VectorStore, VectorStoreFile
 
 logger = logging.getLogger(__name__)
@@ -70,22 +68,15 @@ async def list_vector_stores() -> List[VectorStore]:
 
 
 async def search_vector_store(
-    vector_store_id: str, query: Union[str, List[float]], max_results: int = 10, update_last_used: bool = True
+    vector_store_id: str, query_embedding: List[float], max_results: int = 10, update_last_used: bool = True
 ) -> List[DocumentSearchResult]:
     """Search documents in a vector store using vector similarity."""
     async with get_session(read_only=not update_last_used) as session:
-        # Handle both text and vector queries
-        if isinstance(query, str):
-            # Generate query embedding
-            model = get_default_embedding_model()
-            query_embedding = await asyncio.to_thread(lambda: list(model.embed([query]))[0])
-        else:
-            # Direct vector input - validate dimensions
-            expected_dim = settings.default_embedding_dimensions
-            got_dim = len(query)
-            if got_dim != expected_dim:
-                raise ValueError(f"Query vector dimension mismatch: got {got_dim}, expected {expected_dim}")
-            query_embedding = query
+        got_dim = len(query_embedding)
+        if got_dim != settings.default_embedding_dimensions:
+            raise ValueError(
+                f"Query vector dimension mismatch: got {got_dim}, expected {settings.default_embedding_dimensions}",
+            )
 
         query_blob = np.array(query_embedding, dtype=np.float32).tobytes()
         max_results = max(1, min(100, max_results))

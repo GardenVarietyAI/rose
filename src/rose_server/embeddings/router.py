@@ -1,6 +1,7 @@
 """Router module for embeddings API endpoints."""
 
-from typing import List
+import asyncio
+from typing import Any, List, Tuple
 
 import numpy as np
 from fastapi import APIRouter, HTTPException, Request
@@ -8,6 +9,20 @@ from fastapi import APIRouter, HTTPException, Request
 from rose_server.schemas.embeddings import EmbeddingRequest, EmbeddingResponse
 
 router = APIRouter(prefix="/v1/embeddings")
+
+
+def compute_embeddings(
+    texts: List[str], model: Any, tokenizer: Any, batch_size: int = 32
+) -> Tuple[List[np.ndarray], int]:
+    """Pure function to compute embeddings from texts."""
+    all_embeddings = []
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i : i + batch_size]
+        batch_embeddings = list(model.embed(batch))
+        all_embeddings.extend(batch_embeddings)
+
+    total_tokens = sum(len(tokenizer.encode(text).ids) for text in texts)
+    return all_embeddings, total_tokens
 
 
 @router.post("", response_model=EmbeddingResponse)
@@ -23,20 +38,11 @@ async def create_embeddings(req: Request, request: EmbeddingRequest) -> Embeddin
         raise HTTPException(status_code=500, detail="Embedding model not initialized")
 
     try:
-        texts: List[str] = request.input if isinstance(request.input, list) else [request.input]
+        texts = request.input if isinstance(request.input, list) else [request.input]
 
-        batch_size = 32
-        all_embeddings: List[np.ndarray] = []
-
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i : i + batch_size]
-            batch_embeddings = list(req.app.state.embedding_model.embed(batch))
-            all_embeddings.extend(batch_embeddings)
-
-        total_tokens = 0
-        for text in texts:
-            tokens = req.app.state.embedding_tokenizer.encode(text)
-            total_tokens += len(tokens.ids)
+        embeddings, total_tokens = await asyncio.to_thread(
+            compute_embeddings, texts, req.app.state.embedding_model, req.app.state.embedding_tokenizer
+        )
 
         return EmbeddingResponse(
             object="list",
@@ -46,7 +52,7 @@ async def create_embeddings(req: Request, request: EmbeddingRequest) -> Embeddin
                     "embedding": embedding.tolist() if isinstance(embedding, np.ndarray) else list(embedding),
                     "index": i,
                 }
-                for i, embedding in enumerate(all_embeddings)
+                for i, embedding in enumerate(embeddings)
             ],
             model=request.model,
             usage={
