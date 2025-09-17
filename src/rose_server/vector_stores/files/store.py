@@ -76,7 +76,6 @@ def decode_file_content(content: bytes, filename: str) -> Tuple[str, bool]:
 
 
 def create_chunks(text: str, tokenizer: Any, chunk_size: int, chunk_overlap: int) -> List[Any]:
-    """Pure function to create chunks from text."""
     chunker = TokenChunker(
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
@@ -151,6 +150,14 @@ async def store_file_chunks_with_embeddings(
             vector_store_file.last_error = str(e)
             await session.commit()
             raise
+
+
+async def get_uploaded_file(file_id: str) -> UploadedFile:
+    async with get_session(read_only=True) as session:
+        uploaded_file = await session.get(UploadedFile, file_id)
+        if not uploaded_file:
+            raise FileNotFoundError(f"Uploaded file {file_id} not found")
+        return uploaded_file
 
 
 async def add_file_to_vector_store(

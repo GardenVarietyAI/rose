@@ -7,8 +7,6 @@ from typing import Any, Dict
 from fastapi import APIRouter, Body, HTTPException, Path, Query, Request
 
 from rose_server.config.settings import settings
-from rose_server.database import get_session
-from rose_server.entities.files import UploadedFile
 from rose_server.schemas.vector_stores import VectorStoreFile, VectorStoreFileCreate, VectorStoreFileList
 from rose_server.vector_stores.files.store import (
     ChunkingError,
@@ -18,6 +16,7 @@ from rose_server.vector_stores.files.store import (
     add_file_to_vector_store,
     create_chunks,
     decode_file_content,
+    get_uploaded_file,
     list_vector_store_files,
     remove_file_from_vector_store,
 )
@@ -37,11 +36,8 @@ async def create(
         raise HTTPException(status_code=500, detail="Embedding model not initialized")
 
     try:
-        # Load the uploaded file
-        async with get_session(read_only=True) as session:
-            uploaded_file = await session.get(UploadedFile, request.file_id)
-            if not uploaded_file:
-                raise FileNotFoundError(f"Uploaded file {request.file_id} not found")
+        # Load the uploaded file (from store layer)
+        uploaded_file = await get_uploaded_file(request.file_id)
 
         # Decode file content (pure function)
         text_content, decode_errors = decode_file_content(uploaded_file.content, uploaded_file.filename)

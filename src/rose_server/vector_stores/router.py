@@ -6,6 +6,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Body, HTTPException, Path, Request
 
+from rose_server.config.settings import settings
 from rose_server.schemas.vector_stores import (
     VectorSearch,
     VectorSearchChunk,
@@ -21,6 +22,9 @@ from rose_server.vector_stores.files.store import (
     FileNotFoundError as StoreFileNotFoundError,
     VectorStoreNotFoundError as StoreVectorStoreNotFoundError,
     add_file_to_vector_store,
+    create_chunks,
+    decode_file_content,
+    get_uploaded_file,
 )
 from rose_server.vector_stores.store import (
     create_vector_store,
@@ -66,7 +70,7 @@ async def index() -> VectorStoreList:
 
 
 @router.post("")
-async def create(request: VectorStoreCreate = Body(...)) -> VectorStoreMetadata:
+async def create(req: Request, request: VectorStoreCreate = Body(...)) -> VectorStoreMetadata:
     """Create a new vector store."""
     try:
         vector_store = await create_vector_store(request.name)
@@ -74,9 +78,27 @@ async def create(request: VectorStoreCreate = Body(...)) -> VectorStoreMetadata:
 
         # TODO: batch this operation
         if request.file_ids:
+            if not req.app.state.embedding_model or not req.app.state.embedding_tokenizer:
+                raise HTTPException(status_code=500, detail="Embedding model not initialized")
+
             for file_id in request.file_ids:
                 try:
-                    await add_file_to_vector_store(vector_store_id=vector_store.id, file_id=file_id)
+                    uploaded_file = await get_uploaded_file(file_id)
+                    text_content, decode_errors = decode_file_content(uploaded_file.content, uploaded_file.filename)
+                    chunks = create_chunks(
+                        text_content,
+                        req.app.state.embedding_tokenizer,
+                        settings.default_chunk_size,
+                        settings.default_chunk_overlap,
+                    )
+
+                    if not chunks:
+                        raise ValueError(f"No chunks generated from file {file_id}")
+
+                    texts = [chunk.text for chunk in chunks]
+                    embeddings = await asyncio.to_thread(lambda: list(req.app.state.embedding_model.embed(texts)))
+
+                    await add_file_to_vector_store(vector_store.id, file_id, embeddings, chunks, decode_errors)
                     logger.info(f"Added file {file_id} to vector store {request.name} ({vector_store.id})")
                 except (StoreVectorStoreNotFoundError, StoreFileNotFoundError) as e:
                     raise HTTPException(status_code=404, detail=str(e))
