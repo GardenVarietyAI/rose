@@ -23,6 +23,3 @@ class LanguageModel(SQLModel, table=True):
     parent: Optional[str] = Field(default=None)
     permissions: Optional[List[str]] = Field(sa_column=Column(JSON), default=None)
     created_at: int = Field(default_factory=lambda: int(time.time()), alias="created")
-
-    class Config:
-        populate_by_name = True

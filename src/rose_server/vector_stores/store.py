@@ -1,29 +1,24 @@
-"""Vector store CRUD operations."""
-
-import asyncio
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 from sqlalchemy import text
 from sqlmodel import delete, func, select
 
-from rose_server.config.settings import settings
 from rose_server.database import get_session
-from rose_server.embeddings.embedding import get_default_embedding_model
 from rose_server.entities.vector_stores import Document, DocumentSearchResult, VectorStore, VectorStoreFile
 
 logger = logging.getLogger(__name__)
 
 
-async def create_vector_store(name: str) -> VectorStore:
+async def create_vector_store(name: str, dimensions: int) -> VectorStore:
     """Create a new vector store."""
     vector_store = VectorStore(
         object="vector_store",
         name=name,
-        dimensions=settings.default_embedding_dimensions,
+        dimensions=dimensions,
         last_used_at=None,
     )
 
@@ -34,7 +29,6 @@ async def create_vector_store(name: str) -> VectorStore:
 
 
 async def get_vector_store(vector_store_id: str) -> Optional[VectorStore]:
-    """Get vector store by ID."""
     async with get_session(read_only=True) as session:
         return await session.get(VectorStore, vector_store_id)
 
@@ -42,7 +36,6 @@ async def get_vector_store(vector_store_id: str) -> Optional[VectorStore]:
 async def update_vector_store(
     vector_store_id: str, name: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None
 ) -> Optional[VectorStore]:
-    """Update vector store metadata."""
     async with get_session() as session:
         vector_store = await session.get(VectorStore, vector_store_id)
 
@@ -63,29 +56,25 @@ async def update_vector_store(
 
 
 async def list_vector_stores() -> List[VectorStore]:
-    """List all vector stores."""
     async with get_session(read_only=True) as session:
         result = await session.execute(select(VectorStore))
         return [row[0] for row in result.fetchall()]
 
 
 async def search_vector_store(
-    vector_store_id: str, query: Union[str, List[float]], max_results: int = 10, update_last_used: bool = True
+    vector_store_id: str, query_embedding: List[float], max_results: int = 10, update_last_used: bool = True
 ) -> List[DocumentSearchResult]:
-    """Search documents in a vector store using vector similarity."""
     async with get_session(read_only=not update_last_used) as session:
-        # Handle both text and vector queries
-        if isinstance(query, str):
-            # Generate query embedding
-            model = get_default_embedding_model()
-            query_embedding = await asyncio.to_thread(lambda: list(model.embed([query]))[0])
-        else:
-            # Direct vector input - validate dimensions
-            expected_dim = settings.default_embedding_dimensions
-            got_dim = len(query)
-            if got_dim != expected_dim:
-                raise ValueError(f"Query vector dimension mismatch: got {got_dim}, expected {expected_dim}")
-            query_embedding = query
+        # Get the vector store to check dimensions
+        vector_store = await session.get(VectorStore, vector_store_id)
+        if not vector_store:
+            raise ValueError(f"Vector store {vector_store_id} not found")
+
+        got_dim = len(query_embedding)
+        if got_dim != vector_store.dimensions:
+            raise ValueError(
+                f"Query vector dimension mismatch: got {got_dim}, expected {vector_store.dimensions}",
+            )
 
         query_blob = np.array(query_embedding, dtype=np.float32).tobytes()
         max_results = max(1, min(100, max_results))
@@ -138,7 +127,6 @@ async def search_vector_store(
 
 
 async def delete_vector_store(vector_store_id: str) -> bool:
-    """Delete a vector store."""
     async with get_session() as session:
         vector_store = await session.get(VectorStore, vector_store_id)
 

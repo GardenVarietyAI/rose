@@ -1,27 +1,19 @@
 """Vector store file operations."""
 
-import asyncio
-import io
 import logging
 import time
 from typing import Any, List, Optional, Sequence, Tuple
 
 import numpy as np
-from chonkie import TokenChunker
-from pypdf import PdfReader
-from pypdf.errors import PdfReadError
-from sqlalchemy import bindparam, delete, select, text, update
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rose_server.config.settings import settings
 from rose_server.database import get_session
-from rose_server.embeddings.embedding import get_default_embedding_model, get_tokenizer
 from rose_server.entities.files import UploadedFile
 from rose_server.entities.vector_stores import Document, VectorStore, VectorStoreFile
 
 logger = logging.getLogger(__name__)
-PDF_MAGIC_BYTES = b"%PDF-"
 
 
 class VectorStoreNotFoundError(ValueError):
@@ -32,62 +24,83 @@ class FileNotFoundError(ValueError):
     """File does not exist."""
 
 
-class EmptyFileError(ValueError):
-    """File has no content."""
-
-
 class ChunkingError(ValueError):
     """Failed to generate chunks from file."""
 
 
-def _decode_file_content(uploaded_file: UploadedFile, file_id: str) -> Tuple[str, bool]:
-    """Decode file content with PDF and text support."""
-    content = uploaded_file.content
+async def store_file_chunks_with_embeddings(
+    vector_store_id: str,
+    file_id: str,
+    chunks: List[Any],
+    embeddings: List[np.ndarray],
+    decode_errors: bool,
+) -> VectorStoreFile:
+    async with get_session() as session:
+        vector_store = await session.get(VectorStore, vector_store_id)
+        if not vector_store:
+            raise VectorStoreNotFoundError(f"Vector store {vector_store_id} not found")
 
-    # Handle PDF files - check magic bytes for actual PDF content
-    if content.startswith(PDF_MAGIC_BYTES):
-        try:
-            # Create BytesIO wrapper for pypdf (content already in memory from upload)
-            reader = PdfReader(io.BytesIO(content))
+        uploaded_file = await session.get(UploadedFile, file_id)
+        if not uploaded_file:
+            raise FileNotFoundError(f"Uploaded file {file_id} not found")
 
-            # Extract text from all pages
-            text_parts = []
-            for page in reader.pages:
-                page_text = page.extract_text()
-                if page_text.strip():  # Only add non-empty pages
-                    text_parts.append(page_text)
-
-            text_content = "\n\n".join(text_parts)
-            if not text_content.strip():
-                raise ValueError("No text content found in PDF")
-
-            logger.info("Extracted text from PDF %s (%d pages)", file_id, len(reader.pages))
-            return text_content, False
-
-        except (PdfReadError, ValueError) as e:
-            logger.error("Failed to extract text from PDF %s: %s", file_id, str(e))
-            raise ValueError(f"Failed to process PDF file: {str(e)}")
-
-    # Handle text files
-    try:
-        text_content = content.decode("utf-8")
-        decode_errors = False
-    except UnicodeDecodeError:
-        text_content = content.decode("utf-8", errors="replace")
-        decode_errors = True
-        logger.warning(
-            f"File {file_id} ({uploaded_file.filename}) contains invalid UTF-8 bytes. "
-            f"Decoded with replacement characters."
+        # Upsert vector store file record
+        await session.execute(
+            insert(VectorStoreFile)
+            .values(vector_store_id=vector_store_id, file_id=file_id)
+            .on_conflict_do_nothing(index_elements=[VectorStoreFile.vector_store_id, VectorStoreFile.file_id])
         )
-    return text_content, decode_errors
+
+        # Get the vector store file record
+        vector_store_file = await session.scalar(
+            select(VectorStoreFile).where(
+                VectorStoreFile.vector_store_id == vector_store_id,
+                VectorStoreFile.file_id == file_id,
+            )
+        )
+
+        if vector_store_file.status != "in_progress":
+            return vector_store_file  # don't double-ingest
+
+        try:
+            # Store chunks and embeddings
+            created_at = await _store_chunk_documents(
+                session,
+                vector_store_id,
+                uploaded_file,
+                chunks,
+                embeddings,
+                decode_errors,
+            )
+
+            # Mark as completed
+            vector_store_file.status = "completed"
+            vector_store_file.last_error = None
+            await session.commit()
+
+            # Update last_used_at
+            await session.execute(
+                update(VectorStore).where(VectorStore.id == vector_store_id).values(last_used_at=created_at)
+            )
+            await session.commit()
+
+            return vector_store_file
+
+        except Exception as e:
+            # Mark as failed
+            logger.error(f"Failed to add file {file_id} to vector store {vector_store_id}: {str(e)}")
+            vector_store_file.status = "failed"
+            vector_store_file.last_error = str(e)
+            await session.commit()
+            raise
 
 
-def _get_chunker() -> TokenChunker:
-    return TokenChunker(
-        chunk_size=settings.default_chunk_size,
-        chunk_overlap=settings.default_chunk_overlap,
-        tokenizer=get_tokenizer(settings.default_embedding_model),
-    )
+async def get_uploaded_file(file_id: str) -> UploadedFile:
+    async with get_session(read_only=True) as session:
+        uploaded_file = await session.get(UploadedFile, file_id)
+        if not uploaded_file:
+            raise FileNotFoundError(f"Uploaded file {file_id} not found")
+        return uploaded_file
 
 
 async def _store_chunk_documents(
@@ -98,33 +111,36 @@ async def _store_chunk_documents(
     embeddings: List[Any],
     decode_errors: bool,
 ) -> int:
-    """Store document chunks with embeddings."""
+    # Create documents for all chunks
     created_at = int(time.time())
     documents = []
-    # Create all documents first
-    for idx, chunk in enumerate(chunks):
-        chunk_meta = {
+
+    for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+        meta = {
             "file_id": uploaded_file.id,
             "filename": uploaded_file.filename,
             "total_chunks": len(chunks),
             "start_index": chunk.start_index,
             "end_index": chunk.end_index,
+            "decode_errors": decode_errors,
         }
-        if decode_errors:
-            chunk_meta["decode_errors"] = True
 
-        document = Document(
+        doc = Document(
+            id=f"{uploaded_file.id}#{i}",
             vector_store_id=vector_store_id,
-            chunk_index=idx,
+            chunk_index=i,
             content=chunk.text,
-            meta=chunk_meta,
+            meta=meta,
             created_at=created_at,
         )
-        session.add(document)
-        documents.append(document)
+        documents.append(doc)
 
-    # Batch flush all documents
-    await session.flush()
+    # Delete old docs for this file
+    await session.execute(delete(Document).where(Document.id.like(f"{uploaded_file.id}#%")))
+
+    # Insert new documents
+    for doc in documents:
+        session.add(doc)
 
     # Insert embeddings in batch
     embedding_data = []
@@ -136,160 +152,81 @@ async def _store_chunk_documents(
         text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"), embedding_data
     )
 
+    await session.commit()
     return created_at
 
 
-async def add_file_to_vector_store(vector_store_id: str, file_id: str) -> VectorStoreFile:
+async def get_vector_store_file(vector_store_id: str, file_id: str) -> Optional[VectorStoreFile]:
     async with get_session() as session:
-        vector_store = await session.get(VectorStore, vector_store_id)
-        if not vector_store:
-            raise VectorStoreNotFoundError(f"Vector store {vector_store_id} not found")
-
-        uploaded_file = await session.get(UploadedFile, file_id)
-        if not uploaded_file:
-            raise FileNotFoundError(f"Uploaded file {file_id} not found")
-
-        # Upsert
-        await session.execute(
-            insert(VectorStoreFile)
-            .values(vector_store_id=vector_store_id, file_id=file_id)
-            .on_conflict_do_nothing(index_elements=[VectorStoreFile.vector_store_id, VectorStoreFile.file_id])
-        )
-
-        # Get the newly inserted or already existent row
-        vector_store_file = await session.scalar(
+        return await session.scalar(
             select(VectorStoreFile).where(
                 VectorStoreFile.vector_store_id == vector_store_id,
                 VectorStoreFile.file_id == file_id,
             )
         )
 
-        if vector_store_file.status != "in_progress":
-            return vector_store_file  # don’t double-ingest
-
-        try:
-            content, decode_errors = _decode_file_content(uploaded_file, file_id)
-            chunker = _get_chunker()
-            chunks = chunker.chunk(content)
-            if not chunks:
-                raise ChunkingError(f"No chunks generated from file {file_id}")
-
-            texts = [c.text for c in chunks]
-
-            model = get_default_embedding_model()
-            embeddings = await asyncio.to_thread(lambda: list(model.embed(texts)))
-            if embeddings:
-                got, exp = len(embeddings[0]), settings.default_embedding_dimensions
-                if got != exp:
-                    raise ValueError(f"Embedding dimension mismatch: got {got}, expected {exp}")
-
-            created_at = await _store_chunk_documents(
-                session,
-                vector_store_id,
-                uploaded_file,
-                chunks,
-                embeddings,
-                decode_errors,
-            )
-
-            # Update objects through ORM for proper transaction handling
-            vector_store.last_used_at = created_at
-            vector_store_file.status = "completed"
-
-            # Add modified objects to session
-            session.add(vector_store)
-            session.add(vector_store_file)
-
-            # Commit all changes atomically
-            await session.commit()
-
-            return vector_store_file
-
-        except Exception:
-            await session.rollback()
-
-            # Mark as failed in a separate transaction to ensure status persists
-            try:
-                async with get_session() as error_session:
-                    await error_session.execute(
-                        update(VectorStoreFile)
-                        .where(
-                            VectorStoreFile.vector_store_id == vector_store_id,
-                            VectorStoreFile.file_id == file_id,
-                        )
-                        .values(status="failed")
-                    )
-                    await error_session.commit()
-            except Exception as e:
-                logger.error("Failed to mark file %s as failed: %s", file_id, str(e))
-
-            raise
-
-
-async def get_vector_store_file(vector_store_file_id: str) -> Optional[VectorStoreFile]:
-    """Get vector store file by ID."""
-    async with get_session(read_only=True) as session:
-        return await session.get(VectorStoreFile, vector_store_file_id)
-
 
 async def list_vector_store_files(
-    vector_store_id: str,
-    limit: int = 20,
-    order: str = "desc",
-    after: Optional[str] = None,
-    before: Optional[str] = None,
-) -> List[VectorStoreFile]:
-    """List files in a vector store with pagination."""
+    vector_store_id: str, order: str = "asc", limit: int = 20, after: Optional[str] = None, before: Optional[str] = None
+) -> Tuple[List[VectorStoreFile], bool]:
     async with get_session() as session:
         query = select(VectorStoreFile).where(VectorStoreFile.vector_store_id == vector_store_id)
 
+        # Handle pagination cursors
         if after:
             query = query.where(VectorStoreFile.id > after)
         if before:
             query = query.where(VectorStoreFile.id < before)
 
-        if order == "asc":
-            query = query.order_by(VectorStoreFile.created_at.asc())
-        else:
+        # Apply ordering
+        if order == "desc":
             query = query.order_by(VectorStoreFile.created_at.desc())
+        else:
+            query = query.order_by(VectorStoreFile.created_at)
 
-        query = query.limit(limit)
+        # Get one extra to check if there are more
+        query = query.limit(limit + 1)
+
         result = await session.execute(query)
-        return list(result.scalars().all())
+        files = list(result.scalars().all())
+
+        has_more = len(files) > limit
+        if has_more:
+            files = files[:limit]
+
+        return files, has_more
 
 
-async def delete_file_from_vector_store(vector_store_id: str, file_id: str) -> int:
-    """Remove a file from a vector store and delete associated documents & embeddings.
-    Returns the number of documents deleted.
-    """
+async def remove_file_from_vector_store(vector_store_id: str, file_id: str) -> bool:
     async with get_session() as session:
-        # Find the mapping row using both keys (safer than .get with a single id)
-        vector_store_file = await session.scalar(
+        # Check if the file exists in this vector store
+        vsf = await session.scalar(
             select(VectorStoreFile).where(
                 VectorStoreFile.vector_store_id == vector_store_id,
                 VectorStoreFile.file_id == file_id,
             )
         )
-        if not vector_store_file:
-            raise FileNotFoundError(f"File {file_id} not found in vector store {vector_store_id}")
 
-        # Collect document ids for this file in this vector store
-        rows = (
-            await session.execute(select(Document.id, Document.meta).where(Document.vector_store_id == vector_store_id))
-        ).all()
-        doc_ids = [doc_id for (doc_id, meta) in rows if meta and meta.get("file_id") == file_id]
+        if not vsf:
+            return False
+
+        # Delete documents and their embeddings
+        doc_ids = await session.scalars(
+            select(Document.id).where(Document.id.like(f"{file_id}#%"), Document.vector_store_id == vector_store_id)
+        )
+        doc_ids = list(doc_ids)
 
         if doc_ids:
             # Delete embeddings in vec0 for these docs (expanding IN)
-            stmt_vec_del = text("DELETE FROM vec0 WHERE document_id IN :ids").bindparams(
-                bindparam("ids", expanding=True)
-            )
-            await session.execute(stmt_vec_del, {"ids": doc_ids})
+            placeholders = ", ".join([f":doc_id_{i}" for i in range(len(doc_ids))])
+            params = {f"doc_id_{i}": doc_id for i, doc_id in enumerate(doc_ids)}
+            await session.execute(text(f"DELETE FROM vec0 WHERE document_id IN ({placeholders})"), params)
 
-            # Bulk delete documents
+            # Delete documents
             await session.execute(delete(Document).where(Document.id.in_(doc_ids)))
 
-        # Remove the vector store ↔ file link
-        await session.delete(vector_store_file)
+        # Delete the VectorStoreFile record
+        await session.delete(vsf)
         await session.commit()
-        return len(doc_ids)
+
+        return True

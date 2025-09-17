@@ -1,15 +1,18 @@
 import json
 import logging
+from dataclasses import dataclass
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, HTTPException, Request
 from sse_starlette.sse import EventSourceResponse
 
-from rose_server.dependencies import InferenceServer, get_inference_server, get_model_config
+from rose_server._inference import InferenceServer
+from rose_server.config.settings import settings
 from rose_server.events.formatters import ResponsesFormatter
 from rose_server.events.generator import EventGenerator
 from rose_server.metrics import MetricsCollector
 from rose_server.models.qwen_configs import get_qwen_config
+from rose_server.models.store import get as get_language_model
 from rose_server.responses.store import get_chain_ids, get_conversation_messages, get_response, store_response_messages
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.models import ModelConfig
@@ -31,62 +34,61 @@ async def chains() -> List[str]:
     return chains
 
 
-# TODO: Naive token counting as a stop-gap for now
-def _smart_truncate_messages(messages: List[ChatMessage], max_tokens: int) -> List[ChatMessage]:
-    """Smart truncation that preserves system messages using character-based estimation."""
-    if not messages or len(messages) <= 2:
-        return messages
+@dataclass
+class TokenizedMessage:
+    message: ChatMessage
+    token_count: int
 
-    # Rough estimation: 4 characters per token
-    chars_per_token = 4
-    max_chars = max_tokens * chars_per_token
 
-    # Separate system and other messages
-    system_msgs = []
-    other_msgs = []
+def _smart_truncate_messages(tokenized_messages: List[TokenizedMessage], max_tokens: int) -> List[ChatMessage]:
+    """Pure function for smart message truncation preserving system messages."""
+    if not tokenized_messages or len(tokenized_messages) <= 2:
+        return [tm.message for tm in tokenized_messages]
 
-    for msg in messages:
-        if msg.role == "system":
-            system_msgs.append(msg)
+    system_msgs: List[TokenizedMessage] = []
+    other_msgs: List[TokenizedMessage] = []
+
+    for tm in tokenized_messages:
+        if tm.message.role == "system":
+            system_msgs.append(tm)
         else:
-            other_msgs.append(msg)
+            other_msgs.append(tm)
 
-    # Count system message characters
-    system_chars = sum(len(msg.content or "") for msg in system_msgs)
-    system_chars += len(system_msgs) * 50  # Overhead for formatting
+    # Count system message tokens (add ~15 per message for formatting)
+    system_tokens = sum(tm.token_count + 15 for tm in system_msgs)
 
-    if system_chars >= max_chars - 800:
-        # System too large, keep last few messages
-        logger.warning(f"System prompt too large (~{system_chars // chars_per_token} tokens), keeping recent messages")
-        return messages[-5:]
+    if system_tokens >= max_tokens - 200:
+        logger.warning(f"System prompt too large ({system_tokens} tokens), keeping recent messages")
+        return [tm.message for tm in tokenized_messages[-5:]]
 
-    # Build result with system messages first
-    result = system_msgs.copy()
-    remaining_chars = max_chars - system_chars - 400
+    result: List[ChatMessage] = [tm.message for tm in system_msgs]
+    remaining_tokens = max_tokens - system_tokens - 100  # Buffer for response
 
-    # Add messages from the end backwards
-    for msg in reversed(other_msgs):
-        msg_chars = len(msg.content or "") + 50
-        if msg_chars > remaining_chars:
+    # Add messages from the end backwards until we hit token limit
+    for tm in reversed(other_msgs):
+        msg_tokens = tm.token_count + 15  # Add formatting overhead
+        if msg_tokens > remaining_tokens:
             break
-        result.append(msg)
-        remaining_chars -= msg_chars
+        result.append(tm.message)
+        remaining_tokens -= msg_tokens
 
     # Restore chronological order
-    result = system_msgs + list(reversed(result[len(system_msgs) :]))
+    final_result = [tm.message for tm in system_msgs]
+    final_result.extend(reversed(result[len(system_msgs) :]))
 
-    return result
+    if len(final_result) < len(tokenized_messages):
+        used_tokens = max_tokens - remaining_tokens
+        logger.info(f"Truncated: {len(tokenized_messages)} -> {len(final_result)} messages (~{used_tokens} tokens)")
+
+    return final_result
 
 
 async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMessage]:
     """Convert request to messages, loading history if needed."""
     messages = []
 
-    # Load conversation history if continuing from previous response
     if request.previous_response_id:
         chain_messages = await get_conversation_messages(request.previous_response_id)
-
-        # Convert to ChatMessage format
         for msg in chain_messages:
             if isinstance(msg.content, list):
                 for item in msg.content:
@@ -96,20 +98,16 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMess
             elif isinstance(msg.content, str):
                 messages.append(ChatMessage(role=msg.role, content=msg.content))
 
-    # Add system instructions
+    # Combine system instructions
     system_content_parts = []
-
     if request.instructions:
         system_content_parts.append(request.instructions)
-
-    # Combine system instructions
     if system_content_parts:
         combined_instructions = "\n\n".join(system_content_parts)
         messages.append(ChatMessage(role="system", content=combined_instructions))
 
     # Add current user input
     if isinstance(request.input, str):
-        # Handle string input directly
         messages.append(ChatMessage(role="user", content=request.input))
     elif isinstance(request.input, list):
         # Handle list of ResponsesInput objects
@@ -160,15 +158,15 @@ async def _generate_streaming_response(
     tool_choice: Optional[str] = None,
     chain_id: Optional[str] = None,
     use_codex_format: bool = False,
+    max_concurrent_inference: int = 2,
 ) -> EventSourceResponse:
     async def generate() -> AsyncIterator[Dict[str, Any]]:
         try:
-            generator = EventGenerator(config, inference_server)
+            generator = EventGenerator(config, inference_server, max_concurrent_inference)
             formatter = ResponsesFormatter()
             metrics = MetricsCollector(model=config.model_name)
 
-            # Create the event stream generator so we can optionally drain it in the background
-            ev_gen = generator.generate_events(
+            async for event in generator.generate_events(
                 messages,
                 enable_tools=bool(tools),
                 tools=tools,
@@ -176,22 +174,12 @@ async def _generate_streaming_response(
                 temperature=temperature,
                 tool_choice=tool_choice,
                 chain_id=chain_id,
-            )
-
-            async for event in ev_gen:
+            ):
                 metrics.process_event(event)
                 formatted = formatter.format_event(event)
                 if formatted:
-                    # Include the SSE event name for maximum compatibility with clients
                     ev_name = formatted.get("type", "")
                     yield {"data": json.dumps(formatted), "event": ev_name}
-
-                    # No Codex-specific early turn closure; standard Responses stream.
-
-            # Emit completion events for Responses format
-            if hasattr(formatter, "get_completion_events"):
-                for completion_event in formatter.get_completion_events():
-                    yield {"data": json.dumps(completion_event), "event": completion_event.get("type", "")}
 
             yield {"data": "[DONE]", "event": "done"}
         except Exception as e:
@@ -212,8 +200,9 @@ async def _generate_complete_response(
     tool_choice: Optional[str] = None,
     store: bool = False,
     chain_id: Optional[str] = None,
+    max_concurrent_inference: int = 2,
 ) -> ResponsesResponse:
-    generator = EventGenerator(config, inference_server)
+    generator = EventGenerator(config, inference_server, max_concurrent_inference)
     formatter = ResponsesFormatter()
     metrics = MetricsCollector(model=config.model_name)
     all_events = []
@@ -233,7 +222,6 @@ async def _generate_complete_response(
     complete_response = formatter.format_complete_response(all_events)
     complete_response.model = config.model_name
 
-    # Log performance metrics
     performance_metrics = metrics.get_metrics()
     if performance_metrics:
         logger.info(f"[METRICS] Response generation complete for {config.model_name}")
@@ -298,7 +286,6 @@ async def retrieve_response(response_id: str) -> ResponsesResponse:
             content=[content_item],
         )
 
-        # Get token counts from meta
         meta = response_msg.meta or {}
         return ResponsesResponse(
             id=response_msg.id,
@@ -316,86 +303,57 @@ async def retrieve_response(response_id: str) -> ResponsesResponse:
         raise
     except Exception as e:
         logger.error(f"Error retrieving response {response_id}: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": {
-                    "message": f"Internal server error: {str(e)}",
-                    "type": "server_error",
-                    "code": None,
-                }
-            },
-        )
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @router.post("/responses", response_model=None)
 async def create_response(
     req: Request,
     request: ResponsesRequest = Body(...),
-    inference_server: InferenceServer = Depends(get_inference_server),
 ) -> Union[EventSourceResponse, ResponsesResponse]:
     try:
-        # Detect if this is a Codex request
-        user_agent = req.headers.get("user-agent", "") if req else ""
-        use_codex_format = user_agent.startswith("codex_cli_rs/")
+        inference_server = req.app.state.inference_server
+        use_codex_format = req.headers.get("user-agent", "").startswith("codex_cli_rs/")
 
         logger.info(f"RESPONSES API - max_output_tokens: {request.max_output_tokens}")
-        logger.info(f"RESPONSES API - User-Agent: {user_agent}, use_codex_format: {use_codex_format}")
+        logger.info(f"RESPONSES API - use_codex_format: {use_codex_format}")
 
-        # Validate previous_response_id if provided
         previous_response = None
         if request.previous_response_id:
             previous_response = await get_response(request.previous_response_id)
-            if not previous_response:
-                raise HTTPException(
-                    status_code=400,
-                    detail={
-                        "error": {
-                            "message": f"Previous response '{request.previous_response_id}' not found",
-                            "type": "invalid_request_error",
-                            "code": "response_not_found",
-                        }
-                    },
-                )
+
+        if request.previous_response_id and not previous_response:
+            raise HTTPException(status_code=400, detail=f"Previous response '{request.previous_response_id}' not found")
 
         messages = await _convert_input_to_messages(request)
-
         if not messages:
             logger.error("No messages extracted from request")
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": {
-                        "message": "No valid messages found in request",
-                        "type": "invalid_request_error",
-                        "code": None,
-                    }
-                },
-            )
+            raise HTTPException(status_code=400, detail="No valid messages found in request")
 
-        config = await get_model_config(request.model)
-        if not config:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": {
-                        "message": f"No configuration found for model '{request.model}'",
-                        "type": "invalid_request_error",
-                        "code": None,
-                    }
-                },
-            )
+        model = await get_language_model(request.model)
+        if not model:
+            raise HTTPException(status_code=400, detail=f"No configuration found for model '{request.model}'")
+        config = ModelConfig.from_language_model(
+            model,
+            inference_timeout=settings.inference_timeout,
+            data_dir=settings.data_dir,
+            models_dir=settings.models_dir,
+        )
 
-        # Smart truncation if needed
+        if not req.app.state.tokenizer:
+            raise HTTPException(status_code=500, detail="Tokenizer not initialized")
+
+        tokenized_messages = [
+            TokenizedMessage(message=msg, token_count=len(req.app.state.tokenizer.encode(msg.content).ids))
+            for msg in messages
+            if msg.content
+        ]
+
+        total_tokens = sum(tm.token_count for tm in tokenized_messages)
         qwen_config = get_qwen_config(config.model_id)
-
-        # Quick estimation check - 4 chars per token average
-        total_chars = sum(len(msg.content or "") for msg in messages)
-        estimated_tokens = total_chars // 4 + len(messages) * 15  # Content + formatting overhead
-
-        if estimated_tokens > qwen_config.max_context_length - 200:
-            logger.warning(f"Estimated {estimated_tokens} tokens exceeds context limit, truncating")
-            messages = _smart_truncate_messages(messages, qwen_config.max_context_length - 200)
+        if total_tokens > qwen_config.max_context_length:
+            logger.warning(f"Messages use {total_tokens} tokens, exceeds {qwen_config.max_context_length}, truncating")
+            messages = _smart_truncate_messages(tokenized_messages, qwen_config.max_context_length)
 
         if request.stream:
             return await _generate_streaming_response(
@@ -409,6 +367,7 @@ async def create_response(
                 chain_id=request.prompt_cache_key
                 or (previous_response.response_chain_id if previous_response else None),
                 use_codex_format=use_codex_format,
+                max_concurrent_inference=settings.max_concurrent_inference,
             )
         else:
             chain_id = request.prompt_cache_key or (previous_response.response_chain_id if previous_response else None)
@@ -422,18 +381,10 @@ async def create_response(
                 tool_choice=request.tool_choice,
                 store=request.store,
                 chain_id=chain_id,
+                max_concurrent_inference=settings.max_concurrent_inference,
             )
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Responses API error: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": {
-                    "message": f"Internal server error: {str(e)}",
-                    "type": "server_error",
-                    "code": None,
-                }
-            },
-        )
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

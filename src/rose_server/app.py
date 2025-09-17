@@ -11,11 +11,13 @@ os.environ["POSTHOG_DISABLED"] = "1"
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from tokenizers import Tokenizer
 
 from rose_server import __version__
 from rose_server._inference import InferenceServer
 from rose_server.config.settings import settings
 from rose_server.database import check_database_setup, create_all_tables
+from rose_server.embeddings.embedding import get_embedding_model, get_tokenizer
 from rose_server.router import router
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -50,6 +52,23 @@ async def lifespan(app: FastAPI) -> Any:
     app.state.inference_server = InferenceServer("auto")
     logger.info("Inference server initialized")
 
+    tokenizer_path = Path(settings.data_dir) / "models/Qwen--Qwen3-0.6B/tokenizer.json"
+    if tokenizer_path.exists():
+        app.state.tokenizer = Tokenizer.from_file(str(tokenizer_path))
+        logger.info(f"Qwen3 tokenizer loaded from {tokenizer_path}")
+    else:
+        app.state.tokenizer = None
+        logger.warning(f"Qwen3 tokenizer not found at {tokenizer_path}")
+
+    try:
+        app.state.embedding_model = get_embedding_model()
+        app.state.embedding_tokenizer = get_tokenizer()
+        logger.info(f"Embedding model '{settings.default_embedding_model}' loaded")
+    except Exception as e:
+        app.state.embedding_model = None
+        app.state.embedding_tokenizer = None
+        logger.warning(f"Failed to load embedding model: {e}")
+
     yield
 
     logger.info("Application shutdown completed")
@@ -59,7 +78,7 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(
         title="ROSE",
-        description="A service for generating responses using different LLM modes",
+        description="Run your own LLM server",
         version=__version__,
         lifespan=lifespan,
     )
@@ -76,14 +95,6 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health_check() -> Dict[str, str]:
         return {"status": "ok"}
-
-    @app.get("/routes")
-    def get_routes():
-        routes_dict = {}
-        for route in app.routes:
-            if getattr(route, "include_in_schema", False):
-                routes_dict.setdefault(route.path, set()).update(route.methods)
-        return {path: sorted(methods) for path, methods in routes_dict.items()}
 
     return app
 

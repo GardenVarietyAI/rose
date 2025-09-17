@@ -4,16 +4,18 @@ import time
 import uuid
 from typing import Any, AsyncGenerator, Dict
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
-from rose_server.dependencies import InferenceServer, get_inference_server, get_model_config
+from rose_server.config.settings import settings
 from rose_server.events.event_types import LLMEvent
 from rose_server.events.formatters import ChatCompletionsFormatter
 from rose_server.events.generator import EventGenerator
 from rose_server.metrics import MetricsCollector
+from rose_server.models.store import get as get_language_model
 from rose_server.schemas.chat import ChatMessage, ChatRequest
+from rose_server.schemas.models import ModelConfig
 
 router = APIRouter(prefix="/completions")
 logger = logging.getLogger(__name__)
@@ -26,11 +28,12 @@ def _prepare_tool_params(request: ChatRequest) -> Dict[str, Any]:
 
 @router.post("", response_model=None)
 async def event_based_chat_completions(
+    req: Request,
     request: ChatRequest = Body(...),
-    inference_server: InferenceServer = Depends(get_inference_server),
 ) -> JSONResponse | EventSourceResponse:
-    config = await get_model_config(request.model)
-    if not config:
+    inference_server = req.app.state.inference_server
+    model = await get_language_model(request.model)
+    if not model:
         return JSONResponse(
             status_code=400,
             content={
@@ -42,12 +45,16 @@ async def event_based_chat_completions(
                 }
             },
         )
+
+    config = ModelConfig.from_language_model(
+        model, inference_timeout=settings.inference_timeout, data_dir=settings.data_dir, models_dir=settings.models_dir
+    )
     logger.info(f"[EVENT] Using model: {request.model}")
     messages = request.messages
     logger.info(f"[EVENT] Message count: {len(messages)}")
 
     try:
-        generator = EventGenerator(config, inference_server)
+        generator = EventGenerator(config, inference_server, settings.max_concurrent_inference)
         formatter = ChatCompletionsFormatter()
         metrics = MetricsCollector(model=request.model)
         logger.info("[EVENT] Using ChatCompletionsGenerator for chat completions")

@@ -1,19 +1,24 @@
 """API router for vector store files endpoints."""
 
+import asyncio
 import logging
 from typing import Any, Dict
 
-from fastapi import APIRouter, Body, HTTPException, Path, Query
+from chonkie import TokenChunker
+from fastapi import APIRouter, Body, HTTPException, Path, Query, Request
 
+from rose_server.config.settings import settings
+from rose_server.embeddings.service import generate_embeddings
 from rose_server.schemas.vector_stores import VectorStoreFile, VectorStoreFileCreate, VectorStoreFileList
+from rose_server.vector_stores.files.service import EmptyFileError, decode_file_content
 from rose_server.vector_stores.files.store import (
     ChunkingError,
-    EmptyFileError,
     FileNotFoundError,
     VectorStoreNotFoundError,
-    add_file_to_vector_store,
-    delete_file_from_vector_store,
+    get_uploaded_file,
     list_vector_store_files,
+    remove_file_from_vector_store,
+    store_file_chunks_with_embeddings,
 )
 
 router = APIRouter(prefix="/{vector_store_id}/files", tags=["vector_store_files"])
@@ -22,12 +27,31 @@ logger = logging.getLogger(__name__)
 
 @router.post("", response_model=VectorStoreFile)
 async def create(
+    req: Request,
     vector_store_id: str = Path(..., description="The ID of the vector store"),
     request: VectorStoreFileCreate = Body(...),
 ) -> VectorStoreFile:
-    """Add a file to a vector store."""
+    if not req.app.state.embedding_model or not req.app.state.embedding_tokenizer:
+        raise HTTPException(status_code=500, detail="Embedding model not initialized")
+
     try:
-        vector_store_file = await add_file_to_vector_store(vector_store_id, request.file_id)
+        uploaded_file = await get_uploaded_file(request.file_id)
+        text_content, decode_errors = decode_file_content(uploaded_file.content, uploaded_file.filename)
+        chunker = TokenChunker(
+            chunk_size=settings.default_chunk_size,
+            chunk_overlap=settings.default_chunk_overlap,
+            tokenizer=req.app.state.embedding_tokenizer,
+        )
+        chunks = chunker.chunk(text_content)
+
+        if not chunks:
+            raise ChunkingError(f"No chunks generated from file {request.file_id}")
+
+        texts = [chunk.text for chunk in chunks]
+        embeddings = await asyncio.to_thread(generate_embeddings, texts, req.app.state.embedding_model)
+        vector_store_file = await store_file_chunks_with_embeddings(
+            vector_store_id, request.file_id, chunks, embeddings, decode_errors
+        )
         logger.info("Added file %s to vector store %s", request.file_id, vector_store_id)
 
         return VectorStoreFile(
@@ -53,7 +77,6 @@ async def list_files(
     after: str = Query(None, description="File ID to start pagination after"),
     before: str = Query(None, description="File ID to end pagination before"),
 ) -> VectorStoreFileList:
-    """List files in a vector store."""
     try:
         files = await list_vector_store_files(vector_store_id, limit, order, after, before)
         logger.info("Listed %d files for vector store %s", len(files), vector_store_id)
@@ -85,8 +108,9 @@ async def delete_file(
 ) -> Dict[str, Any]:
     """Remove a file from a vector store. The file itself remains in storage."""
     try:
-        deleted_count = await delete_file_from_vector_store(vector_store_id, file_id)
-        logger.info("Deleted file %s from vector store %s (%d docs removed)", file_id, vector_store_id, deleted_count)
+        deleted = await remove_file_from_vector_store(vector_store_id, file_id)
+        if deleted:
+            logger.info("Deleted file %s from vector store %s", file_id, vector_store_id)
         return {"id": file_id, "object": "vector_store.file.deleted", "deleted": True}
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

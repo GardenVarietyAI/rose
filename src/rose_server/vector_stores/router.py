@@ -1,12 +1,12 @@
-"""API router for vector stores endpoints."""
-
+import asyncio
 import logging
 from typing import Any, Dict
 
-from fastapi import APIRouter, Body, HTTPException, Path
+from chonkie import TokenChunker
+from fastapi import APIRouter, Body, HTTPException, Path, Request
 
 from rose_server.config.settings import settings
-from rose_server.embeddings.embedding import get_tokenizer
+from rose_server.embeddings.service import generate_embeddings, generate_query_embedding
 from rose_server.schemas.vector_stores import (
     VectorSearch,
     VectorSearchChunk,
@@ -18,10 +18,12 @@ from rose_server.schemas.vector_stores import (
     VectorStoreUpdate,
 )
 from rose_server.vector_stores.files.router import router as files_router
+from rose_server.vector_stores.files.service import decode_file_content
 from rose_server.vector_stores.files.store import (
     FileNotFoundError as StoreFileNotFoundError,
     VectorStoreNotFoundError as StoreVectorStoreNotFoundError,
-    add_file_to_vector_store,
+    get_uploaded_file,
+    store_file_chunks_with_embeddings,
 )
 from rose_server.vector_stores.store import (
     create_vector_store,
@@ -46,7 +48,6 @@ class VectorStoreNotFoundError(RuntimeError):
 
 @router.get("")
 async def index() -> VectorStoreList:
-    """List all vector stores."""
     try:
         stores = await list_vector_stores()
         return VectorStoreList(
@@ -67,17 +68,34 @@ async def index() -> VectorStoreList:
 
 
 @router.post("")
-async def create(request: VectorStoreCreate = Body(...)) -> VectorStoreMetadata:
-    """Create a new vector store."""
+async def create(req: Request, request: VectorStoreCreate = Body(...)) -> VectorStoreMetadata:
     try:
-        vector_store = await create_vector_store(request.name)
+        vector_store = await create_vector_store(request.name, settings.default_embedding_dimensions)
         logger.info(f"Created vector store {request.name} ({vector_store.id})")
 
         # TODO: batch this operation
         if request.file_ids:
+            if not req.app.state.embedding_model or not req.app.state.embedding_tokenizer:
+                raise HTTPException(status_code=500, detail="Embedding model not initialized")
+
             for file_id in request.file_ids:
                 try:
-                    await add_file_to_vector_store(vector_store_id=vector_store.id, file_id=file_id)
+                    uploaded_file = await get_uploaded_file(file_id)
+                    text_content, decode_errors = decode_file_content(uploaded_file.content, uploaded_file.filename)
+                    chunker = TokenChunker(
+                        chunk_size=settings.default_chunk_size,
+                        chunk_overlap=settings.default_chunk_overlap,
+                        tokenizer=req.app.state.embedding_tokenizer,
+                    )
+                    chunks = chunker.chunk(text_content)
+
+                    if not chunks:
+                        raise ValueError(f"No chunks generated from file {file_id}")
+
+                    texts = [chunk.text for chunk in chunks]
+                    embeddings = await asyncio.to_thread(generate_embeddings, texts, req.app.state.embedding_model)
+
+                    await store_file_chunks_with_embeddings(vector_store.id, file_id, chunks, embeddings, decode_errors)
                     logger.info(f"Added file {file_id} to vector store {request.name} ({vector_store.id})")
                 except (StoreVectorStoreNotFoundError, StoreFileNotFoundError) as e:
                     raise HTTPException(status_code=404, detail=str(e))
@@ -100,7 +118,6 @@ async def create(request: VectorStoreCreate = Body(...)) -> VectorStoreMetadata:
 
 @router.get("/{vector_store_id}")
 async def get(vector_store_id: str = Path(..., description="The ID of the vector store")) -> VectorStoreMetadata:
-    """Get a vector store by ID."""
     try:
         vector_store = await get_vector_store(vector_store_id)
         if not vector_store:
@@ -122,7 +139,6 @@ async def get(vector_store_id: str = Path(..., description="The ID of the vector
 
 @router.post("/{vector_store_id}")
 async def update(vector_store_id: str = Path(...), request: VectorStoreUpdate = Body(...)) -> VectorStoreMetadata:
-    """Update a vector store."""
     try:
         vector_store = await update_vector_store(
             vector_store_id=vector_store_id,
@@ -153,7 +169,6 @@ async def update(vector_store_id: str = Path(...), request: VectorStoreUpdate = 
 async def delete(
     vector_store_id: str = Path(..., description="The ID of the vector store"),  # noqa: ARG001
 ) -> Dict[str, Any]:
-    """Delete a vector store."""
     success = await delete_vector_store(vector_store_id)
     if not success:
         raise HTTPException(status_code=404, detail="VectorStore not found")
@@ -161,8 +176,9 @@ async def delete(
 
 
 @router.post("/{vector_store_id}/search")
-async def search_store(vector_store_id: str = Path(...), request: VectorSearch = Body(...)) -> VectorSearchResult:
-    """Search for vectors in a vector store (OpenAI-compatible)."""
+async def search_store(
+    req: Request, vector_store_id: str = Path(...), request: VectorSearch = Body(...)
+) -> VectorSearchResult:
     try:
         if request.filters:
             raise HTTPException(status_code=400, detail="Filters are not supported yet.")
@@ -171,16 +187,30 @@ async def search_store(vector_store_id: str = Path(...), request: VectorSearch =
         if not vector_store:
             raise HTTPException(status_code=404, detail=f"Vector store {vector_store_id} not found")
 
-        # Calculate token usage for the query
+        # Handle text or vector query
         if isinstance(request.query, str):
-            tokenizer = get_tokenizer(settings.default_embedding_model)
-            prompt_tokens = len(tokenizer.encode(request.query).ids)
-            documents = await search_vector_store(vector_store_id, request.query, request.max_num_results + 1)
+            if not req.app.state.embedding_model or not req.app.state.embedding_tokenizer:
+                raise HTTPException(status_code=500, detail="Embedding model not initialized")
+
+            # Convert text to embedding
+            query_embedding = await asyncio.to_thread(
+                generate_query_embedding, request.query, req.app.state.embedding_model
+            )
+
+            # Calculate token usage
+            prompt_tokens = len(req.app.state.embedding_tokenizer.encode(request.query).ids)
         elif isinstance(request.query, list):
+            query_embedding = request.query
             prompt_tokens = 1  # Vector queries use minimal tokens
-            documents = await search_vector_store(vector_store_id, request.query, request.max_num_results + 1)
         else:
             prompt_tokens = 0
+            documents = []
+            query_embedding = None
+
+        # Search with embedding
+        if query_embedding is not None:
+            documents = await search_vector_store(vector_store_id, query_embedding, request.max_num_results + 1)
+        else:
             documents = []
 
         # Convert documents to API response format
