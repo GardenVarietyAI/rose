@@ -42,7 +42,7 @@ class RerankerService:
         self.session = InferenceSession(
             str(model_file),
             options,
-            providers=["CoreMLExecutionProvider", "CPUExecutionProvider"],
+            providers=["CPUExecutionProvider"],  # Skip CoreML due to embedding size
         )
         logger.info(f"Loaded ONNX model from {model_file}")
 
