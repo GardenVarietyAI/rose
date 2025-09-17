@@ -9,7 +9,6 @@ from rose_server._inference import (
     GenerationKwargs,
     InferenceServer,
     InputTokensCountedEvent,
-    Message,
     TokenEvent,
     ToolCallEvent,
 )
@@ -19,7 +18,13 @@ from rose_server.events.event_types import (
     TokenGenerated,
     ToolCallCompleted,
 )
-from rose_server.models.qwen_configs import get_qwen_config, should_use_tool_config
+from rose_server.events.service import (
+    build_rust_messages,
+    create_event_queue,
+    resolve_repetition_penalty,
+    resolve_temperature,
+)
+from rose_server.models.qwen_configs import get_qwen_config
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.models import ModelConfig
 from rose_server.tools.service import format_tools_for_system_prompt
@@ -185,12 +190,8 @@ class EventGenerator:
     ) -> AsyncGenerator[Union[TokenGenerated, ResponseCompleted], None]:
         async with self._semaphore:
             qwen_config = get_qwen_config(self.config.model_id)
-            if enable_tools and should_use_tool_config(self.config.model_id, enable_tools):
-                actual_temperature = qwen_config.tool_temperature
-                actual_repetition = qwen_config.tool_repetition_penalty
-            else:
-                actual_temperature = temperature
-                actual_repetition = self.config.repetition_penalty or qwen_config.repetition_penalty
+            actual_temperature = resolve_temperature(qwen_config, temperature, enable_tools, self.config.model_id)
+            actual_repetition = resolve_repetition_penalty(self.config, qwen_config, enable_tools, self.config.model_id)
 
             generation_kwargs = GenerationKwargs(
                 model_path=self._resolved_paths["model_path"],
@@ -210,48 +211,13 @@ class EventGenerator:
             )
 
             tool_prompt = format_tools_for_system_prompt(tools) if enable_tools and tools else ""
-
             if tool_prompt:
                 logger.info(f"Tool prompt generated: {tool_prompt[:200]}...")
 
-            rust_messages = []
-            system_updated = False
-
-            for msg in messages:
-                content = msg.content or ""
-
-                # Inject tools into first system message
-                if tool_prompt and msg.role == "system" and not system_updated:
-                    content = f"{content}\n\n{tool_prompt}"
-                    system_updated = True
-
-                rust_messages.append(Message(role=msg.role, content=content, tool_call_id=msg.tool_call_id))
-
-            # If no system message existed, prepend one with tools
-            if tool_prompt and not system_updated:
-                rust_messages.insert(0, Message(role="system", content=tool_prompt, tool_call_id=None))
-                logger.info("Added system message with tools")
-            loop = asyncio.get_running_loop()
-            q: asyncio.Queue[Union[TokenEvent, ToolCallEvent, CompleteEvent, InputTokensCountedEvent, ErrorEvent]] = (
-                asyncio.Queue()
-            )
-
-            def on_event(
-                ev: Union[TokenEvent, ToolCallEvent, CompleteEvent, InputTokensCountedEvent, ErrorEvent],
-            ) -> None:
-                loop.call_soon_threadsafe(q.put_nowait, ev)
-
-            def _on_done(t: asyncio.Future[Any]) -> None:
-                if t.cancelled():
-                    return
-                exc = t.exception()
-                if exc is not None:
-                    error_event = ErrorEvent()
-                    error_event.error = repr(exc)
-                    loop.call_soon_threadsafe(q.put_nowait, error_event)
-
-            task = asyncio.ensure_future(self._srv.stream_direct(generation_kwargs, on_event, rust_messages, None))
-            task.add_done_callback(_on_done)
+            rust_messages = build_rust_messages(messages, tool_prompt)
+            q, push_event, on_done = create_event_queue()
+            task = asyncio.ensure_future(self._srv.stream_direct(generation_kwargs, push_event, rust_messages, None))
+            task.add_done_callback(on_done)
 
             input_tokens = 0
             completion_tokens = 0
