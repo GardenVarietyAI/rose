@@ -1,7 +1,9 @@
 """Quantize safetensors models using Candle tensor-tools."""
 
+import shutil
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 import httpx
 import typer
@@ -14,7 +16,8 @@ def quantize_model(
     quant: str = typer.Option("q4k", help="Quantization preset (e.g., q4k, q5k, q6k, q8_0)"),
     candle_root: Path = typer.Option("candle", help="Path to Candle repo"),
     register: bool = typer.Option(False, help="Register quantized model with API"),
-    model_name: str = typer.Option(None, help="Model registry name for API registration"),
+    model_name: Optional[str] = typer.Option(None, help="Model registry name for API registration"),
+    parent_model: Optional[str] = typer.Option(None, help="Parent model name for fine-tuned models"),
 ) -> None:
     """Quantize a safetensors model."""
     if not in_path.exists():
@@ -49,18 +52,53 @@ def quantize_model(
 
     if register:
         try:
+            # Models need to be in directories, not direct files
+            # Create a directory if the output is a direct file
+            if out_path.suffix == ".gguf":
+                model_dir = out_path.parent / out_path.stem
+                model_dir.mkdir(exist_ok=True)
+                # Move the GGUF file into the directory as "model.gguf"
+                final_gguf_path = model_dir / "model.gguf"
+                if out_path != final_gguf_path:
+                    out_path.rename(final_gguf_path)
+
+                # Copy tokenizer.json from the source safetensors directory
+                source_dir = in_path.parent
+                source_tokenizer = source_dir / "tokenizer.json"
+                if source_tokenizer.exists():
+                    shutil.copy2(source_tokenizer, model_dir / "tokenizer.json")
+                    print(f"[blue]Copied tokenizer.json from {source_dir}[/blue]")
+
+                model_path = f"models/{model_dir.name}"
+                model_name_to_register = model_dir.name
+            else:
+                # Already in a directory structure
+                model_path = f"models/{out_path.parent.name}"
+                model_name_to_register = out_path.parent.name
+
+            # Check if this is a fine-tuned model by looking for the pattern in model_name
+            is_fine_tuned = "ft-" in str(model_name_to_register) or "dev-commands" in str(model_name_to_register)
+            # Use provided parent_model or default to Qwen3-1.7B for fine-tuned models
+            if parent_model is None and is_fine_tuned:
+                parent_model = "Qwen--Qwen3-1.7B"
+
+            json_payload = {
+                "model_name": model_name_to_register,
+                "path": model_path,
+                "kind": "qwen3_gguf",
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "timeout": 120,
+                "lora_target_modules": ["q_proj", "k_proj", "v_proj", "o_proj"],
+                "quantization": quant,
+            }
+
+            if parent_model:
+                json_payload["parent"] = parent_model
+
             response = httpx.post(
                 "http://localhost:8004/v1/models",
-                json={
-                    "model_name": model_name,
-                    "temperature": 0.7,
-                    "top_p": 0.9,
-                    "timeout": 120,
-                    "lora_target_modules": ["q_proj", "k_proj", "v_proj", "o_proj"],
-                    "quantized": True,
-                    "quantization": quant,
-                    "model_path": str(out_path.absolute()),
-                },
+                json=json_payload,
             )
             response.raise_for_status()
             result = response.json()

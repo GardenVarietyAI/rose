@@ -10,6 +10,7 @@ mod error;
 mod generate;
 mod lora;
 mod models;
+mod tensor_pool;
 mod types;
 
 use crate::cache::ModelCache;
@@ -17,7 +18,7 @@ use crate::device::DeviceConfig;
 use crate::models::{CausalLM, ModelKind};
 use crate::types::{
     CompleteEvent, ErrorEvent, GenerationKwargs, InferenceResponse, InputTokensCountedEvent,
-    Message, TokenEvent, TopLogProb,
+    Message, TokenEvent, ToolCallEvent, TopLogProb,
 };
 
 #[pymodule]
@@ -39,6 +40,7 @@ fn _inference(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Message>()?;
     m.add_class::<GenerationKwargs>()?;
     m.add_class::<TokenEvent>()?;
+    m.add_class::<ToolCallEvent>()?;
     m.add_class::<CompleteEvent>()?;
     m.add_class::<InputTokensCountedEvent>()?;
     m.add_class::<ErrorEvent>()?;
@@ -352,6 +354,18 @@ fn convert_to_python_event(py: Python, response: &InferenceResponse) -> Py<PyAny
                     position: *position,
                     logprob: *logprob,
                     top_logprobs: converted_top_logprobs,
+                },
+            )
+            .unwrap()
+            .into_any()
+        }
+        InferenceResponse::ToolCall { name, arguments, call_id } => {
+            Py::new(
+                py,
+                ToolCallEvent {
+                    name: name.clone(),
+                    arguments: arguments.to_string(),
+                    call_id: call_id.clone(),
                 },
             )
             .unwrap()

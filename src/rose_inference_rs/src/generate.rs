@@ -8,7 +8,12 @@ use tokio::sync::mpsc;
 
 use crate::error::InferenceError;
 use crate::models::CausalLM;
+use crate::tensor_pool::return_to_pool;
 use crate::types::{FinishReason, InferenceResponse};
+
+// Qwen3 special tokens for tool calling
+const TOOL_CALL_START_TOKEN: u32 = 151657;
+const TOOL_CALL_END_TOKEN: u32 = 151658;
 
 pub async fn stream(
     model: &mut dyn CausalLM,
@@ -71,8 +76,14 @@ pub async fn stream(
     let mut logits_processor = LogitsProcessor::from_sampling(seed, sampling);
 
     let mut next_token: Option<u32> = None;
+    let mut last_normal_token: Option<u32> = None;
     let mut decoded_so_far = String::new();
     let mut finish_reason = FinishReason::Length;
+
+    // Tool call detection state
+    let mut in_tool_call = false;
+    let mut tool_call_tokens: Vec<u32> = Vec::new();
+    let mut consecutive_tool_starts = 0;
 
     let mut single_token_buf = vec![0u32; 1];
 
@@ -90,7 +101,14 @@ pub async fn stream(
         } else {
             0
         };
-        let logits = model.forward(&input_tensor, past_length)?;
+        let logits = {
+            let result = model.forward(&input_tensor, past_length)?;
+            // Pool intermediate tensors for reuse
+            if input_tensor.shape().dims() == &[1, 1] {
+                return_to_pool(input_tensor);
+            }
+            result
+        };
 
         tokio::task::yield_now().await;
 
@@ -109,6 +127,78 @@ pub async fn stream(
         let sampled_token = logits_processor.sample(&logits)?;
         all_tokens.push(sampled_token);
 
+        // Check for tool call tokens
+        if sampled_token == TOOL_CALL_START_TOKEN {
+            consecutive_tool_starts += 1;
+            tracing::info!("Detected <tool_call> token ({}) - occurrence {}", sampled_token, consecutive_tool_starts);
+
+            // Break if we see too many consecutive tool call starts (model is stuck)
+            if consecutive_tool_starts > 3 {
+                tracing::warn!("Model stuck generating tool_call tokens, stopping");
+                finish_reason = FinishReason::Stop;
+                break;
+            }
+
+            in_tool_call = true;
+            tool_call_tokens.clear();
+            // Use last normal token instead of special token to avoid loops
+            next_token = last_normal_token.or(Some(sampled_token));
+            continue;
+        } else if sampled_token == TOOL_CALL_END_TOKEN && in_tool_call {
+            // Parse and emit tool call
+
+            if !tool_call_tokens.is_empty() {
+                // Decode the tokens between <tool_call> and </tool_call>
+                let tool_json = tokenizer
+                    .decode(&tool_call_tokens, false)
+                    .map_err(|e| InferenceError::TokenizerError(e.to_string()))?;
+
+                tracing::info!("Tool call content: {}", tool_json);
+
+                // Try to parse as JSON
+                if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&tool_json) {
+                    if let Some(name) = json_value.get("name").and_then(|v| v.as_str()) {
+                        let arguments = json_value
+                            .get("arguments")
+                            .cloned()
+                            .unwrap_or_else(|| serde_json::json!({}));
+
+                        // TODO: Generate call_id at response formatting stage, not during inference
+                        let call_id = uuid::Uuid::new_v4()
+                            .simple()
+                            .to_string()
+                            .chars()
+                            .take(8)
+                            .collect::<String>();
+
+                        let tool_call_msg = InferenceResponse::ToolCall {
+                            name: name.to_string(),
+                            arguments,
+                            call_id: format!("call_{}", call_id),
+                        };
+
+                        if stream_tx.send(tool_call_msg).await.is_err() {
+                            finish_reason = FinishReason::Stop;
+                            break;
+                        }
+
+                        // Mark finish reason as tool_calls and end generation immediately
+                        finish_reason = FinishReason::ToolCalls;
+                        break;
+                    }
+                }
+            }
+            // We broke out above after emitting the tool call
+            break;
+        } else if in_tool_call {
+            // Collect tokens for tool call
+            tool_call_tokens.push(sampled_token);
+            consecutive_tool_starts = 0;  // Reset counter when we get non-tool_call tokens
+            // Use last normal token instead of current token to avoid issues
+            next_token = last_normal_token.or(Some(sampled_token));
+            continue;
+        }
+
         let token_text = tokenizer
             .decode(&[sampled_token], true)
             .map_err(|e| InferenceError::TokenizerError(e.to_string()))?
@@ -126,7 +216,7 @@ pub async fn stream(
             }
         }
 
-        // Emit token
+        // Emit token (only if not in tool call)
         let token_msg = InferenceResponse::Token {
             token: token_text,
             token_id: sampled_token,
@@ -157,6 +247,10 @@ pub async fn stream(
             }
         }
 
+        // Track last normal token for use after special tokens
+        if sampled_token != TOOL_CALL_START_TOKEN && sampled_token != TOOL_CALL_END_TOKEN {
+            last_normal_token = Some(sampled_token);
+        }
         next_token = Some(sampled_token);
     }
 

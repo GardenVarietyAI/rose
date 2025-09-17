@@ -26,7 +26,9 @@ logger = logging.getLogger(__name__)
 @router.get("/models")
 async def index() -> JSONResponse:
     models = await list_all()
-    return JSONResponse(content={"object": "list", "data": [ModelResponse(**model.model_dump()) for model in models]})
+    return JSONResponse(
+        content={"object": "list", "data": [ModelResponse(**model.model_dump()).model_dump() for model in models]}
+    )
 
 
 @router.post("/models", status_code=201)

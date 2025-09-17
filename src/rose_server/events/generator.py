@@ -11,6 +11,7 @@ from rose_server._inference import (
     InputTokensCountedEvent,
     Message,
     TokenEvent,
+    ToolCallEvent,
 )
 from rose_server.config.settings import settings
 from rose_server.events.event_types.generation import (
@@ -18,12 +19,11 @@ from rose_server.events.event_types.generation import (
     ResponseStarted,
     TokenGenerated,
     ToolCallCompleted,
-    ToolCallStarted,
 )
-from rose_server.events.tool_processor import ToolProcessor
+from rose_server.models.qwen_configs import get_qwen_config, should_use_tool_config
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.models import ModelConfig
-from rose_server.tools import format_tools_for_prompt
+from rose_server.tools.tool_formatter import format_tools_for_system_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +63,7 @@ class EventGenerator:
             "Qwen--Qwen3-1.7B-Base": "qwen3",
             "Qwen--Qwen3-4B": "qwen3",
             "Qwen--Qwen3-0.6B-GGUF": "qwen3_gguf",
+            "Qwen--Qwen3-1.7B-GGUF": "qwen3_gguf",
             "Qwen--Qwen3-4B-GGUF": "qwen3_gguf",
             "janhq--Jan-v1-4B-GGUF": "qwen3_gguf",
         }
@@ -70,12 +71,11 @@ class EventGenerator:
 
     def _convert_rust_event(
         self,
-        ev: Union[TokenEvent, CompleteEvent, InputTokensCountedEvent, ErrorEvent],
+        ev: Union[TokenEvent, ToolCallEvent, CompleteEvent, InputTokensCountedEvent, ErrorEvent],
         response_id: str,
         input_tokens: int,
         completion_tokens: int,
-        tool_processor: Optional[ToolProcessor],
-    ) -> List[Union[TokenGenerated, ToolCallStarted, ToolCallCompleted, ResponseCompleted]]:
+    ) -> List[Union[TokenGenerated, ResponseCompleted]]:
         match ev:
             case InputTokensCountedEvent():
                 logger.debug(f"Input tokens counted: {ev.input_tokens}")
@@ -89,16 +89,17 @@ class EventGenerator:
                     token_id=ev.token_id,
                     position=ev.position,
                 )
+                return [token_event]
 
-                # Process tools if needed
-                if tool_processor:
-                    tool_events, modified_event = tool_processor.process_token(token_event)
-                    events = list(tool_events)
-                    if modified_event:
-                        events.append(modified_event)
-                    return events
-                else:
-                    return [token_event]
+            case ToolCallEvent():
+                tool_event = ToolCallCompleted(
+                    response_id=response_id,
+                    model_name=self.model_name,
+                    call_id=ev.call_id,
+                    function_name=ev.name,
+                    arguments=ev.arguments,
+                )
+                return [tool_event]
 
             case CompleteEvent():
                 return [
@@ -142,7 +143,7 @@ class EventGenerator:
         chain_id: Optional[str] = None,
         **kwargs: Any,
     ) -> AsyncGenerator[
-        Union[ResponseStarted, TokenGenerated, ToolCallStarted, ToolCallCompleted, ResponseCompleted],
+        Union[ResponseStarted, TokenGenerated, ResponseCompleted],
         None,
     ]:
         """Generate events for a model run."""
@@ -180,20 +181,26 @@ class EventGenerator:
         tools: Optional[List[Any]],
         seed: Optional[int] = None,
         chain_id: Optional[str] = None,
-    ) -> AsyncGenerator[Union[TokenGenerated, ToolCallStarted, ToolCallCompleted, ResponseCompleted], None]:
-        tool_processor = ToolProcessor(self.model_name) if enable_tools else None
-
+    ) -> AsyncGenerator[Union[TokenGenerated, ResponseCompleted], None]:
         async with self._semaphore:
+            qwen_config = get_qwen_config(self.config.model_id)
+            if enable_tools and should_use_tool_config(self.config.model_id, enable_tools):
+                actual_temperature = qwen_config.tool_temperature
+                actual_repetition = qwen_config.tool_repetition_penalty
+            else:
+                actual_temperature = temperature
+                actual_repetition = self.config.repetition_penalty or qwen_config.repetition_penalty
+
             generation_kwargs = GenerationKwargs(
                 model_path=self._resolved_paths["model_path"],
                 tokenizer_path=self._resolved_paths["tokenizer_path"],
                 model_kind=self._model_kind,
                 response_chain_id=chain_id,
-                temperature=temperature,
-                max_input_tokens=2048,
-                max_output_tokens=max_tokens,
+                temperature=actual_temperature,
+                max_input_tokens=qwen_config.max_context_length,
+                max_output_tokens=min(max_tokens, qwen_config.max_response_tokens),
                 top_p=self.config.top_p,
-                repeat_penalty=self.config.repetition_penalty or 1.1,
+                repeat_penalty=actual_repetition,
                 repeat_last_n=64,
                 stop=None,
                 seed=seed,
@@ -201,25 +208,36 @@ class EventGenerator:
                 enable_thinking=False,
             )
 
-            # Add tool instructions to messages if tools are enabled
-            if enable_tools and tools:
-                tool_instructions = format_tools_for_prompt(tools, messages)
-                # Prepend tool instructions as system message
-                rust_messages = [Message(role="system", content=tool_instructions)]
-                rust_messages.extend(
-                    [
-                        Message(role=msg.role, content=msg.content or "", tool_call_id=msg.tool_call_id)
-                        for msg in messages
-                    ]
-                )
-            else:
-                rust_messages = [
-                    Message(role=msg.role, content=msg.content or "", tool_call_id=msg.tool_call_id) for msg in messages
-                ]
-            loop = asyncio.get_running_loop()
-            q: asyncio.Queue[Union[TokenEvent, CompleteEvent, InputTokensCountedEvent, ErrorEvent]] = asyncio.Queue()
+            tool_prompt = format_tools_for_system_prompt(tools) if enable_tools and tools else ""
 
-            def on_event(ev: Union[TokenEvent, CompleteEvent, InputTokensCountedEvent, ErrorEvent]) -> None:
+            if tool_prompt:
+                logger.info(f"Tool prompt generated: {tool_prompt[:200]}...")
+
+            rust_messages = []
+            system_updated = False
+
+            for msg in messages:
+                content = msg.content or ""
+
+                # Inject tools into first system message
+                if tool_prompt and msg.role == "system" and not system_updated:
+                    content = f"{content}\n\n{tool_prompt}"
+                    system_updated = True
+
+                rust_messages.append(Message(role=msg.role, content=content, tool_call_id=msg.tool_call_id))
+
+            # If no system message existed, prepend one with tools
+            if tool_prompt and not system_updated:
+                rust_messages.insert(0, Message(role="system", content=tool_prompt, tool_call_id=None))
+                logger.info("Added system message with tools")
+            loop = asyncio.get_running_loop()
+            q: asyncio.Queue[Union[TokenEvent, ToolCallEvent, CompleteEvent, InputTokensCountedEvent, ErrorEvent]] = (
+                asyncio.Queue()
+            )
+
+            def on_event(
+                ev: Union[TokenEvent, ToolCallEvent, CompleteEvent, InputTokensCountedEvent, ErrorEvent],
+            ) -> None:
                 loop.call_soon_threadsafe(q.put_nowait, ev)
 
             def _on_done(t: asyncio.Future[Any]) -> None:
@@ -246,7 +264,7 @@ class EventGenerator:
                     elif isinstance(ev, TokenEvent):
                         completion_tokens += 1
 
-                    events = self._convert_rust_event(ev, response_id, input_tokens, completion_tokens, tool_processor)
+                    events = self._convert_rust_event(ev, response_id, input_tokens, completion_tokens)
                     for event in events:
                         yield event
 

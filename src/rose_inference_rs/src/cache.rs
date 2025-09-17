@@ -95,12 +95,19 @@ impl ModelCache {
             }
         }
 
-        // Load new model
+        // Load new model with quantization-aware device config
+        let is_quantized = matches!(model_kind, ModelKind::Qwen3Gguf);
+        let optimized_device_config = if is_quantized {
+            crate::device::DeviceConfig::detect_dtypes_for_quantized(&device_config.device, true)
+        } else {
+            device_config.clone()
+        };
+
         match load_causal_lm_with_lora(
             model_kind,
             model_path,
             lora_adapter_path,
-            &device_config.device,
+            &optimized_device_config.device,
         ) {
             Ok(m) => {
                 let shared_model = Arc::new(Mutex::new(m));

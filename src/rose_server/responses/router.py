@@ -2,13 +2,14 @@ import json
 import logging
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from sse_starlette.sse import EventSourceResponse
 
 from rose_server.dependencies import InferenceServer, get_inference_server, get_model_config
 from rose_server.events.formatters import ResponsesFormatter
 from rose_server.events.generator import EventGenerator
 from rose_server.metrics import MetricsCollector
+from rose_server.models.qwen_configs import get_qwen_config
 from rose_server.responses.store import get_chain_ids, get_conversation_messages, get_response, store_response_messages
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.models import ModelConfig
@@ -28,6 +29,53 @@ router = APIRouter(prefix="/v1", tags=["responses"])
 async def chains() -> List[str]:
     chains: List[str] = await get_chain_ids()
     return chains
+
+
+# TODO: Naive token counting as a stop-gap for now
+def _smart_truncate_messages(messages: List[ChatMessage], max_tokens: int) -> List[ChatMessage]:
+    """Smart truncation that preserves system messages using character-based estimation."""
+    if not messages or len(messages) <= 2:
+        return messages
+
+    # Rough estimation: 4 characters per token
+    chars_per_token = 4
+    max_chars = max_tokens * chars_per_token
+
+    # Separate system and other messages
+    system_msgs = []
+    other_msgs = []
+
+    for msg in messages:
+        if msg.role == "system":
+            system_msgs.append(msg)
+        else:
+            other_msgs.append(msg)
+
+    # Count system message characters
+    system_chars = sum(len(msg.content or "") for msg in system_msgs)
+    system_chars += len(system_msgs) * 50  # Overhead for formatting
+
+    if system_chars >= max_chars - 800:
+        # System too large, keep last few messages
+        logger.warning(f"System prompt too large (~{system_chars // chars_per_token} tokens), keeping recent messages")
+        return messages[-5:]
+
+    # Build result with system messages first
+    result = system_msgs.copy()
+    remaining_chars = max_chars - system_chars - 400
+
+    # Add messages from the end backwards
+    for msg in reversed(other_msgs):
+        msg_chars = len(msg.content or "") + 50
+        if msg_chars > remaining_chars:
+            break
+        result.append(msg)
+        remaining_chars -= msg_chars
+
+    # Restore chronological order
+    result = system_msgs + list(reversed(result[len(system_msgs) :]))
+
+    return result
 
 
 async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMessage]:
@@ -66,26 +114,38 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMess
     elif isinstance(request.input, list):
         # Handle list of ResponsesInput objects
         for msg in request.input:
-            # Check message type
             if hasattr(msg, "type"):
                 if msg.type == "function_call":
-                    # Function call from assistant - add as a message showing the call
-                    content = f"[Function call: {msg.name}({msg.arguments})]"
-                    messages.append(ChatMessage(role="assistant", content=content))
-                elif msg.type == "function_call_output":
-                    # Function output - add as a system message with instructions to use the result
-                    content = (
-                        f"The function returned the following result:\n\n{msg.output}\n\n"
-                        "Please provide a natural language response incorporating this information."
+                    # Preserve function calls in conversation history for context
+                    messages.append(
+                        ChatMessage(
+                            role="assistant",
+                            content=None,
+                            tool_calls=[
+                                {
+                                    "id": msg.call_id or msg.id,
+                                    "type": "function",
+                                    "function": {"name": msg.name, "arguments": msg.arguments},
+                                }
+                            ],
+                        )
                     )
-                    messages.append(ChatMessage(role="system", content=content))
+                elif msg.type == "function_call_output":
+                    # Format tool output in Hermes/Qwen3 format with <tool_response> tags
+                    messages.append(
+                        ChatMessage(role="tool", content=f"<tool_response>\n{msg.output}\n</tool_response>")
+                    )
             else:
-                # Standard message format
-                # Map 'developer' role to 'system' for ChatMessage
-                role = "system" if msg.role == "developer" else msg.role
-                # Handle content - if it's a list, convert to string
-                content = msg.content if isinstance(msg.content, str) else str(msg.content) if msg.content else ""
-                messages.append(ChatMessage(role=role, content=content))
+                messages.append(
+                    ChatMessage(
+                        role="system" if msg.role == "developer" else msg.role,
+                        content=msg.content
+                        if isinstance(msg.content, str)
+                        else str(msg.content)
+                        if msg.content
+                        else "",
+                    )
+                )
 
     return messages
 
@@ -99,6 +159,7 @@ async def _generate_streaming_response(
     temperature: Optional[float] = None,
     tool_choice: Optional[str] = None,
     chain_id: Optional[str] = None,
+    use_codex_format: bool = False,
 ) -> EventSourceResponse:
     async def generate() -> AsyncIterator[Dict[str, Any]]:
         try:
@@ -106,7 +167,8 @@ async def _generate_streaming_response(
             formatter = ResponsesFormatter()
             metrics = MetricsCollector(model=config.model_name)
 
-            async for event in generator.generate_events(
+            # Create the event stream generator so we can optionally drain it in the background
+            ev_gen = generator.generate_events(
                 messages,
                 enable_tools=bool(tools),
                 tools=tools,
@@ -114,12 +176,24 @@ async def _generate_streaming_response(
                 temperature=temperature,
                 tool_choice=tool_choice,
                 chain_id=chain_id,
-            ):
+            )
+
+            async for event in ev_gen:
                 metrics.process_event(event)
                 formatted = formatter.format_event(event)
                 if formatted:
-                    yield {"data": json.dumps(formatted)}
-            yield {"data": "[DONE]"}
+                    # Include the SSE event name for maximum compatibility with clients
+                    ev_name = formatted.get("type", "")
+                    yield {"data": json.dumps(formatted), "event": ev_name}
+
+                    # No Codex-specific early turn closure; standard Responses stream.
+
+            # Emit completion events for Responses format
+            if hasattr(formatter, "get_completion_events"):
+                for completion_event in formatter.get_completion_events():
+                    yield {"data": json.dumps(completion_event), "event": completion_event.get("type", "")}
+
+            yield {"data": "[DONE]", "event": "done"}
         except Exception as e:
             error_event = {"type": "response.error", "error": str(e)}
             yield {"data": json.dumps(error_event)}
@@ -256,13 +330,17 @@ async def retrieve_response(response_id: str) -> ResponsesResponse:
 
 @router.post("/responses", response_model=None)
 async def create_response(
+    req: Request,
     request: ResponsesRequest = Body(...),
     inference_server: InferenceServer = Depends(get_inference_server),
 ) -> Union[EventSourceResponse, ResponsesResponse]:
     try:
-        logger.info(f"RESPONSES API - Input type: {type(request.input)}, Input: {request.input}")
-        logger.info(f"RESPONSES API - Instructions: {request.instructions}")
+        # Detect if this is a Codex request
+        user_agent = req.headers.get("user-agent", "") if req else ""
+        use_codex_format = user_agent.startswith("codex_cli_rs/")
+
         logger.info(f"RESPONSES API - max_output_tokens: {request.max_output_tokens}")
+        logger.info(f"RESPONSES API - User-Agent: {user_agent}, use_codex_format: {use_codex_format}")
 
         # Validate previous_response_id if provided
         previous_response = None
@@ -308,6 +386,17 @@ async def create_response(
                 },
             )
 
+        # Smart truncation if needed
+        qwen_config = get_qwen_config(config.model_id)
+
+        # Quick estimation check - 4 chars per token average
+        total_chars = sum(len(msg.content or "") for msg in messages)
+        estimated_tokens = total_chars // 4 + len(messages) * 15  # Content + formatting overhead
+
+        if estimated_tokens > qwen_config.max_context_length - 200:
+            logger.warning(f"Estimated {estimated_tokens} tokens exceeds context limit, truncating")
+            messages = _smart_truncate_messages(messages, qwen_config.max_context_length - 200)
+
         if request.stream:
             return await _generate_streaming_response(
                 config=config,
@@ -317,10 +406,12 @@ async def create_response(
                 max_output_tokens=request.max_output_tokens,
                 temperature=request.temperature,
                 tool_choice=request.tool_choice,
-                chain_id=previous_response.response_chain_id if previous_response else None,
+                chain_id=request.prompt_cache_key
+                or (previous_response.response_chain_id if previous_response else None),
+                use_codex_format=use_codex_format,
             )
         else:
-            chain_id = previous_response.response_chain_id if previous_response else None
+            chain_id = request.prompt_cache_key or (previous_response.response_chain_id if previous_response else None)
             return await _generate_complete_response(
                 config=config,
                 messages=messages,

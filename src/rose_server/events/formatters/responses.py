@@ -1,6 +1,5 @@
 """Responses API formatter for LLM events."""
 
-import json
 import time
 import uuid
 from typing import Any, Dict, Optional, Sequence
@@ -14,13 +13,11 @@ from rose_server.events.event_types import (
     ToolCallStarted,
 )
 from rose_server.schemas.responses import (
-    ResponseFunctionCallArgumentsDoneEvent,
     ResponsesContentItem,
     ResponsesOutputItem,
     ResponsesResponse,
     ResponsesUsage,
 )
-from rose_server.tools import parse_tool_call
 
 
 class ResponsesFormatter:
@@ -30,8 +27,8 @@ class ResponsesFormatter:
         self.response_id: Optional[str] = None
         self.created_at: Optional[int] = None
         self.model_name: Optional[str] = None
-        self.accumulated_content: str = ""  # Track content for streaming
-        self.tool_calls: list[Dict[str, Any]] = []  # Track tool calls
+        self.accumulated_content: str = ""
+        self.tool_calls: list[Dict[str, Any]] = []
 
     def format_event(self, event: LLMEvent) -> Optional[Dict[str, Any]]:
         """Convert an LLM event to Responses API streaming format."""
@@ -43,18 +40,24 @@ class ResponsesFormatter:
         elif isinstance(event, ToolCallStarted):
             return None
         elif isinstance(event, ToolCallCompleted):
-            # Store tool call for later
-            self.tool_calls.append({"id": event.call_id, "name": event.function_name, "arguments": event.arguments})
-            # Emit function call event for streaming
-            done_event = ResponseFunctionCallArgumentsDoneEvent(
-                sequence_number=998,  # Before response.completed
-                item_id=f"fc_{event.call_id[:12]}",
-                output_index=len(self.tool_calls) - 1,
-                call_id=event.call_id,
-                name=event.function_name,
-                arguments=event.arguments,
+            self.tool_calls.append(
+                {
+                    "id": event.call_id,
+                    "name": event.function_name,
+                    "arguments": event.arguments,
+                }
             )
-            return done_event.model_dump()
+            return {
+                "type": "response.output_item.done",
+                "output_index": len(self.tool_calls) - 1,
+                "item": {
+                    "type": "function_call",
+                    "role": "assistant",
+                    "name": event.function_name,
+                    "arguments": event.arguments,
+                    "call_id": event.call_id,
+                },
+            }
         elif isinstance(event, ResponseCompleted):
             return self._handle_response_completed(event)
         return None
@@ -70,7 +73,6 @@ class ResponsesFormatter:
             self.created_at = int(time.time())
             self.model_name = event.model_name
 
-        # Accumulate content
         self.accumulated_content += event.token
 
         return {
@@ -84,10 +86,9 @@ class ResponsesFormatter:
 
     def _handle_response_completed(self, event: ResponseCompleted) -> Dict[str, Any]:
         """Handle ResponseCompleted event."""
-        # Build output items in OpenAI format
         output_items = []
 
-        # Format function calls as separate items (OpenAI Responses API format)
+        # Format function calls as separate items
         for tool_call in self.tool_calls:
             function_item = {
                 "id": f"fc_{uuid.uuid4().hex[:12]}",
@@ -132,20 +133,6 @@ class ResponsesFormatter:
         if not content:
             return output_items
 
-        # Check for tool calls
-        tool_call, cleaned_text = parse_tool_call(content)
-        if tool_call:
-            function_item = ResponsesOutputItem(
-                id=f"call_{uuid.uuid4().hex[:16]}",
-                type="function_call",
-                status="completed",
-                role="assistant",
-                name=tool_call["tool"],
-                arguments=json.dumps(tool_call["arguments"]),
-            )
-            output_items.append(function_item)
-            content = cleaned_text
-
         # Add text content if any
         if content and content.strip():
             content_item = ResponsesContentItem(type="output_text", text=content)
@@ -182,16 +169,7 @@ class ResponsesFormatter:
 
         output_items = []
 
-        # If we have tool events, parse the content to remove XML
-        if tool_events:
-            # The content contains the XML tool calls - we need to strip them
-            for tool_event in tool_events:
-                # Remove the XML tool call from content
-                tool_call, cleaned_content = parse_tool_call(content)
-                if tool_call:
-                    content = cleaned_content
-
-        # Format function calls as separate items (OpenAI Responses API format)
+        # Add tool calls if any
         for tool_event in tool_events:
             function_item = {
                 "id": f"fc_{uuid.uuid4().hex[:12]}",

@@ -97,7 +97,7 @@ class HuggingfaceTrainer:
             output_dir=str(self.checkpoint_dir),
             num_train_epochs=self.hyperparams.n_epochs,
             per_device_train_batch_size=per_device,
-            per_device_eval_batch_size=self.hyperparams.eval_batch_size or 1,
+            per_device_eval_batch_size=1 if self.device == "cpu" else (self.hyperparams.eval_batch_size or 1),
             gradient_accumulation_steps=self.hyperparams.gradient_accumulation_steps,
             learning_rate=self.hyperparams.learning_rate,
             warmup_steps=int(total_steps * self.hyperparams.warmup_ratio),

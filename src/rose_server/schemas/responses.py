@@ -1,5 +1,3 @@
-"""Responses API schemas."""
-
 from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
@@ -41,17 +39,14 @@ class ResponsesResponse(BaseModel):
 
 
 class ResponsesInputMessage(BaseModel):
-    """Standard message input for responses API."""
-
     role: Literal["user", "assistant", "developer"] = Field(description="Message role")
     content: Union[str, List[Dict[str, Any]], None] = Field(description="Message content")
 
 
 class ResponsesInputFunctionCall(BaseModel):
-    """Function call message from assistant."""
-
     type: Literal["function_call"] = Field(description="Message type")
-    id: str = Field(description="Function call ID")
+    id: Optional[str] = Field(default=None, description="Function call ID")
+    call_id: Optional[str] = Field(default=None, description="Function call ID (alternative field)")
     name: str = Field(description="Function name")
     arguments: Optional[str] = Field(description="Function arguments as JSON string")
     role: Literal["assistant"] = Field(default="assistant", description="Always assistant role")
@@ -60,8 +55,6 @@ class ResponsesInputFunctionCall(BaseModel):
 
 
 class ResponsesInputFunctionOutput(BaseModel):
-    """Function call output/result."""
-
     type: Literal["function_call_output"] = Field(description="Message type")
     call_id: Optional[str] = Field(description="ID of the function call this is responding to")
     output: str = Field(description="Function execution output")
@@ -71,8 +64,6 @@ ResponsesInput = Union[ResponsesInputMessage, ResponsesInputFunctionCall, Respon
 
 
 class ResponsesRequest(BaseModel):
-    """Responses API request format."""
-
     model: str = Field(description="Model to use for completion")
     input: Union[List[ResponsesInput], str] = Field(description="Input messages or text")
     modalities: List[Literal["text"]] = Field(default=["text"], description="Supported modalities")
@@ -87,11 +78,10 @@ class ResponsesRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata")
     store: Optional[bool] = Field(default=True, description="Whether to store the conversation")
     previous_response_id: Optional[str] = Field(default=None, description="Previous response ID")
+    prompt_cache_key: Optional[str] = Field(default=None, description="Codex conversation ID for caching")
 
 
 class ResponseEventBase(BaseModel):
-    """Base class for response events."""
-
     type: str = Field(description="Event type")
     sequence_number: int = Field(description="Sequence number for this event")
 

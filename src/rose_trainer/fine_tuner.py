@@ -126,7 +126,12 @@ def get_model(
 ) -> PreTrainedModel:
     logger.info(f"Loading model from local path: {local_model_path}")
     if torch_dtype is None:
-        torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+        if torch.cuda.is_available():
+            torch_dtype = torch.float16
+        elif torch.backends.mps.is_available():
+            torch_dtype = torch.float32  # MPS doesn't support bfloat16
+        else:
+            torch_dtype = torch.bfloat16  # Better for CPU training
 
     model: PreTrainedModel = AutoModelForCausalLM.from_pretrained(  # type: ignore
         local_model_path,
@@ -171,7 +176,6 @@ def prepare_dataset(tokenizer: PreTrainedTokenizerBase, training_file_path: Path
                 if tokenizer.chat_template:
                     text = tokenizer.apply_chat_template(messages, tokenize=False)
                 else:
-                    # Simple fallback
                     text = "\n".join(f"{m['role']}: {m['content']}" for m in messages)
                 texts.append(text)
         elif "text" in samples:
@@ -278,6 +282,12 @@ def train(
             lora_config = hyperparameters.lora_config or LoraModelConfig()
             model = apply_lora(model, model_info, lora_config)  # type: ignore[assignment]
             is_peft = True
+
+        if hasattr(model, "gradient_checkpointing_enable"):
+            model.gradient_checkpointing_enable()
+            if hasattr(model, "enable_input_require_grads"):
+                model.enable_input_require_grads()  # Required when using gradient checkpointing
+            logger.info("Enabled gradient checkpointing for memory efficiency")
 
         # Build training components
         hardware_monitor = HardwareMonitorCallback(event_callback)
