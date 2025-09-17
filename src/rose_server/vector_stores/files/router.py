@@ -32,18 +32,12 @@ async def create(
     vector_store_id: str = Path(..., description="The ID of the vector store"),
     request: VectorStoreFileCreate = Body(...),
 ) -> VectorStoreFile:
-    """Add a file to a vector store."""
     if not req.app.state.embedding_model or not req.app.state.embedding_tokenizer:
         raise HTTPException(status_code=500, detail="Embedding model not initialized")
 
     try:
-        # Load the uploaded file (from store layer)
         uploaded_file = await get_uploaded_file(request.file_id)
-
-        # Decode file content (pure function)
         text_content, decode_errors = decode_file_content(uploaded_file.content, uploaded_file.filename)
-
-        # Create chunks (pure function)
         chunks = create_chunks(
             text_content, req.app.state.embedding_tokenizer, settings.default_chunk_size, settings.default_chunk_overlap
         )
@@ -51,11 +45,8 @@ async def create(
         if not chunks:
             raise ChunkingError(f"No chunks generated from file {request.file_id}")
 
-        # Generate embeddings
         texts = [chunk.text for chunk in chunks]
         embeddings = await asyncio.to_thread(generate_embeddings, texts, req.app.state.embedding_model)
-
-        # Store with pre-computed embeddings
         vector_store_file = await add_file_to_vector_store(
             vector_store_id, request.file_id, embeddings, chunks, decode_errors
         )
@@ -84,7 +75,6 @@ async def list_files(
     after: str = Query(None, description="File ID to start pagination after"),
     before: str = Query(None, description="File ID to end pagination before"),
 ) -> VectorStoreFileList:
-    """List files in a vector store."""
     try:
         files = await list_vector_store_files(vector_store_id, limit, order, after, before)
         logger.info("Listed %d files for vector store %s", len(files), vector_store_id)
