@@ -3,13 +3,11 @@
 import time
 from typing import List, Optional
 
-from pydantic import ConfigDict
 from sqlmodel import JSON, Column, Field, SQLModel
 
 
 class LanguageModel(SQLModel, table=True):
     __tablename__ = "models"
-    model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(primary_key=True)
     model_name: str = Field(index=True)  # HuggingFace model name
