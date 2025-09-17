@@ -1,35 +1,13 @@
 import logging
-import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from fastapi import APIRouter, Body, HTTPException, Request
-from pydantic import BaseModel, Field
 
 from rose_server.reranker.service import RerankerService
+from rose_server.schemas.reranker import RerankRequest, RerankResponse, RerankResult
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["reranking"])
-
-
-class RerankRequest(BaseModel):
-    model: str = Field(default="Qwen3-Reranker-0.6B-ONNX")
-    query: str = Field(..., description="The search query")
-    documents: List[str] = Field(..., description="Documents to rerank")
-    top_n: Optional[int] = Field(default=None, description="Number of results to return")
-    return_documents: bool = Field(default=True, description="Include documents in response")
-    max_chunks_per_doc: Optional[int] = Field(default=None, description="Max chunks per document")
-
-
-class RerankResult(BaseModel):
-    index: int = Field(..., description="Original document index")
-    relevance_score: float = Field(..., description="Relevance score 0-1")
-    document: Optional[str] = Field(default=None, description="Original document text")
-
-
-class RerankResponse(BaseModel):
-    id: str = Field(default_factory=lambda: f"rerank-{int(time.time() * 1000)}")
-    results: List[RerankResult] = Field(..., description="Reranked results")
-    meta: Dict[str, Any] = Field(default_factory=dict)
 
 
 @router.post("/rerank")
@@ -71,10 +49,7 @@ async def rerank(
 
         return RerankResponse(
             results=results,
-            meta={
-                "api_version": {"version": "1.0"},
-                "billed_units": {"search_units": len(request.documents)},
-            },
+            meta={},
         )
 
     except Exception as e:

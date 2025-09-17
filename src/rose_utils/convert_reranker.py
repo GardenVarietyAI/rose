@@ -1,6 +1,5 @@
 """Convert Qwen reranker models to ONNX format."""
 
-import json
 from pathlib import Path
 
 import typer
@@ -57,40 +56,10 @@ def convert_reranker(
             raise typer.Exit(1)
 
         progress.update(task, description="Creating reranker configuration...")
-
-        # Create reranker-specific config
-        reranker_config = {
-            "model_name": model_path.name,
-            "model_type": "reranker",
-            "scoring_method": "logits",
-            "input_format": "query_document_pairs",
-            "max_length": getattr(config, "max_position_embeddings", 32768),
-            "num_labels": getattr(config, "num_labels", 2),
-            "description": "Qwen reranker model for scoring query-document relevance",
-            "instruction_template": "<Instruct>: {instruction}\n<Query>: {query}\n<Document>: {document}",
-            "default_instruction": "Given a web search query, retrieve relevant passages that answer the query",
-        }
-
-        config_path = output_path / "reranker_config.json"
-        config_path.write_text(json.dumps(reranker_config, indent=2))
-
-        # Also save ONNX optimization config for CPU
-        optimization_config = {
-            "optimization_level": 99,  # Enable all optimizations
-            "optimize_for_gpu": False,  # CPU only
-            "fp16": False,  # Keep fp32 for CPU
-            "enable_transformers_specific_optimizations": True,
-        }
-
-        opt_config_path = output_path / "onnx_optimization.json"
-        opt_config_path.write_text(json.dumps(optimization_config, indent=2))
-
         progress.remove_task(task)
 
     console.print("[green]✅ Reranker model converted successfully![/green]")
     console.print(f"[cyan]Output directory: {output_path}[/cyan]")
-    console.print(f"[cyan]Max sequence length: {reranker_config['max_length']}[/cyan]")
-    console.print(f"[cyan]Number of labels: {reranker_config['num_labels']}[/cyan]")
 
 
 if __name__ == "__main__":
