@@ -1,11 +1,10 @@
 from typing import List, Optional
 
-import httpx
 import typer
 from rich.console import Console
 from rich.table import Table
 
-from rose_cli.utils import BASE_URL
+from rose_cli.utils import get_client
 
 console = Console()
 
@@ -18,6 +17,8 @@ def score(
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Only output scores"),
 ) -> None:
     """Score and rerank documents based on relevance to query."""
+    client = get_client()
+
     payload = {
         "model": model,
         "query": query,
@@ -26,11 +27,17 @@ def score(
         "return_documents": not quiet,
     }
 
-    try:
-        with httpx.Client(timeout=30.0) as client:
-            response = client.post(f"{BASE_URL}/rerank", json=payload)
-            response.raise_for_status()
+    headers = {}
+    if client.api_key:
+        headers["Authorization"] = f"Bearer {client.api_key}"
 
+    try:
+        response = client._client.post(
+            "/rerank",
+            json=payload,
+            headers=headers,
+        )
+        response.raise_for_status()
         data = response.json()
 
         if quiet:
@@ -51,9 +58,9 @@ def score(
 
             console.print(table)
 
-    except httpx.HTTPStatusError as e:
-        console.print(f"[red]error: HTTP {e.response.status_code}[/red]", err=True)
-        raise typer.Exit(1)
     except Exception as e:
-        console.print(f"[red]error: {e}[/red]", err=True)
+        if hasattr(e, "response"):
+            console.print(f"[red]error: HTTP {e.response.status_code}[/red]", err=True)
+        else:
+            console.print(f"[red]error: {e}[/red]", err=True)
         raise typer.Exit(1)
