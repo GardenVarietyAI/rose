@@ -101,14 +101,6 @@ def create_app() -> FastAPI:
     async def health_check() -> Dict[str, str]:
         return {"status": "ok"}
 
-    @app.get("/routes")
-    def get_routes():
-        routes_dict = {}
-        for route in app.routes:
-            if getattr(route, "include_in_schema", False):
-                routes_dict.setdefault(route.path, set()).update(route.methods)
-        return {path: sorted(methods) for path, methods in routes_dict.items()}
-
     return app
 
 
