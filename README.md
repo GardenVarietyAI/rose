@@ -57,7 +57,7 @@ uv run maturin develop -F metal --release
 
 ```bash
 # Download a Hugging Face model
-uv run rose models download Qwen/Qwen3-0.6B
+uv run rose models download Qwen/Qwen3-1.7B
 ```
 
 ### Download and Convert an Embedding Model
@@ -79,7 +79,24 @@ uv run rose-trainer
 
 ```bash
 # Chat with Qwen/Qwen3-0.6B
-uv run rose chat --model Qwen/Qwen3-0.6B
+uv run rose chat --model Qwen/Qwen3-1.7B
+```
+
+### Codex Configuration
+
+Add a `~/.codex/config.toml` and then add Rose as a provider
+
+```
+# Recall that in TOML, root keys must be listed before tables.
+model = "Qwen--Qwen3-1.7B-GGUF"
+model_provider = "rose"
+experimental_instructions_file = "PATH/TO/rose/codex.md"
+
+[model_providers.rose]
+name = "ROSE"
+base_url = "http://localhost:8004/v1"
+wire_api = "responses"
+query_params = {}
 ```
 
 ## Model Library
