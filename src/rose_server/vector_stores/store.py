@@ -1,5 +1,3 @@
-"""Vector store CRUD operations."""
-
 import json
 import logging
 import time
@@ -31,7 +29,6 @@ async def create_vector_store(name: str, dimensions: int) -> VectorStore:
 
 
 async def get_vector_store(vector_store_id: str) -> Optional[VectorStore]:
-    """Get vector store by ID."""
     async with get_session(read_only=True) as session:
         return await session.get(VectorStore, vector_store_id)
 
@@ -39,7 +36,6 @@ async def get_vector_store(vector_store_id: str) -> Optional[VectorStore]:
 async def update_vector_store(
     vector_store_id: str, name: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None
 ) -> Optional[VectorStore]:
-    """Update vector store metadata."""
     async with get_session() as session:
         vector_store = await session.get(VectorStore, vector_store_id)
 
@@ -60,7 +56,6 @@ async def update_vector_store(
 
 
 async def list_vector_stores() -> List[VectorStore]:
-    """List all vector stores."""
     async with get_session(read_only=True) as session:
         result = await session.execute(select(VectorStore))
         return [row[0] for row in result.fetchall()]
@@ -69,7 +64,6 @@ async def list_vector_stores() -> List[VectorStore]:
 async def search_vector_store(
     vector_store_id: str, query_embedding: List[float], max_results: int = 10, update_last_used: bool = True
 ) -> List[DocumentSearchResult]:
-    """Search documents in a vector store using vector similarity."""
     async with get_session(read_only=not update_last_used) as session:
         # Get the vector store to check dimensions
         vector_store = await session.get(VectorStore, vector_store_id)
@@ -133,7 +127,6 @@ async def search_vector_store(
 
 
 async def delete_vector_store(vector_store_id: str) -> bool:
-    """Delete a vector store."""
     async with get_session() as session:
         vector_store = await session.get(VectorStore, vector_store_id)
 

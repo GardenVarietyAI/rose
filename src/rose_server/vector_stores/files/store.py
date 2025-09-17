@@ -35,7 +35,6 @@ async def store_file_chunks_with_embeddings(
     embeddings: List[np.ndarray],
     decode_errors: bool,
 ) -> VectorStoreFile:
-    """Store file chunks with pre-computed embeddings."""
     async with get_session() as session:
         vector_store = await session.get(VectorStore, vector_store_id)
         if not vector_store:

@@ -1,5 +1,3 @@
-"""API router for vector stores endpoints."""
-
 import asyncio
 import logging
 from typing import Any, Dict
@@ -50,7 +48,6 @@ class VectorStoreNotFoundError(RuntimeError):
 
 @router.get("")
 async def index() -> VectorStoreList:
-    """List all vector stores."""
     try:
         stores = await list_vector_stores()
         return VectorStoreList(
@@ -72,7 +69,6 @@ async def index() -> VectorStoreList:
 
 @router.post("")
 async def create(req: Request, request: VectorStoreCreate = Body(...)) -> VectorStoreMetadata:
-    """Create a new vector store."""
     try:
         vector_store = await create_vector_store(request.name, settings.default_embedding_dimensions)
         logger.info(f"Created vector store {request.name} ({vector_store.id})")
@@ -122,7 +118,6 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
 
 @router.get("/{vector_store_id}")
 async def get(vector_store_id: str = Path(..., description="The ID of the vector store")) -> VectorStoreMetadata:
-    """Get a vector store by ID."""
     try:
         vector_store = await get_vector_store(vector_store_id)
         if not vector_store:
@@ -144,7 +139,6 @@ async def get(vector_store_id: str = Path(..., description="The ID of the vector
 
 @router.post("/{vector_store_id}")
 async def update(vector_store_id: str = Path(...), request: VectorStoreUpdate = Body(...)) -> VectorStoreMetadata:
-    """Update a vector store."""
     try:
         vector_store = await update_vector_store(
             vector_store_id=vector_store_id,
@@ -175,7 +169,6 @@ async def update(vector_store_id: str = Path(...), request: VectorStoreUpdate = 
 async def delete(
     vector_store_id: str = Path(..., description="The ID of the vector store"),  # noqa: ARG001
 ) -> Dict[str, Any]:
-    """Delete a vector store."""
     success = await delete_vector_store(vector_store_id)
     if not success:
         raise HTTPException(status_code=404, detail="VectorStore not found")
@@ -186,7 +179,6 @@ async def delete(
 async def search_store(
     req: Request, vector_store_id: str = Path(...), request: VectorSearch = Body(...)
 ) -> VectorSearchResult:
-    """Search for vectors in a vector store (OpenAI-compatible)."""
     try:
         if request.filters:
             raise HTTPException(status_code=400, detail="Filters are not supported yet.")
