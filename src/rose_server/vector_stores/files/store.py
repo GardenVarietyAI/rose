@@ -111,7 +111,6 @@ async def _store_chunk_documents(
     embeddings: List[Any],
     decode_errors: bool,
 ) -> int:
-    """Store document chunks with embeddings."""
     # Create documents for all chunks
     created_at = int(time.time())
     documents = []
@@ -158,7 +157,6 @@ async def _store_chunk_documents(
 
 
 async def get_vector_store_file(vector_store_id: str, file_id: str) -> Optional[VectorStoreFile]:
-    """Get a specific file from a vector store."""
     async with get_session() as session:
         return await session.scalar(
             select(VectorStoreFile).where(
@@ -171,7 +169,6 @@ async def get_vector_store_file(vector_store_id: str, file_id: str) -> Optional[
 async def list_vector_store_files(
     vector_store_id: str, order: str = "asc", limit: int = 20, after: Optional[str] = None, before: Optional[str] = None
 ) -> Tuple[List[VectorStoreFile], bool]:
-    """List files in a vector store."""
     async with get_session() as session:
         query = select(VectorStoreFile).where(VectorStoreFile.vector_store_id == vector_store_id)
 
@@ -201,11 +198,6 @@ async def list_vector_store_files(
 
 
 async def remove_file_from_vector_store(vector_store_id: str, file_id: str) -> bool:
-    """Remove a file from a vector store and delete associated documents & embeddings.
-
-    Returns:
-        bool: True if file was deleted, False if not found
-    """
     async with get_session() as session:
         # Check if the file exists in this vector store
         vsf = await session.scalar(
