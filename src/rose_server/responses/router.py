@@ -34,8 +34,6 @@ async def chains() -> List[str]:
 
 @dataclass
 class TokenizedMessage:
-    """Message with pre-computed token count."""
-
     message: ChatMessage
     token_count: int
 
@@ -45,7 +43,6 @@ def _smart_truncate_messages(tokenized_messages: List[TokenizedMessage], max_tok
     if not tokenized_messages or len(tokenized_messages) <= 2:
         return [tm.message for tm in tokenized_messages]
 
-    # Separate system and other messages
     system_msgs: List[TokenizedMessage] = []
     other_msgs: List[TokenizedMessage] = []
 
@@ -59,11 +56,9 @@ def _smart_truncate_messages(tokenized_messages: List[TokenizedMessage], max_tok
     system_tokens = sum(tm.token_count + 15 for tm in system_msgs)
 
     if system_tokens >= max_tokens - 200:
-        # System too large, keep last few messages
         logger.warning(f"System prompt too large ({system_tokens} tokens), keeping recent messages")
         return [tm.message for tm in tokenized_messages[-5:]]
 
-    # Build result starting with system messages
     result: List[ChatMessage] = [tm.message for tm in system_msgs]
     remaining_tokens = max_tokens - system_tokens - 100  # Buffer for response
 
@@ -75,7 +70,7 @@ def _smart_truncate_messages(tokenized_messages: List[TokenizedMessage], max_tok
         result.append(tm.message)
         remaining_tokens -= msg_tokens
 
-    # Restore chronological order (system msgs + reversed other msgs)
+    # Restore chronological order
     final_result = [tm.message for tm in system_msgs]
     final_result.extend(reversed(result[len(system_msgs) :]))
 
@@ -90,11 +85,8 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMess
     """Convert request to messages, loading history if needed."""
     messages = []
 
-    # Load conversation history if continuing from previous response
     if request.previous_response_id:
         chain_messages = await get_conversation_messages(request.previous_response_id)
-
-        # Convert to ChatMessage format
         for msg in chain_messages:
             if isinstance(msg.content, list):
                 for item in msg.content:
@@ -107,17 +99,16 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMess
     # Add system instructions
     system_content_parts = []
 
+    # Combine system instructions
+    system_content_parts = []
     if request.instructions:
         system_content_parts.append(request.instructions)
-
-    # Combine system instructions
     if system_content_parts:
         combined_instructions = "\n\n".join(system_content_parts)
         messages.append(ChatMessage(role="system", content=combined_instructions))
 
     # Add current user input
     if isinstance(request.input, str):
-        # Handle string input directly
         messages.append(ChatMessage(role="user", content=request.input))
     elif isinstance(request.input, list):
         # Handle list of ResponsesInput objects
@@ -175,8 +166,7 @@ async def _generate_streaming_response(
             formatter = ResponsesFormatter()
             metrics = MetricsCollector(model=config.model_name)
 
-            # Create the event stream generator so we can optionally drain it in the background
-            ev_gen = generator.generate_events(
+            async for event in generator.generate_events(
                 messages,
                 enable_tools=bool(tools),
                 tools=tools,
@@ -184,22 +174,12 @@ async def _generate_streaming_response(
                 temperature=temperature,
                 tool_choice=tool_choice,
                 chain_id=chain_id,
-            )
-
-            async for event in ev_gen:
+            ):
                 metrics.process_event(event)
                 formatted = formatter.format_event(event)
                 if formatted:
-                    # Include the SSE event name for maximum compatibility with clients
                     ev_name = formatted.get("type", "")
                     yield {"data": json.dumps(formatted), "event": ev_name}
-
-                    # No Codex-specific early turn closure; standard Responses stream.
-
-            # Emit completion events for Responses format
-            if hasattr(formatter, "get_completion_events"):
-                for completion_event in formatter.get_completion_events():
-                    yield {"data": json.dumps(completion_event), "event": completion_event.get("type", "")}
 
             yield {"data": "[DONE]", "event": "done"}
         except Exception as e:
@@ -241,7 +221,6 @@ async def _generate_complete_response(
     complete_response = formatter.format_complete_response(all_events)
     complete_response.model = config.model_name
 
-    # Log performance metrics
     performance_metrics = metrics.get_metrics()
     if performance_metrics:
         logger.info(f"[METRICS] Response generation complete for {config.model_name}")
@@ -306,7 +285,6 @@ async def retrieve_response(response_id: str) -> ResponsesResponse:
             content=[content_item],
         )
 
-        # Get token counts from meta
         meta = response_msg.meta or {}
         return ResponsesResponse(
             id=response_msg.id,
@@ -324,16 +302,7 @@ async def retrieve_response(response_id: str) -> ResponsesResponse:
         raise
     except Exception as e:
         logger.error(f"Error retrieving response {response_id}: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": {
-                    "message": f"Internal server error: {str(e)}",
-                    "type": "server_error",
-                    "code": None,
-                }
-            },
-        )
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @router.post("/responses", response_model=None)
