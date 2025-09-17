@@ -83,7 +83,7 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(
         title="ROSE",
-        description="A service for generating responses using different LLM modes",
+        description="Run your own LLM server",
         version=__version__,
         lifespan=lifespan,
     )
