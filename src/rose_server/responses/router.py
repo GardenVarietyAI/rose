@@ -1,5 +1,6 @@
 import json
 import logging
+from dataclasses import dataclass
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
@@ -31,51 +32,58 @@ async def chains() -> List[str]:
     return chains
 
 
-# TODO: Naive token counting as a stop-gap for now
-def _smart_truncate_messages(messages: List[ChatMessage], max_tokens: int) -> List[ChatMessage]:
-    """Smart truncation that preserves system messages using character-based estimation."""
-    if not messages or len(messages) <= 2:
-        return messages
+@dataclass
+class TokenizedMessage:
+    """Message with pre-computed token count."""
 
-    # Rough estimation: 4 characters per token
-    chars_per_token = 4
-    max_chars = max_tokens * chars_per_token
+    message: ChatMessage
+    token_count: int
+
+
+def _smart_truncate_messages(tokenized_messages: List[TokenizedMessage], max_tokens: int) -> List[ChatMessage]:
+    """Pure function for smart message truncation preserving system messages."""
+    if not tokenized_messages or len(tokenized_messages) <= 2:
+        return [tm.message for tm in tokenized_messages]
 
     # Separate system and other messages
-    system_msgs = []
-    other_msgs = []
+    system_msgs: List[TokenizedMessage] = []
+    other_msgs: List[TokenizedMessage] = []
 
-    for msg in messages:
-        if msg.role == "system":
-            system_msgs.append(msg)
+    for tm in tokenized_messages:
+        if tm.message.role == "system":
+            system_msgs.append(tm)
         else:
-            other_msgs.append(msg)
+            other_msgs.append(tm)
 
-    # Count system message characters
-    system_chars = sum(len(msg.content or "") for msg in system_msgs)
-    system_chars += len(system_msgs) * 50  # Overhead for formatting
+    # Count system message tokens (add ~15 per message for formatting)
+    system_tokens = sum(tm.token_count + 15 for tm in system_msgs)
 
-    if system_chars >= max_chars - 800:
+    if system_tokens >= max_tokens - 200:
         # System too large, keep last few messages
-        logger.warning(f"System prompt too large (~{system_chars // chars_per_token} tokens), keeping recent messages")
-        return messages[-5:]
+        logger.warning(f"System prompt too large ({system_tokens} tokens), keeping recent messages")
+        return [tm.message for tm in tokenized_messages[-5:]]
 
-    # Build result with system messages first
-    result = system_msgs.copy()
-    remaining_chars = max_chars - system_chars - 400
+    # Build result starting with system messages
+    result: List[ChatMessage] = [tm.message for tm in system_msgs]
+    remaining_tokens = max_tokens - system_tokens - 100  # Buffer for response
 
-    # Add messages from the end backwards
-    for msg in reversed(other_msgs):
-        msg_chars = len(msg.content or "") + 50
-        if msg_chars > remaining_chars:
+    # Add messages from the end backwards until we hit token limit
+    for tm in reversed(other_msgs):
+        msg_tokens = tm.token_count + 15  # Add formatting overhead
+        if msg_tokens > remaining_tokens:
             break
-        result.append(msg)
-        remaining_chars -= msg_chars
+        result.append(tm.message)
+        remaining_tokens -= msg_tokens
 
-    # Restore chronological order
-    result = system_msgs + list(reversed(result[len(system_msgs) :]))
+    # Restore chronological order (system msgs + reversed other msgs)
+    final_result = [tm.message for tm in system_msgs]
+    final_result.extend(reversed(result[len(system_msgs) :]))
 
-    return result
+    if len(final_result) < len(tokenized_messages):
+        used_tokens = max_tokens - remaining_tokens
+        logger.info(f"Truncated: {len(tokenized_messages)} -> {len(final_result)} messages (~{used_tokens} tokens)")
+
+    return final_result
 
 
 async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMessage]:
@@ -386,16 +394,25 @@ async def create_response(
                 },
             )
 
-        # Smart truncation if needed
+        # Truncate if messages exceed model's max input tokens
         qwen_config = get_qwen_config(config.model_id)
 
-        # Quick estimation check - 4 chars per token average
-        total_chars = sum(len(msg.content or "") for msg in messages)
-        estimated_tokens = total_chars // 4 + len(messages) * 15  # Content + formatting overhead
+        if req.app.state.tokenizer:
+            tokenized_messages = [
+                TokenizedMessage(message=msg, token_count=len(req.app.state.tokenizer.encode(msg.content).ids))
+                for msg in messages
+                if msg.content
+            ]
 
-        if estimated_tokens > qwen_config.max_context_length - 200:
-            logger.warning(f"Estimated {estimated_tokens} tokens exceeds context limit, truncating")
-            messages = _smart_truncate_messages(messages, qwen_config.max_context_length - 200)
+            total_tokens = sum(tm.token_count for tm in tokenized_messages)
+
+            if total_tokens > qwen_config.max_context_length:
+                logger.warning(
+                    f"Messages use {total_tokens} tokens, exceeds {qwen_config.max_context_length}, truncating"
+                )
+                messages = _smart_truncate_messages(tokenized_messages, qwen_config.max_context_length)
+        else:
+            raise HTTPException(status_code=500, detail="Tokenizer not initialized")
 
         if request.stream:
             return await _generate_streaming_response(

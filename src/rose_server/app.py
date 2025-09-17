@@ -11,6 +11,7 @@ os.environ["POSTHOG_DISABLED"] = "1"
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from tokenizers import Tokenizer
 
 from rose_server import __version__
 from rose_server._inference import InferenceServer
@@ -49,6 +50,14 @@ async def lifespan(app: FastAPI) -> Any:
 
     app.state.inference_server = InferenceServer("auto")
     logger.info("Inference server initialized")
+
+    tokenizer_path = Path(settings.data_dir) / "models/Qwen--Qwen3-0.6B/tokenizer.json"
+    if tokenizer_path.exists():
+        app.state.tokenizer = Tokenizer.from_file(str(tokenizer_path))
+        logger.info(f"Qwen3 tokenizer loaded from {tokenizer_path}")
+    else:
+        app.state.tokenizer = None
+        logger.warning(f"Qwen3 tokenizer not found at {tokenizer_path}")
 
     yield
 
