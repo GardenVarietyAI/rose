@@ -7,6 +7,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, Body, HTTPException, Path, Query, Request
 
 from rose_server.config.settings import settings
+from rose_server.embeddings.service import generate_embeddings
 from rose_server.schemas.vector_stores import VectorStoreFile, VectorStoreFileCreate, VectorStoreFileList
 from rose_server.vector_stores.files.store import (
     ChunkingError,
@@ -52,7 +53,7 @@ async def create(
 
         # Generate embeddings
         texts = [chunk.text for chunk in chunks]
-        embeddings = await asyncio.to_thread(lambda: list(req.app.state.embedding_model.embed(texts)))
+        embeddings = await asyncio.to_thread(generate_embeddings, texts, req.app.state.embedding_model)
 
         # Store with pre-computed embeddings
         vector_store_file = await add_file_to_vector_store(

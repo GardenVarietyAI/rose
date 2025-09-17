@@ -7,6 +7,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, Body, HTTPException, Path, Request
 
 from rose_server.config.settings import settings
+from rose_server.embeddings.service import generate_embeddings, generate_query_embedding
 from rose_server.schemas.vector_stores import (
     VectorSearch,
     VectorSearchChunk,
@@ -96,7 +97,7 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
                         raise ValueError(f"No chunks generated from file {file_id}")
 
                     texts = [chunk.text for chunk in chunks]
-                    embeddings = await asyncio.to_thread(lambda: list(req.app.state.embedding_model.embed(texts)))
+                    embeddings = await asyncio.to_thread(generate_embeddings, texts, req.app.state.embedding_model)
 
                     await add_file_to_vector_store(vector_store.id, file_id, embeddings, chunks, decode_errors)
                     logger.info(f"Added file {file_id} to vector store {request.name} ({vector_store.id})")
@@ -200,8 +201,9 @@ async def search_store(
                 raise HTTPException(status_code=500, detail="Embedding model not initialized")
 
             # Convert text to embedding
-            embeddings = await asyncio.to_thread(lambda: list(req.app.state.embedding_model.embed([request.query])))
-            query_embedding = embeddings[0]
+            query_embedding = await asyncio.to_thread(
+                generate_query_embedding, request.query, req.app.state.embedding_model
+            )
 
             # Calculate token usage
             prompt_tokens = len(req.app.state.embedding_tokenizer.encode(request.query).ids)
