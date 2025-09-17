@@ -42,7 +42,6 @@ def decode_file_content(content: bytes, filename: str) -> Tuple[str, bool]:
     if not content:
         raise EmptyFileError(f"File {filename} has no content")
 
-    # Handle PDF files - check magic bytes for actual PDF content
     if content.startswith(PDF_MAGIC_BYTES):
         try:
             # Create BytesIO wrapper for pypdf (content already in memory from upload)
