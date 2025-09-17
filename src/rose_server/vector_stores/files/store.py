@@ -1,14 +1,10 @@
 """Vector store file operations."""
 
-import io
 import logging
 import time
 from typing import Any, List, Optional, Sequence, Tuple
 
 import numpy as np
-from chonkie import TokenChunker
-from pypdf import PdfReader
-from pypdf.errors import PdfReadError
 from sqlalchemy import delete, select, text, update
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +14,6 @@ from rose_server.entities.files import UploadedFile
 from rose_server.entities.vector_stores import Document, VectorStore, VectorStoreFile
 
 logger = logging.getLogger(__name__)
-PDF_MAGIC_BYTES = b"%PDF-"
 
 
 class VectorStoreNotFoundError(ValueError):
@@ -29,58 +24,8 @@ class FileNotFoundError(ValueError):
     """File does not exist."""
 
 
-class EmptyFileError(ValueError):
-    """File has no content."""
-
-
 class ChunkingError(ValueError):
     """Failed to generate chunks from file."""
-
-
-def decode_file_content(content: bytes, filename: str) -> Tuple[str, bool]:
-    """Pure function to decode file content with PDF and text support."""
-    if not content:
-        raise EmptyFileError(f"File {filename} has no content")
-
-    if content.startswith(PDF_MAGIC_BYTES):
-        try:
-            # Create BytesIO wrapper for pypdf (content already in memory from upload)
-            reader = PdfReader(io.BytesIO(content))
-
-            # Extract text from all pages
-            text_parts = []
-            for page in reader.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    text_parts.append(page_text)
-
-            text_content = "\n\n".join(text_parts)
-            if not text_content.strip():
-                raise ValueError("No text content found in PDF")
-
-            return text_content, False
-
-        except (PdfReadError, ValueError) as e:
-            raise ValueError(f"Failed to process PDF file: {str(e)}")
-
-    # Handle text files
-    try:
-        text_content = content.decode("utf-8")
-        decode_errors = False
-    except UnicodeDecodeError:
-        text_content = content.decode("utf-8", errors="replace")
-        decode_errors = True
-
-    return text_content, decode_errors
-
-
-def create_chunks(text: str, tokenizer: Any, chunk_size: int, chunk_overlap: int) -> List[Any]:
-    chunker = TokenChunker(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        tokenizer=tokenizer,
-    )
-    return chunker.chunk(text)
 
 
 async def store_file_chunks_with_embeddings(

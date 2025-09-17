@@ -4,19 +4,18 @@ import asyncio
 import logging
 from typing import Any, Dict
 
+from chonkie import TokenChunker
 from fastapi import APIRouter, Body, HTTPException, Path, Query, Request
 
 from rose_server.config.settings import settings
 from rose_server.embeddings.service import generate_embeddings
 from rose_server.schemas.vector_stores import VectorStoreFile, VectorStoreFileCreate, VectorStoreFileList
+from rose_server.vector_stores.files.service import EmptyFileError, decode_file_content
 from rose_server.vector_stores.files.store import (
     ChunkingError,
-    EmptyFileError,
     FileNotFoundError,
     VectorStoreNotFoundError,
     add_file_to_vector_store,
-    create_chunks,
-    decode_file_content,
     get_uploaded_file,
     list_vector_store_files,
     remove_file_from_vector_store,
@@ -38,9 +37,12 @@ async def create(
     try:
         uploaded_file = await get_uploaded_file(request.file_id)
         text_content, decode_errors = decode_file_content(uploaded_file.content, uploaded_file.filename)
-        chunks = create_chunks(
-            text_content, req.app.state.embedding_tokenizer, settings.default_chunk_size, settings.default_chunk_overlap
+        chunker = TokenChunker(
+            chunk_size=settings.default_chunk_size,
+            chunk_overlap=settings.default_chunk_overlap,
+            tokenizer=req.app.state.embedding_tokenizer,
         )
+        chunks = chunker.chunk(text_content)
 
         if not chunks:
             raise ChunkingError(f"No chunks generated from file {request.file_id}")
