@@ -1,5 +1,5 @@
+import asyncio
 import logging
-from typing import Any, Dict
 
 from fastapi import APIRouter, Body, HTTPException, Request
 
@@ -7,10 +7,10 @@ from rose_server.reranker import service
 from rose_server.schemas.reranker import RerankRequest, RerankResponse, RerankResult
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/v1", tags=["reranking"])
+router = APIRouter(prefix="/v1/rerank", tags=["reranking"])
 
 
-@router.post("/rerank")
+@router.post("")
 async def rerank(
     req: Request,
     request: RerankRequest = Body(...),
@@ -22,20 +22,23 @@ async def rerank(
         session = req.app.state.reranker_session
         tokenizer = req.app.state.reranker_tokenizer
 
-        # Score all documents
-        scores = []
-        for i, doc in enumerate(request.documents):
-            relevance_score = service.score(request.query, doc, session, tokenizer)
-            scores.append((i, relevance_score, doc))
+        scores_with_indices = await asyncio.to_thread(
+            service.score_batch,
+            [request.query] * len(request.documents),
+            request.documents,
+            session,
+            tokenizer,
+        )
+
+        # Combine with indices and documents
+        scores = [(i, score, doc) for i, (score, doc) in enumerate(zip(scores_with_indices, request.documents))]
 
         # Sort by score descending
         scores.sort(key=lambda x: x[1], reverse=True)
 
-        # Apply top_n if specified
         if request.top_n:
             scores = scores[: request.top_n]
 
-        # Format results
         results = []
         for index, score, doc in scores:
             result = RerankResult(
@@ -53,18 +56,3 @@ async def rerank(
     except Exception as e:
         logger.error(f"Rerank error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/rerank/models")
-async def list_models() -> Dict[str, Any]:
-    return {
-        "models": [
-            {
-                "name": "Qwen3-Reranker-0.6B-ONNX",
-                "endpoints": ["rerank"],
-                "finetuned": False,
-                "context_length": 32768,
-                "default_endpoints": ["rerank"],
-            }
-        ]
-    }

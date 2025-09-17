@@ -60,7 +60,7 @@ def score(
 
     except Exception as e:
         if hasattr(e, "response"):
-            console.print(f"[red]error: HTTP {e.response.status_code}[/red]", err=True)
+            typer.echo(f"error: HTTP {e.response.status_code}", err=True)
         else:
-            console.print(f"[red]error: {e}[/red]", err=True)
+            typer.echo(f"error: {e}", err=True)
         raise typer.Exit(1)

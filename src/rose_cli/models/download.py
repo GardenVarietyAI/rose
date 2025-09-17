@@ -18,6 +18,10 @@ blessed_models = [
     "Qwen/Qwen3-0.6B-GGUF",
     "Qwen/Qwen3-Embedding-0.6B",
     "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF",
+    "tomaarsen/Qwen3-Reranker-0.6B-seq-cls",
+    "Qwen/Qwen3-Reranker-0.6B",
+    "cross-encoder/ms-marco-MiniLM-L12-v2",
+    "cross-encoder/ms-marco-MiniLM-L6-v2",
 ]
 
 

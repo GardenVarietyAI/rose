@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 
 from onnxruntime import GraphOptimizationLevel, InferenceSession, SessionOptions
-from transformers import AutoTokenizer
+from tokenizers import Tokenizer
 
 from rose_server.config.settings import settings
 
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_reranker_session() -> InferenceSession:
-    model_path = Path(f"{settings.models_dir}/Qwen3-Reranker-0.6B-ONNX")
+    model_path = Path(f"{settings.models_dir}/cross-encoder--ms-marco-MiniLM-L12-v2-ONNX")
     model_file = model_path / "model.onnx"
 
     if not model_file.exists():
@@ -26,8 +26,13 @@ def get_reranker_session() -> InferenceSession:
     return session
 
 
-def get_reranker_tokenizer() -> AutoTokenizer:
-    model_path = Path(f"{settings.models_dir}/Qwen3-Reranker-0.6B-ONNX")
-    tokenizer = AutoTokenizer.from_pretrained(str(model_path), trust_remote_code=True)
-    logger.info(f"Loaded reranker tokenizer with {len(tokenizer)} tokens")
+def get_reranker_tokenizer() -> Tokenizer:
+    model_path = Path(f"{settings.models_dir}/cross-encoder--ms-marco-MiniLM-L12-v2-ONNX")
+    tokenizer_file = model_path / "tokenizer.json"
+
+    if not tokenizer_file.exists():
+        raise FileNotFoundError(f"Tokenizer not found at {tokenizer_file}")
+
+    tokenizer = Tokenizer.from_file(str(tokenizer_file))
+    logger.info(f"Loaded reranker tokenizer with {tokenizer.get_vocab_size()} tokens")
     return tokenizer
