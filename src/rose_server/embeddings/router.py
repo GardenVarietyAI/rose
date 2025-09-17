@@ -13,21 +13,15 @@ router = APIRouter(prefix="/v1/embeddings")
 
 @router.post("", response_model=EmbeddingResponse)
 async def create_embeddings(req: Request, request: EmbeddingRequest) -> EmbeddingResponse:
-    """Generate embeddings.
-
-    Args:
-        request: The embeddings request containing input texts and model
-    Returns:
-        JSON response in OpenAI format with embeddings
-    """
     if not req.app.state.embedding_model or not req.app.state.embedding_tokenizer:
         raise HTTPException(status_code=500, detail="Embedding model not initialized")
 
     try:
-        texts = request.input if isinstance(request.input, list) else [request.input]
-
         embeddings, total_tokens = await asyncio.to_thread(
-            compute_embeddings_with_tokens, texts, req.app.state.embedding_model, req.app.state.embedding_tokenizer
+            compute_embeddings_with_tokens,
+            request.input if isinstance(request.input, list) else [request.input],
+            req.app.state.embedding_model,
+            req.app.state.embedding_tokenizer,
         )
 
         return EmbeddingResponse(
@@ -41,14 +35,9 @@ async def create_embeddings(req: Request, request: EmbeddingRequest) -> Embeddin
                 for i, embedding in enumerate(embeddings)
             ],
             model=request.model,
-            usage={
-                "prompt_tokens": total_tokens,
-                "total_tokens": total_tokens,
-            },
+            usage={"prompt_tokens": total_tokens, "total_tokens": total_tokens},
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail={"error": {"message": str(e), "type": "invalid_request_error"}})
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail={"error": {"message": f"An error occurred: {str(e)}", "type": "server_error"}}
-        )
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
