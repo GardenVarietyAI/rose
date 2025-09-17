@@ -33,7 +33,17 @@ async def event_based_chat_completions(
     inference_server = req.app.state.inference_server
     model = await get_language_model(request.model)
     if not model:
-        return JSONResponse(status_code=400, content=f"Model '{request.model}' not found")
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": {
+                    "message": f"Model '{request.model}' not found",
+                    "type": "invalid_request_error",
+                    "param": "model",
+                    "code": "model_not_found",
+                }
+            },
+        )
 
     config = ModelConfig.from_language_model(model)
     logger.info(f"[EVENT] Using model: {request.model}")
