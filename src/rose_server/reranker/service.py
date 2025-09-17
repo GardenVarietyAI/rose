@@ -30,7 +30,7 @@ def score(
     logits = outputs[0][0]
     exp_logits = np.exp(logits - np.max(logits))
     probabilities = exp_logits / exp_logits.sum()
-    return float(probabilities[0])
+    return float(probabilities[1])
 
 
 def score_batch(
