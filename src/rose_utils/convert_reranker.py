@@ -1,5 +1,3 @@
-"""Convert Qwen reranker models to ONNX format."""
-
 from pathlib import Path
 
 import typer
@@ -58,7 +56,7 @@ def convert_reranker(
         progress.update(task, description="Creating reranker configuration...")
         progress.remove_task(task)
 
-    console.print("[green]✅ Reranker model converted successfully![/green]")
+    console.print("[green]✓ Reranker model converted successfully![/green]")
     console.print(f"[cyan]Output directory: {output_path}[/cyan]")
 
 
