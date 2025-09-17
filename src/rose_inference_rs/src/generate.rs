@@ -141,8 +141,8 @@ pub async fn stream(
 
             in_tool_call = true;
             tool_call_tokens.clear();
-            // Set next_token and continue to skip emission
-            next_token = Some(sampled_token);
+            // Use last normal token instead of special token to avoid loops
+            next_token = last_normal_token.or(Some(sampled_token));
             continue;
         } else if sampled_token == TOOL_CALL_END_TOKEN && in_tool_call {
             // Parse and emit tool call
