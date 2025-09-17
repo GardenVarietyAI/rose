@@ -3,7 +3,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Body, HTTPException, Request
 
-from rose_server.reranker.service import RerankerService
+from rose_server.reranker import service
 from rose_server.schemas.reranker import RerankRequest, RerankResponse, RerankResult
 
 logger = logging.getLogger(__name__)
@@ -16,19 +16,17 @@ async def rerank(
     request: RerankRequest = Body(...),
 ) -> RerankResponse:
     try:
-        # Get reranker from app state (initialized at startup)
-        if not hasattr(req.app.state, "reranker"):
-            # Initialize on first use if needed
-            req.app.state.reranker = RerankerService("data/models/Qwen3-Reranker-0.6B-ONNX")
-            logger.info("Initialized reranker service")
+        if not hasattr(req.app.state, "reranker_session") or not hasattr(req.app.state, "reranker_tokenizer"):
+            raise HTTPException(status_code=500, detail="Reranker not initialized")
 
-        reranker = req.app.state.reranker
+        session = req.app.state.reranker_session
+        tokenizer = req.app.state.reranker_tokenizer
 
         # Score all documents
         scores = []
         for i, doc in enumerate(request.documents):
-            score = reranker.score(request.query, doc)
-            scores.append((i, score, doc))
+            relevance_score = service.score(request.query, doc, session, tokenizer)
+            scores.append((i, relevance_score, doc))
 
         # Sort by score descending
         scores.sort(key=lambda x: x[1], reverse=True)
