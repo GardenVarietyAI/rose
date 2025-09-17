@@ -76,7 +76,6 @@ pub async fn stream(
     let mut logits_processor = LogitsProcessor::from_sampling(seed, sampling);
 
     let mut next_token: Option<u32> = None;
-    let mut last_normal_token: Option<u32> = None;
     let mut decoded_so_far = String::new();
     let mut finish_reason = FinishReason::Length;
 
@@ -129,20 +128,26 @@ pub async fn stream(
 
         // Check for tool call tokens
         if sampled_token == TOOL_CALL_START_TOKEN {
-            consecutive_tool_starts += 1;
-            tracing::info!("Detected <tool_call> token ({}) - occurrence {}", sampled_token, consecutive_tool_starts);
+            // Only increment if we're already in a tool call (shouldn't happen)
+            if in_tool_call {
+                consecutive_tool_starts += 1;
+                tracing::warn!("Detected nested <tool_call> token ({}) - occurrence {}", sampled_token, consecutive_tool_starts);
 
-            // Break if we see too many consecutive tool call starts (model is stuck)
-            if consecutive_tool_starts > 3 {
-                tracing::warn!("Model stuck generating tool_call tokens, stopping");
-                finish_reason = FinishReason::Stop;
-                break;
+                // Break if we see too many consecutive tool call starts (model is stuck)
+                if consecutive_tool_starts > 3 {
+                    tracing::warn!("Model stuck generating tool_call tokens, stopping");
+                    finish_reason = FinishReason::Stop;
+                    break;
+                }
+            } else {
+                tracing::info!("Detected <tool_call> token ({})", sampled_token);
+                consecutive_tool_starts = 0; // Reset counter for fresh tool call
             }
 
             in_tool_call = true;
             tool_call_tokens.clear();
-            // Use last normal token instead of special token to avoid loops
-            next_token = last_normal_token.or(Some(sampled_token));
+            // Set next token before continuing
+            next_token = Some(sampled_token);
             continue;
         } else if sampled_token == TOOL_CALL_END_TOKEN && in_tool_call {
             // Parse and emit tool call
@@ -194,8 +199,8 @@ pub async fn stream(
             // Collect tokens for tool call
             tool_call_tokens.push(sampled_token);
             consecutive_tool_starts = 0;  // Reset counter when we get non-tool_call tokens
-            // Use last normal token instead of current token to avoid issues
-            next_token = last_normal_token.or(Some(sampled_token));
+            // Set next token and continue collecting tool call content
+            next_token = Some(sampled_token);
             continue;
         }
 
@@ -247,10 +252,7 @@ pub async fn stream(
             }
         }
 
-        // Track last normal token for use after special tokens
-        if sampled_token != TOOL_CALL_START_TOKEN && sampled_token != TOOL_CALL_END_TOKEN {
-            last_normal_token = Some(sampled_token);
-        }
+        // Set next token for generation
         next_token = Some(sampled_token);
     }
 
