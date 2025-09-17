@@ -4,16 +4,17 @@ import time
 import uuid
 from typing import Any, AsyncGenerator, Dict
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
-from rose_server.dependencies import InferenceServer, get_inference_server, get_model_config
 from rose_server.events.event_types import LLMEvent
 from rose_server.events.formatters import ChatCompletionsFormatter
 from rose_server.events.generator import EventGenerator
 from rose_server.metrics import MetricsCollector
+from rose_server.models.store import get as get_language_model
 from rose_server.schemas.chat import ChatMessage, ChatRequest
+from rose_server.schemas.models import ModelConfig
 
 router = APIRouter(prefix="/completions")
 logger = logging.getLogger(__name__)
@@ -26,22 +27,15 @@ def _prepare_tool_params(request: ChatRequest) -> Dict[str, Any]:
 
 @router.post("", response_model=None)
 async def event_based_chat_completions(
+    req: Request,
     request: ChatRequest = Body(...),
-    inference_server: InferenceServer = Depends(get_inference_server),
 ) -> JSONResponse | EventSourceResponse:
-    config = await get_model_config(request.model)
-    if not config:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": {
-                    "message": f"Model '{request.model}' not found",
-                    "type": "invalid_request_error",
-                    "param": "model",
-                    "code": "model_not_found",
-                }
-            },
-        )
+    inference_server = req.app.state.inference_server
+    model = await get_language_model(request.model)
+    if not model:
+        return JSONResponse(status_code=400, content=f"Model '{request.model}' not found")
+
+    config = ModelConfig.from_language_model(model)
     logger.info(f"[EVENT] Using model: {request.model}")
     messages = request.messages
     logger.info(f"[EVENT] Message count: {len(messages)}")

@@ -3,14 +3,15 @@ import logging
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, HTTPException, Request
 from sse_starlette.sse import EventSourceResponse
 
-from rose_server.dependencies import InferenceServer, get_inference_server, get_model_config
+from rose_server._inference import InferenceServer
 from rose_server.events.formatters import ResponsesFormatter
 from rose_server.events.generator import EventGenerator
 from rose_server.metrics import MetricsCollector
 from rose_server.models.qwen_configs import get_qwen_config
+from rose_server.models.store import get as get_language_model
 from rose_server.responses.store import get_chain_ids, get_conversation_messages, get_response, store_response_messages
 from rose_server.schemas.chat import ChatMessage
 from rose_server.schemas.models import ModelConfig
@@ -95,9 +96,6 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMess
                         break
             elif isinstance(msg.content, str):
                 messages.append(ChatMessage(role=msg.role, content=msg.content))
-
-    # Add system instructions
-    system_content_parts = []
 
     # Combine system instructions
     system_content_parts = []
@@ -309,9 +307,9 @@ async def retrieve_response(response_id: str) -> ResponsesResponse:
 async def create_response(
     req: Request,
     request: ResponsesRequest = Body(...),
-    inference_server: InferenceServer = Depends(get_inference_server),
 ) -> Union[EventSourceResponse, ResponsesResponse]:
     try:
+        inference_server = req.app.state.inference_server
         use_codex_format = req.headers.get("user-agent", "").startswith("codex_cli_rs/")
 
         logger.info(f"RESPONSES API - max_output_tokens: {request.max_output_tokens}")
@@ -329,9 +327,10 @@ async def create_response(
             logger.error("No messages extracted from request")
             raise HTTPException(status_code=400, detail="No valid messages found in request")
 
-        config = await get_model_config(request.model)
-        if not config:
+        model = await get_language_model(request.model)
+        if not model:
             raise HTTPException(status_code=400, detail=f"No configuration found for model '{request.model}'")
+        config = ModelConfig.from_language_model(model)
 
         if not req.app.state.tokenizer:
             raise HTTPException(status_code=500, detail="Tokenizer not initialized")
