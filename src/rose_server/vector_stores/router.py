@@ -22,8 +22,8 @@ from rose_server.vector_stores.files.service import decode_file_content
 from rose_server.vector_stores.files.store import (
     FileNotFoundError as StoreFileNotFoundError,
     VectorStoreNotFoundError as StoreVectorStoreNotFoundError,
-    add_file_to_vector_store,
     get_uploaded_file,
+    store_file_chunks_with_embeddings,
 )
 from rose_server.vector_stores.store import (
     create_vector_store,
@@ -95,7 +95,7 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
                     texts = [chunk.text for chunk in chunks]
                     embeddings = await asyncio.to_thread(generate_embeddings, texts, req.app.state.embedding_model)
 
-                    await add_file_to_vector_store(vector_store.id, file_id, embeddings, chunks, decode_errors)
+                    await store_file_chunks_with_embeddings(vector_store.id, file_id, chunks, embeddings, decode_errors)
                     logger.info(f"Added file {file_id} to vector store {request.name} ({vector_store.id})")
                 except (StoreVectorStoreNotFoundError, StoreFileNotFoundError) as e:
                     raise HTTPException(status_code=404, detail=str(e))

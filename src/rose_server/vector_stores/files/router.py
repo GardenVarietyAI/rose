@@ -15,10 +15,10 @@ from rose_server.vector_stores.files.store import (
     ChunkingError,
     FileNotFoundError,
     VectorStoreNotFoundError,
-    add_file_to_vector_store,
     get_uploaded_file,
     list_vector_store_files,
     remove_file_from_vector_store,
+    store_file_chunks_with_embeddings,
 )
 
 router = APIRouter(prefix="/{vector_store_id}/files", tags=["vector_store_files"])
@@ -49,8 +49,8 @@ async def create(
 
         texts = [chunk.text for chunk in chunks]
         embeddings = await asyncio.to_thread(generate_embeddings, texts, req.app.state.embedding_model)
-        vector_store_file = await add_file_to_vector_store(
-            vector_store_id, request.file_id, embeddings, chunks, decode_errors
+        vector_store_file = await store_file_chunks_with_embeddings(
+            vector_store_id, request.file_id, chunks, embeddings, decode_errors
         )
         logger.info("Added file %s to vector store %s", request.file_id, vector_store_id)
 

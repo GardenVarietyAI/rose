@@ -103,19 +103,6 @@ async def get_uploaded_file(file_id: str) -> UploadedFile:
         return uploaded_file
 
 
-async def add_file_to_vector_store(
-    vector_store_id: str, file_id: str, embeddings: List[np.ndarray], chunks: List[Any], decode_errors: bool
-) -> VectorStoreFile:
-    """Store a file with pre-computed embeddings and chunks."""
-    return await store_file_chunks_with_embeddings(
-        vector_store_id=vector_store_id,
-        file_id=file_id,
-        chunks=chunks,
-        embeddings=embeddings,
-        decode_errors=decode_errors,
-    )
-
-
 async def _store_chunk_documents(
     session: AsyncSession,
     vector_store_id: str,
