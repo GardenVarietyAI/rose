@@ -16,7 +16,7 @@ async def rerank(
     request: RerankRequest = Body(...),
 ) -> RerankResponse:
     try:
-        if not hasattr(req.app.state, "reranker_session") or not hasattr(req.app.state, "reranker_tokenizer"):
+        if not req.app.state.reranker_session or not req.app.state.reranker_tokenizer:
             raise HTTPException(status_code=500, detail="Reranker not initialized")
 
         session = req.app.state.reranker_session
