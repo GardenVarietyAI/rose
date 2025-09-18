@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 def get_reranker_session() -> InferenceSession:
-    model_path = Path(f"{settings.models_dir}/cross-encoder--ms-marco-MiniLM-L12-v2-ONNX")
-    model_file = model_path / "model.onnx"
+    model_path = Path(f"{settings.models_dir}/jinaai--jina-reranker-v2-base-multilingual")
+    model_file = model_path / "onnx" / "model_int8.onnx"
 
     if not model_file.exists():
         raise FileNotFoundError(f"ONNX model not found at {model_file}")
@@ -27,7 +27,7 @@ def get_reranker_session() -> InferenceSession:
 
 
 def get_reranker_tokenizer() -> Tokenizer:
-    model_path = Path(f"{settings.models_dir}/cross-encoder--ms-marco-MiniLM-L12-v2-ONNX")
+    model_path = Path(f"{settings.models_dir}/jinaai--jina-reranker-v2-base-multilingual")
     tokenizer_file = model_path / "tokenizer.json"
 
     if not tokenizer_file.exists():
