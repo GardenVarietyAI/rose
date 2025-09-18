@@ -18,6 +18,9 @@ blessed_models = [
     "Qwen/Qwen3-0.6B-GGUF",
     "Qwen/Qwen3-Embedding-0.6B",
     "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF",
+    "tomaarsen/Qwen3-Reranker-0.6B-seq-cls",
+    "Qwen/Qwen3-Reranker-0.6B",
+    "jinaai/jina-reranker-v2-base-multilingual",
 ]
 
 

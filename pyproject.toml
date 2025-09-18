@@ -49,6 +49,7 @@ cli = [
   "typer>=0.16.0",
   "rich>=13.7.1",
   "httpx>=0.28.1",
+  "cohere>=5.18.0",
 ]
 utils = [
   "typer>=0.16.0",
