@@ -10,12 +10,15 @@ from rose_server._inference import (
     InferenceServer,
     InputTokensCountedEvent,
     TokenEvent,
+    ToolCallArgumentEvent,
     ToolCallEvent,
+    ToolCallStartEvent,
 )
 from rose_server.events.event_types import (
     ResponseCompleted,
     ResponseStarted,
     TokenGenerated,
+    ToolCallArgument,
     ToolCallCompleted,
     ToolCallStarted,
 )
@@ -98,16 +101,25 @@ class EventGenerator:
                 )
                 return [token_event]
 
-            case ToolCallEvent():
-                # Emit start event first
+            case ToolCallStartEvent():
                 start_event = ToolCallStarted(
                     response_id=response_id,
                     model_name=self.model_name,
                     call_id=ev.call_id,
                     function_name=ev.name,
                 )
+                return [start_event]
 
-                # Then complete event with full arguments
+            case ToolCallArgumentEvent():
+                arg_event = ToolCallArgument(
+                    response_id=response_id,
+                    model_name=self.model_name,
+                    call_id=ev.call_id,
+                    argument_delta=ev.argument_delta,
+                )
+                return [arg_event]
+
+            case ToolCallEvent():
                 complete_event = ToolCallCompleted(
                     response_id=response_id,
                     model_name=self.model_name,
@@ -115,7 +127,7 @@ class EventGenerator:
                     function_name=ev.name,
                     arguments=ev.arguments,
                 )
-                return [start_event, complete_event]
+                return [complete_event]
 
             case CompleteEvent():
                 return [
