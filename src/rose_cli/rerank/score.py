@@ -33,7 +33,7 @@ def score(
 
     try:
         response = client._client.post(
-            "rerank",
+            "/rerank",
             json=payload,
             headers=headers,
         )
