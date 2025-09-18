@@ -48,3 +48,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build]
 packages = ["src/rose_server"]
+
+[tool.maturin]
+bindings = "pyo3"
+module-name = "rose_server._inference"
+manifest-path = "../rose-inference-rs/Cargo.toml"
+python-source = "src"

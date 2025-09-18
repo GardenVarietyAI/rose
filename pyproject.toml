@@ -23,6 +23,11 @@ dev-dependencies = [
     "maturin~=1.9.3",
 ]
 
+[tool.pytest.ini_options]
+pythonpath = ["packages/rose-server/src", "packages/rose-cli/src", "packages/rose-trainer/src", "packages/rose-utils/src"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
 [tool.uv.sources]
 rose-server = { workspace = true }
 rose-cli = { workspace = true }
