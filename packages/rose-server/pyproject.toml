@@ -43,11 +43,8 @@ dependencies = [
 rose-server = "rose_server.main:main"
 
 [build-system]
-requires = ["hatchling", "maturin>=1.9.0"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build]
-packages = ["src/rose_server"]
+requires = ["maturin>=1.9.0"]
+build-backend = "maturin"
 
 [tool.maturin]
 bindings = "pyo3"
