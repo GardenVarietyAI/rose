@@ -4,7 +4,7 @@ services:
 
   rose-api:
     build: .
-    command: ["uv", "run", "rose-server"]
+    command: ["rose-server"]
     ports:
       - "8004:8004"
     environment:
@@ -22,7 +22,7 @@ services:
 
   rose-trainer:
     build: .
-    command: ["uv", "run", "rose-trainer"]
+    command: ["rose-trainer"]
     environment:
       - ROSE_SERVER_URL=http://rose-api:8004
       - ROSE_API_KEY=${ROSE_API_KEY:-docker-dev-key-123456}
