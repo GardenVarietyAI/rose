@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 def score(query: str, response: str, session: InferenceSession, tokenizer: Tokenizer, max_length: int = 512) -> float:
-    # MS-Marco expects [CLS] query [SEP] document [SEP]
+    # Jina XLM-RoBERTa expects [CLS] query [SEP] document [SEP]
     encoding = tokenizer.encode(query, response)
 
     if len(encoding.ids) > max_length:
