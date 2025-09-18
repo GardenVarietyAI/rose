@@ -1,0 +1,52 @@
+[package]
+name = "rose_inference_rs"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "rose_inference_rs"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+python = ["pyo3/extension-module", "pyo3-async-runtimes/tokio-runtime"]
+cuda = ["candle-core/cuda", "candle-lora/cuda"]
+metal = [
+  "candle-core/metal",
+  "candle-nn/metal",
+  "candle-transformers/metal",
+  "candle-lora/metal",
+]
+mkl = ["candle-core/mkl", "candle-lora/mkl"]
+accelerate = ["candle-core/accelerate", "candle-lora/accelerate"]
+
+[dependencies]
+pyo3 = { version = "0.26.0", features = ["extension-module"] }
+pyo3-async-runtimes = { version = "0.26.0", features = ["tokio-runtime"] }
+pythonize = "0.26"
+tokio = { version = "1.47", features = ["rt-multi-thread", "macros", "sync"] }
+candle-core = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "73e68512d44550ae321001eae99d26d3889b469b", default-features = false }
+candle-nn = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "73e68512d44550ae321001eae99d26d3889b469b" }
+candle-transformers = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "73e68512d44550ae321001eae99d26d3889b469b" }
+candle-lora = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "73e68512d44550ae321001eae99d26d3889b469b" }
+tokenizers = { version = "0.21", features = ["http"] }
+safetensors = "0.4"
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+uuid = { version = "1", features = ["v4"] }
+
+[profile.dev]
+incremental = true
+debug = 1
+opt-level = 1
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+incremental = false
