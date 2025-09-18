@@ -37,7 +37,6 @@ dependencies = [
     "jinja2>=3.1.6",
     "safetensors>=0.6.2",
     "onnxruntime>=1.21.0",
-    "rose-inference-rs @ file:///${PROJECT_ROOT}/packages/rose-inference-rs",
 ]
 
 [project.scripts]
