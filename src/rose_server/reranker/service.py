@@ -47,8 +47,40 @@ def score_batch(
     if len(queries) != len(responses):
         raise ValueError("Queries and responses must have same length")
 
-    scores = []
-    for query, response in zip(queries, responses):
-        scores.append(score(query, response, session, tokenizer, max_length))
+    if len(queries) == 0:
+        return []
 
+    # Encode all pairs
+    encodings = []
+    for query, response in zip(queries, responses):
+        encoding = tokenizer.encode(query, response)
+        if len(encoding.ids) > max_length:
+            encoding.truncate(max_length)
+        encodings.append(encoding)
+
+    # Find max length for padding
+    max_len = max(len(enc.ids) for enc in encodings)
+
+    # Create batched arrays with padding
+    batch_size = len(encodings)
+    input_ids = np.zeros((batch_size, max_len), dtype=np.int64)
+    attention_mask = np.zeros((batch_size, max_len), dtype=np.int64)
+
+    for i, encoding in enumerate(encodings):
+        seq_len = len(encoding.ids)
+        input_ids[i, :seq_len] = encoding.ids
+        attention_mask[i, :seq_len] = encoding.attention_mask
+
+    outputs = session.run(
+        None,
+        {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+        },
+    )
+
+    # Extract logits and apply sigmoid
+    logits = outputs[0].squeeze(axis=-1)  # Shape: [batch_size]
+    relevance_scores = 1 / (1 + np.exp(-logits))
+    scores: List[float] = relevance_scores.tolist()
     return scores
