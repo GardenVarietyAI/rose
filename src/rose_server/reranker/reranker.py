@@ -21,7 +21,8 @@ def get_reranker_session() -> InferenceSession:
     options.inter_op_num_threads = 4
     options.intra_op_num_threads = 4
 
-    session = InferenceSession(str(model_file), options, providers=["CPUExecutionProvider"])
+    providers = ["CoreMLExecutionProvider", "CPUExecutionProvider"]
+    session = InferenceSession(str(model_file), options, providers=providers)
     logger.info(f"Loaded ONNX reranker from {model_file}")
     return session
 
