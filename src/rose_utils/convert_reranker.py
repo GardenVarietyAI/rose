@@ -1,60 +1,76 @@
+import json
 from pathlib import Path
 
+import torch
 import typer
-from optimum.onnxruntime import ORTModelForSequenceClassification
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from transformers import AutoConfig, AutoTokenizer
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 console = Console()
 
 
 def convert_reranker(
     model_path: Path = typer.Argument(..., help="Path to reranker model"),
-    output_path: Path = typer.Argument(..., help="Output directory for ONNX model"),
+    output_path: Path = typer.Argument(None, help="Output directory for ONNX model (defaults to {model_path}-ONNX)"),
 ) -> None:
     if not model_path.exists():
-        console.print(f"[red]Model path does not exist: {model_path}[/red]")
+        console.print(f"[red]Model not found at {model_path}[/red]")
         raise typer.Exit(1)
+
+    if output_path is None:
+        output_path = Path(f"{model_path}-ONNX")
 
     output_path.mkdir(parents=True, exist_ok=True)
 
-    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console) as progress:
-        task = progress.add_task("Loading model configuration...", total=None)
+    console.print(f"[cyan]Loading model from {model_path}[/cyan]")
 
-        try:
-            config = AutoConfig.from_pretrained(model_path)
-            console.print(f"[green]Loaded model config from {model_path}[/green]")
-            console.print(f"[cyan]Model type: {config.model_type}[/cyan]")
-        except Exception as e:
-            console.print(f"[red]Failed to load model config: {e}[/red]")
-            raise typer.Exit(1)
+    model = AutoModelForSequenceClassification.from_pretrained(str(model_path), torch_dtype=torch.float32)
+    tokenizer = AutoTokenizer.from_pretrained(str(model_path))
+    model.eval()
 
-        progress.update(task, description="Loading tokenizer...")
+    console.print("[green]Model loaded[/green]")
 
-        tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-        console.print(f"[green]Loaded tokenizer with {len(tokenizer)} tokens[/green]")
+    # Create dummy input
+    dummy_texts = ["query", "document"]
+    inputs = tokenizer(dummy_texts, padding=True, truncation=True, max_length=512, return_tensors="pt")
 
-        progress.update(task, description="Converting to ONNX (this may take a few minutes)...")
+    # Export to ONNX
+    onnx_path = output_path / "model.onnx"
 
-        try:
-            ort_model = ORTModelForSequenceClassification.from_pretrained(
-                model_path,
-                export=True,
-                trust_remote_code=True,
-            )
-            ort_model.save_pretrained(output_path)
-            tokenizer.save_pretrained(output_path)
-            console.print("[green]Converted model to ONNX format[/green]")
-        except Exception as e:
-            console.print(f"[red]Failed to convert to ONNX: {e}[/red]")
-            raise typer.Exit(1)
+    console.print("[cyan]Exporting to ONNX...[/cyan]")
+    with torch.no_grad():
+        torch.onnx.export(
+            model,
+            (inputs.input_ids, inputs.attention_mask),
+            str(onnx_path),
+            input_names=["input_ids", "attention_mask"],
+            output_names=["logits"],
+            dynamic_axes={
+                "input_ids": {0: "batch_size", 1: "sequence"},
+                "attention_mask": {0: "batch_size", 1: "sequence"},
+                "logits": {0: "batch_size"},
+            },
+            opset_version=14,
+            do_constant_folding=True,
+            export_params=True,
+        )
 
-        progress.remove_task(task)
+    console.print(f"[green]Exported to {onnx_path}[/green]")
 
-    console.print("[green]Reranker model converted successfully[/green]")
-    console.print(f"[cyan]Output directory: {output_path}[/cyan]")
+    # Save tokenizer and config
+    tokenizer.save_pretrained(output_path)
+    model.config.save_pretrained(output_path)
 
+    # Save metadata
+    metadata = {
+        "model_type": "ms_marco_minilm",
+        "architecture": "cross_encoder",
+        "num_labels": 1,
+        "max_length": 512,
+    }
 
-if __name__ == "__main__":
-    typer.run(convert_reranker)
+    with open(output_path / "reranker_metadata.json", "w") as f:
+        json.dump(metadata, f, indent=2)
+
+    console.print("[green]Conversion complete![/green]")
+    console.print(f"[cyan]Output: {output_path}[/cyan]")
