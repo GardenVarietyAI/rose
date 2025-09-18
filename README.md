@@ -35,7 +35,14 @@ cd rose
 # Install deps
 mise install
 mise exec -- uv venv
-uv pip install --group cli --group trainer --group utils
+
+# Install all workspace packages and dependencies
+uv sync
+
+# Or install specific packages:
+uv sync --package rose-server
+uv sync --package rose-cli
+uv sync --no-dev
 ```
 
 ### Initialize Database
