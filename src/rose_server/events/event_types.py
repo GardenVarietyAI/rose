@@ -94,6 +94,16 @@ class ToolCallStarted(LLMEvent):
     arguments_so_far: str = Field(default="", description="Partial arguments parsed so far")
 
 
+class ToolCallArgument(LLMEvent):
+    """Fired for incremental tool call argument streaming.
+
+    Streams partial JSON arguments as they're generated.
+    """
+
+    call_id: str = Field(..., description="ID of the tool call")
+    argument_delta: str = Field(..., description="Incremental argument text")
+
+
 class ToolCallCompleted(LLMEvent):
     """Fired when a tool/function call is fully parsed.
 

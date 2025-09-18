@@ -17,6 +17,7 @@ from rose_server.events.event_types import (
     ResponseCompleted,
     ResponseStarted,
     TokenGenerated,
+    ToolCallArgument,
     ToolCallCompleted,
     ToolCallStarted,
 )
@@ -81,6 +82,26 @@ class ChatCompletionsFormatter:
                                     function=ChoiceDeltaToolCallFunction(
                                         name=event.function_name,
                                         arguments="",
+                                    ),
+                                )
+                            ]
+                        ),
+                        finish_reason=None,
+                    )
+                ],
+            )
+        elif isinstance(event, ToolCallArgument):
+            return ChatCompletionChunk(
+                **self._get_base_chunk_dict(),
+                choices=[
+                    Choice(
+                        index=0,
+                        delta=ChoiceDelta(
+                            tool_calls=[
+                                ChoiceDeltaToolCall(
+                                    index=0,
+                                    function=ChoiceDeltaToolCallFunction(
+                                        arguments=event.argument_delta,
                                     ),
                                 )
                             ]

@@ -199,6 +199,24 @@ pub struct ToolCallEvent {
 
 #[pyclass]
 #[derive(Clone, Debug)]
+pub struct ToolCallStartEvent {
+    #[pyo3(get)]
+    pub name: String,
+    #[pyo3(get)]
+    pub call_id: String,
+}
+
+#[pyclass]
+#[derive(Clone, Debug)]
+pub struct ToolCallArgumentEvent {
+    #[pyo3(get)]
+    pub call_id: String,
+    #[pyo3(get)]
+    pub argument_delta: String,
+}
+
+#[pyclass]
+#[derive(Clone, Debug)]
 pub struct ErrorEvent {
     #[pyo3(get)]
     pub error: String,
@@ -217,6 +235,14 @@ pub enum InferenceResponse {
         logprob: Option<f32>,
         #[serde(skip_serializing_if = "Option::is_none")]
         top_logprobs: Option<Vec<TopLogProb>>,
+    },
+    ToolCallStart {
+        name: String,
+        call_id: String,
+    },
+    ToolCallArgument {
+        call_id: String,
+        argument_delta: String,
     },
     ToolCall {
         name: String,

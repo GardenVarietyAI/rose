@@ -18,7 +18,7 @@ use crate::device::DeviceConfig;
 use crate::models::{CausalLM, ModelKind};
 use crate::types::{
     CompleteEvent, ErrorEvent, GenerationKwargs, InferenceResponse, InputTokensCountedEvent,
-    Message, TokenEvent, ToolCallEvent, TopLogProb,
+    Message, TokenEvent, ToolCallArgumentEvent, ToolCallEvent, ToolCallStartEvent, TopLogProb,
 };
 
 #[pymodule]
@@ -40,6 +40,8 @@ fn _inference(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Message>()?;
     m.add_class::<GenerationKwargs>()?;
     m.add_class::<TokenEvent>()?;
+    m.add_class::<ToolCallStartEvent>()?;
+    m.add_class::<ToolCallArgumentEvent>()?;
     m.add_class::<ToolCallEvent>()?;
     m.add_class::<CompleteEvent>()?;
     m.add_class::<InputTokensCountedEvent>()?;
@@ -354,6 +356,28 @@ fn convert_to_python_event(py: Python, response: &InferenceResponse) -> Py<PyAny
                     position: *position,
                     logprob: *logprob,
                     top_logprobs: converted_top_logprobs,
+                },
+            )
+            .unwrap()
+            .into_any()
+        }
+        InferenceResponse::ToolCallStart { name, call_id } => {
+            Py::new(
+                py,
+                ToolCallStartEvent {
+                    name: name.clone(),
+                    call_id: call_id.clone(),
+                },
+            )
+            .unwrap()
+            .into_any()
+        }
+        InferenceResponse::ToolCallArgument { call_id, argument_delta } => {
+            Py::new(
+                py,
+                ToolCallArgumentEvent {
+                    call_id: call_id.clone(),
+                    argument_delta: argument_delta.clone(),
                 },
             )
             .unwrap()
