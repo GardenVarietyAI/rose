@@ -17,6 +17,7 @@ from rose_server.events.event_types import (
     ResponseStarted,
     TokenGenerated,
     ToolCallCompleted,
+    ToolCallStarted,
 )
 from rose_server.events.service import (
     build_rust_messages,
@@ -98,14 +99,23 @@ class EventGenerator:
                 return [token_event]
 
             case ToolCallEvent():
-                tool_event = ToolCallCompleted(
+                # Emit start event first
+                start_event = ToolCallStarted(
+                    response_id=response_id,
+                    model_name=self.model_name,
+                    call_id=ev.call_id,
+                    function_name=ev.name,
+                )
+
+                # Then complete event with full arguments
+                complete_event = ToolCallCompleted(
                     response_id=response_id,
                     model_name=self.model_name,
                     call_id=ev.call_id,
                     function_name=ev.name,
                     arguments=ev.arguments,
                 )
-                return [tool_event]
+                return [start_event, complete_event]
 
             case CompleteEvent():
                 return [
