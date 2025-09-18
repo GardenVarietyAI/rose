@@ -21,7 +21,9 @@ services:
       retries: 3
 
   rose-trainer:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.trainer
     command: ["rose-trainer"]
     environment:
       - ROSE_SERVER_URL=http://rose-api:8004
