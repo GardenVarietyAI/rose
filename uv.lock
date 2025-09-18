@@ -2166,7 +2166,6 @@ dependencies = [
     { name = "aiofiles" },
     { name = "aiosqlite" },
     { name = "chonkie", extra = ["tokenizers"] },
-    { name = "cohere" },
     { name = "fastapi" },
     { name = "fastembed-qwen3" },
     { name = "greenlet" },
@@ -2189,6 +2188,7 @@ dependencies = [
 
 [package.dev-dependencies]
 cli = [
+    { name = "cohere" },
     { name = "httpx" },
     { name = "rich" },
     { name = "typer" },
@@ -2235,7 +2235,6 @@ requires-dist = [
     { name = "aiofiles", specifier = ">=24.1.0" },
     { name = "aiosqlite", specifier = ">=0.21.0" },
     { name = "chonkie", extras = ["tokenizers"], specifier = "~=1.1.2" },
-    { name = "cohere", specifier = ">=5.18.0" },
     { name = "fastapi", specifier = ">=0.110.0" },
     { name = "fastembed-qwen3", specifier = ">=0.7.3.post3" },
     { name = "greenlet", specifier = ">=3.2.2" },
@@ -2258,6 +2257,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 cli = [
+    { name = "cohere", specifier = ">=5.18.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "rich", specifier = ">=13.7.1" },
     { name = "typer", specifier = ">=0.16.0" },
