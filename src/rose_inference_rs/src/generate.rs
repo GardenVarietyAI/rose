@@ -83,6 +83,9 @@ pub async fn stream(
     let mut in_tool_call = false;
     let mut tool_call_tokens: Vec<u32> = Vec::new();
     let mut consecutive_tool_starts = 0;
+    let mut tool_call_id: Option<String> = None;
+    let mut tool_call_name: Option<String> = None;
+    let mut last_streamed_arg_len = 0;
 
     let mut single_token_buf = vec![0u32; 1];
 
@@ -146,6 +149,9 @@ pub async fn stream(
 
             in_tool_call = true;
             tool_call_tokens.clear();
+            tool_call_id = Some(format!("call_{}", uuid::Uuid::new_v4().simple().to_string().chars().take(8).collect::<String>()));
+            tool_call_name = None;
+            last_streamed_arg_len = 0;
             // Set next token before continuing
             next_token = Some(sampled_token);
             continue;
@@ -199,6 +205,44 @@ pub async fn stream(
             // Collect tokens for tool call
             tool_call_tokens.push(sampled_token);
             consecutive_tool_starts = 0;  // Reset counter when we get non-tool_call tokens
+
+            // Try to parse current tokens to stream arguments
+            let current_json = tokenizer
+                .decode(&tool_call_tokens, false)
+                .unwrap_or_default();
+
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&current_json) {
+                // Extract function name if we haven't yet
+                if tool_call_name.is_none() {
+                    if let Some(name) = json_value.get("name").and_then(|v| v.as_str()) {
+                        tool_call_name = Some(name.to_string());
+
+                        // Emit tool call start event
+                        let start_msg = InferenceResponse::ToolCallStart {
+                            name: name.to_string(),
+                            call_id: tool_call_id.clone().unwrap_or_else(|| "call_unknown".to_string()),
+                        };
+                        let _ = stream_tx.send(start_msg).await;
+                    }
+                }
+
+                // Stream incremental arguments
+                if let Some(args) = json_value.get("arguments") {
+                    let args_str = serde_json::to_string(args).unwrap_or_default();
+                    if args_str.len() > last_streamed_arg_len {
+                        let delta = &args_str[last_streamed_arg_len..];
+                        if !delta.is_empty() {
+                            let arg_msg = InferenceResponse::ToolCallArgument {
+                                call_id: tool_call_id.clone().unwrap_or_else(|| "call_unknown".to_string()),
+                                argument_delta: delta.to_string(),
+                            };
+                            let _ = stream_tx.send(arg_msg).await;
+                            last_streamed_arg_len = args_str.len();
+                        }
+                    }
+                }
+            }
+
             // Set next token and continue collecting tool call content
             next_token = Some(sampled_token);
             continue;
