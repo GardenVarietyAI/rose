@@ -47,11 +47,10 @@ echo -e "\n---\n"
 
 # Test with different models (if available)
 echo -e "${YELLOW}6. Testing with Different Models${NC}"
-echo -e "${GREEN}Testing file-reader with Qwen--Qwen2.5-1.5B-Instruct model:${NC}"
-uv run rose actors file-reader --model Qwen--Qwen2.5-1.5B-Instruct "List files in the current directory"
+echo -e "${GREEN}Testing file-reader with Qwen--Qwen3-1.7B-GGUF model:${NC}"
+uv run rose actors file-reader --model Qwen--Qwen3-1.7B-GGUF "List files in the current directory"
 echo -e "\n---\n"
 
 echo -e "${BLUE}=== Test Suite Complete ===${NC}"
 echo -e "${GREEN}Note:${NC} Function calling accuracy depends on the model's capabilities."
-echo -e "Models like qwen2.5-0.5b may struggle with tool usage."
 echo -e "Consider using models specifically trained for function calling."

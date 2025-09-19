@@ -22,7 +22,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: List[ChatMessage] = Field(description="Chat messages in the conversation")
-    model: str = Field(default="Qwen--Qwen2.5-1.5B-Instruct", description="Model to use for generation")
+    model: str = Field(default="Qwen--Qwen3-4B-GGUF", description="Model to use for generation")
     mode: Optional[str] = Field(default=None, description="Deprecated: Use model instead")
     temperature: Optional[float] = Field(default=0.7, description="Sampling temperature")
     max_tokens: Optional[int] = Field(default=None, description="Maximum tokens to generate")
