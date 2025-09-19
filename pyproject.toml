@@ -1,170 +1,35 @@
-[project]
-name = "rose_server"
-version = "0.1.3"
-description = "ROSE - Run your own LLM server"
-readme = "README.md"
-requires-python = ">=3.12,<4.0"
-authors = [{ name = "Garden Variety AI" }]
-license = { text = "MIT" }
-keywords = ["llm", "ai", "openai", "inference", "server"]
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Rust",
-]
-dependencies = [
-  "fastapi>=0.110.0",
-  "uvicorn>=0.27.1",
-  "pydantic~=2.11.7",
-  "numpy>=1.26.4",
-  "fastembed-qwen3>=0.7.3.post3",
-  "pydantic-settings>=2.9.1",
-  "openai>=1.88.0",
-  "openai-agents>=0.0.19",
-  "sqlalchemy>=2.0.0",
-  "sqlmodel>=0.0.24",
-  "sse-starlette>=2.1.3",
-  "aiosqlite>=0.21.0",
-  "greenlet>=3.2.2",
-  "aiofiles>=24.1.0",
-  "python-multipart>=0.0.18",
-  "tokenizers>=0.21.2",
-  "sqlite-vec>=0.1.6",
-  "chonkie[tokenizers]~=1.1.2",
-  "pypdf>=6.0.0",
-  "jinja2>=3.1.6",
-  "safetensors>=0.6.2",
-]
+# Workspace root configuration - not a package itself
 
-[project.urls]
-Homepage = "https://github.com/GardenVarietyAI/rose"
-Repository = "https://github.com/GardenVarietyAI/rose.git"
-Issues = "https://github.com/GardenVarietyAI/rose/issues"
-
-[dependency-groups]
-cli = [
-  "typer>=0.16.0",
-  "rich>=13.7.1",
-  "httpx>=0.28.1",
-  "cohere>=5.18.0",
+[tool.uv.workspace]
+members = [
+    "packages/rose-server",
+    "packages/rose-cli",
+    "packages/rose-trainer",
+    "packages/rose-utils",
 ]
-utils = [
-  "typer>=0.16.0",
-  "rich>=13.7.1",
-  "sentence-transformers>=2.7.0",
-  "transformers>=4.51.2",
-  "torch>=2.7.0",
-  "onnx>=1.16.0",
-  "optimum[onnxruntime]>=1.23.1",
-]
-trainer = [
-  "apscheduler>=3.10.4",
-  "torch>=2.7.0",
-  "transformers>=4.51.2",
-  "peft>=0.15.2",
-  "accelerate>=1.7.0",
-  "datasets>=3.3.0",
-  "evaluate>=0.4.5",
-  "tokenizers>=0.21.2",
-  "psutil>=7.0.0",
-]
-nvidia = ["nvidia-ml-py>=12.560.30"]
-
-[project.scripts]
-rose = "rose_cli.main:main"
-rose-server = "rose_server.main:main"
-rose-trainer = "rose_trainer.scheduler:main"
-rose-trainer-worker = "rose_trainer.worker:main"
-rose-utils = "rose_utils.main:main"
-
-[tool.setuptools.packages.find]
-where = ["src"]
 
 [tool.uv]
 dev-dependencies = [
-  "ruff>=0.11.11",
-  "pre-commit>=4.2.0",
-  "mypy>=1.13.0",
-  "types-aiofiles>=24.1.0.20250606",
-  "types-psutil>=7.0.0.20250601",
-  "sqlalchemy[mypy]>=2.0.0",
-  "pytest>=8.3.5",
-  "pytest-cov>=6.0.0",
-  "pytest-asyncio>=0.26.0",
-  "httpx>=0.28.1",
-  "maturin~=1.9.3"
+    "ruff>=0.11.11",
+    "pre-commit>=4.2.0",
+    "mypy>=1.13.0",
+    "types-aiofiles>=24.1.0.20250606",
+    "types-psutil>=7.0.0.20250601",
+    "sqlalchemy[mypy]>=2.0.0",
+    "pytest>=8.3.5",
+    "pytest-cov>=6.0.0",
+    "pytest-asyncio>=0.26.0",
+    "httpx>=0.28.1",
+    "maturin~=1.9.3",
 ]
-
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
+pythonpath = ["packages/rose-server/src", "packages/rose-cli/src", "packages/rose-trainer/src", "packages/rose-utils/src"]
 testpaths = ["tests"]
-python_files = ["test_*.py"]
-addopts = "-v --cov=src/rose_server --cov-report=term-missing"
+asyncio_mode = "auto"
 
-[tool.ruff]
-line-length = 120
-target-version = "py313"
-fix = true
-
-[tool.ruff.format]
-quote-style = "double"
-indent-style = "space"
-skip-magic-trailing-comma = false
-line-ending = "auto"
-
-[tool.ruff.lint]
-select = ["E", "F", "I"]
-fixable = ["ALL"]
-unfixable = []
-
-[tool.ruff.lint.isort]
-force-single-line = false
-force-wrap-aliases = true
-combine-as-imports = true
-
-[tool.mypy]
-python_version = "3.12"
-plugins = ["sqlalchemy.ext.mypy.plugin"]
-ignore_missing_imports = true
-strict = true
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_decorators = true
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-warn_unreachable = true
-strict_equality = true
-
-[[tool.mypy.overrides]]
-module = [
-    "transformers.*",
-    "sentencepiece.*",
-    "peft.*",
-    "accelerate.*",
-    "datasets.*",
-    "sse_starlette.*",
-    "apscheduler.*",
-    "fastembed.*",
-    "nvidia_ml_py.*",
-]
-ignore_errors = true
-
-[build-system]
-requires = ["maturin>=1.6,<2"]
-build-backend = "maturin"
-
-[tool.maturin]
-bindings = "pyo3"
-module-name = "rose_server._inference"
-manifest-path = "src/rose_inference_rs/Cargo.toml"
-python-source = "src"
+[tool.uv.sources]
+rose-server = { workspace = true }
+rose-cli = { workspace = true }
+rose-trainer = { workspace = true }
+rose-utils = { workspace = true }

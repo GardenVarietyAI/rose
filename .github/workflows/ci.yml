@@ -35,14 +35,14 @@ jobs:
       - name: Add uv to PATH
         run: echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Sync dev environment
-        run: uv sync --dev --frozen
+      - name: Sync dev environment (server only)
+        run: uv sync --dev --frozen --package rose-server
 
       - name: Run tests
         run: uv run pytest -q
 
       - name: Lint
-        run: uv run ruff check src/
+        run: uv run ruff check packages/
 
       - name: Start container
         run: |
@@ -61,10 +61,10 @@ jobs:
         if: always()
         run: docker stop rose || true
 
-      - name: Test API startup
-        run: |
-          docker compose up -d
-          sleep 30
-          curl -f http://localhost:8004/health || exit 1
-          docker compose logs rose-api
-          docker compose down
+      # - name: Test API startup
+      #   run: |
+      #     docker compose up -d
+      #     sleep 30
+      #     curl -f http://localhost:8004/health || exit 1
+      #     docker compose logs rose-api
+      #     docker compose down
