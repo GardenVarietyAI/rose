@@ -20,7 +20,8 @@ WORKDIR /app
 COPY . .
 
 ENV PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu
-RUN uv pip install --system --prerelease=allow ./packages/rose-server
+RUN uv pip install --system --prerelease=allow ./packages/rose-server && \
+    rm -rf packages/rose-inference-rs/target /tmp/* /root/.cache
 
 EXPOSE 8004
 ENV ROSE_SERVER_HOST=0.0.0.0

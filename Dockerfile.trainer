@@ -17,6 +17,7 @@ WORKDIR /app
 COPY . .
 
 ENV PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu
-RUN uv pip install --system --prerelease=allow ./packages/rose-trainer
+RUN uv pip install --system --prerelease=allow ./packages/rose-trainer && \
+    rm -rf /tmp/* /root/.cache
 
 CMD ["rose-trainer"]

@@ -35,8 +35,12 @@ data/
 target/
 */target/
 **/target/
+packages/rose-inference-rs/target/
+candle/target/
 *.so
 *.dylib
+*.rlib
+Cargo.lock
 
 # Logs
 *.log
