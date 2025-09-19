@@ -1,6 +1,5 @@
 import typer
-
-from .actor import ModelManagerActor
+from rose_cli.actors.model_manager.actor import ModelManagerActor
 
 
 def model_manager(

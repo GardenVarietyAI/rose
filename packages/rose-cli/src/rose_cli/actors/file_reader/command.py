@@ -1,6 +1,5 @@
 import typer
 from rich import print
-
 from rose_cli.actors.file_reader.actor import FileReaderActor
 
 

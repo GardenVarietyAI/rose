@@ -9,7 +9,6 @@ from agents import (
     set_tracing_disabled,
 )
 from jinja2 import Environment, FileSystemLoader
-
 from rose_cli.tools.functions import list_files, read_file
 from rose_cli.utils import get_async_client
 

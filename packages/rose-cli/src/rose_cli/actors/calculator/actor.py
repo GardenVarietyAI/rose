@@ -7,7 +7,6 @@ from agents import (
     set_default_openai_client,
     set_tracing_disabled,
 )
-
 from rose_cli.utils import get_async_client
 
 
