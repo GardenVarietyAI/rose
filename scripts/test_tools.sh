@@ -26,12 +26,12 @@ echo -e "\n---\n"
 
 # Test list_files tool
 echo -e "${YELLOW}Testing list_files tool:${NC}"
-uv run rose actors file-reader "What files are in src/rose_cli/actors/"
+uv run rose actors file-reader "What files are in packages/rose-cli/src/rose_cli/actors/"
 echo -e "\n---\n"
 
 # Test analyze_code_metrics tool
 echo -e "${YELLOW}Testing analyze_code_metrics tool:${NC}"
-uv run rose actors code-reviewer "Analyze the complexity of src/rose_cli/models/download.py"
+uv run rose actors code-reviewer "Analyze the complexity of packages/rose-cli/src/rose_cli/models/download.py"
 echo -e "\n---\n"
 
 # Test write_file tool (if model supports it)
