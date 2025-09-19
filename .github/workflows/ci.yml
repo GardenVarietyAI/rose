@@ -41,8 +41,8 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Sync dev environment
-        run: uv sync --dev --frozen
+      - name: Sync dev environment (server only)
+        run: uv sync --dev --frozen --package rose-server
 
       - name: Build Rust extension
         run: cd packages/rose-server && uv run maturin develop --release
