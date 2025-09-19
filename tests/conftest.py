@@ -2,12 +2,11 @@
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlmodel import SQLModel
-
 from rose_server import database
 from rose_server.app import create_app
 from rose_server.connect import _VecConnection
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlmodel import SQLModel
 
 # Create in-memory engine for testing with sqlite-vec support
 test_engine = create_async_engine(
