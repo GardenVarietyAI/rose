@@ -23,7 +23,7 @@ echo -e "\n---\n"
 
 # Test File Reader Actor - List files
 echo -e "${YELLOW}2. Testing File Reader Actor - List Files${NC}"
-echo -e "${GREEN}Command:${NC} uv run rose actors file-reader \"List files in `packages/rose-cli/src/rose_cli/tools/functions/`\""
+echo -e "${GREEN}Command:${NC} uv run rose actors file-reader \"List files in packages/rose-cli/src/rose_cli/tools/functions/\""
 uv run rose actors file-reader "List files in src/rose_cli/tools/functions/"
 echo -e "\n---\n"
 
@@ -35,13 +35,13 @@ echo -e "\n---\n"
 
 # Test Code Reviewer Actor - Analyze metrics
 echo -e "${YELLOW}4. Testing Code Reviewer Actor - Analyze Metrics${NC}"
-echo -e "${GREEN}Command:${NC} uv run rose actors code-reviewer \"Analyze code metrics for packges/rose-cli/src/rose_cli/utils.py\""
+echo -e "${GREEN}Command:${NC} uv run rose actors code-reviewer \"Analyze code metrics for packages/rose-cli/src/rose_cli/utils.py\""
 uv run rose actors code-reviewer "Analyze code metrics for packages/rose-cli/src/rose_cli/utils.py"
 echo -e "\n---\n"
 
 # Test Code Reviewer Actor - Review code
 echo -e "${YELLOW}5. Testing Code Reviewer Actor - Review Code${NC}"
-echo -e "${GREEN}Command:${NC} uv run rose actors code-reviewer \"Review the code in packges/rose-cli/src/rose_cli/tools/functions/read_file.py and identify potential issues\""
+echo -e "${GREEN}Command:${NC} uv run rose actors code-reviewer \"Review the code in packages/rose-cli/src/rose_cli/tools/functions/read_file.py and identify potential issues\""
 uv run rose actors code-reviewer "Review the code in packages/rose-cli/src/rose_cli/tools/functions/read_file.py and identify potential issues"
 echo -e "\n---\n"
 
