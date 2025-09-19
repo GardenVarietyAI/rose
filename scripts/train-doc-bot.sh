@@ -5,7 +5,7 @@ set -euo pipefail
 # === Configuration ===
 TRAIN_FILE=$(mktemp /tmp/rose_aware_data.jsonl)
 EPOCHS=15
-MODEL_ID="Qwen--Qwen2.5-1.5B-Instruct"
+MODEL_ID="Qwen--Qwen3-1.7B"
 SUFFIX="rose-aware"
 LR_MULTIPLIER=2.0
 BATCH_SIZE=4

@@ -9,7 +9,6 @@ from agents import (
     set_tracing_disabled,
 )
 from jinja2 import Environment, FileSystemLoader
-
 from rose_cli.tools.functions import (
     analyze_code_metrics,
     read_file_with_context,

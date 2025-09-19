@@ -5,7 +5,7 @@ set -e
 # === Configuration ===
 TRAIN_FILE=/tmp/model_manager_diverse_data.jsonl
 EPOCHS=10
-MODEL_ID="Qwen--Qwen2.5-1.5B-Instruct"
+MODEL_ID="Qwen--Qwen3-1.7B"
 SUFFIX=diverse-model-manager
 LR_MULTIPLIER=2.0
 BATCH_SIZE=4

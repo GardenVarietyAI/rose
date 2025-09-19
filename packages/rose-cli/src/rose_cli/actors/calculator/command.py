@@ -1,12 +1,11 @@
 import typer
 from rich import print
-
 from rose_cli.actors.calculator.actor import CalculatorActor
 
 
 def calculator(
     query: str = typer.Argument(..., help="Math question or expression"),
-    model: str = typer.Option("Qwen--Qwen2.5-1.5B-Instruct", "--model", "-m", help="Model to use"),
+    model: str = typer.Option("Qwen--Qwen3-4B-GGUF", "--model", "-m", help="Model to use"),
 ) -> None:
     """Run a calculator agent to solve math problems."""
     actor = CalculatorActor(model=model)

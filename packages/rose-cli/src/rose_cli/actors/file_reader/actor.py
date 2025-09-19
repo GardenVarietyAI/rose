@@ -9,7 +9,6 @@ from agents import (
     set_tracing_disabled,
 )
 from jinja2 import Environment, FileSystemLoader
-
 from rose_cli.tools.functions import list_files, read_file
 from rose_cli.utils import get_async_client
 
@@ -23,12 +22,10 @@ class FileReaderActor:
         set_tracing_disabled(True)
         set_default_openai_api("responses")
 
-        # Load instructions from Jinja template
         template_dir = Path(__file__).parent
         env = Environment(loader=FileSystemLoader(str(template_dir)))
         template = env.get_template("instructions.jinja2")
 
-        # Prepare tool information for the template
         tools_info = [
             {"name": "read_file", "description": "Read the contents of a file"},
             {"name": "list_files", "description": "List files in a directory"},
