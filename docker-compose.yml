@@ -20,15 +20,15 @@ services:
       timeout: 10s
       retries: 3
 
-  rose-trainer:
-    build: .
-    command: ["rose-trainer"]
-    environment:
-      - ROSE_SERVER_URL=http://rose-api:8004
-      - ROSE_API_KEY=${ROSE_API_KEY:-docker-dev-key-123456}
-      - ROSE_SERVER_TRAINING_INTERVAL=30
-    volumes:
-      - ./data:/app/data
-    depends_on:
-      rose-api:
-        condition: service_healthy
+  # rose-trainer:
+  #   build: .
+  #   command: ["rose-trainer"]
+  #   environment:
+  #     - ROSE_SERVER_URL=http://rose-api:8004
+  #     - ROSE_API_KEY=${ROSE_API_KEY:-docker-dev-key-123456}
+  #     - ROSE_SERVER_TRAINING_INTERVAL=30
+  #   volumes:
+  #     - ./data:/app/data
+  #   depends_on:
+  #     rose-api:
+  #       condition: service_healthy
