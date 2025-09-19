@@ -22,12 +22,10 @@ class ModelManagerActor:
         set_tracing_disabled(True)
         set_default_openai_api("responses")
 
-        # Load instructions from Jinja template
         template_dir = Path(__file__).parent
         env = Environment(loader=FileSystemLoader(str(template_dir)))
         template = env.get_template("instructions.jinja2")
 
-        # Prepare tool information for the template
         tools_info = [
             {"name": "list_models", "description": "List all available models"},
         ]
