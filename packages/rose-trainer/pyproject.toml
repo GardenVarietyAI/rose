@@ -24,8 +24,6 @@ dependencies = [
     "evaluate>=0.4.5",
     "tokenizers>=0.21.2",
     "psutil>=7.0.0",
-    "httpx>=0.28.1",
-    "openai>=1.88.0",
 ]
 
 [project.scripts]
