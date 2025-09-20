@@ -40,7 +40,13 @@ impl Qwen3Embeddings {
 
 impl Embeddings for Qwen3Embeddings {
     fn encode(&mut self, tokens: &[u32]) -> Result<Vec<f32>> {
+        // Maximum context length for Qwen3 embeddings model
+        // Matches the model's training context window to prevent OOM errors
         const MAX_LENGTH: usize = 8192;
+
+        // Small epsilon to prevent division by zero during L2 normalization
+        const NORMALIZATION_EPSILON: f32 = 1e-12;
+
         let truncated_tokens = if tokens.len() > MAX_LENGTH {
             &tokens[..MAX_LENGTH]
         } else {
