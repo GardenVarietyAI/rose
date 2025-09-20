@@ -1,8 +1,5 @@
 """Router module for embeddings API endpoints."""
 
-import asyncio
-
-import numpy as np
 from fastapi import APIRouter, HTTPException, Request
 
 from rose_server.embeddings.service import compute_embeddings_with_tokens
@@ -13,15 +10,13 @@ router = APIRouter(prefix="/v1/embeddings")
 
 @router.post("", response_model=EmbeddingResponse)
 async def create_embeddings(req: Request, request: EmbeddingRequest) -> EmbeddingResponse:
-    if not req.app.state.embedding_model or not req.app.state.embedding_tokenizer:
+    if not req.app.state.embedding_model:
         raise HTTPException(status_code=500, detail="Embedding model not initialized")
 
     try:
-        embeddings, total_tokens = await asyncio.to_thread(
-            compute_embeddings_with_tokens,
+        embeddings, total_tokens = await compute_embeddings_with_tokens(
             request.input if isinstance(request.input, list) else [request.input],
             req.app.state.embedding_model,
-            req.app.state.embedding_tokenizer,
         )
 
         return EmbeddingResponse(
@@ -29,7 +24,7 @@ async def create_embeddings(req: Request, request: EmbeddingRequest) -> Embeddin
             data=[
                 {
                     "object": "embedding",
-                    "embedding": embedding.tolist() if isinstance(embedding, np.ndarray) else list(embedding),
+                    "embedding": list(embedding),
                     "index": i,
                 }
                 for i, embedding in enumerate(embeddings)

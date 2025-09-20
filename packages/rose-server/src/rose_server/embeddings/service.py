@@ -1,29 +1,22 @@
-from typing import Any, List, Tuple
+from typing import List
 
-import numpy as np
-from fastembed import TextEmbedding
+from rose_server._inference import EmbeddingModel
 
 
-def generate_embeddings(texts: List[str], embedding_model: TextEmbedding) -> List[np.ndarray]:
+async def generate_embeddings(texts: List[str], embedding_model: EmbeddingModel) -> List[List[float]]:
     if not texts:
         return []
 
-    return list(embedding_model.embed(texts))
+    return await embedding_model.encode_batch(texts)
 
 
-def generate_query_embedding(query: str, embedding_model: TextEmbedding) -> np.ndarray:
-    embeddings = list(embedding_model.embed([query]))
-    return embeddings[0] if embeddings else np.array([])
+async def generate_query_embedding(query: str, embedding_model: EmbeddingModel) -> List[float]:
+    return await embedding_model.encode(query)
 
 
-def compute_embeddings_with_tokens(
-    texts: List[str], model: Any, tokenizer: Any, batch_size: int = 32
-) -> Tuple[List[np.ndarray], int]:
-    all_embeddings = []
-    for i in range(0, len(texts), batch_size):
-        batch = texts[i : i + batch_size]
-        batch_embeddings = list(model.embed(batch))
-        all_embeddings.extend(batch_embeddings)
+async def compute_embeddings_with_tokens(texts: List[str], model: EmbeddingModel) -> tuple[List[List[float]], int]:
+    embeddings = await generate_embeddings(texts, model)
 
-    total_tokens = sum(len(tokenizer.encode(text).ids) for text in texts)
-    return all_embeddings, total_tokens
+    # Rough token estimate (4 chars per token)
+    total_tokens = sum(len(text) // 4 for text in texts)
+    return embeddings, total_tokens
