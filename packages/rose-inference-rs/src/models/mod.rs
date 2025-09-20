@@ -1,6 +1,7 @@
 pub mod qwen3;
 pub mod qwen3_gguf;
 pub mod qwen3_lora;
+pub mod qwen3_reranker;
 
 use anyhow::Result;
 use candle_core::{Device, Tensor};
@@ -13,11 +14,17 @@ pub trait CausalLM: Send {
     fn reset_state(&mut self);
 }
 
+pub trait Reranker: Send {
+    fn score(&mut self, query_tokens: &[u32], doc_tokens: &[u32]) -> Result<f32>;
+    fn forward(&mut self, input: &Tensor) -> Result<Tensor>;
+}
+
 #[derive(Debug)]
 pub enum ModelKind {
     Qwen3,
     Qwen3Gguf,
     Qwen3Lora,
+    Qwen3RerankerGguf,
 }
 
 impl ModelKind {
@@ -26,6 +33,7 @@ impl ModelKind {
             "qwen3" => Ok(Self::Qwen3),
             "qwen3_gguf" => Ok(Self::Qwen3Gguf),
             "qwen3_lora" => Ok(Self::Qwen3Lora),
+            "qwen3_reranker" | "qwen3_reranker_gguf" => Ok(Self::Qwen3RerankerGguf),
             _ => Err(anyhow::anyhow!("Unsupported model kind: {}", s)),
         }
     }
@@ -58,5 +66,14 @@ pub fn load_causal_lm_with_lora(
             lora_adapter_path,
             device,
         )?)),
+        ModelKind::Qwen3RerankerGguf => {
+            Err(anyhow::anyhow!("Use load_reranker for reranker models"))
+        }
     }
+}
+
+pub fn load_reranker(model_path: &str, device: &Device) -> Result<Box<dyn Reranker>> {
+    Ok(Box::new(qwen3_reranker::Qwen3Reranker::load(
+        model_path, device,
+    )?))
 }
