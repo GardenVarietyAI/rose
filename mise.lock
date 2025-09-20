@@ -7,6 +7,15 @@ checksum = "blake3:15e92e6f82afabf72ef0c13126d28d0c5bd9a5b9f741bbdb43540b8b28710
 size = 29838578
 url = "https://github.com/amacneil/dbmate/releases/download/v2.22.0/dbmate-macos-arm64"
 
+[tools.node]
+version = "22.19.0"
+backend = "core:node"
+
+[tools.node.platforms.macos-arm64]
+checksum = "sha256:c59006db713c770d6ec63ae16cb3edc11f49ee093b5c415d667bb4f436c6526d"
+size = 47739366
+url = "https://nodejs.org/dist/v22.19.0/node-v22.19.0-darwin-arm64.tar.gz"
+
 [tools.python]
 version = "3.12.11"
 backend = "core:python"

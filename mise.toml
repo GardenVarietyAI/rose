@@ -5,6 +5,10 @@ uv = "0.8.3"
 dbmate = "2.22.0"
 "ubi:benbjohnson/litestream" = "0.3.13"
 sqlite = "3.50.4"
+node = "22.19.0"
+
+[env]
+MISE_NODE_COREPACK = "1"
 
 [tasks]
 backup = "litestream replicate -config ./litestream.yml"
@@ -15,5 +19,6 @@ build = "cd packages/rose-server && uv run maturin build --release"
 test-metal = "uv run python -c 'from rose_server._inference import InferenceServer; s = InferenceServer(device=\"metal\"); print(\"Metal OK\")'"
 test-cpu = "uv run python -c 'from rose_server._inference import InferenceServer; s = InferenceServer(device=\"cpu\"); print(\"CPU OK\")'"
 migrate = "dbmate --no-dump-schema up"
+
 [settings]
 lockfile = true
