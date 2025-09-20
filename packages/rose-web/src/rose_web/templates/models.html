@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Models · ROSE Web{% endblock %}
+
+{% block content %}
+
+
+{% if model %}
+<h1>{{ model.model_name }}</h1>
+
+<ul>
+  <li>ID: {{ model.id }}</li>
+  <li>Created at {{ model.created }}</li>
+</ul>
+
+<div>
+  <button data-id="{{ model.id }}" onclick="history.back()">
+    Back
+  </button>
+
+  <button data-id="{{ model.id }}"
+    onclick="fetch('/models/' + this.dataset.id, { method: 'delete', body: { id: this.dataset.id } })">
+    Delete
+  </button>
+</div>
+{% endif %}
+
+{% if models %}
+<h1>Models</h1>
+
+<p>Listing all models. Filter by <a href="?system">system</a> and <a href="?user">user fine-tuned</a> models.</p>
+
+<table>
+  <thead>
+    <td><a href="#">ID</a></td>
+    <td><a href="#">Name</a></td>
+    <td><a href="#">Created</a></a></td>
+  </thead>
+
+  <tbody>
+    {% for model in models %}
+    <tr>
+      <td><a href="/models/{{ model.id }}">{{ model.id }}</a></td>
+      <td>{{ model.model_name }}</td>
+      <td>{{ model.created_at }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% endblock %}
