@@ -1,12 +1,12 @@
 [project]
 name = "rose-utils"
 version = "0.1.3"
-description = "ROSE Utils - Model processing utilities"
+description = "ROSE Utils - Model quantization utilities"
 readme = "README.md"
 requires-python = ">=3.12,<4.0"
 authors = [{ name = "Garden Variety AI" }]
 license = { text = "MIT" }
-keywords = ["llm", "ai", "model-conversion", "utilities"]
+keywords = ["llm", "ai", "quantization", "utilities"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -17,11 +17,7 @@ classifiers = [
 dependencies = [
     "typer>=0.16.0",
     "rich>=13.7.1",
-    "sentence-transformers>=2.7.0",
-    "transformers>=4.51.2",
-    "torch>=2.7.0",
-    "onnx>=1.16.0",
-    "optimum[onnxruntime]>=1.23.1",
+    "httpx>=0.27.0",
 ]
 
 [project.scripts]
