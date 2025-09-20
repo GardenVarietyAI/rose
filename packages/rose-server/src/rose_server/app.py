@@ -17,7 +17,7 @@ from rose_server import __version__
 from rose_server._inference import InferenceServer
 from rose_server.config.settings import settings
 from rose_server.database import check_database_setup, create_all_tables
-from rose_server.embeddings.embeddings import get_embedding_model
+from rose_server.embeddings.embeddings import get_embedding_model, get_tokenizer
 from rose_server.reranker.reranker import get_reranker_model
 from rose_server.router import router
 
@@ -63,9 +63,11 @@ async def lifespan(app: FastAPI) -> Any:
 
     try:
         app.state.embedding_model = get_embedding_model()
-        logger.info("Embeddings loaded")
+        app.state.embedding_tokenizer = get_tokenizer()
+        logger.info("Embeddings and tokenizer loaded")
     except Exception as e:
         app.state.embedding_model = None
+        app.state.embedding_tokenizer = None
         logger.warning(f"Failed to load embedding model: {e}")
 
     try:

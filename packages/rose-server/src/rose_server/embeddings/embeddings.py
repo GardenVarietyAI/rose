@@ -2,10 +2,21 @@ import logging
 from pathlib import Path
 from typing import List, Tuple
 
+from tokenizers import Tokenizer
+
 from rose_server._inference import EmbeddingModel
 from rose_server.config.settings import settings
 
 logger = logging.getLogger(__name__)
+
+
+def get_tokenizer() -> Tokenizer:
+    tokenizer_path = Path(settings.models_dir) / settings.embedding_model_name / "tokenizer.json"
+
+    if not tokenizer_path.exists():
+        raise FileNotFoundError(f"Tokenizer not found at {tokenizer_path}")
+
+    return Tokenizer.from_file(str(tokenizer_path))
 
 
 def get_embedding_model() -> EmbeddingModel:
