@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 from fastapi import APIRouter, Body, HTTPException, Request
@@ -16,18 +15,15 @@ async def rerank(
     request: RerankRequest = Body(...),
 ) -> RerankResponse:
     try:
-        if not req.app.state.reranker_session or not req.app.state.reranker_tokenizer:
+        if not hasattr(req.app.state, "reranker_model") or not req.app.state.reranker_model:
             raise HTTPException(status_code=500, detail="Reranker not initialized")
 
-        session = req.app.state.reranker_session
-        tokenizer = req.app.state.reranker_tokenizer
+        model = req.app.state.reranker_model
 
-        scores_with_indices = await asyncio.to_thread(
-            service.score_batch,
+        scores_with_indices = await service.score_batch(
             [request.query] * len(request.documents),
             request.documents,
-            session,
-            tokenizer,
+            model,
         )
 
         # Combine with indices and documents

@@ -18,7 +18,7 @@ from rose_server._inference import InferenceServer
 from rose_server.config.settings import settings
 from rose_server.database import check_database_setup, create_all_tables
 from rose_server.embeddings.embedding import get_embedding_model, get_tokenizer
-from rose_server.reranker.reranker import get_reranker_session, get_reranker_tokenizer
+from rose_server.reranker.reranker import get_reranker_model
 from rose_server.router import router
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -71,13 +71,11 @@ async def lifespan(app: FastAPI) -> Any:
         logger.warning(f"Failed to load embedding model: {e}")
 
     try:
-        app.state.reranker_session = get_reranker_session()
-        app.state.reranker_tokenizer = get_reranker_tokenizer()
-        logger.info("Reranker model loaded")
+        app.state.reranker_model = get_reranker_model()
+        logger.info("Reranker loaded")
     except Exception as e:
-        app.state.reranker_session = None
-        app.state.reranker_tokenizer = None
-        logger.warning(f"Failed to load reranker model: {e}")
+        app.state.reranker_model = None
+        logger.warning(f"Failed to load reranker: {e}")
 
     yield
 

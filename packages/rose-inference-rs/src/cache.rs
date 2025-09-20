@@ -27,6 +27,7 @@ impl CacheKey {
             ModelKind::Qwen3 => "qwen3",
             ModelKind::Qwen3Gguf => "qwen3_gguf",
             ModelKind::Qwen3Lora => "qwen3_lora",
+            ModelKind::Qwen3RerankerGguf => "qwen3_reranker_gguf",
         };
         Self {
             model_kind: model_kind_str.to_string(),

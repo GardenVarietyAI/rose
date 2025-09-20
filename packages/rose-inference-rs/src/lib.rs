@@ -10,6 +10,7 @@ mod error;
 mod generate;
 mod lora;
 mod models;
+mod reranker;
 mod tensor_pool;
 mod types;
 
@@ -47,6 +48,7 @@ fn _inference(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<InputTokensCountedEvent>()?;
     m.add_class::<ErrorEvent>()?;
     m.add_class::<TopLogProb>()?;
+    m.add_class::<reranker::RerankerModel>()?;
     Ok(())
 }
 
