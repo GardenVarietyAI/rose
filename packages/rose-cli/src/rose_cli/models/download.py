@@ -51,7 +51,7 @@ def _get_gguf_config(model_name: str) -> dict[str, str] | None:
         },
         "QuantFactory/Qwen3-Reranker-0.6B-GGUF": {
             "base_model": "Qwen/Qwen3-Reranker-0.6B",
-            "gguf_file": "Qwen3-Reranker-0.6B.Q8_0.gguff",
+            "gguf_file": "Qwen3-Reranker-0.6B.Q8_0.gguf",
             "tokenizer_file": "tokenizer.json",
         },
     }
