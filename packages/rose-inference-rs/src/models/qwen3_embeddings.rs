@@ -13,13 +13,8 @@ pub struct Qwen3Embeddings {
 
 impl Qwen3Embeddings {
     pub fn load(model_path: &str, device: &Device) -> Result<Self> {
-        let mut file = File::open(model_path).map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to open GGUF file {}: {}",
-                model_path,
-                e
-            )
-        })?;
+        let mut file = File::open(model_path)
+            .map_err(|e| anyhow::anyhow!("Failed to open GGUF file {}: {}", model_path, e))?;
 
         let content = gguf_file::Content::read(&mut file)
             .map_err(|e| anyhow::anyhow!("Failed to read GGUF content: {}", e))?;
@@ -53,11 +48,8 @@ impl Embeddings for Qwen3Embeddings {
             tokens
         };
 
-        let input_tensor = Tensor::from_slice(
-            truncated_tokens,
-            (1, truncated_tokens.len()),
-            &self.device
-        )?;
+        let input_tensor =
+            Tensor::from_slice(truncated_tokens, (1, truncated_tokens.len()), &self.device)?;
 
         let logits = self.forward(&input_tensor)?;
 
@@ -68,7 +60,12 @@ impl Embeddings for Qwen3Embeddings {
 
         let embedding_vec = last_token_embedding.to_vec1::<f32>()?;
 
-        let norm = embedding_vec.iter().map(|x| x * x).sum::<f32>().sqrt().max(1e-12);
+        let norm = embedding_vec
+            .iter()
+            .map(|x| x * x)
+            .sum::<f32>()
+            .sqrt()
+            .max(NORMALIZATION_EPSILON);
         let normalized = embedding_vec.iter().map(|x| x / norm).collect();
 
         Ok(normalized)

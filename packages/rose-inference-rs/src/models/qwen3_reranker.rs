@@ -15,13 +15,8 @@ pub struct Qwen3Reranker {
 
 impl Qwen3Reranker {
     pub fn load(model_path: &str, device: &Device) -> Result<Self> {
-        let mut file = File::open(model_path).map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to open GGUF file {}: {}",
-                model_path,
-                e
-            )
-        })?;
+        let mut file = File::open(model_path)
+            .map_err(|e| anyhow::anyhow!("Failed to open GGUF file {}: {}", model_path, e))?;
 
         let content = gguf_file::Content::read(&mut file)
             .map_err(|e| anyhow::anyhow!("Failed to read GGUF content: {}", e))?;
@@ -54,11 +49,8 @@ impl Reranker for Qwen3Reranker {
             query_tokens
         };
 
-        let input_tensor = Tensor::from_slice(
-            truncated_tokens,
-            (1, truncated_tokens.len()),
-            &self.device
-        )?;
+        let input_tensor =
+            Tensor::from_slice(truncated_tokens, (1, truncated_tokens.len()), &self.device)?;
 
         let logits = self.forward(&input_tensor)?;
 
@@ -68,8 +60,12 @@ impl Reranker for Qwen3Reranker {
         let seq_len = dims[0];
         let last_logits = logits.get(seq_len - 1)?;
 
-        let yes_logit = last_logits.get(self.yes_token_id as usize)?.to_scalar::<f32>()?;
-        let no_logit = last_logits.get(self.no_token_id as usize)?.to_scalar::<f32>()?;
+        let yes_logit = last_logits
+            .get(self.yes_token_id as usize)?
+            .to_scalar::<f32>()?;
+        let no_logit = last_logits
+            .get(self.no_token_id as usize)?
+            .to_scalar::<f32>()?;
 
         let max_logit = yes_logit.max(no_logit);
         let yes_exp = (yes_logit - max_logit).exp();

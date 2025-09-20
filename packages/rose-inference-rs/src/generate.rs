@@ -134,7 +134,11 @@ pub async fn stream(
             // Only increment if we're already in a tool call (shouldn't happen)
             if in_tool_call {
                 consecutive_tool_starts += 1;
-                tracing::warn!("Detected nested <tool_call> token ({}) - occurrence {}", sampled_token, consecutive_tool_starts);
+                tracing::warn!(
+                    "Detected nested <tool_call> token ({}) - occurrence {}",
+                    sampled_token,
+                    consecutive_tool_starts
+                );
 
                 // Break if we see too many consecutive tool call starts (model is stuck)
                 if consecutive_tool_starts > 3 {
@@ -149,7 +153,15 @@ pub async fn stream(
 
             in_tool_call = true;
             tool_call_tokens.clear();
-            tool_call_id = Some(format!("call_{}", uuid::Uuid::new_v4().simple().to_string().chars().take(8).collect::<String>()));
+            tool_call_id = Some(format!(
+                "call_{}",
+                uuid::Uuid::new_v4()
+                    .simple()
+                    .to_string()
+                    .chars()
+                    .take(8)
+                    .collect::<String>()
+            ));
             tool_call_name = None;
             last_streamed_arg_len = 0;
             // Set next token before continuing
@@ -204,7 +216,7 @@ pub async fn stream(
         } else if in_tool_call {
             // Collect tokens for tool call
             tool_call_tokens.push(sampled_token);
-            consecutive_tool_starts = 0;  // Reset counter when we get non-tool_call tokens
+            consecutive_tool_starts = 0; // Reset counter when we get non-tool_call tokens
 
             // Try to parse current tokens to stream arguments
             let current_json = tokenizer
@@ -220,7 +232,9 @@ pub async fn stream(
                         // Emit tool call start event
                         let start_msg = InferenceResponse::ToolCallStart {
                             name: name.to_string(),
-                            call_id: tool_call_id.clone().unwrap_or_else(|| "call_unknown".to_string()),
+                            call_id: tool_call_id
+                                .clone()
+                                .unwrap_or_else(|| "call_unknown".to_string()),
                         };
                         let _ = stream_tx.send(start_msg).await;
                     }
@@ -233,7 +247,9 @@ pub async fn stream(
                         let delta = &args_str[last_streamed_arg_len..];
                         if !delta.is_empty() {
                             let arg_msg = InferenceResponse::ToolCallArgument {
-                                call_id: tool_call_id.clone().unwrap_or_else(|| "call_unknown".to_string()),
+                                call_id: tool_call_id
+                                    .clone()
+                                    .unwrap_or_else(|| "call_unknown".to_string()),
                                 argument_delta: delta.to_string(),
                             };
                             let _ = stream_tx.send(arg_msg).await;

@@ -17,18 +17,16 @@ pub struct EmbeddingModel {
 impl EmbeddingModel {
     #[new]
     #[pyo3(signature = (model_path, tokenizer_path, device=None))]
-    fn py_new(
-        model_path: String,
-        tokenizer_path: String,
-        device: Option<&str>,
-    ) -> PyResult<Self> {
+    fn py_new(model_path: String, tokenizer_path: String, device: Option<&str>) -> PyResult<Self> {
         let device_config = DeviceConfig::from_string(device)?;
 
-        let model = load_embeddings(&model_path, &device_config.device)
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Failed to load embeddings: {}", e)))?;
+        let model = load_embeddings(&model_path, &device_config.device).map_err(|e| {
+            pyo3::exceptions::PyRuntimeError::new_err(format!("Failed to load embeddings: {}", e))
+        })?;
 
-        let tokenizer = Tokenizer::from_file(&tokenizer_path)
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Failed to load tokenizer: {}", e)))?;
+        let tokenizer = Tokenizer::from_file(&tokenizer_path).map_err(|e| {
+            pyo3::exceptions::PyRuntimeError::new_err(format!("Failed to load tokenizer: {}", e))
+        })?;
 
         Ok(Self {
             model: Arc::new(Mutex::new(model)),
@@ -36,25 +34,21 @@ impl EmbeddingModel {
         })
     }
 
-    fn encode<'py>(
-        &self,
-        py: Python<'py>,
-        text: String,
-    ) -> PyResult<Bound<'py, PyAny>> {
+    fn encode<'py>(&self, py: Python<'py>, text: String) -> PyResult<Bound<'py, PyAny>> {
         let model = self.model.clone();
         let tokenizer = self.tokenizer.clone();
 
         future_into_py(py, async move {
-            let encoding = tokenizer
-                .encode(text.as_str(), false)
-                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Tokenization error: {}", e)))?;
+            let encoding = tokenizer.encode(text.as_str(), false).map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!("Tokenization error: {}", e))
+            })?;
 
             let tokens = encoding.get_ids();
 
             let mut model_guard = model.lock().await;
-            let embedding = model_guard
-                .encode(tokens)
-                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Encoding error: {}", e)))?;
+            let embedding = model_guard.encode(tokens).map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!("Encoding error: {}", e))
+            })?;
 
             Ok(embedding)
         })
@@ -73,9 +67,9 @@ impl EmbeddingModel {
             let mut total_tokens = 0usize;
 
             for text in texts {
-                let encoding = tokenizer
-                    .encode(text.as_str(), false)
-                    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Tokenization error: {}", e)))?;
+                let encoding = tokenizer.encode(text.as_str(), false).map_err(|e| {
+                    pyo3::exceptions::PyRuntimeError::new_err(format!("Tokenization error: {}", e))
+                })?;
 
                 let tokens = encoding.get_ids();
                 total_tokens += tokens.len();
@@ -83,9 +77,9 @@ impl EmbeddingModel {
             }
 
             let mut model_guard = model.lock().await;
-            let embeddings = model_guard
-                .encode_batch(token_batches)
-                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Batch encoding error: {}", e)))?;
+            let embeddings = model_guard.encode_batch(token_batches).map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!("Batch encoding error: {}", e))
+            })?;
 
             Ok((embeddings, total_tokens))
         })

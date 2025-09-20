@@ -19,10 +19,7 @@ impl Qwen3UnquantizedCausalLM {
         Self::load_with_config(model_path, &device_config)
     }
 
-    pub fn load_with_config(
-        model_path: &str,
-        device_config: &DeviceConfig,
-    ) -> Result<Self> {
+    pub fn load_with_config(model_path: &str, device_config: &DeviceConfig) -> Result<Self> {
         let model_dir = Path::new(model_path);
 
         // Load config to get model parameters
