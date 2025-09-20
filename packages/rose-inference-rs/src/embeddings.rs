@@ -70,13 +70,16 @@ impl EmbeddingModel {
 
         future_into_py(py, async move {
             let mut token_batches = Vec::with_capacity(texts.len());
+            let mut total_tokens = 0usize;
 
             for text in texts {
                 let encoding = tokenizer
                     .encode(text.as_str(), false)
                     .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Tokenization error: {}", e)))?;
 
-                token_batches.push(encoding.get_ids().to_vec());
+                let tokens = encoding.get_ids();
+                total_tokens += tokens.len();
+                token_batches.push(tokens.to_vec());
             }
 
             let mut model_guard = model.lock().await;
@@ -84,7 +87,7 @@ impl EmbeddingModel {
                 .encode_batch(token_batches)
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Batch encoding error: {}", e)))?;
 
-            Ok(embeddings)
+            Ok((embeddings, total_tokens))
         })
     }
 }
