@@ -18,7 +18,7 @@ async def score_batch(
     model: RerankerModel,
 ) -> List[float]:
     if len(queries) != len(responses):
-        raise ValueError("Length mismatch")
+        raise ValueError("Queries and responses must have same length")
 
     if not queries:
         return []
