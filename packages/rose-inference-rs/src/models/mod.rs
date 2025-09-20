@@ -1,4 +1,5 @@
 pub mod qwen3;
+pub mod qwen3_embeddings;
 pub mod qwen3_gguf;
 pub mod qwen3_lora;
 pub mod qwen3_reranker;
@@ -17,6 +18,11 @@ pub trait CausalLM: Send {
 pub trait Reranker: Send {
     fn score(&mut self, query_tokens: &[u32], doc_tokens: &[u32]) -> Result<f32>;
     fn forward(&mut self, input: &Tensor) -> Result<Tensor>;
+}
+
+pub trait Embeddings: Send {
+    fn encode(&mut self, tokens: &[u32]) -> Result<Vec<f32>>;
+    fn encode_batch(&mut self, batch: Vec<Vec<u32>>) -> Result<Vec<Vec<f32>>>;
 }
 
 #[derive(Debug)]
@@ -74,6 +80,12 @@ pub fn load_causal_lm_with_lora(
 
 pub fn load_reranker(model_path: &str, device: &Device) -> Result<Box<dyn Reranker>> {
     Ok(Box::new(qwen3_reranker::Qwen3Reranker::load(
+        model_path, device,
+    )?))
+}
+
+pub fn load_embeddings(model_path: &str, device: &Device) -> Result<Box<dyn Embeddings>> {
+    Ok(Box::new(qwen3_embeddings::Qwen3Embeddings::load(
         model_path, device,
     )?))
 }

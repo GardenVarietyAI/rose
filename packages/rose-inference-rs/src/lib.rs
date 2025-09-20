@@ -6,6 +6,7 @@ use std::sync::Arc;
 mod cache;
 mod chat_templates;
 mod device;
+mod embeddings;
 mod error;
 mod generate;
 mod lora;
@@ -49,6 +50,7 @@ fn _inference(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ErrorEvent>()?;
     m.add_class::<TopLogProb>()?;
     m.add_class::<reranker::RerankerModel>()?;
+    m.add_class::<embeddings::EmbeddingModel>()?;
     Ok(())
 }
 
