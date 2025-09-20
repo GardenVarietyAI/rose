@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 from rose_server._inference import EmbeddingModel
 from rose_server.config.settings import settings
@@ -27,11 +27,11 @@ def get_embedding_model() -> EmbeddingModel:
 
 
 async def encode(text: str, model: EmbeddingModel) -> List[float]:
-    return await model.encode(text)
+    return await model.encode(text)  # type: ignore[no-any-return]
 
 
-async def encode_batch(texts: List[str], model: EmbeddingModel) -> tuple[List[List[float]], int]:
+async def encode_batch(texts: List[str], model: EmbeddingModel) -> Tuple[List[List[float]], int]:
     if not texts:
         return [], 0
 
-    return await model.encode_batch(texts)
+    return await model.encode_batch(texts)  # type: ignore[no-any-return]

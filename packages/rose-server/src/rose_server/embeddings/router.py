@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException, Request
 
 from rose_server.embeddings.service import compute_embeddings_with_tokens
-from rose_server.schemas.embeddings import EmbeddingRequest, EmbeddingResponse
+from rose_server.schemas.embeddings import EmbeddingData, EmbeddingRequest, EmbeddingResponse
 
 router = APIRouter(prefix="/v1/embeddings")
 
@@ -22,11 +22,11 @@ async def create_embeddings(req: Request, request: EmbeddingRequest) -> Embeddin
         return EmbeddingResponse(
             object="list",
             data=[
-                {
-                    "object": "embedding",
-                    "embedding": list(embedding),
-                    "index": i,
-                }
+                EmbeddingData(
+                    object="embedding",
+                    embedding=list(embedding),
+                    index=i,
+                )
                 for i, embedding in enumerate(embeddings)
             ],
             model=request.model,
