@@ -9,20 +9,29 @@ logger = logging.getLogger(__name__)
 
 
 def get_embedding_model() -> EmbeddingModel:
-    model_path = (Path(settings.data_dir) / "models" / "Qwen--Qwen3-Embedding-0.6B-GGUF").resolve()
+    model_path = (Path(settings.models_dir) / settings.embedding_model_name).resolve()
 
     gguf_files = list(model_path.glob("*.gguf"))
     if not gguf_files:
         raise FileNotFoundError(f"No GGUF files found in {model_path}")
 
-    gguf_file = next((f for f in gguf_files if "Q8_0" in f.name), gguf_files[0])
+    # Find the specified quantization level
+    gguf_file = next((f for f in gguf_files if settings.embedding_model_quantization in f.name), None)
+
+    if not gguf_file:
+        available_quants = [f.name for f in gguf_files]
+        raise FileNotFoundError(
+            f"Quantization {settings.embedding_model_quantization} not found in {model_path}. "
+            f"Available: {available_quants}"
+        )
+
     tokenizer_file = model_path / "tokenizer.json"
 
     if not tokenizer_file.exists():
         raise FileNotFoundError(f"Tokenizer not found at {tokenizer_file}")
 
-    model = EmbeddingModel(str(gguf_file.resolve()), str(tokenizer_file.resolve()), "auto")
-    logger.info(f"Loaded embeddings: {gguf_file.name}")
+    model = EmbeddingModel(str(gguf_file.resolve()), str(tokenizer_file.resolve()), settings.embedding_device)
+    logger.info(f"Loaded embeddings: {gguf_file.name} on device: {settings.embedding_device}")
     return model
 
 

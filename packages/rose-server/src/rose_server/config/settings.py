@@ -66,6 +66,15 @@ class Settings(BaseSettings):
     default_chunk_size: int = Field(default=512, description="Default chunk size in tokens for document chunking")
     default_chunk_overlap: int = Field(default=64, description="Default overlap in tokens between chunks")
 
+    # Embedding model settings
+    embedding_model_name: str = Field(
+        default="Qwen--Qwen3-Embedding-0.6B-GGUF", description="Name of the embedding model directory in models folder"
+    )
+    embedding_model_quantization: str = Field(
+        default="Q8_0", description="Preferred quantization level for embedding model (e.g., Q4_0, Q8_0)"
+    )
+    embedding_device: str = Field(default="auto", description="Device for embedding inference (auto, cpu, cuda, metal)")
+
     # Derived properties
     @property
     def models_dir(self) -> str:
