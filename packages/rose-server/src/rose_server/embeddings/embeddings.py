@@ -30,8 +30,8 @@ async def encode(text: str, model: EmbeddingModel) -> List[float]:
     return await model.encode(text)
 
 
-async def encode_batch(texts: List[str], model: EmbeddingModel) -> List[List[float]]:
+async def encode_batch(texts: List[str], model: EmbeddingModel) -> tuple[List[List[float]], int]:
     if not texts:
-        return []
+        return [], 0
 
     return await model.encode_batch(texts)
