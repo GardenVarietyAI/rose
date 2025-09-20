@@ -7,6 +7,7 @@ members = [
     "packages/rose-cli",
     "packages/rose-trainer",
     "packages/rose-utils",
+    "packages/rose-web",
 ]
 
 [tool.uv]
@@ -25,7 +26,13 @@ dev-dependencies = [
 ]
 
 [tool.pytest.ini_options]
-pythonpath = ["packages/rose-server/src", "packages/rose-cli/src", "packages/rose-trainer/src", "packages/rose-utils/src"]
+pythonpath = [
+    "packages/rose-server/src",
+    "packages/rose-cli/src",
+    "packages/rose-trainer/src",
+    "packages/rose-utils/src",
+    "packages/rose-web/src",
+]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 
@@ -34,6 +41,7 @@ rose-server = { workspace = true }
 rose-cli = { workspace = true }
 rose-trainer = { workspace = true }
 rose-utils = { workspace = true }
+rose-web = { workspace = true }
 
 [tool.ruff]
 line-length = 120
