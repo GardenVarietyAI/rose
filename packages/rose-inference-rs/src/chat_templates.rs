@@ -32,4 +32,16 @@ impl ChatTemplate {
 
         out.join("\n")
     }
+
+    pub fn format_reranker_prompt(query: &str, document: &str) -> String {
+        let prefix = "<|im_start|>system\nJudge whether the Document meets the requirements based on the Query and the Instruct provided. Note that the answer can only be \"yes\" or \"no\".<|im_end|>\n<|im_start|>user\n";
+        let suffix = "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n";
+
+        let user_content = format!(
+            "<Instruct>: Given a web search query, retrieve relevant passages that answer the query\n<Query>: {}\n<Document>: {}",
+            query, document
+        );
+
+        format!("{}{}{}", prefix, user_content, suffix)
+    }
 }
