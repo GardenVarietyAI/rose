@@ -1,4 +1,5 @@
-# Workspace root configuration - not a package itself
+[scripts]
+rose = "rose_cli.main:main"
 
 [tool.uv.workspace]
 members = [
