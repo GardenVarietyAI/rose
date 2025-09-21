@@ -44,7 +44,6 @@ async def test_db():
 @pytest.fixture
 def client(test_db):
     """Create test client with in-memory database."""
-    from rose_server._inference import InferenceServer
     from rose_server.app import create_app, get_embedding_model, get_tokenizer
     from rose_server.settings import Settings
     from starlette.routing import _DefaultLifespan
@@ -59,7 +58,7 @@ def client(test_db):
     app.state.engine = test_engine
     app.state.db_session_maker = test_async_session_factory
     app.state.get_db_session = lambda read_only=False: database.get_session(test_async_session_factory, read_only)
-    app.state.inference_server = InferenceServer("auto")
+    app.state.inference_server = None
 
     try:
         app.state.embedding_model = get_embedding_model(
