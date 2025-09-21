@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query
-from rose_server.database import get_session
+from rose_server.database import current_timestamp, get_session
 from rose_server.entities.fine_tuning import FineTuningEvent, FineTuningJob
 from rose_server.entities.models import LanguageModel
 from rose_server.schemas.fine_tuning import (
@@ -15,7 +15,6 @@ from rose_server.schemas.fine_tuning import (
 )
 from rose_server.services.fine_tuning_step_metrics import build_training_results
 from rose_server.settings import settings
-from rose_server.stores.fine_tuning_jobs import create_job, get_job, list_jobs, list_jobs_by_status, update_job_status
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
@@ -93,20 +92,23 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
 
         # TODO: We skip the "validating_files" status for now since we don't actually validate the JSONL format.
         # In the future, we should validate that the file exists and contains properly formatted training data.
-        job = await create_job(
-            FineTuningJob(
-                model=request.model,
-                status="queued",
-                training_file=request.training_file,
-                validation_file=request.validation_file,
-                seed=request.seed or 42,
-                suffix=request.suffix,
-                meta=request.metadata,
-                hyperparameters=hyperparameters,
-                method=request.method.model_dump() if request.method else None,
-                trainer=request.trainer or "huggingface",
-            )
+        job = FineTuningJob(
+            model=request.model,
+            status="queued",
+            training_file=request.training_file,
+            validation_file=request.validation_file,
+            seed=request.seed or 42,
+            suffix=request.suffix,
+            meta=request.metadata,
+            hyperparameters=hyperparameters,
+            method=request.method.model_dump() if request.method else None,
+            trainer=request.trainer or "huggingface",
         )
+
+        async with get_session() as session:
+            session.add(job)
+            await session.commit()
+            await session.refresh(job)
         logger.info(f"Fine-tuning job {job.id} created and queued for direct worker processing")
         return FineTuningJobResponse.from_entity(job)
     except Exception as e:
@@ -119,7 +121,12 @@ async def list_fine_tuning_jobs(
     limit: int = Query(default=20, ge=1, le=100, description="Number of jobs to retrieve"),
     after: Optional[str] = Query(default=None, description="Pagination cursor"),
 ) -> Dict[str, Any]:
-    jobs = await list_jobs(limit=limit, after=after)
+    statement = select(FineTuningJob).order_by(FineTuningJob.created_at.desc())
+    if after:
+        statement = statement.where(FineTuningJob.id > after)
+    statement = statement.limit(limit)
+    async with get_session(read_only=True) as session:
+        jobs = list((await session.execute(statement)).scalars().all())
     return {
         "object": "list",
         "data": [FineTuningJobResponse.from_entity(job) for job in jobs],
@@ -129,6 +136,20 @@ async def list_fine_tuning_jobs(
 
 @router.get("/queue")
 async def get_queued_jobs(limit: int = Query(10, description="Max jobs to return")) -> Dict[str, Any]:
+    async with get_session(read_only=True) as session:
+        jobs = list(
+            (
+                await session.execute(
+                    select(FineTuningJob)
+                    .where(FineTuningJob.status == "queued")
+                    .order_by(FineTuningJob.created_at.asc())
+                    .limit(limit)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
     return {
         "object": "list",
         "data": [
@@ -152,14 +173,16 @@ async def get_queued_jobs(limit: int = Query(10, description="Max jobs to return
                 },
                 "created_at": job.created_at,
             }
-            for job in await list_jobs_by_status("queued", limit=limit)
+            for job in jobs
         ],
     }
 
 
 @router.get("/{job_id}", response_model=FineTuningJobResponse)
 async def retrieve_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
-    job = await get_job(job_id)
+    async with get_session(read_only=True) as session:
+        job = await session.get(FineTuningJob, job_id)
+
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
     return FineTuningJobResponse.from_entity(job)
@@ -167,22 +190,35 @@ async def retrieve_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
 
 @router.post("/{job_id}/cancel", response_model=FineTuningJobResponse)
 async def cancel_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
-    job = await get_job(job_id)
+    async with get_session(read_only=True) as session:
+        job = await session.get(FineTuningJob, job_id)
+
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
 
     if job.status in ["queued", "running"]:
-        await update_job_status(job_id, "cancelled")
+        async with get_session() as session:
+            job = await session.get(FineTuningJob, job_id)
+            if job:
+                job.status = "cancelled"
+                job.finished_at = current_timestamp()
+                session.add(job)
+                await session.commit()
+                await session.refresh(job)
+                logger.info(f"Updated job {job_id} status to cancelled")
     else:
         raise HTTPException(status_code=400, detail=f"Cannot cancel job {job_id} in status {job.status}")
-    updated_job = await get_job(job_id)
+    async with get_session(read_only=True) as session:
+        updated_job = await session.get(FineTuningJob, job_id)
 
     return FineTuningJobResponse.from_entity(updated_job)
 
 
 @router.get("/{job_id}/checkpoints", response_model=dict)
 async def list_fine_tuning_job_checkpoints(job_id: str) -> Dict[str, Any]:
-    job = await get_job(job_id)
+    async with get_session(read_only=True) as session:
+        job = await session.get(FineTuningJob, job_id)
+
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
     return {"object": "list", "data": [], "has_more": False}
@@ -190,48 +226,82 @@ async def list_fine_tuning_job_checkpoints(job_id: str) -> Dict[str, Any]:
 
 @router.post("/{job_id}/pause", response_model=FineTuningJobResponse)
 async def pause_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
-    job = await get_job(job_id)
+    async with get_session(read_only=True) as session:
+        job = await session.get(FineTuningJob, job_id)
+
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
 
     if job.status == "running":
-        await update_job_status(job_id, "paused")
+        async with get_session() as session:
+            job = await session.get(FineTuningJob, job_id)
+            if job:
+                job.status = "paused"
+                session.add(job)
+                await session.commit()
+                await session.refresh(job)
+                logger.info(f"Updated job {job_id} status to paused")
     else:
         raise HTTPException(status_code=400, detail=f"Cannot pause job {job_id} in status {job.status}")
 
-    updated_job = await get_job(job_id)
+    async with get_session(read_only=True) as session:
+        updated_job = await session.get(FineTuningJob, job_id)
 
     return FineTuningJobResponse.from_entity(updated_job)
 
 
 @router.post("/{job_id}/resume", response_model=FineTuningJobResponse)
 async def resume_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
-    job = await get_job(job_id)
+    async with get_session(read_only=True) as session:
+        job = await session.get(FineTuningJob, job_id)
+
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
 
     if job.status in ["paused", "failed"]:
-        await update_job_status(job_id, "queued")
+        async with get_session() as session:
+            job = await session.get(FineTuningJob, job_id)
+            if job:
+                job.status = "queued"
+                session.add(job)
+                await session.commit()
+                await session.refresh(job)
+                logger.info(f"Updated job {job_id} status to queued")
     else:
         raise HTTPException(status_code=400, detail=f"Cannot resume job {job_id}, current status: {job.status}")
 
-    updated_job = await get_job(job_id)
+    async with get_session(read_only=True) as session:
+        updated_job = await session.get(FineTuningJob, job_id)
 
     return FineTuningJobResponse.from_entity(updated_job)
 
 
 @router.patch("/{job_id}/status")
 async def update_job_status_direct(job_id: str, request: FineTuningJobStatusUpdateRequest) -> FineTuningJobResponse:
-    job = await update_job_status(
-        job_id=job_id,
-        status=request.status,
-        error=request.error,
-        fine_tuned_model=request.fine_tuned_model,
-        trained_tokens=request.trained_tokens,
-        training_metrics=request.training_metrics,
-    )
-    if not job:
-        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    async with get_session() as session:
+        job = await session.get(FineTuningJob, job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+        if request.fine_tuned_model:
+            job.fine_tuned_model = request.fine_tuned_model
+        if request.trained_tokens:
+            job.trained_tokens = request.trained_tokens
+        if request.error:
+            job.error = request.error
+        if request.training_metrics:
+            job.training_metrics = request.training_metrics
+
+        job.status = request.status
+        if request.status in ["succeeded", "failed", "cancelled"]:
+            job.finished_at = current_timestamp()
+        elif request.status == "running" and not job.started_at:
+            job.started_at = current_timestamp()
+
+        session.add(job)
+        await session.commit()
+        await session.refresh(job)
+        logger.info(f"Updated job {job_id} status to {request.status}")
 
     if request.status == "succeeded" and request.fine_tuned_model:
         try:
@@ -271,13 +341,23 @@ async def update_job_status_direct(job_id: str, request: FineTuningJobStatusUpda
 
             logger.info(f"Registered fine-tuned model {request.fine_tuned_model} with ID {model.id}")
 
-            updated_job = await update_job_status(
-                job_id=job_id,
-                status=request.status,
-                fine_tuned_model=model.id,  # Use the generated ID instead of training name
-                trained_tokens=request.trained_tokens,
-                training_metrics=request.training_metrics,
-            )
+            async with get_session() as update_session:
+                updated_job = await update_session.get(FineTuningJob, job_id)
+                if updated_job:
+                    updated_job.fine_tuned_model = model.id  # Use the generated ID instead of training name
+                    if request.trained_tokens:
+                        updated_job.trained_tokens = request.trained_tokens
+                    if request.training_metrics:
+                        updated_job.training_metrics = request.training_metrics
+                    updated_job.status = request.status
+                    if request.status in ["succeeded", "failed", "cancelled"]:
+                        updated_job.finished_at = current_timestamp()
+                    elif request.status == "running" and not updated_job.started_at:
+                        updated_job.started_at = current_timestamp()
+                    update_session.add(updated_job)
+                    await update_session.commit()
+                    await update_session.refresh(updated_job)
+                    logger.info(f"Updated job {job_id} status to {request.status}")
             if updated_job:
                 job = updated_job
 
@@ -302,7 +382,15 @@ async def update_job_status_direct(job_id: str, request: FineTuningJobStatusUpda
                 events = list((await session.execute(statement)).scalars().all())
             detailed_metrics = build_training_results(job, events, final_loss, steps, final_perplexity)
             if detailed_metrics:
-                await update_job_status(job_id=job_id, status=request.status, training_metrics=detailed_metrics)
+                async with get_session() as update_session:
+                    job_update = await update_session.get(FineTuningJob, job_id)
+                    if job_update:
+                        job_update.training_metrics = detailed_metrics
+                        job_update.status = request.status
+                        update_session.add(job_update)
+                        await update_session.commit()
+                        await update_session.refresh(job_update)
+                        logger.info(f"Updated job {job_id} training metrics")
                 logger.info(f"Training results updated for job {job_id}")
         except Exception as e:
             logger.error(f"Failed to build training results for job {job_id}: {e}")
