@@ -61,7 +61,14 @@ class EventGenerator:
                 tokenizer_file = str(path / "tokenizer.json")
                 return {"model_path": str(path), "tokenizer_path": tokenizer_file}
         elif path.suffix == ".gguf":
-            return {"model_path": str(path), "tokenizer_path": str(path)}
+            # For direct GGUF file paths, tokenizer must be in same directory
+            tokenizer_file = path.parent / "tokenizer.json"
+            if not tokenizer_file.exists():
+                raise FileNotFoundError(
+                    f"No tokenizer.json found in {path.parent}. "
+                    f"GGUF models require tokenizer.json in the same directory."
+                )
+            return {"model_path": str(path), "tokenizer_path": str(tokenizer_file)}
         else:
             raise ValueError(f"Unsupported model path: {path}")
 
