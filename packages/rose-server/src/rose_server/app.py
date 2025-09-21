@@ -96,8 +96,8 @@ async def lifespan(app: FastAPI) -> Any:
     settings = Settings()
     app.state.settings = settings
 
-    # Initialize database session maker with configured data directory
-    app.state.db_session_maker = create_session_maker(settings.data_dir)
+    # Initialize database engine and session maker with configured data directory
+    app.state.engine, app.state.db_session_maker = create_session_maker(settings.data_dir)
     logger.info(f"Database session maker initialized with data_dir: {settings.data_dir}")
 
     # Add helper method to get database sessions
@@ -112,13 +112,13 @@ async def lifespan(app: FastAPI) -> Any:
         os.makedirs(dir, exist_ok=True)
         logger.info(f"Ensured directory exists: {dir}")
 
-    if not await check_database_setup(app.state.db_session_maker):
+    if not await check_database_setup(app.state.engine):
         logger.info("Creating database...")
         db_path = Path(settings.data_dir) / "rose.db"
         db_path.parent.mkdir(parents=True, exist_ok=True)
         db_path.touch(exist_ok=True)
 
-    await create_all_tables(app.state.db_session_maker, embedding_dimensions=settings.embedding_dimensions)
+    await create_all_tables(app.state.engine, embedding_dimensions=settings.embedding_dimensions)
 
     app.state.inference_server = InferenceServer("auto")
     logger.info("Inference server initialized")

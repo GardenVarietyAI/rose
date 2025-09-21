@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import AsyncGenerator, TypeVar
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 
 from rose_server.connect import _VecConnection
@@ -23,8 +23,8 @@ def get_db_path(data_dir: str) -> Path:
     return Path(data_dir) / "rose.db"
 
 
-def create_session_maker(data_dir: str) -> async_sessionmaker[AsyncSession]:
-    """Create a session maker for the given data directory."""
+def create_session_maker(data_dir: str) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
+    """Create the async engine and a session maker for it."""
     db_path = get_db_path(data_dir)
     engine = create_async_engine(
         f"sqlite+aiosqlite:///{db_path}",
@@ -35,7 +35,7 @@ def create_session_maker(data_dir: str) -> async_sessionmaker[AsyncSession]:
         pool_recycle=3600,
         connect_args={"check_same_thread": False, "timeout": 20, "factory": _VecConnection},
     )
-    return async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    return engine, async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
 T = TypeVar("T")
@@ -58,12 +58,8 @@ async def get_session(
             await session.close()
 
 
-async def create_all_tables(session_maker: async_sessionmaker[AsyncSession], embedding_dimensions: int) -> None:
-    """Create all database tables."""
-    # Get engine from session maker's bind attribute
-    engine = session_maker.bind
-    if not engine:
-        raise ValueError("Session maker has no engine bound")
+async def create_all_tables(engine: AsyncEngine, embedding_dimensions: int) -> None:
+    """Create all database tables using the provided engine."""
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
 
@@ -83,13 +79,9 @@ def current_timestamp() -> int:
     return int(time.time())
 
 
-async def check_database_setup(session_maker: async_sessionmaker[AsyncSession]) -> bool:
-    """Check if database connection works."""
+async def check_database_setup(engine: AsyncEngine) -> bool:
+    """Check if database connection works using the provided engine."""
     try:
-        # Get engine from session maker's bind attribute
-        engine = session_maker.bind
-        if not engine:
-            return False
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
             return True
