@@ -7,6 +7,7 @@ import numpy as np
 from chonkie import TokenChunker
 from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Path, Request
 from rose_server.database import get_session
+from rose_server.entities.files import UploadedFile
 from rose_server.entities.vector_stores import Document, DocumentSearchResult, VectorStore, VectorStoreFile
 from rose_server.schemas.vector_stores import (
     VectorSearch,
@@ -18,15 +19,14 @@ from rose_server.schemas.vector_stores import (
     VectorStoreMetadata,
     VectorStoreUpdate,
 )
+from rose_server.services.vector_store_documents import prepare_documents_and_embeddings
 from rose_server.services.vector_stores_files import decode_file_content
 from rose_server.settings import settings
-from rose_server.stores.vector_stores_files import (
-    FileNotFoundError as StoreFileNotFoundError,
-    VectorStoreNotFoundError as StoreVectorStoreNotFoundError,
-    get_uploaded_file,
-    store_file_chunks_with_embeddings,
+from sqlalchemy import (
+    text,
+    update as sql_update,
 )
-from sqlalchemy import text
+from sqlalchemy.dialects.sqlite import insert
 from sqlmodel import (
     delete as sql_delete,
     func,
@@ -37,10 +37,6 @@ router = APIRouter(prefix="/v1/vector_stores")
 logger = logging.getLogger(__name__)
 
 _INTERNAL_FIELDS = frozenset(["file_id", "filename", "total_chunks", "start_index", "end_index", "decode_errors"])
-
-
-class VectorStoreNotFoundError(RuntimeError):
-    pass
 
 
 @router.get("")
@@ -88,7 +84,11 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
 
             for file_id in request.file_ids:
                 try:
-                    uploaded_file = await get_uploaded_file(file_id)
+                    # Inline get_uploaded_file
+                    async with get_session(read_only=True) as file_session:
+                        uploaded_file = await file_session.get(UploadedFile, file_id)
+                        if not uploaded_file:
+                            raise HTTPException(status_code=404, detail=f"Uploaded file {file_id} not found")
                     text_content, decode_errors = decode_file_content(uploaded_file.content, uploaded_file.filename)
                     chunker = TokenChunker(
                         chunk_size=settings.default_chunk_size,
@@ -103,10 +103,63 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
                     texts = [chunk.text for chunk in chunks]
                     embeddings, _ = await req.app.state.embedding_model.encode_batch(texts)
 
-                    await store_file_chunks_with_embeddings(vector_store.id, file_id, chunks, embeddings, decode_errors)
+                    # Inline store_file_chunks_with_embeddings
+                    async with get_session() as store_session:
+                        # Upsert vector store file record
+                        await store_session.execute(
+                            insert(VectorStoreFile)
+                            .values(vector_store_id=vector_store.id, file_id=file_id)
+                            .on_conflict_do_nothing(
+                                index_elements=[VectorStoreFile.vector_store_id, VectorStoreFile.file_id]
+                            )
+                        )
+
+                        # Get the vector store file record
+                        vsf = await store_session.scalar(
+                            select(VectorStoreFile).where(
+                                VectorStoreFile.vector_store_id == vector_store.id,
+                                VectorStoreFile.file_id == file_id,
+                            )
+                        )
+
+                        if vsf.status == "in_progress":
+                            # Use pure function to prepare documents and embeddings
+                            documents, embedding_data, created_at = prepare_documents_and_embeddings(
+                                uploaded_file, vector_store.id, chunks, embeddings, decode_errors
+                            )
+
+                            # Delete old docs for this file
+                            await store_session.execute(sql_delete(Document).where(Document.id.like(f"{file_id}#%")))
+
+                            # Insert new documents
+                            for doc in documents:
+                                store_session.add(doc)
+
+                            # Insert embeddings in batch
+                            await store_session.execute(
+                                text(
+                                    "INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"
+                                ),
+                                embedding_data,
+                            )
+
+                            await store_session.commit()
+
+                            # Mark as completed
+                            vsf.status = "completed"
+                            vsf.last_error = None
+                            await store_session.commit()
+
+                            # Update last_used_at
+                            await store_session.execute(
+                                sql_update(VectorStore)
+                                .where(VectorStore.id == vector_store.id)
+                                .values(last_used_at=created_at)
+                            )
+                            await store_session.commit()
                     logger.info(f"Added file {file_id} to vector store {request.name} ({vector_store.id})")
-                except (StoreVectorStoreNotFoundError, StoreFileNotFoundError) as e:
-                    raise HTTPException(status_code=404, detail=str(e))
+                except HTTPException:
+                    raise
                 except Exception as e:
                     raise HTTPException(status_code=422, detail=f"Failed to process file {file_id}: {str(e)}")
 

@@ -54,10 +54,13 @@ class ModelConfig(BaseModel):
 
 class ModelCreateRequest(BaseModel):
     model_name: str  # HuggingFace model name
+    path: str  # Path to the model files
     kind: Optional[str] = None
     temperature: float = 0.3
     top_p: float = 0.9
     timeout: Optional[int] = None
+    parent: Optional[str] = None  # Parent model for fine-tuned models
+    suffix: Optional[str] = None  # Suffix for fine-tuned models
     lora_target_modules: Optional[List[str]] = None
     quantization: Optional[str] = None
 
