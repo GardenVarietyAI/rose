@@ -100,7 +100,6 @@ async def _generate_streaming_response(
     temperature: Optional[float] = None,
     tool_choice: Optional[str] = None,
     chain_id: Optional[str] = None,
-    use_codex_format: bool = False,
     max_concurrent_inference: int = 2,
 ) -> EventSourceResponse:
     async def generate() -> AsyncIterator[Dict[str, Any]]:
@@ -207,8 +206,8 @@ async def retrieve_response(req: Request, response_id: str) -> ResponsesResponse
             output=[output_item],
             usage=ResponsesUsage(
                 input_tokens=meta.get("input_tokens", 0),
-                output_tokens=meta.get("output_tokens", meta.get("token_count", 0)),  # Fallback to old token_count
-                total_tokens=meta.get("total_tokens", meta.get("token_count", 0)),
+                output_tokens=meta.get("output_tokens", 0),
+                total_tokens=meta.get("total_tokens", 0),
             ),
         )
     except HTTPException:
@@ -357,7 +356,6 @@ async def create_response(
                 tool_choice=request.tool_choice,
                 chain_id=request.prompt_cache_key
                 or (previous_response.response_chain_id if previous_response else None),
-                use_codex_format=use_codex_format,
                 max_concurrent_inference=req.app.state.settings.max_concurrent_inference,
             )
         else:
