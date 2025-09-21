@@ -13,9 +13,9 @@ from tokenizers import Tokenizer
 
 from rose_server import __version__
 from rose_server._inference import EmbeddingModel, InferenceServer, RerankerModel
-from rose_server.config.settings import settings
 from rose_server.database import check_database_setup, create_all_tables
 from rose_server.router import router
+from rose_server.settings import settings
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["ANONYMIZED_TELEMETRY"] = "false"

@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from rose_server.config.settings import settings
+from rose_server.settings import settings
 
 
 class StaticChunkingConfig(BaseModel):

@@ -5,7 +5,6 @@ from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 from fastapi import APIRouter, Body, HTTPException, Request
 from rose_server._inference import InferenceServer
-from rose_server.config.settings import settings
 from rose_server.events.formatters import ResponsesFormatter
 from rose_server.events.generator import EventGenerator
 from rose_server.metrics import MetricsCollector
@@ -19,6 +18,7 @@ from rose_server.schemas.responses import (
     ResponsesResponse,
     ResponsesUsage,
 )
+from rose_server.settings import settings
 from rose_server.stores.models import get as get_language_model
 from rose_server.stores.responses import get_chain_ids, get_conversation_messages, get_response, store_response_messages
 from sse_starlette.sse import EventSourceResponse

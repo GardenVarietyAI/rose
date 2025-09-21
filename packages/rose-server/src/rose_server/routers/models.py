@@ -9,8 +9,8 @@ import aiofiles
 import aiofiles.os
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
-from rose_server.config.settings import settings
 from rose_server.schemas.models import ModelCreateRequest, ModelResponse
+from rose_server.settings import settings
 from rose_server.stores.models import (
     create as create_language_model,
     delete as delete_language_model,

@@ -12,13 +12,13 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 
-from rose_server.config.settings import settings
 from rose_server.connect import _VecConnection
 from rose_server.entities.files import UploadedFile
 from rose_server.entities.fine_tuning import FineTuningEvent, FineTuningJob
 from rose_server.entities.messages import Message
 from rose_server.entities.models import LanguageModel
 from rose_server.entities.vector_stores import Document, VectorStore
+from rose_server.settings import settings
 
 logger = logging.getLogger(__name__)
 

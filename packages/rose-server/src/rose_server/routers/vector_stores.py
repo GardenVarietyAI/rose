@@ -3,7 +3,6 @@ from typing import Any, Dict
 
 from chonkie import TokenChunker
 from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Path, Request
-from rose_server.config.settings import settings
 from rose_server.schemas.vector_stores import (
     VectorSearch,
     VectorSearchChunk,
@@ -15,6 +14,7 @@ from rose_server.schemas.vector_stores import (
     VectorStoreUpdate,
 )
 from rose_server.services.vector_stores_files import decode_file_content
+from rose_server.settings import settings
 from rose_server.stores.vector_stores import (
     create_vector_store,
     delete_vector_store,
