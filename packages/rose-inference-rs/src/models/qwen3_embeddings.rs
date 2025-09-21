@@ -28,8 +28,8 @@ impl Qwen3Embeddings {
         })
     }
 
-    fn forward(&mut self, input: &Tensor) -> Result<Tensor> {
-        self.model.forward(input, 0).map_err(Into::into)
+    fn forward_embeddings(&mut self, input: &Tensor) -> Result<Tensor> {
+        self.model.forward_embeddings(input, 0).map_err(Into::into)
     }
 }
 
@@ -51,14 +51,12 @@ impl Embeddings for Qwen3Embeddings {
         let input_tensor =
             Tensor::from_slice(truncated_tokens, (1, truncated_tokens.len()), &self.device)?;
 
-        let logits = self.forward(&input_tensor)?;
+        // Get hidden states instead of logits
+        let hidden_states = self.forward_embeddings(&input_tensor)?;
 
-        // The output is [seq_len, hidden_dim] for a single sequence
-        let dims = logits.dims();
-        let seq_len = dims[0];
-        let last_token_embedding = logits.get(seq_len - 1)?;
-
-        let embedding_vec = last_token_embedding.to_vec1::<f32>()?;
+        // The output is [batch, hidden_dim] for the last token
+        // Since batch size is 1, flatten to get a 1D vector
+        let embedding_vec = hidden_states.flatten_all()?.to_vec1::<f32>()?;
 
         let norm = embedding_vec
             .iter()
