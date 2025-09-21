@@ -8,12 +8,11 @@ from pathlib import Path
 
 import aiofiles
 import aiofiles.os
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from rose_server.database import get_session
 from rose_server.entities.models import LanguageModel
 from rose_server.schemas.models import ModelCreateRequest, ModelResponse
-from rose_server.settings import settings
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
@@ -44,7 +43,7 @@ async def index() -> JSONResponse:
 
 
 @router.post("/models", status_code=201)
-async def create(request: ModelCreateRequest) -> ModelResponse:
+async def create(req: Request, request: ModelCreateRequest) -> ModelResponse:
     is_fine_tuned = request.parent is not None
     owned_by = "user" if is_fine_tuned else "system"
 
@@ -58,7 +57,7 @@ async def create(request: ModelCreateRequest) -> ModelResponse:
     if request.path:
         model_path = request.path
     else:
-        model_path = str(Path(settings.models_dir) / model_id)
+        model_path = str(Path(req.app.state.settings.models_dir) / model_id)
 
     model = LanguageModel(
         id=model_id,
@@ -102,7 +101,7 @@ async def show(model_id: str) -> ModelResponse:
 
 
 @router.delete("/models/{model}")
-async def remove(model: str) -> JSONResponse:
+async def remove(req: Request, model: str) -> JSONResponse:
     async with get_session() as session:
         model_obj = await session.get(LanguageModel, model)
         if not model_obj:
@@ -112,7 +111,7 @@ async def remove(model: str) -> JSONResponse:
             raise HTTPException(status_code=403, detail=f"Cannot delete base model: {model}")
 
         # Store path before deletion
-        model_path = Path(settings.data_dir) / model_obj.path if model_obj.path else None
+        model_path = Path(req.app.state.settings.data_dir) / model_obj.path if model_obj.path else None
 
         await session.delete(model_obj)
         await session.commit()

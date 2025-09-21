@@ -3,7 +3,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from rose_server.database import current_timestamp, get_session
 from rose_server.entities.fine_tuning import FineTuningEvent, FineTuningJob
 from rose_server.entities.models import LanguageModel
@@ -14,7 +14,6 @@ from rose_server.schemas.fine_tuning import (
     Hyperparameters,
 )
 from rose_server.services.fine_tuning_step_metrics import build_training_results
-from rose_server.settings import settings
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
@@ -27,7 +26,7 @@ MAX_EVENTS_LIMIT = 1000
 
 
 @router.post("", response_model=FineTuningJobResponse)
-async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTuningJobResponse:
+async def create_fine_tuning_job(req: Request, request: FineTuningJobCreateRequest) -> FineTuningJobResponse:
     try:
         # Extract hyperparameters from method or request
         method_config = getattr(request.method, request.method.type, None)
@@ -44,11 +43,11 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
 
         # Convert "auto" values to actual values
         if hp_dict.get("batch_size") == "auto":
-            hp_dict["batch_size"] = settings.fine_tuning_auto_batch_size
+            hp_dict["batch_size"] = req.app.state.settings.fine_tuning_auto_batch_size
         if hp_dict.get("learning_rate_multiplier") == "auto":
-            hp_dict["learning_rate_multiplier"] = settings.fine_tuning_auto_learning_rate_multiplier
+            hp_dict["learning_rate_multiplier"] = req.app.state.settings.fine_tuning_auto_learning_rate_multiplier
         if hp_dict.get("n_epochs") == "auto":
-            hp_dict["n_epochs"] = settings.fine_tuning_auto_epochs
+            hp_dict["n_epochs"] = req.app.state.settings.fine_tuning_auto_epochs
 
         # Create Hyperparameters object
         try:
@@ -61,7 +60,7 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
 
         # Calculate learning rate if using multiplier
         if hyperparameters.get("learning_rate_multiplier") is not None and "learning_rate" not in hyperparameters:
-            hyperparameters["base_learning_rate"] = settings.fine_tuning_base_learning_rate
+            hyperparameters["base_learning_rate"] = req.app.state.settings.fine_tuning_base_learning_rate
             hyperparameters["learning_rate"] = (
                 hyperparameters["base_learning_rate"] * hyperparameters["learning_rate_multiplier"]
             )
@@ -80,7 +79,7 @@ async def create_fine_tuning_job(request: FineTuningJobCreateRequest) -> FineTun
             "seed": request.seed or 42,
             "suffix": request.suffix or "custom",
             # Use from settings if available
-            "eval_batch_size": settings.fine_tuning_eval_batch_size,
+            "eval_batch_size": req.app.state.settings.fine_tuning_eval_batch_size,
         }
 
         for key, value in training_defaults.items():
@@ -135,7 +134,7 @@ async def list_fine_tuning_jobs(
 
 
 @router.get("/queue")
-async def get_queued_jobs(limit: int = Query(10, description="Max jobs to return")) -> Dict[str, Any]:
+async def get_queued_jobs(req: Request, limit: int = Query(10, description="Max jobs to return")) -> Dict[str, Any]:
     async with get_session(read_only=True) as session:
         jobs = list(
             (
@@ -165,10 +164,10 @@ async def get_queued_jobs(limit: int = Query(10, description="Max jobs to return
                     "suffix": job.suffix or "custom",
                     "trainer": job.trainer,
                     "config": {
-                        "data_dir": settings.data_dir,
-                        "checkpoint_dir": settings.fine_tuning_checkpoint_dir,
-                        "checkpoint_interval": settings.fine_tuning_checkpoint_interval,
-                        "max_checkpoints": settings.fine_tuning_max_checkpoints,
+                        "data_dir": req.app.state.settings.data_dir,
+                        "checkpoint_dir": req.app.state.settings.fine_tuning_checkpoint_dir,
+                        "checkpoint_interval": req.app.state.settings.fine_tuning_checkpoint_interval,
+                        "max_checkpoints": req.app.state.settings.fine_tuning_max_checkpoints,
                     },
                 },
                 "created_at": job.created_at,

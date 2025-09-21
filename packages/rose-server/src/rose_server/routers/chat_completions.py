@@ -14,7 +14,6 @@ from rose_server.events.generator import EventGenerator
 from rose_server.metrics import MetricsCollector
 from rose_server.schemas.chat import ChatMessage, ChatRequest
 from rose_server.schemas.models import ModelConfig
-from rose_server.settings import settings
 from sqlalchemy import select
 from sse_starlette.sse import EventSourceResponse
 
@@ -53,14 +52,17 @@ async def event_based_chat_completions(
         )
 
     config = ModelConfig.from_language_model(
-        model, inference_timeout=settings.inference_timeout, data_dir=settings.data_dir, models_dir=settings.models_dir
+        model,
+        inference_timeout=req.app.state.settings.inference_timeout,
+        data_dir=req.app.state.settings.data_dir,
+        models_dir=req.app.state.settings.models_dir,
     )
     logger.info(f"[EVENT] Using model: {request.model}")
     messages = request.messages
     logger.info(f"[EVENT] Message count: {len(messages)}")
 
     try:
-        generator = EventGenerator(config, inference_server, settings.max_concurrent_inference)
+        generator = EventGenerator(config, inference_server, req.app.state.settings.max_concurrent_inference)
         formatter = ChatCompletionsFormatter()
         metrics = MetricsCollector(model=request.model)
         logger.info("[EVENT] Using ChatCompletionsGenerator for chat completions")

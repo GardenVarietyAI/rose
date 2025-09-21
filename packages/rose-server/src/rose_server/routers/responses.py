@@ -23,7 +23,6 @@ from rose_server.schemas.responses import (
     ResponsesResponse,
     ResponsesUsage,
 )
-from rose_server.settings import settings
 from sqlalchemy import select
 from sse_starlette.sse import EventSourceResponse
 
@@ -394,9 +393,9 @@ async def create_response(
             raise HTTPException(status_code=400, detail=f"No configuration found for model '{request.model}'")
         config = ModelConfig.from_language_model(
             model,
-            inference_timeout=settings.inference_timeout,
-            data_dir=settings.data_dir,
-            models_dir=settings.models_dir,
+            inference_timeout=req.app.state.settings.inference_timeout,
+            data_dir=req.app.state.settings.data_dir,
+            models_dir=req.app.state.settings.models_dir,
         )
 
         if not req.app.state.tokenizer:
@@ -426,7 +425,7 @@ async def create_response(
                 chain_id=request.prompt_cache_key
                 or (previous_response.response_chain_id if previous_response else None),
                 use_codex_format=use_codex_format,
-                max_concurrent_inference=settings.max_concurrent_inference,
+                max_concurrent_inference=req.app.state.settings.max_concurrent_inference,
             )
         else:
             chain_id = request.prompt_cache_key or (previous_response.response_chain_id if previous_response else None)
@@ -440,7 +439,7 @@ async def create_response(
                 tool_choice=request.tool_choice,
                 store=request.store,
                 chain_id=chain_id,
-                max_concurrent_inference=settings.max_concurrent_inference,
+                max_concurrent_inference=req.app.state.settings.max_concurrent_inference,
             )
     except HTTPException:
         raise

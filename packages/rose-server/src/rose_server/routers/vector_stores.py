@@ -21,7 +21,6 @@ from rose_server.schemas.vector_stores import (
 )
 from rose_server.services.vector_store_documents import prepare_documents_and_embeddings
 from rose_server.services.vector_stores_files import decode_file_content
-from rose_server.settings import settings
 from sqlalchemy import (
     text,
     update as sql_update,
@@ -68,7 +67,7 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
         vector_store = VectorStore(
             object="vector_store",
             name=request.name,
-            dimensions=settings.embedding_dimensions,
+            dimensions=req.app.state.settings.embedding_dimensions,
             last_used_at=None,
         )
 
@@ -91,8 +90,8 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
                             raise HTTPException(status_code=404, detail=f"Uploaded file {file_id} not found")
                     text_content, decode_errors = decode_file_content(uploaded_file.content, uploaded_file.filename)
                     chunker = TokenChunker(
-                        chunk_size=settings.default_chunk_size,
-                        chunk_overlap=settings.default_chunk_overlap,
+                        chunk_size=req.app.state.settings.default_chunk_size,
+                        chunk_overlap=req.app.state.settings.default_chunk_overlap,
                         tokenizer=req.app.state.embedding_tokenizer,
                     )
                     chunks = chunker.chunk(text_content)

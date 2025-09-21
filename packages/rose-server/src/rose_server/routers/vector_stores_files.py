@@ -18,7 +18,6 @@ from rose_server.services.vector_store_documents import (
     prepare_embedding_deletion_params,
 )
 from rose_server.services.vector_stores_files import EmptyFileError, decode_file_content
-from rose_server.settings import settings
 from sqlalchemy import (
     delete as sql_delete,
     select,
@@ -61,8 +60,8 @@ async def create(
                 raise FileNotFoundError(f"Uploaded file {request.file_id} not found")
         text_content, decode_errors = decode_file_content(uploaded_file.content, uploaded_file.filename)
         chunker = TokenChunker(
-            chunk_size=settings.default_chunk_size,
-            chunk_overlap=settings.default_chunk_overlap,
+            chunk_size=req.app.state.settings.default_chunk_size,
+            chunk_overlap=req.app.state.settings.default_chunk_overlap,
             tokenizer=req.app.state.embedding_tokenizer,
         )
         chunks = chunker.chunk(text_content)

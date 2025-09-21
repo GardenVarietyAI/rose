@@ -15,7 +15,7 @@ from rose_server import __version__
 from rose_server._inference import EmbeddingModel, InferenceServer, RerankerModel
 from rose_server.database import check_database_setup, create_all_tables
 from rose_server.router import router
-from rose_server.settings import settings
+from rose_server.settings import Settings
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["ANONYMIZED_TELEMETRY"] = "false"
@@ -24,8 +24,8 @@ os.environ["ANONYMIZED_TELEMETRY"] = "false"
 logger = logging.getLogger("rose_server")
 
 
-def get_tokenizer() -> Tokenizer:
-    tokenizer_path = Path(settings.models_dir) / settings.embedding_model_name / "tokenizer.json"
+def get_tokenizer(models_dir: str, embedding_model_name: str) -> Tokenizer:
+    tokenizer_path = Path(models_dir) / embedding_model_name / "tokenizer.json"
 
     if not tokenizer_path.exists():
         raise FileNotFoundError(f"Tokenizer not found at {tokenizer_path}")
@@ -33,21 +33,26 @@ def get_tokenizer() -> Tokenizer:
     return Tokenizer.from_file(str(tokenizer_path))
 
 
-def get_embedding_model() -> EmbeddingModel:
-    model_path = (Path(settings.models_dir) / settings.embedding_model_name).resolve()
+def get_embedding_model(
+    models_dir: str,
+    embedding_model_name: str,
+    embedding_model_quantization: str,
+    embedding_device: str,
+    embedding_dimensions: int,
+) -> EmbeddingModel:
+    model_path = (Path(models_dir) / embedding_model_name).resolve()
 
     gguf_files = list(model_path.glob("*.gguf"))
     if not gguf_files:
         raise FileNotFoundError(f"No GGUF files found in {model_path}")
 
     # Find the specified quantization level
-    gguf_file = next((f for f in gguf_files if settings.embedding_model_quantization in f.name), None)
+    gguf_file = next((f for f in gguf_files if embedding_model_quantization in f.name), None)
 
     if not gguf_file:
         available_quants = [f.name for f in gguf_files]
         raise FileNotFoundError(
-            f"Quantization {settings.embedding_model_quantization} not found in {model_path}. "
-            f"Available: {available_quants}"
+            f"Quantization {embedding_model_quantization} not found in {model_path}. " f"Available: {available_quants}"
         )
 
     tokenizer_file = model_path / "tokenizer.json"
@@ -58,19 +63,19 @@ def get_embedding_model() -> EmbeddingModel:
     model = EmbeddingModel(
         str(gguf_file.resolve()),
         str(tokenizer_file.resolve()),
-        settings.embedding_device,
-        settings.embedding_dimensions,
+        embedding_device,
+        embedding_dimensions,
     )
     logger.info(
         f"Loaded embeddings: {gguf_file.name} "
-        f"on device: {settings.embedding_device}, "
-        f"output_dims: {settings.embedding_dimensions}"
+        f"on device: {embedding_device}, "
+        f"output_dims: {embedding_dimensions}"
     )
     return model
 
 
-def get_reranker_model() -> RerankerModel:
-    model_path = Path(settings.models_dir) / "QuantFactory--Qwen3-Reranker-0.6B-GGUF"
+def get_reranker_model(models_dir: str) -> RerankerModel:
+    model_path = Path(models_dir) / "QuantFactory--Qwen3-Reranker-0.6B-GGUF"
 
     gguf_files = list(model_path.glob("*.gguf"))
     if not gguf_files:
@@ -89,6 +94,10 @@ def get_reranker_model() -> RerankerModel:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> Any:
+    # Initialize settings
+    settings = Settings()
+    app.state.settings = settings
+
     directories = [
         settings.data_dir,
         settings.model_offload_dir,
@@ -118,8 +127,17 @@ async def lifespan(app: FastAPI) -> Any:
         logger.warning(f"Qwen3 tokenizer not found at {tokenizer_path}")
 
     try:
-        app.state.embedding_model = get_embedding_model()
-        app.state.embedding_tokenizer = get_tokenizer()
+        app.state.embedding_model = get_embedding_model(
+            models_dir=settings.models_dir,
+            embedding_model_name=settings.embedding_model_name,
+            embedding_model_quantization=settings.embedding_model_quantization,
+            embedding_device=settings.embedding_device,
+            embedding_dimensions=settings.embedding_dimensions,
+        )
+        app.state.embedding_tokenizer = get_tokenizer(
+            models_dir=settings.models_dir,
+            embedding_model_name=settings.embedding_model_name,
+        )
         logger.info("Embeddings and tokenizer loaded")
     except Exception as e:
         app.state.embedding_model = None
@@ -127,7 +145,7 @@ async def lifespan(app: FastAPI) -> Any:
         logger.warning(f"Failed to load embedding model: {e}")
 
     try:
-        app.state.reranker_model = get_reranker_model()
+        app.state.reranker_model = get_reranker_model(models_dir=settings.models_dir)
         logger.info("Reranker loaded")
     except Exception as e:
         app.state.reranker_model = None
