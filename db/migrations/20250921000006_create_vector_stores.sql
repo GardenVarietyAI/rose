@@ -4,7 +4,7 @@ CREATE TABLE vector_stores (
     object TEXT,
     name TEXT NOT NULL,
     dimensions INTEGER,
-    meta JSON
+    meta JSON,
     created_at INTEGER NOT NULL,
     last_used_at INTEGER
 );

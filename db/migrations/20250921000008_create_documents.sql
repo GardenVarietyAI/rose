@@ -4,7 +4,7 @@ CREATE TABLE documents (
     vector_store_id TEXT NOT NULL REFERENCES vector_stores(id),
     chunk_index INTEGER NOT NULL,
     content TEXT NOT NULL,
-    meta JSON
+    meta JSON,
     created_at INTEGER NOT NULL
 );
 

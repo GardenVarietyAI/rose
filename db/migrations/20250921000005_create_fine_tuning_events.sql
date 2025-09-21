@@ -5,7 +5,7 @@ CREATE TABLE fine_tuning_events (
     job_id TEXT NOT NULL REFERENCES fine_tuning_jobs(id),
     level TEXT NOT NULL,
     message TEXT NOT NULL,
-    data JSON
+    data JSON,
     created_at INTEGER NOT NULL
 );
 

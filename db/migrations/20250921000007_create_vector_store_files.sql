@@ -5,7 +5,7 @@ CREATE TABLE vector_store_files (
     vector_store_id TEXT NOT NULL REFERENCES vector_stores(id),
     file_id TEXT NOT NULL,
     status TEXT,
-    last_error JSON
+    last_error JSON,
     created_at INTEGER NOT NULL,
     UNIQUE (vector_store_id, file_id)
 );
