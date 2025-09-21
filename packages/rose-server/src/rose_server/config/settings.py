@@ -1,12 +1,8 @@
-"""Pydantic-based settings for ROSE Server."""
-
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Configuration settings for ROSE Server."""
-
     model_config = SettingsConfigDict(
         env_prefix="ROSE_SERVER_",
         case_sensitive=False,
@@ -14,11 +10,6 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
-
-    # Service settings
-    host: str = Field(default="127.0.0.1", description="Server host")
-    port: int = Field(default=8004, description="Server port")
-    log_level: str = Field(default="INFO", description="Logging level")
 
     # Data directories
     data_dir: str = Field(default="./data", description="Base data directory")
@@ -35,11 +26,6 @@ class Settings(BaseSettings):
     fine_tuning_auto_epochs: int = Field(default=3, description="Number of epochs when 'auto' is specified")
     fine_tuning_auto_learning_rate_multiplier: float = Field(
         default=0.1, description="Learning rate multiplier when 'auto' is specified"
-    )
-
-    # File upload settings
-    max_file_upload_size: int = Field(
-        default=100 * 1024 * 1024, description="Maximum file upload size in bytes (default: 100MB)"
     )
 
     # Inference settings
@@ -72,11 +58,6 @@ class Settings(BaseSettings):
     def model_offload_dir(self) -> str:
         """Directory for model offloading."""
         return f"{self.data_dir}/offload"
-
-    @property
-    def log_format(self) -> str:
-        """Log message format."""
-        return "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 
 # Global settings instance
