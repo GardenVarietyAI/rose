@@ -11,6 +11,7 @@ pub struct Qwen3Embeddings {
     device: Device,
     hidden_dim: usize,  // Model's native hidden dimension
     output_dims: Option<usize>,  // For Matryoshka truncation
+    max_length: usize,
 }
 
 impl Qwen3Embeddings {
@@ -33,6 +34,18 @@ impl Qwen3Embeddings {
                 anyhow::anyhow!("Cannot find qwen3.embedding_length in GGUF metadata")
             })?;
 
+        let max_length = content
+            .metadata
+            .get("qwen3.context_length")
+            .and_then(|v| match v {
+                gguf_file::Value::U32(n) => Some(*n as usize),
+                gguf_file::Value::U64(n) => Some(*n as usize),
+                _ => None,
+            })
+            .ok_or_else(|| {
+                anyhow::anyhow!("Cannot find qwen3.context_length in GGUF metadata")
+            })?;
+
         let model = Qwen3::from_gguf(content, &mut file, device)
             .map_err(|e| anyhow::anyhow!("Failed to create Qwen3 embeddings from GGUF: {}", e))?;
 
@@ -45,13 +58,14 @@ impl Qwen3Embeddings {
             }
         }
 
-        eprintln!("Loaded embedding model with hidden_dim={}, output_dims={:?}", hidden_dim, output_dims);
+        eprintln!("Loaded embedding model with hidden_dim={}, max_length={}, output_dims={:?}", hidden_dim, max_length, output_dims);
 
         Ok(Self {
             model,
             device: device.clone(),
             hidden_dim,
             output_dims,
+            max_length,
         })
     }
 
@@ -73,22 +87,20 @@ impl Embeddings for Qwen3Embeddings {
             return Ok(vec![]);
         }
 
-        const MAX_LENGTH: usize = 8192;
         const NORMALIZATION_EPSILON: f32 = 1e-12;
-        const PAD_TOKEN: u32 = 0;  // Assuming 0 is pad token
 
         // Find max length and prepare for padding
         let batch_size = batch.len();
         let max_len = batch.iter()
-            .map(|tokens| tokens.len().min(MAX_LENGTH))
+            .map(|tokens| tokens.len().min(self.max_length))
             .max()
             .unwrap_or(0);
 
-        // Build padded batch tensor
-        let mut padded_batch = vec![PAD_TOKEN; batch_size * max_len];
+        // Build padded batch tensor (pad with 0 to make rectangular)
+        let mut padded_batch = vec![0u32; batch_size * max_len];
 
         for (i, tokens) in batch.iter().enumerate() {
-            let truncated_len = tokens.len().min(MAX_LENGTH);
+            let truncated_len = tokens.len().min(self.max_length);
             let truncated = &tokens[..truncated_len];
 
             let row_offset = i * max_len;
@@ -104,10 +116,9 @@ impl Embeddings for Qwen3Embeddings {
 
         // Get actual sequence lengths for each item in batch
         let seq_lengths: Vec<usize> = batch.iter()
-            .map(|tokens| tokens.len().min(MAX_LENGTH))
+            .map(|tokens| tokens.len().min(self.max_length))
             .collect();
 
-        // Single batched forward pass with sequence lengths
         let hidden_states = self.forward_embeddings(&input_tensor, Some(&seq_lengths))?;
 
         // hidden_states is [batch_size, hidden_dim]
@@ -126,7 +137,6 @@ impl Embeddings for Qwen3Embeddings {
                 );
             }
 
-            // Apply Matryoshka truncation if specified
             if let Some(dims) = self.output_dims {
                 if dims < embedding_vec.len() {
                     embedding_vec.truncate(dims);
