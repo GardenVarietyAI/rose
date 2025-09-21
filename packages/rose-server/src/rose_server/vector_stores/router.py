@@ -154,7 +154,7 @@ async def update(vector_store_id: str = Path(...), request: VectorStoreUpdate = 
             id=vector_store_id,
             name=vector_store.name,
             dimensions=vector_store.dimensions,
-            metadata=vector_store.meta,
+            metadata=vector_store.meta or {},
             created_at=vector_store.created_at,
         )
     except HTTPException:
@@ -178,84 +178,39 @@ async def delete(
 async def search_store(
     req: Request, vector_store_id: str = Path(...), request: VectorSearch = Body(...)
 ) -> VectorSearchResult:
-    try:
-        if request.filters:
-            raise HTTPException(status_code=400, detail="Filters are not supported yet.")
+    vector_store = await get_vector_store(vector_store_id)
+    if not vector_store:
+        raise HTTPException(status_code=404, detail=f"Vector store {vector_store_id} not found")
 
-        vector_store = await get_vector_store(vector_store_id)
-        if not vector_store:
-            raise HTTPException(status_code=404, detail=f"Vector store {vector_store_id} not found")
+    if not req.app.state.embedding_model:
+        raise HTTPException(status_code=500, detail="Embedding model not initialized")
 
-        # Handle text or vector query
-        if isinstance(request.query, str):
-            if not req.app.state.embedding_model or not req.app.state.embedding_tokenizer:
-                raise HTTPException(status_code=500, detail="Embedding model not initialized")
+    query_embedding = await generate_query_embedding(request.query, req.app.state.embedding_model)
+    documents = await search_vector_store(vector_store_id, query_embedding, request.max_num_results)
 
-            # Convert text to embedding
-            query_embedding = await generate_query_embedding(request.query, req.app.state.embedding_model)
+    search_chunks = []
+    for doc in documents:
+        meta = doc.document.meta or {}
+        attributes = {k: v for k, v in meta.items() if k not in _INTERNAL_FIELDS}
 
-            # Calculate token usage
-            prompt_tokens = len(req.app.state.embedding_tokenizer.encode(request.query).ids)
-        elif isinstance(request.query, list):
-            query_embedding = request.query
-            prompt_tokens = 1  # Vector queries use minimal tokens
-        else:
-            prompt_tokens = 0
-            documents = []
-            query_embedding = None
-
-        # Search with embedding
-        if query_embedding is not None:
-            documents = await search_vector_store(vector_store_id, query_embedding, request.max_num_results + 1)
-        else:
-            documents = []
-
-        # Convert documents to API response format
-        search_chunks = []
-        for doc in documents:
-            # Extract file info from metadata
-            meta = doc.document.meta or {}
-
-            # Create attributes from metadata (excluding our internal fields)
-            attributes = {k: v for k, v in meta.items() if k not in _INTERNAL_FIELDS}
-
-            chunk = VectorSearchChunk(
-                file_id=meta.get("file_id", ""),
-                filename=meta.get("filename", ""),
-                similarity=doc.score,  # Already converted to similarity (1 - distance)
-                attributes=attributes,
-                content=[{"type": "text", "text": doc.document.content}],
-            )
-            search_chunks.append(chunk)
-
-        # Determine query string for response
-        query_str = request.query if isinstance(request.query, str) else "[vector query]"
-
-        # Calculate pagination fields
-        has_more = len(documents) > request.max_num_results
-        # Trim both lists to requested limit
-        documents = documents[: request.max_num_results]
-        search_chunks = search_chunks[: request.max_num_results]
-        first_id = documents[0].document.id if documents else None
-        last_id = documents[-1].document.id if documents else None
-
-        return VectorSearchResult(
-            search_query=query_str,
-            data=search_chunks,
-            first_id=first_id,
-            last_id=last_id,
-            has_more=has_more,
-            next_page=None,
-            usage=VectorSearchUsage(
-                prompt_tokens=prompt_tokens,
-                total_tokens=prompt_tokens + len(search_chunks),
-            ),
+        chunk = VectorSearchChunk(
+            file_id=meta["file_id"],
+            filename=meta["filename"],
+            similarity=doc.score,
+            attributes=attributes,
+            content=[{"type": "text", "text": doc.document.content}],
         )
-    except HTTPException:
-        raise
-    except ValueError:
-        logger.exception("Invalid search parameters")
-        raise HTTPException(status_code=400, detail="Invalid search parameters")
-    except Exception:
-        logger.exception("Error searching vectors")
-        raise HTTPException(status_code=500, detail="Error searching vectors")
+        search_chunks.append(chunk)
+
+    return VectorSearchResult(
+        search_query=request.query,
+        data=search_chunks,
+        first_id=None,
+        last_id=None,
+        has_more=False,
+        next_page=None,
+        usage=VectorSearchUsage(
+            prompt_tokens=0,
+            total_tokens=0,
+        ),
+    )
