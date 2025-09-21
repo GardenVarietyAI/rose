@@ -5,13 +5,13 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, HTTPException, Query
 from rose_server.config.settings import settings
 from rose_server.entities.fine_tuning import FineTuningJob
-from rose_server.fine_tuning.step_metrics import build_training_results
 from rose_server.schemas.fine_tuning import (
     FineTuningJobCreateRequest,
     FineTuningJobResponse,
     FineTuningJobStatusUpdateRequest,
     Hyperparameters,
 )
+from rose_server.services.fine_tuning_step_metrics import build_training_results
 from rose_server.stores.fine_tuning_events import get_events
 from rose_server.stores.fine_tuning_jobs import create_job, get_job, list_jobs, list_jobs_by_status, update_job_status
 from rose_server.stores.models import create as create_language_model
