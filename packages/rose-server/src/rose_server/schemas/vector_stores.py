@@ -2,18 +2,16 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from rose_server.settings import settings
-
 
 class StaticChunkingConfig(BaseModel):
     max_chunk_size_tokens: int = Field(
-        default=settings.default_chunk_size,
+        default=400,
         description="Maximum number of tokens in each chunk.",
         ge=50,
         le=4000,
     )
     chunk_overlap_tokens: int = Field(
-        default=settings.default_chunk_overlap,
+        default=100,
         description="Number of tokens shared between consecutive chunks.",
         ge=0,
         le=4000,
