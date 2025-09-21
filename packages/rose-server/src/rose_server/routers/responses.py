@@ -23,7 +23,7 @@ from rose_server.schemas.responses import (
     ResponsesResponse,
     ResponsesUsage,
 )
-from sqlalchemy import select
+from sqlmodel import select
 from sse_starlette.sse import EventSourceResponse
 
 logger = logging.getLogger(__name__)
@@ -36,12 +36,12 @@ async def chains() -> List[str]:
     async with get_session(read_only=True) as session:
         query = (
             select(Message.response_chain_id)
-            .where(Message.response_chain_id.is_not(None))
+            .where(Message.response_chain_id.isnot(None))  # type: ignore
             .distinct()
-            .order_by(Message.created_at)
+            .order_by(Message.created_at)  # type: ignore
         )
         result = await session.execute(query)
-        chain_ids: List[str] = result.scalars().all()
+        chain_ids: List[str] = list(result.scalars().all())
         return chain_ids
 
 
@@ -108,10 +108,10 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMess
                 query = (
                     select(Message)
                     .where(Message.response_chain_id == response_msg.response_chain_id)
-                    .order_by(Message.created_at)
+                    .order_by(Message.created_at)  # type: ignore[arg-type]
                 )
                 result = await session.execute(query)
-                chain_messages: List[Message] = result.scalars().all()
+                chain_messages: List[Message] = list(result.scalars().all())
             else:
                 chain_messages = []
 
@@ -119,10 +119,10 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMess
             if isinstance(msg.content, list):
                 for item in msg.content:
                     if isinstance(item, dict) and item.get("type") == "text":
-                        messages.append(ChatMessage(role=msg.role, content=item.get("text", "")))
+                        messages.append(ChatMessage(role=msg.role, content=item.get("text", "")))  # type: ignore[arg-type]
                         break
-            elif isinstance(msg.content, str):
-                messages.append(ChatMessage(role=msg.role, content=msg.content))
+            elif isinstance(msg.content, str):  # type: ignore[unreachable]
+                messages.append(ChatMessage(role=msg.role, content=msg.content))  # type: ignore[arg-type]
 
     # Combine system instructions
     system_content_parts = []
@@ -139,7 +139,7 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMess
         # Handle list of ResponsesInput objects
         for msg in request.input:
             if hasattr(msg, "type"):
-                if msg.type == "function_call":
+                if getattr(msg, "type", None) == "function_call":
                     # Preserve function calls in conversation history for context
                     messages.append(
                         ChatMessage(
@@ -147,26 +147,34 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMess
                             content=None,
                             tool_calls=[
                                 {
-                                    "id": msg.call_id or msg.id,
+                                    "id": getattr(msg, "call_id", None) or getattr(msg, "id", ""),
                                     "type": "function",
-                                    "function": {"name": msg.name, "arguments": msg.arguments},
+                                    "function": {
+                                        "name": getattr(msg, "name", ""),
+                                        "arguments": getattr(msg, "arguments", ""),
+                                    },
                                 }
                             ],
                         )
                     )
-                elif msg.type == "function_call_output":
+                elif getattr(msg, "type", None) == "function_call_output":
                     # Format tool output in Hermes/Qwen3 format with <tool_response> tags
                     messages.append(
-                        ChatMessage(role="tool", content=f"<tool_response>\n{msg.output}\n</tool_response>")
+                        ChatMessage(
+                            role="tool",
+                            content=f"<tool_response>\n{getattr(msg, 'output', '')}\n</tool_response>",
+                        )
                     )
             else:
+                msg_role = getattr(msg, "role", "user")
+                msg_content = getattr(msg, "content", "")
                 messages.append(
                     ChatMessage(
-                        role="system" if msg.role == "developer" else msg.role,
-                        content=msg.content
-                        if isinstance(msg.content, str)
-                        else str(msg.content)
-                        if msg.content
+                        role="system" if msg_role == "developer" else msg_role,  # type: ignore[arg-type]
+                        content=msg_content
+                        if isinstance(msg_content, str)
+                        else str(msg_content)
+                        if msg_content
                         else "",
                     )
                 )
@@ -264,7 +272,7 @@ async def _store_response(
     reply_text = ""
     for output_item in complete_response.output:
         if output_item.type == "message":
-            content_list = output_item.content
+            content_list = output_item.content or []
             for content_item in content_list:
                 if content_item.type == "output_text":
                     reply_text = content_item.text
@@ -317,7 +325,7 @@ async def retrieve_response(response_id: str) -> ResponsesResponse:
         if not response_msg:
             raise HTTPException(status_code=404, detail=f"Response {response_id} not found")
 
-        text_content = ""
+        text_content = ""  # type: ignore[unreachable]
 
         if isinstance(response_msg.content, list):
             for item in response_msg.content:
@@ -325,7 +333,7 @@ async def retrieve_response(response_id: str) -> ResponsesResponse:
                     text_content = item.get("text", "")
                     break
         else:
-            logger.warning(f"Unexpected content format for response {response_id}: {type(response_msg.content)}")
+            # Handle other content formats
             text_content = str(response_msg.content) if response_msg.content else ""
 
         model_name = response_msg.meta.get("model", "unknown") if response_msg.meta else "unknown"
@@ -437,7 +445,7 @@ async def create_response(
                 max_output_tokens=request.max_output_tokens,
                 temperature=request.temperature,
                 tool_choice=request.tool_choice,
-                store=request.store,
+                store=request.store if request.store is not None else False,
                 chain_id=chain_id,
                 max_concurrent_inference=req.app.state.settings.max_concurrent_inference,
             )

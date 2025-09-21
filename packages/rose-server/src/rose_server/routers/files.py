@@ -1,7 +1,5 @@
-"""File management API endpoints."""
-
 import logging
-from typing import List, Literal, Optional
+from typing import Literal, Optional, Sequence
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
@@ -9,7 +7,8 @@ from openai.types import FileDeleted, FileObject
 from rose_server.database import get_session
 from rose_server.entities.files import UploadedFile
 from rose_server.schemas.files import FileListResponse
-from sqlalchemy import delete, select
+from sqlalchemy import delete, desc
+from sqlmodel import select
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1")
@@ -23,10 +22,14 @@ async def create(
     """Upload a file."""
     try:
         content = await file.read()
+
+        file_size = file.size if file.size is not None else len(content)
+        filename = file.filename if file.filename else "unknown"
+
         uploaded_file = UploadedFile(
             object="file",
-            bytes=file.size,
-            filename=file.filename,
+            bytes=file_size,
+            filename=filename,
             purpose=purpose,
             status="processed",
             content=content,
@@ -41,12 +44,12 @@ async def create(
         # Return response without binary content to avoid serialization issues
         return FileObject(
             id=uploaded_file.id,
-            object=uploaded_file.object,
+            object="file",
             bytes=uploaded_file.bytes,
             created_at=uploaded_file.created_at,
             filename=uploaded_file.filename,
-            purpose=uploaded_file.purpose,
-            status=uploaded_file.status,
+            purpose=uploaded_file.purpose,  # type: ignore
+            status=uploaded_file.status if uploaded_file.status else "processed",  # type: ignore
             expires_at=uploaded_file.expires_at,
             status_details=uploaded_file.status_details,
         )
@@ -68,7 +71,7 @@ async def index(
         if purpose:
             query = query.where(UploadedFile.purpose == purpose)
 
-        query = query.order_by(UploadedFile.created_at.desc())
+        query = query.order_by(desc(UploadedFile.created_at))  # type: ignore[arg-type]
 
         if after:
             # Get the created_at time of the 'after' file
@@ -79,18 +82,18 @@ async def index(
 
         query = query.limit(limit)
         result = await session.execute(query)
-        uploaded_files: List[UploadedFile] = result.scalars().all()
+        uploaded_files: Sequence[UploadedFile] = result.scalars().all()
 
     return FileListResponse(
         data=[
             FileObject(
                 id=f.id,
-                object=f.object,
+                object="file",
                 bytes=f.bytes,
                 created_at=f.created_at,
                 filename=f.filename,
-                purpose=f.purpose,
-                status=f.status,
+                purpose=f.purpose,  # type: ignore
+                status=f.status if f.status else "processed",  # type: ignore
                 expires_at=f.expires_at,
                 status_details=f.status_details,
             )
@@ -112,12 +115,12 @@ async def get(file_id: str) -> FileObject:
 
     return FileObject(
         id=uploaded_file.id,
-        object=uploaded_file.object,
+        object="file",
         bytes=uploaded_file.bytes,
         created_at=uploaded_file.created_at,
         filename=uploaded_file.filename,
-        purpose=uploaded_file.purpose,
-        status=uploaded_file.status,
+        purpose=uploaded_file.purpose,  # type: ignore
+        status=uploaded_file.status if uploaded_file.status else "processed",  # type: ignore
         expires_at=uploaded_file.expires_at,
         status_details=uploaded_file.status_details,
     )
@@ -153,7 +156,7 @@ async def get_content(file_id: str) -> Response:
 async def remove(file_id: str) -> FileDeleted:
     """Delete a file."""
     async with get_session() as session:
-        delete_stmt = delete(UploadedFile).where(UploadedFile.id == file_id)
+        delete_stmt = delete(UploadedFile).where(UploadedFile.id == file_id)  # type: ignore[arg-type]
         result = await session.execute(delete_stmt)
 
         # Check if any rows were actually deleted

@@ -14,13 +14,13 @@ from rose_server.schemas.fine_tuning import (
     Hyperparameters,
 )
 from rose_server.services.fine_tuning_step_metrics import build_training_results
+from sqlalchemy import asc, desc
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 router = APIRouter(prefix="/v1/fine_tuning/jobs")
 logger = logging.getLogger(__name__)
 
-# Constants
 DEFAULT_STEPS_FALLBACK = 1000
 MAX_EVENTS_LIMIT = 1000
 
@@ -29,7 +29,7 @@ MAX_EVENTS_LIMIT = 1000
 async def create_fine_tuning_job(req: Request, request: FineTuningJobCreateRequest) -> FineTuningJobResponse:
     try:
         # Extract hyperparameters from method or request
-        method_config = getattr(request.method, request.method.type, None)
+        method_config = getattr(request.method, request.method.type if request.method else "supervised", None)
         if method_config and method_config.hyperparameters:
             hp_dict = method_config.hyperparameters.model_dump()
         elif request.hyperparameters:
@@ -120,7 +120,7 @@ async def list_fine_tuning_jobs(
     limit: int = Query(default=20, ge=1, le=100, description="Number of jobs to retrieve"),
     after: Optional[str] = Query(default=None, description="Pagination cursor"),
 ) -> Dict[str, Any]:
-    statement = select(FineTuningJob).order_by(FineTuningJob.created_at.desc())
+    statement = select(FineTuningJob).order_by(desc(FineTuningJob.created_at))  # type: ignore[arg-type]
     if after:
         statement = statement.where(FineTuningJob.id > after)
     statement = statement.limit(limit)
@@ -141,7 +141,7 @@ async def get_queued_jobs(req: Request, limit: int = Query(10, description="Max 
                 await session.execute(
                     select(FineTuningJob)
                     .where(FineTuningJob.status == "queued")
-                    .order_by(FineTuningJob.created_at.asc())
+                    .order_by(asc(FineTuningJob.created_at))  # type: ignore[arg-type]
                     .limit(limit)
                 )
             )
@@ -210,6 +210,8 @@ async def cancel_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
     async with get_session(read_only=True) as session:
         updated_job = await session.get(FineTuningJob, job_id)
 
+    if updated_job is None:
+        raise HTTPException(status_code=404, detail="Fine-tuning job not found")
     return FineTuningJobResponse.from_entity(updated_job)
 
 
@@ -246,6 +248,8 @@ async def pause_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
     async with get_session(read_only=True) as session:
         updated_job = await session.get(FineTuningJob, job_id)
 
+    if updated_job is None:
+        raise HTTPException(status_code=404, detail="Fine-tuning job not found")
     return FineTuningJobResponse.from_entity(updated_job)
 
 
@@ -272,6 +276,8 @@ async def resume_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
     async with get_session(read_only=True) as session:
         updated_job = await session.get(FineTuningJob, job_id)
 
+    if updated_job is None:
+        raise HTTPException(status_code=404, detail="Fine-tuning job not found")
     return FineTuningJobResponse.from_entity(updated_job)
 
 
@@ -375,7 +381,7 @@ async def update_job_status_direct(job_id: str, request: FineTuningJobStatusUpda
             statement = (
                 select(FineTuningEvent)
                 .where(FineTuningEvent.job_id == job_id)
-                .order_by(FineTuningEvent.created_at.asc())
+                .order_by(asc(FineTuningEvent.created_at))  # type: ignore[arg-type]
             )
             async with get_session(read_only=True) as session:
                 events = list((await session.execute(statement)).scalars().all())

@@ -52,7 +52,7 @@ def get_embedding_model(
     if not gguf_file:
         available_quants = [f.name for f in gguf_files]
         raise FileNotFoundError(
-            f"Quantization {embedding_model_quantization} not found in {model_path}. " f"Available: {available_quants}"
+            f"Quantization {embedding_model_quantization} not found in {model_path}. Available: {available_quants}"
         )
 
     tokenizer_file = model_path / "tokenizer.json"
@@ -67,9 +67,7 @@ def get_embedding_model(
         embedding_dimensions,
     )
     logger.info(
-        f"Loaded embeddings: {gguf_file.name} "
-        f"on device: {embedding_device}, "
-        f"output_dims: {embedding_dimensions}"
+        f"Loaded embeddings: {gguf_file.name} on device: {embedding_device}, output_dims: {embedding_dimensions}"
     )
     return model
 
@@ -113,7 +111,7 @@ async def lifespan(app: FastAPI) -> Any:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         db_path.touch(exist_ok=True)
 
-    await create_all_tables()
+    await create_all_tables(embedding_dimensions=settings.embedding_dimensions)
 
     app.state.inference_server = InferenceServer("auto")
     logger.info("Inference server initialized")

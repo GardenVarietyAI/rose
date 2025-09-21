@@ -1,5 +1,3 @@
-"""Router module for embeddings API endpoints."""
-
 from fastapi import APIRouter, HTTPException, Request
 from rose_server.schemas.embeddings import EmbeddingData, EmbeddingRequest, EmbeddingResponse
 

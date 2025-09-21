@@ -35,7 +35,7 @@ async def event_based_chat_completions(
 
     # Get the language model
     async with get_session(read_only=True) as session:
-        result = await session.execute(select(LanguageModel).where(LanguageModel.id == request.model))
+        result = await session.execute(select(LanguageModel).where(LanguageModel.id == request.model))  # type: ignore[arg-type]
         model = result.scalar_one_or_none()
 
     if not model:

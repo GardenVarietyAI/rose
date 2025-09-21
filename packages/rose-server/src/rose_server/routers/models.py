@@ -1,5 +1,3 @@
-"""Router for model-related endpoints."""
-
 import asyncio
 import logging
 import shutil
@@ -13,7 +11,7 @@ from fastapi.responses import JSONResponse
 from rose_server.database import get_session
 from rose_server.entities.models import LanguageModel
 from rose_server.schemas.models import ModelCreateRequest, ModelResponse
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.exc import IntegrityError
 
 router = APIRouter(prefix="/v1")
@@ -34,7 +32,7 @@ def _generate_model_id(is_fine_tuned: bool, base_model: str, model_name: str, su
 @router.get("/models")
 async def index() -> JSONResponse:
     async with get_session(read_only=True) as session:
-        result = await session.execute(select(LanguageModel).order_by(LanguageModel.created_at.desc()))
+        result = await session.execute(select(LanguageModel).order_by(desc(LanguageModel.created_at)))  # type: ignore[arg-type]
         models = list(result.scalars().all())
 
     return JSONResponse(
@@ -82,7 +80,7 @@ async def create(req: Request, request: ModelCreateRequest) -> ModelResponse:
         except IntegrityError:
             # Model already exists, retrieve and return it
             await session.rollback()
-            result = await session.execute(select(LanguageModel).where(LanguageModel.id == model_id))
+            result = await session.execute(select(LanguageModel).where(LanguageModel.id == model_id))  # type: ignore[arg-type]
             model = result.scalar_one()
 
     logger.info(f"Created model: {model.id} ({model.model_name})")

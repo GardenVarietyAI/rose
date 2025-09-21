@@ -18,12 +18,22 @@ from rose_server.entities.fine_tuning import FineTuningEvent, FineTuningJob
 from rose_server.entities.messages import Message
 from rose_server.entities.models import LanguageModel
 from rose_server.entities.vector_stores import Document, VectorStore
-from rose_server.settings import settings
+
+# Settings will be passed as parameter where needed
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = Path(settings.data_dir) / "rose.db"
+# Default data directory - will be overridden in app.py
+DEFAULT_DATA_DIR = "./data"
+DB_PATH = Path(DEFAULT_DATA_DIR) / "rose.db"
 
+
+def get_db_path(data_dir: str = DEFAULT_DATA_DIR) -> Path:
+    """Get database path for given data directory."""
+    return Path(data_dir) / "rose.db"
+
+
+# Engine will be created with default path, but app.py ensures the correct path exists
 engine = create_async_engine(
     f"sqlite+aiosqlite:///{DB_PATH}",
     echo=False,
@@ -52,7 +62,7 @@ async def get_session(read_only: bool = False) -> AsyncGenerator[AsyncSession, N
             await session.close()
 
 
-async def create_all_tables() -> None:
+async def create_all_tables(embedding_dimensions: int) -> None:
     """Create all database tables."""
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
@@ -61,7 +71,7 @@ async def create_all_tables() -> None:
             text(f"""
             CREATE VIRTUAL TABLE IF NOT EXISTS vec0 USING vec0(
                 document_id TEXT PRIMARY KEY,
-                embedding float[{settings.embedding_dimensions}]
+                embedding float[{embedding_dimensions}]
             )
         """)
         )

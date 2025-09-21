@@ -1,5 +1,3 @@
-"""API router for vector store files endpoints."""
-
 import logging
 from typing import Any, Dict
 
@@ -93,12 +91,12 @@ async def create(
             # Get the vector store file record
             vector_store_file = await session.scalar(
                 select(VectorStoreFileEntity).where(
-                    VectorStoreFileEntity.vector_store_id == vector_store_id,
-                    VectorStoreFileEntity.file_id == request.file_id,
+                    VectorStoreFileEntity.vector_store_id == vector_store_id,  # type: ignore[arg-type]
+                    VectorStoreFileEntity.file_id == request.file_id,  # type: ignore[arg-type]
                 )
             )
 
-            if vector_store_file.status != "in_progress":
+            if vector_store_file and vector_store_file.status != "in_progress":
                 pass  # don't double-ingest
             else:
                 try:
@@ -108,7 +106,7 @@ async def create(
                     )
 
                     # Delete old docs for this file
-                    await session.execute(sql_delete(Document).where(Document.id.like(f"{request.file_id}#%")))
+                    await session.execute(sql_delete(Document).where(Document.id.like(f"{request.file_id}#%")))  # type: ignore[attr-defined]
 
                     # Insert new documents
                     for doc in documents:
@@ -123,25 +121,29 @@ async def create(
                     await session.commit()
 
                     # Mark as completed
-                    vector_store_file.status = "completed"
-                    vector_store_file.last_error = None
+                    if vector_store_file:
+                        vector_store_file.status = "completed"
+                        vector_store_file.last_error = None
                     await session.commit()
 
                     # Update last_used_at
                     await session.execute(
-                        sql_update(VectorStore).where(VectorStore.id == vector_store_id).values(last_used_at=created_at)
+                        sql_update(VectorStore).where(VectorStore.id == vector_store_id).values(last_used_at=created_at)  # type: ignore[arg-type]
                     )
                     await session.commit()
 
                 except Exception as e:
                     # Mark as failed
                     logger.error(f"Failed to add file {request.file_id} to vector store {vector_store_id}: {str(e)}")
-                    vector_store_file.status = "failed"
-                    vector_store_file.last_error = str(e)
+                    if vector_store_file:
+                        vector_store_file.status = "failed"
+                        vector_store_file.last_error = str(e)
                     await session.commit()
                     raise
         logger.info("Added file %s to vector store %s", request.file_id, vector_store_id)
 
+        if not vector_store_file:
+            raise HTTPException(status_code=500, detail="Failed to create vector store file")
         return VectorStoreFile(
             id=vector_store_file.id,
             vector_store_id=vector_store_file.vector_store_id,
@@ -168,19 +170,19 @@ async def list_files(
     try:
         # Inline list_vector_store_files
         async with get_session() as session:
-            query = select(VectorStoreFileEntity).where(VectorStoreFileEntity.vector_store_id == vector_store_id)
+            query = select(VectorStoreFileEntity).where(VectorStoreFileEntity.vector_store_id == vector_store_id)  # type: ignore[arg-type]
 
             # Handle pagination cursors
             if after:
-                query = query.where(VectorStoreFileEntity.id > after)
+                query = query.where(VectorStoreFileEntity.id > after)  # type: ignore[arg-type]
             if before:
-                query = query.where(VectorStoreFileEntity.id < before)
+                query = query.where(VectorStoreFileEntity.id < before)  # type: ignore[arg-type]
 
             # Apply ordering
             if order == "desc":
-                query = query.order_by(VectorStoreFileEntity.created_at.desc())
+                query = query.order_by(VectorStoreFileEntity.created_at.desc())  # type: ignore[attr-defined]
             else:
-                query = query.order_by(VectorStoreFileEntity.created_at)
+                query = query.order_by(VectorStoreFileEntity.created_at)  # type: ignore[arg-type]
 
             # Get one extra to check if there are more
             query = query.limit(limit + 1)
@@ -225,8 +227,8 @@ async def delete_file(
             # Check if the file exists in this vector store
             vsf = await session.scalar(
                 select(VectorStoreFileEntity).where(
-                    VectorStoreFileEntity.vector_store_id == vector_store_id,
-                    VectorStoreFileEntity.file_id == file_id,
+                    VectorStoreFileEntity.vector_store_id == vector_store_id,  # type: ignore[arg-type]
+                    VectorStoreFileEntity.file_id == file_id,  # type: ignore[arg-type]
                 )
             )
 
@@ -234,12 +236,13 @@ async def delete_file(
                 deleted = False
             else:
                 # Delete documents and their embeddings
-                doc_ids = await session.scalars(
-                    select(Document.id).where(
-                        Document.id.like(f"{file_id}#%"), Document.vector_store_id == vector_store_id
+                doc_ids_result = await session.scalars(
+                    select(Document.id).where(  # type: ignore[attr-defined]
+                        Document.id.like(f"{file_id}#%"),  # type: ignore[attr-defined]
+                        Document.vector_store_id == vector_store_id,  # type: ignore[arg-type]
                     )
                 )
-                doc_ids = list(doc_ids)
+                doc_ids = list(doc_ids_result)
 
                 if doc_ids:
                     # Use pure function to prepare deletion params
@@ -247,7 +250,7 @@ async def delete_file(
                     await session.execute(text(f"DELETE FROM vec0 WHERE document_id IN ({placeholders})"), params)
 
                     # Delete documents
-                    await session.execute(sql_delete(Document).where(Document.id.in_(doc_ids)))
+                    await session.execute(sql_delete(Document).where(Document.id.in_(doc_ids)))  # type: ignore[attr-defined]
 
                 # Delete the VectorStoreFile record
                 await session.delete(vsf)
