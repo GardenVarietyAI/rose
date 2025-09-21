@@ -3,28 +3,41 @@
 import asyncio
 import logging
 import shutil
+import uuid
 from pathlib import Path
 
 import aiofiles
 import aiofiles.os
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
+from rose_server.database import get_session
+from rose_server.entities.models import LanguageModel
 from rose_server.schemas.models import ModelCreateRequest, ModelResponse
 from rose_server.settings import settings
-from rose_server.stores.models import (
-    create as create_language_model,
-    delete as delete_language_model,
-    get as get_language_model,
-    list_all,
-)
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
 
 
+def _generate_model_id(is_fine_tuned: bool, base_model: str, model_name: str, suffix: str = "") -> str:
+    """Generate model ID."""
+    if not is_fine_tuned:
+        return model_name.replace("/", "--")
+
+    unique_hash = uuid.uuid4().hex[:6]
+    suffix_part = suffix if suffix else "default"
+    flat_base_model = base_model.replace("/", "--")
+    return f"ft:{flat_base_model}:user:{suffix_part}:{unique_hash}"
+
+
 @router.get("/models")
 async def index() -> JSONResponse:
-    models = await list_all()
+    async with get_session(read_only=True) as session:
+        result = await session.execute(select(LanguageModel).order_by(LanguageModel.created_at.desc()))
+        models = list(result.scalars().all())
+
     return JSONResponse(
         content={"object": "list", "data": [ModelResponse(**model.model_dump()).model_dump() for model in models]}
     )
@@ -32,14 +45,53 @@ async def index() -> JSONResponse:
 
 @router.post("/models", status_code=201)
 async def create(request: ModelCreateRequest) -> ModelResponse:
-    model = await create_language_model(**request.model_dump())
+    is_fine_tuned = request.parent is not None
+    owned_by = "user" if is_fine_tuned else "system"
+
+    # Generate appropriate ID
+    model_id = _generate_model_id(
+        is_fine_tuned=is_fine_tuned,
+        base_model=request.parent or request.model_name,
+        model_name=request.model_name,
+        suffix=request.suffix or "",
+    )
+
+    model = LanguageModel(
+        id=model_id,
+        model_name=request.model_name,
+        path=request.path,
+        kind=request.kind,
+        is_fine_tuned=is_fine_tuned,
+        temperature=request.temperature,
+        top_p=request.top_p,
+        timeout=request.timeout,
+        owned_by=owned_by,
+        parent=request.parent,
+        quantization=request.quantization,
+        lora_target_modules=request.lora_target_modules if request.lora_target_modules is not None else [],
+    )
+
+    async with get_session() as session:
+        try:
+            session.add(model)
+            await session.commit()
+            await session.refresh(model)
+        except IntegrityError:
+            # Model already exists, retrieve and return it
+            await session.rollback()
+            result = await session.execute(select(LanguageModel).where(LanguageModel.id == model_id))
+            model = result.scalar_one()
+
     logger.info(f"Created model: {model.id} ({model.model_name})")
     return ModelResponse(**model.model_dump())
 
 
 @router.get("/models/{model_id}")
 async def show(model_id: str) -> ModelResponse:
-    model = await get_language_model(model_id)
+    async with get_session(read_only=True) as session:
+        result = await session.execute(select(LanguageModel).where(LanguageModel.id == model_id))
+        model = result.scalar_one_or_none()
+
     if not model:
         raise HTTPException(status_code=404, detail=f"The model '{model_id}' does not exist")
     return ModelResponse(**model.model_dump())
@@ -47,23 +99,25 @@ async def show(model_id: str) -> ModelResponse:
 
 @router.delete("/models/{model}")
 async def remove(model: str) -> JSONResponse:
-    model_obj = await get_language_model(model)
-    if not model_obj:
-        raise HTTPException(status_code=404, detail=f"The model does not exist: {model}")
+    async with get_session() as session:
+        model_obj = await session.get(LanguageModel, model)
+        if not model_obj:
+            raise HTTPException(status_code=404, detail=f"The model does not exist: {model}")
 
-    if not model_obj.is_fine_tuned:
-        raise HTTPException(status_code=403, detail=f"Cannot delete base model: {model}")
+        if not model_obj.is_fine_tuned:
+            raise HTTPException(status_code=403, detail=f"Cannot delete base model: {model}")
 
-    success = await delete_language_model(model)
-    if not success:
-        raise HTTPException(status_code=500, detail=f"Failed to delete model: {model}")
+        # Store path before deletion
+        model_path = Path(settings.data_dir) / model_obj.path if model_obj.path else None
 
-    if model_obj.path:
-        model_path = Path(settings.data_dir) / model_obj.path
+        await session.delete(model_obj)
+        await session.commit()
+
+    if model_path:
         file_path_exists = await aiofiles.os.path.exists(model_path)
         if file_path_exists:
             await asyncio.to_thread(shutil.rmtree, str(model_path))
             logger.info(f"Deleted model files at: {model_path}")
 
     logger.info(f"Successfully deleted model: {model}")
-    return JSONResponse(content={"id": model, "object": "model", "deleted": success})
+    return JSONResponse(content={"id": model, "object": "model", "deleted": True})

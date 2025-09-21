@@ -5,6 +5,8 @@ from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 from fastapi import APIRouter, Body, HTTPException, Request
 from rose_server._inference import InferenceServer
+from rose_server.database import get_session
+from rose_server.entities.models import LanguageModel
 from rose_server.events.formatters import ResponsesFormatter
 from rose_server.events.generator import EventGenerator
 from rose_server.metrics import MetricsCollector
@@ -19,8 +21,8 @@ from rose_server.schemas.responses import (
     ResponsesUsage,
 )
 from rose_server.settings import settings
-from rose_server.stores.models import get as get_language_model
 from rose_server.stores.responses import get_chain_ids, get_conversation_messages, get_response, store_response_messages
+from sqlalchemy import select
 from sse_starlette.sse import EventSourceResponse
 
 logger = logging.getLogger(__name__)
@@ -329,7 +331,11 @@ async def create_response(
             logger.error("No messages extracted from request")
             raise HTTPException(status_code=400, detail="No valid messages found in request")
 
-        model = await get_language_model(request.model)
+        # Get the language model
+        async with get_session(read_only=True) as session:
+            result = await session.execute(select(LanguageModel).where(LanguageModel.id == request.model))
+            model = result.scalar_one_or_none()
+
         if not model:
             raise HTTPException(status_code=400, detail=f"No configuration found for model '{request.model}'")
         config = ModelConfig.from_language_model(

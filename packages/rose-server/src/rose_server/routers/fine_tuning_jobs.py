@@ -1,10 +1,12 @@
 import logging
+import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from rose_server.database import get_session
 from rose_server.entities.fine_tuning import FineTuningEvent, FineTuningJob
+from rose_server.entities.models import LanguageModel
 from rose_server.schemas.fine_tuning import (
     FineTuningJobCreateRequest,
     FineTuningJobResponse,
@@ -14,7 +16,7 @@ from rose_server.schemas.fine_tuning import (
 from rose_server.services.fine_tuning_step_metrics import build_training_results
 from rose_server.settings import settings
 from rose_server.stores.fine_tuning_jobs import create_job, get_job, list_jobs, list_jobs_by_status, update_job_status
-from rose_server.stores.models import create as create_language_model
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 router = APIRouter(prefix="/v1/fine_tuning/jobs")
@@ -235,19 +237,44 @@ async def update_job_status_direct(job_id: str, request: FineTuningJobStatusUpda
         try:
             model_path = Path("models") / request.fine_tuned_model
 
-            created_model = await create_language_model(
+            # Create the fine-tuned model
+            unique_hash = uuid.uuid4().hex[:6]
+            suffix_part = job.suffix if job.suffix else "default"
+            flat_base_model = job.model.replace("/", "--")
+            model_id = f"ft:{flat_base_model}:user:{suffix_part}:{unique_hash}"
+
+            model = LanguageModel(
+                id=model_id,
                 model_name=request.fine_tuned_model,
                 path=str(model_path),
+                kind=None,
+                is_fine_tuned=True,
+                temperature=0.7,
+                top_p=0.9,
+                timeout=None,
+                owned_by="user",
                 parent=job.model,
-                suffix=job.suffix,
+                quantization=None,
+                lora_target_modules=[],
             )
 
-            logger.info(f"Registered fine-tuned model {request.fine_tuned_model} with ID {created_model.id}")
+            async with get_session() as session:
+                try:
+                    session.add(model)
+                    await session.commit()
+                    await session.refresh(model)
+                except IntegrityError:
+                    # Model already exists, retrieve and return it
+                    await session.rollback()
+                    result = await session.execute(select(LanguageModel).where(LanguageModel.id == model_id))
+                    model = result.scalar_one()
+
+            logger.info(f"Registered fine-tuned model {request.fine_tuned_model} with ID {model.id}")
 
             updated_job = await update_job_status(
                 job_id=job_id,
                 status=request.status,
-                fine_tuned_model=created_model.id,  # Use the generated ID instead of training name
+                fine_tuned_model=model.id,  # Use the generated ID instead of training name
                 trained_tokens=request.trained_tokens,
                 training_metrics=request.training_metrics,
             )

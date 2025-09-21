@@ -6,6 +6,8 @@ from typing import Any, AsyncGenerator, Dict
 
 from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
+from rose_server.database import get_session
+from rose_server.entities.models import LanguageModel
 from rose_server.events.event_types import LLMEvent
 from rose_server.events.formatters import ChatCompletionsFormatter
 from rose_server.events.generator import EventGenerator
@@ -13,7 +15,7 @@ from rose_server.metrics import MetricsCollector
 from rose_server.schemas.chat import ChatMessage, ChatRequest
 from rose_server.schemas.models import ModelConfig
 from rose_server.settings import settings
-from rose_server.stores.models import get as get_language_model
+from sqlalchemy import select
 from sse_starlette.sse import EventSourceResponse
 
 router = APIRouter(prefix="/v1/chat/completions")
@@ -31,7 +33,12 @@ async def event_based_chat_completions(
     request: ChatRequest = Body(...),
 ) -> JSONResponse | EventSourceResponse:
     inference_server = req.app.state.inference_server
-    model = await get_language_model(request.model)
+
+    # Get the language model
+    async with get_session(read_only=True) as session:
+        result = await session.execute(select(LanguageModel).where(LanguageModel.id == request.model))
+        model = result.scalar_one_or_none()
+
     if not model:
         return JSONResponse(
             status_code=400,

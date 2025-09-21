@@ -3,8 +3,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from rose_server.entities.models import LanguageModel
 from rose_server.models.qwen_configs import get_qwen_config
-from rose_server.stores.models import LanguageModel
 
 
 class ModelConfig(BaseModel):
