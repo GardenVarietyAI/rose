@@ -129,18 +129,14 @@ async def get_content(req: Request, file_id: str) -> Response:
         result = await session.execute(select(UploadedFile).where(UploadedFile.id == file_id))
         file_obj = result.scalar_one_or_none()
 
-    if not file_obj:
-        raise HTTPException(status_code=404, detail=f"File {file_id} not found")
+        if not file_obj:
+            raise HTTPException(status_code=404, detail=f"File {file_id} not found")
 
-    async with req.app.state.get_db_session(read_only=True) as session:
-        result = await session.execute(select(UploadedFile.content).where(UploadedFile.id == file_id))
-        content = result.scalar_one_or_none()
-
-    if content is None:
-        raise HTTPException(status_code=404, detail=f"File {file_id} content not found")
+        if file_obj.content is None:
+            raise HTTPException(status_code=404, detail=f"File {file_id} content not found")
 
     return Response(
-        content=content,
+        content=file_obj.content,
         media_type="application/octet-stream",
         headers={"Content-Disposition": f'attachment; filename="{file_obj.filename}"'},
     )
