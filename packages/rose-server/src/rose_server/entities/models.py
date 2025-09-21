@@ -18,8 +18,8 @@ class LanguageModel(SQLModel, table=True):
     top_p: float = Field(default=0.9)
     timeout: Optional[int] = Field(default=None)  # Timeout in seconds
     quantization: Optional[str] = Field(default=None)  # Quantization type: "int8", etc.
-    lora_target_modules: Optional[List[str]] = Field(sa_column=Column(JSON), default=None)
+    lora_target_modules: Optional[List[str]] = Field(default=None, sa_column=Column(JSON))
     owned_by: str = Field(default="organization-owner")
     parent: Optional[str] = Field(default=None)
-    permissions: Optional[List[str]] = Field(sa_column=Column(JSON), default=None)
+    permissions: Optional[List[str]] = Field(default=None, sa_column=Column(JSON))
     created_at: int = Field(default_factory=lambda: int(time.time()), alias="created")
