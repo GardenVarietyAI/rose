@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Context, Result};
 use candle_core::quantized::gguf_file;
 use candle_core::{Device, Tensor};
 use candle_transformers::models::quantized_qwen3::ModelWeights as Qwen3;
@@ -17,10 +17,10 @@ pub struct Qwen3Embeddings {
 impl Qwen3Embeddings {
     pub fn load(model_path: &str, device: &Device, output_dims: Option<usize>) -> Result<Self> {
         let mut file = File::open(model_path)
-            .map_err(|e| anyhow::anyhow!("Failed to open GGUF file {}: {}", model_path, e))?;
+            .with_context(|| format!("Failed to open GGUF file {}", model_path))?;
 
         let content = gguf_file::Content::read(&mut file)
-            .map_err(|e| anyhow::anyhow!("Failed to read GGUF content: {}", e))?;
+            .context("Failed to read GGUF content")?;
 
         let hidden_dim = content
             .metadata
@@ -47,11 +47,14 @@ impl Qwen3Embeddings {
             })?;
 
         let model = Qwen3::from_gguf(content, &mut file, device)
-            .map_err(|e| anyhow::anyhow!("Failed to create Qwen3 embeddings from GGUF: {}", e))?;
+            .context("Failed to create Qwen3 embeddings from GGUF")?;
 
         if let Some(dims) = output_dims {
+            if dims == 0 {
+                bail!("Requested output dimensions must be > 0");
+            }
             if dims > hidden_dim {
-                anyhow::bail!(
+                bail!(
                     "Requested output dimensions {} exceed model's hidden dimension {}",
                     dims, hidden_dim
                 );
@@ -79,7 +82,7 @@ impl Embeddings for Qwen3Embeddings {
         // Use batch implementation for consistency
         let batch_result = self.encode_batch(vec![tokens.to_vec()])?;
         batch_result.into_iter().next()
-            .ok_or_else(|| anyhow::anyhow!("Unexpected empty batch result"))
+            .context("Unexpected empty batch result")
     }
 
     fn encode_batch(&mut self, batch: Vec<Vec<u32>>) -> Result<Vec<Vec<f32>>> {
@@ -96,15 +99,19 @@ impl Embeddings for Qwen3Embeddings {
             .max()
             .unwrap_or(0);
 
+        // Edge case: when all inputs are empty return zero vectors with proper dims
+        if max_len == 0 {
+            let out_dim = self.output_dims.unwrap_or(self.hidden_dim);
+            return Ok(vec![vec![0.0; out_dim]; batch_size]);
+        }
+
         // Build padded batch tensor (pad with 0 to make rectangular)
         let mut padded_batch = vec![0u32; batch_size * max_len];
 
         for (i, tokens) in batch.iter().enumerate() {
-            let truncated_len = tokens.len().min(self.max_length);
-            let truncated = &tokens[..truncated_len];
-
-            let row_offset = i * max_len;
-            padded_batch[row_offset..row_offset + truncated_len].copy_from_slice(truncated);
+            let t = tokens.len().min(self.max_length);
+            let row = i * max_len;
+            padded_batch[row..row + t].copy_from_slice(&tokens[..t]);
         }
 
         // Create batch tensor [batch_size, max_len]
@@ -128,9 +135,9 @@ impl Embeddings for Qwen3Embeddings {
         let mut embeddings = Vec::with_capacity(batch_size);
         for mut embedding_vec in embeddings_matrix {
 
-            // Validate dimension
+            // Safety check
             if embedding_vec.len() != self.hidden_dim {
-                anyhow::bail!(
+                bail!(
                     "Model output dimension mismatch: expected {}, got {}",
                     self.hidden_dim,
                     embedding_vec.len()
@@ -144,15 +151,16 @@ impl Embeddings for Qwen3Embeddings {
             }
 
             // L2 normalize
-            let norm = embedding_vec
-                .iter()
-                .map(|x| x * x)
-                .sum::<f32>()
-                .sqrt()
-                .max(NORMALIZATION_EPSILON);
+            let mut ss = 0.0f32;
+            for &x in embedding_vec.iter() {
+                ss += x * x;
+            }
+            let norm = ss.sqrt().max(NORMALIZATION_EPSILON);
+            for x in embedding_vec.iter_mut() {
+                *x /= norm;
+            }
 
-            let normalized = embedding_vec.iter().map(|x| x / norm).collect();
-            embeddings.push(normalized);
+            embeddings.push(embedding_vec);
         }
 
         Ok(embeddings)
