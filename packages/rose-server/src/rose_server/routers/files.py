@@ -6,8 +6,8 @@ from typing import Literal, Optional
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from openai.types import FileDeleted, FileObject
-from rose_server.files.store import create_file, delete_file, get_file, get_file_content, list_files
 from rose_server.schemas.files import FileListResponse
+from rose_server.stores.files import create_file, delete_file, get_file, get_file_content, list_files
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1")

@@ -10,13 +10,13 @@ import aiofiles.os
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from rose_server.config.settings import settings
-from rose_server.models.store import (
+from rose_server.schemas.models import ModelCreateRequest, ModelResponse
+from rose_server.stores.models import (
     create as create_language_model,
     delete as delete_language_model,
     get as get_language_model,
     list_all,
 )
-from rose_server.schemas.models import ModelCreateRequest, ModelResponse
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)

@@ -14,14 +14,7 @@ from rose_server.schemas.vector_stores import (
     VectorStoreMetadata,
     VectorStoreUpdate,
 )
-from rose_server.vector_stores.files.service import decode_file_content
-from rose_server.vector_stores.files.store import (
-    FileNotFoundError as StoreFileNotFoundError,
-    VectorStoreNotFoundError as StoreVectorStoreNotFoundError,
-    get_uploaded_file,
-    store_file_chunks_with_embeddings,
-)
-from rose_server.vector_stores.store import (
+from rose_server.stores.vector_stores import (
     create_vector_store,
     delete_vector_store,
     get_vector_store,
@@ -30,6 +23,13 @@ from rose_server.vector_stores.store import (
     update_last_used_timestamp,
     update_vector_store,
 )
+from rose_server.stores.vector_stores_files import (
+    FileNotFoundError as StoreFileNotFoundError,
+    VectorStoreNotFoundError as StoreVectorStoreNotFoundError,
+    get_uploaded_file,
+    store_file_chunks_with_embeddings,
+)
+from rose_server.vector_stores.files.service import decode_file_content
 
 router = APIRouter(prefix="/v1/vector_stores")
 logger = logging.getLogger(__name__)

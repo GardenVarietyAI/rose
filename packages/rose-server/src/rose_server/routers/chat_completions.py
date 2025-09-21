@@ -11,9 +11,9 @@ from rose_server.events.event_types import LLMEvent
 from rose_server.events.formatters import ChatCompletionsFormatter
 from rose_server.events.generator import EventGenerator
 from rose_server.metrics import MetricsCollector
-from rose_server.models.store import get as get_language_model
 from rose_server.schemas.chat import ChatMessage, ChatRequest
 from rose_server.schemas.models import ModelConfig
+from rose_server.stores.models import get as get_language_model
 from sse_starlette.sse import EventSourceResponse
 
 router = APIRouter(prefix="/v1/chat/completions")

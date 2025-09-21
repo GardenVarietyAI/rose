@@ -2,8 +2,8 @@ import logging
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Query
-from rose_server.fine_tuning.events.store import add_event, get_events
 from rose_server.schemas.fine_tuning import FineTuningJobEventRequest, FineTuningJobEventResponse
+from rose_server.stores.fine_tuning_events import add_event, get_events
 
 router = APIRouter(prefix="/v1/fine_tuning/jobs/{job_id}/events")
 logger = logging.getLogger(__name__)

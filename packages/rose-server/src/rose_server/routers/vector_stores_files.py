@@ -7,8 +7,7 @@ from chonkie import TokenChunker
 from fastapi import APIRouter, Body, HTTPException, Path, Query, Request
 from rose_server.config.settings import settings
 from rose_server.schemas.vector_stores import VectorStoreFile, VectorStoreFileCreate, VectorStoreFileList
-from rose_server.vector_stores.files.service import EmptyFileError, decode_file_content
-from rose_server.vector_stores.files.store import (
+from rose_server.stores.vector_stores_files import (
     ChunkingError,
     FileNotFoundError,
     VectorStoreNotFoundError,
@@ -17,6 +16,7 @@ from rose_server.vector_stores.files.store import (
     remove_file_from_vector_store,
     store_file_chunks_with_embeddings,
 )
+from rose_server.vector_stores.files.service import EmptyFileError, decode_file_content
 
 router = APIRouter(prefix="/v1/vector_stores/{vector_store_id}/files", tags=["vector_store_files"])
 logger = logging.getLogger(__name__)
