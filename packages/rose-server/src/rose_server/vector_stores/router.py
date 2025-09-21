@@ -190,6 +190,7 @@ async def search_store(
         raise HTTPException(status_code=500, detail="Embedding model not initialized")
 
     query_embedding = await generate_query_embedding(request.query, req.app.state.embedding_model)
+    query_tokens = len(req.app.state.embedding_tokenizer.encode(request.query))
     documents = await search_vector_store(vector_store_id, query_embedding, request.max_num_results)
 
     background_tasks.add_task(update_last_used_timestamp, vector_store_id)
@@ -216,7 +217,7 @@ async def search_store(
         has_more=False,
         next_page=None,
         usage=VectorSearchUsage(
-            prompt_tokens=0,
-            total_tokens=0,
+            prompt_tokens=query_tokens,
+            total_tokens=query_tokens,
         ),
     )
