@@ -388,7 +388,6 @@ async def create_response(
                                 reply_text = content_item.text
                                 break
 
-                end_time = time.time()
                 # Generate new chain_id if not provided
                 if not chain_id:
                     chain_id = f"chain_{uuid.uuid4().hex[:16]}"
@@ -414,9 +413,8 @@ async def create_response(
                             "model": config.model_name,
                             "input_tokens": complete_response.usage.input_tokens,
                             "output_tokens": complete_response.usage.output_tokens,
-                            "total_tokens": complete_response.usage.input_tokens
-                            + complete_response.usage.output_tokens,
-                            "response_time_ms": int((end_time - complete_response.created_at) * 1000),
+                            "total_tokens": complete_response.usage.total_tokens,
+                            "response_time_ms": int((time.time() - complete_response.created_at) * 1000),
                         },
                     )
                     session.add(assistant_message)
