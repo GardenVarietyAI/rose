@@ -12,11 +12,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from tokenizers import Tokenizer
 
 from rose_server import __version__
-from rose_server._inference import InferenceServer
+from rose_server._inference import EmbeddingModel, InferenceServer, RerankerModel
 from rose_server.config.settings import settings
 from rose_server.database import check_database_setup, create_all_tables
-from rose_server.embeddings.embeddings import get_embedding_model, get_tokenizer
-from rose_server.reranker.reranker import get_reranker_model
 from rose_server.router import router
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -24,6 +22,69 @@ os.environ["ANONYMIZED_TELEMETRY"] = "false"
 
 
 logger = logging.getLogger("rose_server")
+
+
+def get_tokenizer() -> Tokenizer:
+    tokenizer_path = Path(settings.models_dir) / settings.embedding_model_name / "tokenizer.json"
+
+    if not tokenizer_path.exists():
+        raise FileNotFoundError(f"Tokenizer not found at {tokenizer_path}")
+
+    return Tokenizer.from_file(str(tokenizer_path))
+
+
+def get_embedding_model() -> EmbeddingModel:
+    model_path = (Path(settings.models_dir) / settings.embedding_model_name).resolve()
+
+    gguf_files = list(model_path.glob("*.gguf"))
+    if not gguf_files:
+        raise FileNotFoundError(f"No GGUF files found in {model_path}")
+
+    # Find the specified quantization level
+    gguf_file = next((f for f in gguf_files if settings.embedding_model_quantization in f.name), None)
+
+    if not gguf_file:
+        available_quants = [f.name for f in gguf_files]
+        raise FileNotFoundError(
+            f"Quantization {settings.embedding_model_quantization} not found in {model_path}. "
+            f"Available: {available_quants}"
+        )
+
+    tokenizer_file = model_path / "tokenizer.json"
+
+    if not tokenizer_file.exists():
+        raise FileNotFoundError(f"Tokenizer not found at {tokenizer_file}")
+
+    model = EmbeddingModel(
+        str(gguf_file.resolve()),
+        str(tokenizer_file.resolve()),
+        settings.embedding_device,
+        settings.embedding_dimensions,
+    )
+    logger.info(
+        f"Loaded embeddings: {gguf_file.name} "
+        f"on device: {settings.embedding_device}, "
+        f"output_dims: {settings.embedding_dimensions}"
+    )
+    return model
+
+
+def get_reranker_model() -> RerankerModel:
+    model_path = Path(settings.models_dir) / "QuantFactory--Qwen3-Reranker-0.6B-GGUF"
+
+    gguf_files = list(model_path.glob("*.gguf"))
+    if not gguf_files:
+        raise FileNotFoundError(f"No GGUF files found in {model_path}")
+
+    gguf_file = next((f for f in gguf_files if "Q8_0" in f.name), gguf_files[0])
+    tokenizer_file = model_path / "tokenizer.json"
+
+    if not tokenizer_file.exists():
+        raise FileNotFoundError(f"Tokenizer not found at {tokenizer_file}")
+
+    model = RerankerModel(str(gguf_file), str(tokenizer_file), "auto")
+    logger.info(f"Loaded reranker: {gguf_file.name}")
+    return model
 
 
 @asynccontextmanager
