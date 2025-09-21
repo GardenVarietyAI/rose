@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_session_maker(data_dir: str) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
-    db_path = Path(data_dir) / "rose.db"
+    db_path = Path(data_dir) / "rose_20250921.db"
     engine = create_async_engine(
         f"sqlite+aiosqlite:///{db_path}",
         echo=False,
