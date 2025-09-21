@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     )
     embedding_device: str = Field(default="auto", description="Device for embedding inference (auto, cpu, cuda, metal)")
     embedding_dimensions: int = Field(
-        default=1024, description="Output embedding dimensions (Matryoshka: 32, 64, 128, 256, 512, 768, 1024)"
+        default=64, description="Output embedding dimensions (Matryoshka: 32, 64, 128, 256, 512, 768, 1024)"
     )
 
     # Derived properties
