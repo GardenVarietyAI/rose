@@ -113,16 +113,14 @@ async def create(
                         embedding_data,
                     )
 
-                    await session.commit()
-
                     if vector_store_file:
                         vector_store_file.status = "completed"
                         vector_store_file.last_error = None
-                    await session.commit()
 
                     await session.execute(
                         sql_update(VectorStore).where(VectorStore.id == vector_store_id).values(last_used_at=created_at)  # type: ignore[arg-type]
                     )
+
                     await session.commit()
 
                 except Exception as e:
@@ -130,7 +128,7 @@ async def create(
                     if vector_store_file:
                         vector_store_file.status = "failed"
                         vector_store_file.last_error = {"error": str(e)}
-                    await session.commit()
+                        await session.commit()
                     raise
 
         logger.info("Added file %s to vector store %s", request.file_id, vector_store_id)
