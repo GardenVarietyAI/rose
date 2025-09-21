@@ -5,7 +5,7 @@ use tokenizers::Tokenizer;
 use tokio::sync::Mutex;
 
 use crate::device::DeviceConfig;
-use crate::models::{load_embeddings, Embeddings};
+use crate::models::{load_embeddings_with_dims, Embeddings};
 
 #[pyclass]
 pub struct EmbeddingModel {
@@ -16,11 +16,11 @@ pub struct EmbeddingModel {
 #[pymethods]
 impl EmbeddingModel {
     #[new]
-    #[pyo3(signature = (model_path, tokenizer_path, device=None))]
-    fn py_new(model_path: String, tokenizer_path: String, device: Option<&str>) -> PyResult<Self> {
+    #[pyo3(signature = (model_path, tokenizer_path, device=None, output_dims=None))]
+    fn py_new(model_path: String, tokenizer_path: String, device: Option<&str>, output_dims: Option<usize>) -> PyResult<Self> {
         let device_config = DeviceConfig::from_string(device)?;
 
-        let model = load_embeddings(&model_path, &device_config.device).map_err(|e| {
+        let model = load_embeddings_with_dims(&model_path, &device_config.device, output_dims).map_err(|e| {
             pyo3::exceptions::PyRuntimeError::new_err(format!("Failed to load embeddings: {}", e))
         })?;
 
