@@ -1,5 +1,3 @@
-"""FastAPI application factory and configuration."""
-
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -23,16 +21,13 @@ from rose_server.router import router
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["ANONYMIZED_TELEMETRY"] = "false"
-logging.basicConfig(
-    level=getattr(logging, settings.log_level),
-    format=settings.log_format,
-)
+
+
 logger = logging.getLogger("rose_server")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> Any:
-    """Manage application lifecycle."""
     directories = [
         settings.data_dir,
         settings.model_offload_dir,
@@ -83,7 +78,6 @@ async def lifespan(app: FastAPI) -> Any:
 
 
 def create_app() -> FastAPI:
-    """Create and configure the FastAPI application."""
     app = FastAPI(
         title="ROSE",
         description="Run your own LLM server",
