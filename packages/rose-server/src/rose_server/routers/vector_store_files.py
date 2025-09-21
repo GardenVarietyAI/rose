@@ -102,14 +102,12 @@ async def create(
                         uploaded_file, vector_store_id, chunks, embeddings, decode_errors
                     )
 
-                    # Delete old docs for this file
                     await session.execute(sql_delete(Document).where(col(Document.id).like(f"{request.file_id}#%")))
 
-                    # Insert new documents
                     for doc in documents:
                         session.add(doc)
 
-                    # Insert embeddings in batch
+                    # Batch insert embeddings using sqlite-vec
                     await session.execute(
                         text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
                         embedding_data,
@@ -216,7 +214,6 @@ async def delete_file(
     """Remove a file from a vector store. The file itself remains in storage."""
     try:
         async with req.app.state.get_db_session() as session:
-            # Check if the file exists in this vector store
             vsf = await session.scalar(
                 select(VectorStoreFileEntity).where(
                     VectorStoreFileEntity.vector_store_id == vector_store_id,
@@ -227,7 +224,6 @@ async def delete_file(
             if not vsf:
                 deleted = False
             else:
-                # Delete documents and their embeddings
                 doc_ids_result = await session.scalars(
                     select(Document.id).where(
                         col(Document.id).like(f"{file_id}#%"),
@@ -237,14 +233,11 @@ async def delete_file(
                 doc_ids = list(doc_ids_result)
 
                 if doc_ids:
-                    # Use pure function to prepare deletion params
                     placeholders, params = prepare_embedding_deletion_params(doc_ids)
                     await session.execute(text(f"DELETE FROM vec0 WHERE document_id IN ({placeholders})"), params)
 
-                    # Delete documents
                     await session.execute(sql_delete(Document).where(col(Document.id).in_(doc_ids)))
 
-                # Delete the VectorStoreFile record
                 await session.delete(vsf)
                 await session.commit()
                 deleted = True

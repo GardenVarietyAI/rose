@@ -32,7 +32,6 @@ async def event_based_chat_completions(
 ) -> JSONResponse | EventSourceResponse:
     inference_server = req.app.state.inference_server
 
-    # Get the language model
     async with req.app.state.get_db_session(read_only=True) as session:
         result = await session.execute(select(LanguageModel).where(LanguageModel.id == request.model))  # type: ignore[arg-type]
         model = result.scalar_one_or_none()

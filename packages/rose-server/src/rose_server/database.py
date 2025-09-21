@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 
 def create_session_maker(data_dir: str) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
-    """Create the async engine and a session maker for it."""
     db_path = Path(data_dir) / "rose.db"
     engine = create_async_engine(
         f"sqlite+aiosqlite:///{db_path}",
@@ -36,7 +35,6 @@ async def get_session(
     session_maker: async_sessionmaker[AsyncSession],
     read_only: bool = False,
 ) -> AsyncGenerator[AsyncSession, None]:
-    """Get async database session context manager."""
     async with session_maker() as session:
         try:
             yield session
@@ -50,7 +48,6 @@ async def get_session(
 
 
 async def create_all_tables(engine: AsyncEngine, embedding_dimensions: int) -> None:
-    """Create all database tables using the provided engine."""
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
 
@@ -66,7 +63,6 @@ async def create_all_tables(engine: AsyncEngine, embedding_dimensions: int) -> N
 
 
 async def check_database_setup(engine: AsyncEngine) -> bool:
-    """Check if database connection works using the provided engine."""
     try:
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))

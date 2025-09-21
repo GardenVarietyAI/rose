@@ -92,15 +92,12 @@ def get_reranker_model(models_dir: str) -> RerankerModel:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> Any:
-    # Initialize settings
     settings = Settings()
     app.state.settings = settings
 
-    # Initialize database engine and session maker with configured data directory
     app.state.engine, app.state.db_session_maker = create_session_maker(settings.data_dir)
     logger.info(f"Database session maker initialized with data_dir: {settings.data_dir}")
 
-    # Add helper method to get database sessions
     app.state.get_db_session = lambda read_only=False: get_session(app.state.db_session_maker, read_only)
 
     directories = [

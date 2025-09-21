@@ -73,7 +73,6 @@ async def index(
         query = query.order_by(desc(UploadedFile.created_at))  # type: ignore[arg-type]
 
         if after:
-            # Get the created_at time of the 'after' file
             after_result = await session.execute(select(UploadedFile.created_at).where(UploadedFile.id == after))
             after_created_at = after_result.scalar_one_or_none()
             if after_created_at:
@@ -104,7 +103,6 @@ async def index(
 
 @router.get("/files/{file_id}")
 async def get(req: Request, file_id: str) -> FileObject:
-    """Get file metadata."""
     async with req.app.state.get_db_session(read_only=True) as session:
         result = await session.execute(select(UploadedFile).where(UploadedFile.id == file_id))
         uploaded_file = result.scalar_one_or_none()
@@ -127,7 +125,6 @@ async def get(req: Request, file_id: str) -> FileObject:
 
 @router.get("/files/{file_id}/content")
 async def get_content(req: Request, file_id: str) -> Response:
-    """Get file content."""
     async with req.app.state.get_db_session(read_only=True) as session:
         result = await session.execute(select(UploadedFile).where(UploadedFile.id == file_id))
         file_obj = result.scalar_one_or_none()
@@ -155,7 +152,6 @@ async def remove(req: Request, file_id: str) -> FileDeleted:
         delete_stmt = delete(UploadedFile).where(UploadedFile.id == file_id)  # type: ignore[arg-type]
         result = await session.execute(delete_stmt)
 
-        # Check if any rows were actually deleted
         if result.rowcount == 0:
             raise HTTPException(status_code=404, detail=f"File {file_id} not found")
 

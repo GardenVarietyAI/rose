@@ -41,7 +41,6 @@ async def create_fine_tuning_job(req: Request, request: FineTuningJobCreateReque
         else:
             hp_dict = {}
 
-        # Convert "auto" values to actual values
         if hp_dict.get("batch_size") == "auto":
             hp_dict["batch_size"] = req.app.state.settings.fine_tuning_auto_batch_size
         if hp_dict.get("learning_rate_multiplier") == "auto":
@@ -49,23 +48,19 @@ async def create_fine_tuning_job(req: Request, request: FineTuningJobCreateReque
         if hp_dict.get("n_epochs") == "auto":
             hp_dict["n_epochs"] = req.app.state.settings.fine_tuning_auto_epochs
 
-        # Create Hyperparameters object
         try:
             hyperparameters_obj = Hyperparameters(**hp_dict)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-        # Convert to dict
         hyperparameters = hyperparameters_obj.model_dump(exclude_none=True)
 
-        # Calculate learning rate if using multiplier
         if hyperparameters.get("learning_rate_multiplier") is not None and "learning_rate" not in hyperparameters:
             hyperparameters["base_learning_rate"] = req.app.state.settings.fine_tuning_base_learning_rate
             hyperparameters["learning_rate"] = (
                 hyperparameters["base_learning_rate"] * hyperparameters["learning_rate_multiplier"]
             )
 
-        # Apply training defaults
         training_defaults = {
             "max_length": 512,
             "gradient_accumulation_steps": 1,
@@ -86,11 +81,9 @@ async def create_fine_tuning_job(req: Request, request: FineTuningJobCreateReque
             if key not in hyperparameters:
                 hyperparameters[key] = value
 
-        # Preserve eval_metrics from hyperparameters_obj
         hyperparameters["eval_metrics"] = hyperparameters_obj.eval_metrics
 
-        # TODO: We skip the "validating_files" status for now since we don't actually validate the JSONL format.
-        # In the future, we should validate that the file exists and contains properly formatted training data.
+        # TODO: Validate JSONL format and file existence before setting status to "queued"
         job = FineTuningJob(
             model=request.model,
             status="queued",

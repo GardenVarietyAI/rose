@@ -31,7 +31,6 @@ router = APIRouter(prefix="/v1", tags=["responses"])
 
 @router.get("/responses/chains")
 async def chains(req: Request) -> List[str]:
-    """Get all conversation chain IDs."""
     async with req.app.state.get_db_session(read_only=True) as session:
         query = (
             select(Message.response_chain_id)
@@ -239,11 +238,9 @@ async def create_response(
         if request.previous_response_id and not previous_response:
             raise HTTPException(status_code=400, detail=f"Previous response '{request.previous_response_id}' not found")
 
-        # Convert request to messages, loading history if needed
         messages = []
 
         if request.previous_response_id:
-            # Load all messages in the conversation chain
             async with req.app.state.get_db_session(read_only=True) as session:
                 response_msg = await session.get(Message, request.previous_response_id)
                 if response_msg:
@@ -296,7 +293,7 @@ async def create_response(
                             )
                         )
                     elif getattr(msg, "type", None) == "function_call_output":
-                        # Format tool output in Hermes/Qwen3 format with <tool_response> tags
+                        # Format tool output with <tool_response> tags for Hermes/Qwen3
                         messages.append(
                             ChatMessage(
                                 role="tool",
@@ -321,7 +318,6 @@ async def create_response(
             logger.error("No messages extracted from request")
             raise HTTPException(status_code=400, detail="No valid messages found in request")
 
-        # Get the language model
         async with req.app.state.get_db_session(read_only=True) as session:
             result = await session.execute(select(LanguageModel).where(LanguageModel.id == request.model))
             model = result.scalar_one_or_none()
@@ -388,7 +384,6 @@ async def create_response(
                                 reply_text = content_item.text
                                 break
 
-                # Generate new chain_id if not provided
                 if not chain_id:
                     chain_id = f"chain_{uuid.uuid4().hex[:16]}"
 

@@ -76,7 +76,6 @@ async def create(req: Request, request: ModelCreateRequest) -> ModelResponse:
             await session.commit()
             await session.refresh(model)
         except IntegrityError:
-            # Model already exists, retrieve and return it
             await session.rollback()
             result = await session.execute(select(LanguageModel).where(LanguageModel.id == model_id))  # type: ignore[arg-type]
             model = result.scalar_one()
@@ -106,7 +105,6 @@ async def remove(req: Request, model: str) -> JSONResponse:
         if not model_obj.is_fine_tuned:
             raise HTTPException(status_code=403, detail=f"Cannot delete base model: {model}")
 
-        # Store path before deletion
         model_path = Path(req.app.state.settings.data_dir) / model_obj.path if model_obj.path else None
 
         await session.delete(model_obj)

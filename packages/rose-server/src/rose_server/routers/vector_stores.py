@@ -76,7 +76,6 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
             await session.commit()
         logger.info(f"Created vector store {request.name} ({vector_store.id})")
 
-        # TODO: batch this operation
         if request.file_ids:
             if not req.app.state.embedding_model or not req.app.state.embedding_tokenizer:
                 raise HTTPException(status_code=500, detail="Embedding model not initialized")
@@ -124,16 +123,14 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
                                 uploaded_file, vector_store.id, chunks, embeddings, decode_errors
                             )
 
-                            # Delete old docs for this file
                             await store_session.execute(
                                 sql_delete(Document).where(col(Document.id).like(f"{file_id}#%"))
                             )
 
-                            # Insert new documents
                             for doc in documents:
                                 store_session.add(doc)
 
-                            # Insert embeddings in batch
+                            # Batch insert embeddings using sqlite-vec
                             await store_session.execute(
                                 text(
                                     "INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"
@@ -279,7 +276,6 @@ async def search_store(
     query_tokens = len(req.app.state.embedding_tokenizer.encode(request.query))
 
     async with req.app.state.get_db_session(read_only=True) as search_session:
-        # Get the vector store to check dimensions
         vector_store_check = await search_session.get(VectorStore, vector_store_id)
         if not vector_store_check:
             raise ValueError(f"Vector store {vector_store_id} not found")
@@ -293,7 +289,7 @@ async def search_store(
         query_blob = np.array(query_embedding, dtype=np.float32).tobytes()
         max_results = max(1, min(100, request.max_num_results))
 
-        # Vector similarity search using cosine distance
+        # Vector search using cosine distance with sqlite-vec
         result = await search_session.execute(
             text("""
                 SELECT d.id, d.vector_store_id, d.chunk_index, d.content, d.meta, d.created_at,
@@ -309,7 +305,6 @@ async def search_store(
 
         documents: List[DocumentSearchResult] = []
         for row in result.fetchall():
-            # Parse meta JSON string back to dict
             raw_meta = row[4]
             if isinstance(raw_meta, (dict, list)):
                 meta = raw_meta
