@@ -24,6 +24,4 @@ RUN uv pip install --system --prerelease=allow ./packages/rose-server && \
     rm -rf packages/rose-inference-rs/target /tmp/* /root/.cache /opt/cargo /opt/rustup
 
 EXPOSE 8004
-ENV ROSE_SERVER_HOST=0.0.0.0
-ENV ROSE_SERVER_PORT=8004
-CMD ["rose-server"]
+CMD ["rose-server", "--host", "0.0.0.0", "--port", "8004"]
