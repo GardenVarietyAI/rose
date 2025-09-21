@@ -1,13 +1,15 @@
 """File management API endpoints."""
 
 import logging
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from openai.types import FileDeleted, FileObject
+from rose_server.database import get_session
+from rose_server.entities.files import UploadedFile
 from rose_server.schemas.files import FileListResponse
-from rose_server.stores.files import create_file, delete_file, get_file, get_file_content, list_files
+from sqlalchemy import delete, select
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1")
@@ -21,7 +23,20 @@ async def create(
     """Upload a file."""
     try:
         content = await file.read()
-        uploaded_file = await create_file(file_size=file.size, purpose=purpose, filename=file.filename, content=content)
+        uploaded_file = UploadedFile(
+            object="file",
+            bytes=file.size,
+            filename=file.filename,
+            purpose=purpose,
+            status="processed",
+            content=content,
+        )
+
+        async with get_session() as session:
+            session.add(uploaded_file)
+            await session.commit()
+            await session.refresh(uploaded_file)
+            logger.info(f"Created file {uploaded_file.id} with BLOB content, filename {uploaded_file.filename}")
 
         # Return response without binary content to avoid serialization issues
         return FileObject(
@@ -47,7 +62,25 @@ async def index(
     after: Optional[str] = Query(None),
 ) -> FileListResponse:
     """List files."""
-    uploaded_files = await list_files(purpose=purpose, limit=limit, after=after)
+    async with get_session(read_only=True) as session:
+        query = select(UploadedFile)
+
+        if purpose:
+            query = query.where(UploadedFile.purpose == purpose)
+
+        query = query.order_by(UploadedFile.created_at.desc())
+
+        if after:
+            # Get the created_at time of the 'after' file
+            after_result = await session.execute(select(UploadedFile.created_at).where(UploadedFile.id == after))
+            after_created_at = after_result.scalar_one_or_none()
+            if after_created_at:
+                query = query.where(UploadedFile.created_at < after_created_at)
+
+        query = query.limit(limit)
+        result = await session.execute(query)
+        uploaded_files: List[UploadedFile] = result.scalars().all()
+
     return FileListResponse(
         data=[
             FileObject(
@@ -70,9 +103,13 @@ async def index(
 @router.get("/files/{file_id}")
 async def get(file_id: str) -> FileObject:
     """Get file metadata."""
-    uploaded_file = await get_file(file_id)
+    async with get_session(read_only=True) as session:
+        result = await session.execute(select(UploadedFile).where(UploadedFile.id == file_id))
+        uploaded_file = result.scalar_one_or_none()
+
     if not uploaded_file:
         raise HTTPException(status_code=404, detail=f"File {file_id} not found")
+
     return FileObject(
         id=uploaded_file.id,
         object=uploaded_file.object,
@@ -89,11 +126,19 @@ async def get(file_id: str) -> FileObject:
 @router.get("/files/{file_id}/content")
 async def get_content(file_id: str) -> Response:
     """Get file content."""
-    file_obj = await get_file(file_id)
+    # First get the file metadata
+    async with get_session(read_only=True) as session:
+        result = await session.execute(select(UploadedFile).where(UploadedFile.id == file_id))
+        file_obj = result.scalar_one_or_none()
+
     if not file_obj:
         raise HTTPException(status_code=404, detail=f"File {file_id} not found")
 
-    content = await get_file_content(file_id)
+    # Get file content
+    async with get_session(read_only=True) as session:
+        result = await session.execute(select(UploadedFile.content).where(UploadedFile.id == file_id))
+        content = result.scalar_one_or_none()
+
     if content is None:
         raise HTTPException(status_code=404, detail=f"File {file_id} content not found")
 
@@ -107,8 +152,15 @@ async def get_content(file_id: str) -> Response:
 @router.delete("/files/{file_id}")
 async def remove(file_id: str) -> FileDeleted:
     """Delete a file."""
-    try:
-        deleted = await delete_file(file_id)
-        return FileDeleted(id=file_id, object="file", deleted=deleted)
-    except Exception:
-        raise HTTPException(status_code=404, detail=f"File {file_id} not found")
+    async with get_session() as session:
+        delete_stmt = delete(UploadedFile).where(UploadedFile.id == file_id)
+        result = await session.execute(delete_stmt)
+
+        # Check if any rows were actually deleted
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail=f"File {file_id} not found")
+
+        await session.commit()
+        logger.info(f"Deleted file {file_id}")
+
+    return FileDeleted(id=file_id, object="file", deleted=True)
