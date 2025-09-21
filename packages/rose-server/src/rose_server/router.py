@@ -10,14 +10,14 @@ from rose_server.routers.fine_tuning_jobs import router as fine_tuning_jobs_rout
 from rose_server.routers.models import router as llms_router
 from rose_server.routers.reranker import router as reranker_router
 from rose_server.routers.responses import router as responses_router
+from rose_server.routers.vector_store_files import router as vector_store_files_router
 from rose_server.routers.vector_stores import router as vector_stores_router
-from rose_server.routers.vector_stores_files import router as vector_stores_files_router
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 router.include_router(vector_stores_router)
-router.include_router(vector_stores_files_router)
+router.include_router(vector_store_files_router)
 router.include_router(embeddings_router)
 router.include_router(llms_router)
 router.include_router(responses_router)

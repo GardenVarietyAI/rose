@@ -14,7 +14,7 @@ from rose_server.services.vector_store_documents import (
     prepare_documents_and_embeddings,
     prepare_embedding_deletion_params,
 )
-from rose_server.services.vector_stores_files import EmptyFileError, decode_file_content
+from rose_server.services.vector_store_files import EmptyFileError, decode_file_content
 from sqlalchemy import (
     delete as sql_delete,
     desc,

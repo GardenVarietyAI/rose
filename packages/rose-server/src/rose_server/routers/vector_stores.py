@@ -19,7 +19,7 @@ from rose_server.schemas.vector_stores import (
     VectorStoreUpdate,
 )
 from rose_server.services.vector_store_documents import prepare_documents_and_embeddings
-from rose_server.services.vector_stores_files import decode_file_content
+from rose_server.services.vector_store_files import decode_file_content
 from sqlalchemy import (
     text,
     update as sql_update,
