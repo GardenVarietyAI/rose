@@ -59,66 +59,94 @@ impl Qwen3Embeddings {
         })
     }
 
-    fn forward_embeddings(&mut self, input: &Tensor) -> Result<Tensor> {
-        self.model.forward_embeddings(input, 0).map_err(Into::into)
+    fn forward_embeddings(&mut self, input: &Tensor, seq_lengths: Option<&[usize]>) -> Result<Tensor> {
+        self.model.forward_embeddings(input, 0, seq_lengths).map_err(Into::into)
     }
 }
 
 impl Embeddings for Qwen3Embeddings {
     fn encode(&mut self, tokens: &[u32]) -> Result<Vec<f32>> {
-        // Maximum context length for Qwen3 embeddings model
-        // Matches the model's training context window to prevent OOM errors
-        const MAX_LENGTH: usize = 8192;
-
-        // Small epsilon to prevent division by zero during L2 normalization
-        const NORMALIZATION_EPSILON: f32 = 1e-12;
-
-        let truncated_tokens = if tokens.len() > MAX_LENGTH {
-            &tokens[..MAX_LENGTH]
-        } else {
-            tokens
-        };
-
-        let input_tensor =
-            Tensor::from_slice(truncated_tokens, (1, truncated_tokens.len()), &self.device)?;
-
-        let hidden_states = self.forward_embeddings(&input_tensor)?;
-
-        // The output is [batch, hidden_dim] for the last token
-        // Since batch size is 1, flatten to get a 1D vector
-        let mut embedding_vec = hidden_states.flatten_all()?.to_vec1::<f32>()?;
-
-        if embedding_vec.len() != self.hidden_dim {
-            anyhow::bail!(
-                "Model output dimension mismatch: expected {}, got {}",
-                self.hidden_dim,
-                embedding_vec.len()
-            );
-        }
-
-        if let Some(dims) = self.output_dims {
-            if dims < embedding_vec.len() {
-                embedding_vec.truncate(dims);
-            }
-        }
-
-        // L2 normalize (required after truncation for Matryoshka)
-        let norm = embedding_vec
-            .iter()
-            .map(|x| x * x)
-            .sum::<f32>()
-            .sqrt()
-            .max(NORMALIZATION_EPSILON);
-        let normalized = embedding_vec.iter().map(|x| x / norm).collect();
-
-        Ok(normalized)
+        // Use batch implementation for consistency
+        let batch_result = self.encode_batch(vec![tokens.to_vec()])?;
+        batch_result.into_iter().next()
+            .ok_or_else(|| anyhow::anyhow!("Unexpected empty batch result"))
     }
 
     fn encode_batch(&mut self, batch: Vec<Vec<u32>>) -> Result<Vec<Vec<f32>>> {
-        let mut embeddings = Vec::with_capacity(batch.len());
+        if batch.is_empty() {
+            return Ok(vec![]);
+        }
 
-        for tokens in batch {
-            embeddings.push(self.encode(&tokens)?);
+        const MAX_LENGTH: usize = 8192;
+        const NORMALIZATION_EPSILON: f32 = 1e-12;
+        const PAD_TOKEN: u32 = 0;  // Assuming 0 is pad token
+
+        // Find max length and prepare for padding
+        let batch_size = batch.len();
+        let max_len = batch.iter()
+            .map(|tokens| tokens.len().min(MAX_LENGTH))
+            .max()
+            .unwrap_or(0);
+
+        // Build padded batch tensor
+        let mut padded_batch = vec![PAD_TOKEN; batch_size * max_len];
+
+        for (i, tokens) in batch.iter().enumerate() {
+            let truncated_len = tokens.len().min(MAX_LENGTH);
+            let truncated = &tokens[..truncated_len];
+
+            let row_offset = i * max_len;
+            padded_batch[row_offset..row_offset + truncated_len].copy_from_slice(truncated);
+        }
+
+        // Create batch tensor [batch_size, max_len]
+        let input_tensor = Tensor::from_slice(
+            &padded_batch,
+            (batch_size, max_len),
+            &self.device
+        )?;
+
+        // Get actual sequence lengths for each item in batch
+        let seq_lengths: Vec<usize> = batch.iter()
+            .map(|tokens| tokens.len().min(MAX_LENGTH))
+            .collect();
+
+        // Single batched forward pass with sequence lengths
+        let hidden_states = self.forward_embeddings(&input_tensor, Some(&seq_lengths))?;
+
+        // hidden_states is [batch_size, hidden_dim]
+        // Convert to vec of vecs and normalize each
+        let embeddings_matrix = hidden_states.to_vec2::<f32>()?;
+
+        let mut embeddings = Vec::with_capacity(batch_size);
+        for mut embedding_vec in embeddings_matrix {
+
+            // Validate dimension
+            if embedding_vec.len() != self.hidden_dim {
+                anyhow::bail!(
+                    "Model output dimension mismatch: expected {}, got {}",
+                    self.hidden_dim,
+                    embedding_vec.len()
+                );
+            }
+
+            // Apply Matryoshka truncation if specified
+            if let Some(dims) = self.output_dims {
+                if dims < embedding_vec.len() {
+                    embedding_vec.truncate(dims);
+                }
+            }
+
+            // L2 normalize
+            let norm = embedding_vec
+                .iter()
+                .map(|x| x * x)
+                .sum::<f32>()
+                .sqrt()
+                .max(NORMALIZATION_EPSILON);
+
+            let normalized = embedding_vec.iter().map(|x| x / norm).collect();
+            embeddings.push(normalized);
         }
 
         Ok(embeddings)
