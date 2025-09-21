@@ -6,7 +6,6 @@ from typing import Any, AsyncGenerator, Dict
 
 from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
-from rose_server.database import get_session
 from rose_server.entities.models import LanguageModel
 from rose_server.events.event_types import LLMEvent
 from rose_server.events.formatters import ChatCompletionsFormatter
@@ -34,7 +33,7 @@ async def event_based_chat_completions(
     inference_server = req.app.state.inference_server
 
     # Get the language model
-    async with get_session(read_only=True) as session:
+    async with req.app.state.get_db_session(read_only=True) as session:
         result = await session.execute(select(LanguageModel).where(LanguageModel.id == request.model))  # type: ignore[arg-type]
         model = result.scalar_one_or_none()
 

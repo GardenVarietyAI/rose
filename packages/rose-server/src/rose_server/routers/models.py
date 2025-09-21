@@ -8,7 +8,6 @@ import aiofiles
 import aiofiles.os
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
-from rose_server.database import get_session
 from rose_server.entities.models import LanguageModel
 from rose_server.schemas.models import ModelCreateRequest, ModelResponse
 from sqlalchemy import desc, select
@@ -19,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 
 def _generate_model_id(is_fine_tuned: bool, base_model: str, model_name: str, suffix: str = "") -> str:
-    """Generate model ID."""
     if not is_fine_tuned:
         return model_name.replace("/", "--")
 
@@ -30,8 +28,8 @@ def _generate_model_id(is_fine_tuned: bool, base_model: str, model_name: str, su
 
 
 @router.get("/models")
-async def index() -> JSONResponse:
-    async with get_session(read_only=True) as session:
+async def index(req: Request) -> JSONResponse:
+    async with req.app.state.get_db_session(read_only=True) as session:
         result = await session.execute(select(LanguageModel).order_by(desc(LanguageModel.created_at)))  # type: ignore[arg-type]
         models = list(result.scalars().all())
 
@@ -72,7 +70,7 @@ async def create(req: Request, request: ModelCreateRequest) -> ModelResponse:
         lora_target_modules=request.lora_target_modules if request.lora_target_modules is not None else [],
     )
 
-    async with get_session() as session:
+    async with req.app.state.get_db_session() as session:
         try:
             session.add(model)
             await session.commit()
@@ -88,8 +86,8 @@ async def create(req: Request, request: ModelCreateRequest) -> ModelResponse:
 
 
 @router.get("/models/{model_id}")
-async def show(model_id: str) -> ModelResponse:
-    async with get_session(read_only=True) as session:
+async def show(req: Request, model_id: str) -> ModelResponse:
+    async with req.app.state.get_db_session(read_only=True) as session:
         result = await session.execute(select(LanguageModel).where(LanguageModel.id == model_id))  # type: ignore[arg-type]
         model = result.scalar_one_or_none()
 
@@ -100,7 +98,7 @@ async def show(model_id: str) -> ModelResponse:
 
 @router.delete("/models/{model}")
 async def remove(req: Request, model: str) -> JSONResponse:
-    async with get_session() as session:
+    async with req.app.state.get_db_session() as session:
         model_obj = await session.get(LanguageModel, model)
         if not model_obj:
             raise HTTPException(status_code=404, detail=f"The model does not exist: {model}")

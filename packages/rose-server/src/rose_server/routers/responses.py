@@ -7,7 +7,6 @@ from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 from fastapi import APIRouter, Body, HTTPException, Request
 from rose_server._inference import InferenceServer
-from rose_server.database import get_session
 from rose_server.entities.messages import Message
 from rose_server.entities.models import LanguageModel
 from rose_server.events.formatters import ResponsesFormatter
@@ -31,9 +30,9 @@ router = APIRouter(prefix="/v1", tags=["responses"])
 
 
 @router.get("/responses/chains")
-async def chains() -> List[str]:
+async def chains(req: Request) -> List[str]:
     """Get all conversation chain IDs."""
-    async with get_session(read_only=True) as session:
+    async with req.app.state.get_db_session(read_only=True) as session:
         query = (
             select(Message.response_chain_id)
             .where(Message.response_chain_id.isnot(None))  # type: ignore
@@ -52,7 +51,6 @@ class TokenizedMessage:
 
 
 def _smart_truncate_messages(tokenized_messages: List[TokenizedMessage], max_tokens: int) -> List[ChatMessage]:
-    """Pure function for smart message truncation preserving system messages."""
     if not tokenized_messages or len(tokenized_messages) <= 2:
         return [tm.message for tm in tokenized_messages]
 
@@ -92,91 +90,6 @@ def _smart_truncate_messages(tokenized_messages: List[TokenizedMessage], max_tok
         logger.info(f"Truncated: {len(tokenized_messages)} -> {len(final_result)} messages (~{used_tokens} tokens)")
 
     return final_result
-
-
-async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMessage]:
-    """Convert request to messages, loading history if needed."""
-    messages = []
-
-    if request.previous_response_id:
-        # Load all messages in the conversation chain
-        async with get_session(read_only=True) as session:
-            # Get the response message
-            response_msg = await session.get(Message, request.previous_response_id)
-            if response_msg:
-                # Load all messages in the chain
-                query = (
-                    select(Message)
-                    .where(Message.response_chain_id == response_msg.response_chain_id)
-                    .order_by(Message.created_at)  # type: ignore[arg-type]
-                )
-                result = await session.execute(query)
-                chain_messages: List[Message] = list(result.scalars().all())
-            else:
-                chain_messages = []
-
-        for msg in chain_messages:
-            for item in msg.content:
-                if isinstance(item, dict) and item.get("type") == "text":
-                    messages.append(ChatMessage(role=msg.role, content=item.get("text", "")))  # type: ignore[arg-type]
-                    break
-
-    # Combine system instructions
-    system_content_parts = []
-    if request.instructions:
-        system_content_parts.append(request.instructions)
-    if system_content_parts:
-        combined_instructions = "\n\n".join(system_content_parts)
-        messages.append(ChatMessage(role="system", content=combined_instructions))
-
-    # Add current user input
-    if isinstance(request.input, str):
-        messages.append(ChatMessage(role="user", content=request.input))
-    elif isinstance(request.input, list):
-        # Handle list of ResponsesInput objects
-        for msg in request.input:  # type: ignore[assignment]
-            if hasattr(msg, "type"):
-                if getattr(msg, "type", None) == "function_call":
-                    # Preserve function calls in conversation history for context
-                    messages.append(
-                        ChatMessage(
-                            role="assistant",
-                            content=None,
-                            tool_calls=[
-                                {
-                                    "id": getattr(msg, "call_id", None) or getattr(msg, "id", ""),
-                                    "type": "function",
-                                    "function": {
-                                        "name": getattr(msg, "name", ""),
-                                        "arguments": getattr(msg, "arguments", ""),
-                                    },
-                                }
-                            ],
-                        )
-                    )
-                elif getattr(msg, "type", None) == "function_call_output":
-                    # Format tool output in Hermes/Qwen3 format with <tool_response> tags
-                    messages.append(
-                        ChatMessage(
-                            role="tool",
-                            content=f"<tool_response>\n{getattr(msg, 'output', '')}\n</tool_response>",
-                        )
-                    )
-            else:
-                msg_role = getattr(msg, "role", "user")
-                msg_content = getattr(msg, "content", "")
-                messages.append(
-                    ChatMessage(
-                        role="system" if msg_role == "developer" else msg_role,  # type: ignore[arg-type]
-                        content=msg_content
-                        if isinstance(msg_content, str)
-                        else str(msg_content)
-                        if msg_content
-                        else "",
-                    )
-                )
-
-    return messages
 
 
 async def _generate_streaming_response(
@@ -229,7 +142,6 @@ async def _generate_complete_response(
     max_output_tokens: Optional[int] = None,
     temperature: Optional[float] = None,
     tool_choice: Optional[str] = None,
-    store: bool = False,
     chain_id: Optional[str] = None,
     max_concurrent_inference: int = 2,
 ) -> ResponsesResponse:
@@ -257,66 +169,13 @@ async def _generate_complete_response(
     if performance_metrics:
         logger.info(f"[METRICS] Response generation complete for {config.model_name}")
 
-    if store:
-        await _store_response(complete_response, messages, config.model_name, chain_id)
-
     return complete_response
 
 
-async def _store_response(
-    complete_response: ResponsesResponse, messages: List[ChatMessage], model: str, chain_id: Optional[str] = None
-) -> None:
-    reply_text = ""
-    for output_item in complete_response.output:
-        if output_item.type == "message":
-            content_list = output_item.content or []
-            for content_item in content_list:
-                if content_item.type == "output_text":
-                    reply_text = content_item.text
-                    break
-
-    # Store response messages
-    end_time = time.time()
-    # Generate new chain_id if not provided
-    if not chain_id:
-        chain_id = f"chain_{uuid.uuid4().hex[:16]}"
-
-    async with get_session() as session:
-        current_user_message = next((msg for msg in reversed(messages) if msg.role == "user"), None)
-        if current_user_message:
-            user_message = Message(
-                role="user",
-                content=[{"type": "text", "text": current_user_message.content}],
-                created_at=complete_response.created_at,
-                response_chain_id=chain_id,
-                meta={"model": model},
-            )
-            session.add(user_message)
-
-        assistant_message = Message(
-            role="assistant",
-            content=[{"type": "text", "text": reply_text}],
-            created_at=complete_response.created_at,
-            response_chain_id=chain_id,
-            meta={
-                "model": model,
-                "input_tokens": complete_response.usage.input_tokens,
-                "output_tokens": complete_response.usage.output_tokens,
-                "total_tokens": complete_response.usage.input_tokens + complete_response.usage.output_tokens,
-                "response_time_ms": int((end_time - complete_response.created_at) * 1000),
-            },
-        )
-        session.add(assistant_message)
-        await session.commit()
-        message_id: str = assistant_message.id
-
-    complete_response.id = message_id
-
-
 @router.get("/responses/{response_id}", response_model=ResponsesResponse)
-async def retrieve_response(response_id: str) -> ResponsesResponse:
+async def retrieve_response(req: Request, response_id: str) -> ResponsesResponse:
     try:
-        async with get_session(read_only=True) as session:
+        async with req.app.state.get_db_session(read_only=True) as session:
             response_msg = await session.get(Message, response_id)
 
         if not response_msg:
@@ -374,19 +233,96 @@ async def create_response(
 
         previous_response = None
         if request.previous_response_id:
-            async with get_session(read_only=True) as session:
+            async with req.app.state.get_db_session(read_only=True) as session:
                 previous_response = await session.get(Message, request.previous_response_id)
 
         if request.previous_response_id and not previous_response:
             raise HTTPException(status_code=400, detail=f"Previous response '{request.previous_response_id}' not found")
 
-        messages = await _convert_input_to_messages(request)
+        # Convert request to messages, loading history if needed
+        messages = []
+
+        if request.previous_response_id:
+            # Load all messages in the conversation chain
+            async with req.app.state.get_db_session(read_only=True) as session:
+                response_msg = await session.get(Message, request.previous_response_id)
+                if response_msg:
+                    query = (
+                        select(Message)
+                        .where(Message.response_chain_id == response_msg.response_chain_id)
+                        .order_by(Message.created_at)  # type: ignore[arg-type]
+                    )
+                    result = await session.execute(query)
+                    chain_messages: List[Message] = list(result.scalars().all())
+                else:
+                    chain_messages = []
+
+            for msg in chain_messages:
+                for item in msg.content:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        messages.append(ChatMessage(role=msg.role, content=item.get("text", "")))  # type: ignore[arg-type]
+                        break
+
+        system_content_parts = []
+        if request.instructions:
+            system_content_parts.append(request.instructions)
+        if system_content_parts:
+            combined_instructions = "\n\n".join(system_content_parts)
+            messages.append(ChatMessage(role="system", content=combined_instructions))
+
+        # Add current user input
+        if isinstance(request.input, str):
+            messages.append(ChatMessage(role="user", content=request.input))
+        elif isinstance(request.input, list):
+            # Handle list of ResponsesInput objects
+            for msg in request.input:  # type: ignore[assignment]
+                if hasattr(msg, "type"):
+                    if getattr(msg, "type", None) == "function_call":
+                        # Preserve function calls in conversation history for context
+                        messages.append(
+                            ChatMessage(
+                                role="assistant",
+                                content=None,
+                                tool_calls=[
+                                    {
+                                        "id": getattr(msg, "call_id", None) or getattr(msg, "id", ""),
+                                        "type": "function",
+                                        "function": {
+                                            "name": getattr(msg, "name", ""),
+                                            "arguments": getattr(msg, "arguments", ""),
+                                        },
+                                    }
+                                ],
+                            )
+                        )
+                    elif getattr(msg, "type", None) == "function_call_output":
+                        # Format tool output in Hermes/Qwen3 format with <tool_response> tags
+                        messages.append(
+                            ChatMessage(
+                                role="tool",
+                                content=f"<tool_response>\n{getattr(msg, 'output', '')}\n</tool_response>",
+                            )
+                        )
+                else:
+                    msg_role = getattr(msg, "role", "user")
+                    msg_content = getattr(msg, "content", "")
+                    messages.append(
+                        ChatMessage(
+                            role="system" if msg_role == "developer" else msg_role,  # type: ignore[arg-type]
+                            content=msg_content
+                            if isinstance(msg_content, str)
+                            else str(msg_content)
+                            if msg_content
+                            else "",
+                        )
+                    )
+
         if not messages:
             logger.error("No messages extracted from request")
             raise HTTPException(status_code=400, detail="No valid messages found in request")
 
         # Get the language model
-        async with get_session(read_only=True) as session:
+        async with req.app.state.get_db_session(read_only=True) as session:
             result = await session.execute(select(LanguageModel).where(LanguageModel.id == request.model))
             model = result.scalar_one_or_none()
 
@@ -430,7 +366,7 @@ async def create_response(
             )
         else:
             chain_id = request.prompt_cache_key or (previous_response.response_chain_id if previous_response else None)
-            return await _generate_complete_response(
+            complete_response = await _generate_complete_response(
                 config=config,
                 messages=messages,
                 inference_server=inference_server,
@@ -438,10 +374,57 @@ async def create_response(
                 max_output_tokens=request.max_output_tokens,
                 temperature=request.temperature,
                 tool_choice=request.tool_choice,
-                store=request.store if request.store is not None else False,
                 chain_id=chain_id,
                 max_concurrent_inference=req.app.state.settings.max_concurrent_inference,
             )
+
+            if request.store:
+                reply_text = ""
+                for output_item in complete_response.output:
+                    if output_item.type == "message":
+                        content_list = output_item.content or []
+                        for content_item in content_list:
+                            if content_item.type == "output_text":
+                                reply_text = content_item.text
+                                break
+
+                end_time = time.time()
+                # Generate new chain_id if not provided
+                if not chain_id:
+                    chain_id = f"chain_{uuid.uuid4().hex[:16]}"
+
+                async with req.app.state.get_db_session() as session:
+                    current_user_message = next((msg for msg in reversed(messages) if msg.role == "user"), None)
+                    if current_user_message:
+                        user_message = Message(
+                            role="user",
+                            content=[{"type": "text", "text": current_user_message.content}],
+                            created_at=complete_response.created_at,
+                            response_chain_id=chain_id,
+                            meta={"model": config.model_name},
+                        )
+                        session.add(user_message)
+
+                    assistant_message = Message(
+                        role="assistant",
+                        content=[{"type": "text", "text": reply_text}],
+                        created_at=complete_response.created_at,
+                        response_chain_id=chain_id,
+                        meta={
+                            "model": config.model_name,
+                            "input_tokens": complete_response.usage.input_tokens,
+                            "output_tokens": complete_response.usage.output_tokens,
+                            "total_tokens": complete_response.usage.input_tokens
+                            + complete_response.usage.output_tokens,
+                            "response_time_ms": int((end_time - complete_response.created_at) * 1000),
+                        },
+                    )
+                    session.add(assistant_message)
+                    await session.commit()
+                    message_id: str = assistant_message.id
+                    complete_response.id = message_id
+
+            return complete_response
     except HTTPException:
         raise
     except Exception as e:

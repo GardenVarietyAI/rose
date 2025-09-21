@@ -3,7 +3,6 @@ from typing import Any, Dict
 
 from chonkie import TokenChunker
 from fastapi import APIRouter, Body, HTTPException, Path, Query, Request
-from rose_server.database import get_session
 from rose_server.entities.files import UploadedFile
 from rose_server.entities.vector_stores import (
     Document,
@@ -53,7 +52,7 @@ async def create(
 
     try:
         # Inline get_uploaded_file
-        async with get_session(read_only=True) as session:
+        async with req.app.state.get_db_session(read_only=True) as session:
             uploaded_file = await session.get(UploadedFile, request.file_id)
             if not uploaded_file:
                 raise FileNotFoundError(f"Uploaded file {request.file_id} not found")
@@ -70,8 +69,8 @@ async def create(
 
         texts = [chunk.text for chunk in chunks]
         embeddings, _ = await req.app.state.embedding_model.encode_batch(texts)
-        # Inline store_file_chunks_with_embeddings
-        async with get_session() as session:
+
+        async with req.app.state.get_db_session() as session:
             vector_store = await session.get(VectorStore, vector_store_id)
             if not vector_store:
                 raise VectorStoreNotFoundError(f"Vector store {vector_store_id} not found")
@@ -80,7 +79,6 @@ async def create(
             if not uploaded_file_check:
                 raise FileNotFoundError(f"Uploaded file {request.file_id} not found")
 
-            # Upsert vector store file record
             await session.execute(
                 insert(VectorStoreFileEntity)
                 .values(vector_store_id=vector_store_id, file_id=request.file_id)
@@ -89,7 +87,6 @@ async def create(
                 )
             )
 
-            # Get the vector store file record
             vector_store_file = await session.scalar(
                 select(VectorStoreFileEntity).where(
                     VectorStoreFileEntity.vector_store_id == vector_store_id,
@@ -101,7 +98,6 @@ async def create(
                 pass  # don't double-ingest
             else:
                 try:
-                    # Use pure function to prepare documents and embeddings
                     documents, embedding_data, created_at = prepare_documents_and_embeddings(
                         uploaded_file, vector_store_id, chunks, embeddings, decode_errors
                     )
@@ -121,26 +117,24 @@ async def create(
 
                     await session.commit()
 
-                    # Mark as completed
                     if vector_store_file:
                         vector_store_file.status = "completed"
                         vector_store_file.last_error = None
                     await session.commit()
 
-                    # Update last_used_at
                     await session.execute(
                         sql_update(VectorStore).where(VectorStore.id == vector_store_id).values(last_used_at=created_at)  # type: ignore[arg-type]
                     )
                     await session.commit()
 
                 except Exception as e:
-                    # Mark as failed
                     logger.error(f"Failed to add file {request.file_id} to vector store {vector_store_id}: {str(e)}")
                     if vector_store_file:
                         vector_store_file.status = "failed"
-                        vector_store_file.last_error = {"error": str(e)}  # Store as dict instead of string
+                        vector_store_file.last_error = {"error": str(e)}
                     await session.commit()
                     raise
+
         logger.info("Added file %s to vector store %s", request.file_id, vector_store_id)
 
         if not vector_store_file:
@@ -162,6 +156,7 @@ async def create(
 
 @router.get("", response_model=VectorStoreFileList)
 async def list_files(
+    req: Request,
     vector_store_id: str = Path(..., description="The ID of the vector store"),
     limit: int = Query(20, ge=1, le=100, description="Max number of files to return"),
     order: str = Query("desc", description="Order by created_at (asc or desc)"),
@@ -169,23 +164,19 @@ async def list_files(
     before: str = Query(None, description="File ID to end pagination before"),
 ) -> VectorStoreFileList:
     try:
-        # Inline list_vector_store_files
-        async with get_session() as session:
+        async with req.app.state.get_db_session() as session:
             query = select(VectorStoreFileEntity).where(VectorStoreFileEntity.vector_store_id == vector_store_id)
 
-            # Handle pagination cursors
             if after:
                 query = query.where(VectorStoreFileEntity.id > after)
             if before:
                 query = query.where(VectorStoreFileEntity.id < before)
 
-            # Apply ordering
             if order == "desc":
                 query = query.order_by(desc(VectorStoreFileEntity.created_at))  # type: ignore[arg-type]
             else:
                 query = query.order_by(VectorStoreFileEntity.created_at)  # type: ignore[arg-type]
 
-            # Get one extra to check if there are more
             query = query.limit(limit + 1)
 
             result = await session.execute(query)
@@ -218,13 +209,13 @@ async def list_files(
 
 @router.delete("/{file_id}")
 async def delete_file(
+    req: Request,
     vector_store_id: str = Path(..., description="The ID of the vector store"),
     file_id: str = Path(..., description="The ID of the file to remove from vector store"),
 ) -> Dict[str, Any]:
     """Remove a file from a vector store. The file itself remains in storage."""
     try:
-        # Inline remove_file_from_vector_store
-        async with get_session() as session:
+        async with req.app.state.get_db_session() as session:
             # Check if the file exists in this vector store
             vsf = await session.scalar(
                 select(VectorStoreFileEntity).where(

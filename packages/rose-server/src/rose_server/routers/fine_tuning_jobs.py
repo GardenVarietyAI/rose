@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from rose_server.database import current_timestamp, get_session
+from rose_server.database import current_timestamp
 from rose_server.entities.fine_tuning import FineTuningEvent, FineTuningJob
 from rose_server.entities.models import LanguageModel
 from rose_server.schemas.fine_tuning import (
@@ -104,7 +104,7 @@ async def create_fine_tuning_job(req: Request, request: FineTuningJobCreateReque
             trainer=request.trainer or "huggingface",
         )
 
-        async with get_session() as session:
+        async with req.app.state.get_db_session() as session:
             session.add(job)
             await session.commit()
             await session.refresh(job)
@@ -117,6 +117,7 @@ async def create_fine_tuning_job(req: Request, request: FineTuningJobCreateReque
 
 @router.get("", response_model=dict)
 async def list_fine_tuning_jobs(
+    req: Request,
     limit: int = Query(default=20, ge=1, le=100, description="Number of jobs to retrieve"),
     after: Optional[str] = Query(default=None, description="Pagination cursor"),
 ) -> Dict[str, Any]:
@@ -124,7 +125,7 @@ async def list_fine_tuning_jobs(
     if after:
         statement = statement.where(FineTuningJob.id > after)
     statement = statement.limit(limit)
-    async with get_session(read_only=True) as session:
+    async with req.app.state.get_db_session(read_only=True) as session:
         jobs = list((await session.execute(statement)).scalars().all())
     return {
         "object": "list",
@@ -135,7 +136,7 @@ async def list_fine_tuning_jobs(
 
 @router.get("/queue")
 async def get_queued_jobs(req: Request, limit: int = Query(10, description="Max jobs to return")) -> Dict[str, Any]:
-    async with get_session(read_only=True) as session:
+    async with req.app.state.get_db_session(read_only=True) as session:
         jobs = list(
             (
                 await session.execute(
@@ -178,8 +179,8 @@ async def get_queued_jobs(req: Request, limit: int = Query(10, description="Max 
 
 
 @router.get("/{job_id}", response_model=FineTuningJobResponse)
-async def retrieve_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
-    async with get_session(read_only=True) as session:
+async def retrieve_fine_tuning_job(req: Request, job_id: str) -> FineTuningJobResponse:
+    async with req.app.state.get_db_session(read_only=True) as session:
         job = await session.get(FineTuningJob, job_id)
 
     if not job:
@@ -188,15 +189,15 @@ async def retrieve_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
 
 
 @router.post("/{job_id}/cancel", response_model=FineTuningJobResponse)
-async def cancel_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
-    async with get_session(read_only=True) as session:
+async def cancel_fine_tuning_job(req: Request, job_id: str) -> FineTuningJobResponse:
+    async with req.app.state.get_db_session(read_only=True) as session:
         job = await session.get(FineTuningJob, job_id)
 
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
 
     if job.status in ["queued", "running"]:
-        async with get_session() as session:
+        async with req.app.state.get_db_session() as session:
             job = await session.get(FineTuningJob, job_id)
             if job:
                 job.status = "cancelled"
@@ -207,7 +208,7 @@ async def cancel_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
                 logger.info(f"Updated job {job_id} status to cancelled")
     else:
         raise HTTPException(status_code=400, detail=f"Cannot cancel job {job_id} in status {job.status}")
-    async with get_session(read_only=True) as session:
+    async with req.app.state.get_db_session(read_only=True) as session:
         updated_job = await session.get(FineTuningJob, job_id)
 
     if updated_job is None:
@@ -216,8 +217,8 @@ async def cancel_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
 
 
 @router.get("/{job_id}/checkpoints", response_model=dict)
-async def list_fine_tuning_job_checkpoints(job_id: str) -> Dict[str, Any]:
-    async with get_session(read_only=True) as session:
+async def list_fine_tuning_job_checkpoints(req: Request, job_id: str) -> Dict[str, Any]:
+    async with req.app.state.get_db_session(read_only=True) as session:
         job = await session.get(FineTuningJob, job_id)
 
     if not job:
@@ -226,15 +227,15 @@ async def list_fine_tuning_job_checkpoints(job_id: str) -> Dict[str, Any]:
 
 
 @router.post("/{job_id}/pause", response_model=FineTuningJobResponse)
-async def pause_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
-    async with get_session(read_only=True) as session:
+async def pause_fine_tuning_job(req: Request, job_id: str) -> FineTuningJobResponse:
+    async with req.app.state.get_db_session(read_only=True) as session:
         job = await session.get(FineTuningJob, job_id)
 
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
 
     if job.status == "running":
-        async with get_session() as session:
+        async with req.app.state.get_db_session() as session:
             job = await session.get(FineTuningJob, job_id)
             if job:
                 job.status = "paused"
@@ -245,7 +246,7 @@ async def pause_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
     else:
         raise HTTPException(status_code=400, detail=f"Cannot pause job {job_id} in status {job.status}")
 
-    async with get_session(read_only=True) as session:
+    async with req.app.state.get_db_session(read_only=True) as session:
         updated_job = await session.get(FineTuningJob, job_id)
 
     if updated_job is None:
@@ -254,15 +255,15 @@ async def pause_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
 
 
 @router.post("/{job_id}/resume", response_model=FineTuningJobResponse)
-async def resume_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
-    async with get_session(read_only=True) as session:
+async def resume_fine_tuning_job(req: Request, job_id: str) -> FineTuningJobResponse:
+    async with req.app.state.get_db_session(read_only=True) as session:
         job = await session.get(FineTuningJob, job_id)
 
     if not job:
         raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
 
     if job.status in ["paused", "failed"]:
-        async with get_session() as session:
+        async with req.app.state.get_db_session() as session:
             job = await session.get(FineTuningJob, job_id)
             if job:
                 job.status = "queued"
@@ -273,7 +274,7 @@ async def resume_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
     else:
         raise HTTPException(status_code=400, detail=f"Cannot resume job {job_id}, current status: {job.status}")
 
-    async with get_session(read_only=True) as session:
+    async with req.app.state.get_db_session(read_only=True) as session:
         updated_job = await session.get(FineTuningJob, job_id)
 
     if updated_job is None:
@@ -282,8 +283,10 @@ async def resume_fine_tuning_job(job_id: str) -> FineTuningJobResponse:
 
 
 @router.patch("/{job_id}/status")
-async def update_job_status_direct(job_id: str, request: FineTuningJobStatusUpdateRequest) -> FineTuningJobResponse:
-    async with get_session() as session:
+async def update_job_status_direct(
+    req: Request, job_id: str, request: FineTuningJobStatusUpdateRequest
+) -> FineTuningJobResponse:
+    async with req.app.state.get_db_session() as session:
         job = await session.get(FineTuningJob, job_id)
         if not job:
             raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
@@ -312,7 +315,6 @@ async def update_job_status_direct(job_id: str, request: FineTuningJobStatusUpda
         try:
             model_path = Path("models") / request.fine_tuned_model
 
-            # Create the fine-tuned model
             unique_hash = uuid.uuid4().hex[:6]
             suffix_part = job.suffix if job.suffix else "default"
             flat_base_model = job.model.replace("/", "--")
@@ -333,7 +335,7 @@ async def update_job_status_direct(job_id: str, request: FineTuningJobStatusUpda
                 lora_target_modules=[],
             )
 
-            async with get_session() as session:
+            async with req.app.state.get_db_session() as session:
                 try:
                     session.add(model)
                     await session.commit()
@@ -346,7 +348,7 @@ async def update_job_status_direct(job_id: str, request: FineTuningJobStatusUpda
 
             logger.info(f"Registered fine-tuned model {request.fine_tuned_model} with ID {model.id}")
 
-            async with get_session() as update_session:
+            async with req.app.state.get_db_session() as update_session:
                 updated_job = await update_session.get(FineTuningJob, job_id)
                 if updated_job:
                     updated_job.fine_tuned_model = model.id  # Use the generated ID instead of training name
@@ -370,7 +372,6 @@ async def update_job_status_direct(job_id: str, request: FineTuningJobStatusUpda
             logger.error(f"Failed to register fine-tuned model {request.fine_tuned_model}: {e}")
             # Don't fail the status update if model registration fails
 
-    # Update detailed training results for successful jobs
     if request.status == "succeeded" and request.training_metrics:
         try:
             final_loss = request.training_metrics.get("final_loss", 0.0)
@@ -383,11 +384,11 @@ async def update_job_status_direct(job_id: str, request: FineTuningJobStatusUpda
                 .where(FineTuningEvent.job_id == job_id)
                 .order_by(asc(FineTuningEvent.created_at))  # type: ignore[arg-type]
             )
-            async with get_session(read_only=True) as session:
+            async with req.app.state.get_db_session(read_only=True) as session:
                 events = list((await session.execute(statement)).scalars().all())
             detailed_metrics = build_training_results(job, events, final_loss, steps, final_perplexity)
             if detailed_metrics:
-                async with get_session() as update_session:
+                async with request.app.state.get_db_session() as update_session:
                     job_update = await update_session.get(FineTuningJob, job_id)
                     if job_update:
                         job_update.training_metrics = detailed_metrics

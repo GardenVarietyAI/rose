@@ -6,7 +6,6 @@ from typing import Any, Dict, List
 import numpy as np
 from chonkie import TokenChunker
 from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Path, Request
-from rose_server.database import get_session
 from rose_server.entities.files import UploadedFile
 from rose_server.entities.vector_stores import Document, DocumentSearchResult, VectorStore, VectorStoreFile
 from rose_server.schemas.vector_stores import (
@@ -40,9 +39,9 @@ _INTERNAL_FIELDS = frozenset(["file_id", "filename", "total_chunks", "start_inde
 
 
 @router.get("")
-async def index() -> VectorStoreList:
+async def index(req: Request) -> VectorStoreList:
     try:
-        async with get_session(read_only=True) as session:
+        async with req.app.state.get_db_session(read_only=True) as session:
             result = await session.execute(select(VectorStore))
             stores = [row[0] for row in result.fetchall()]
         return VectorStoreList(
@@ -72,7 +71,7 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
             last_used_at=None,
         )
 
-        async with get_session() as session:
+        async with req.app.state.get_db_session() as session:
             session.add(vector_store)
             await session.commit()
         logger.info(f"Created vector store {request.name} ({vector_store.id})")
@@ -84,8 +83,7 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
 
             for file_id in request.file_ids:
                 try:
-                    # Inline get_uploaded_file
-                    async with get_session(read_only=True) as file_session:
+                    async with req.app.state.get_db_session(read_only=True) as file_session:
                         uploaded_file = await file_session.get(UploadedFile, file_id)
                         if not uploaded_file:
                             raise HTTPException(status_code=404, detail=f"Uploaded file {file_id} not found")
@@ -103,8 +101,7 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
                     texts = [chunk.text for chunk in chunks]
                     embeddings, _ = await req.app.state.embedding_model.encode_batch(texts)
 
-                    # Inline store_file_chunks_with_embeddings
-                    async with get_session() as store_session:
+                    async with req.app.state.get_db_session() as store_session:
                         # Upsert vector store file record
                         await store_session.execute(
                             insert(VectorStoreFile)
@@ -123,7 +120,6 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
                         )
 
                         if vsf and vsf.status == "in_progress":
-                            # Use pure function to prepare documents and embeddings
                             documents, embedding_data, created_at = prepare_documents_and_embeddings(
                                 uploaded_file, vector_store.id, chunks, embeddings, decode_errors
                             )
@@ -147,13 +143,11 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
 
                             await store_session.commit()
 
-                            # Mark as completed
                             if vsf:
                                 vsf.status = "completed"
                                 vsf.last_error = None
                             await store_session.commit()
 
-                            # Update last_used_at
                             await store_session.execute(
                                 sql_update(VectorStore)
                                 .where(VectorStore.id == vector_store.id)  # type: ignore[arg-type]
@@ -181,9 +175,11 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
 
 
 @router.get("/{vector_store_id}")
-async def get(vector_store_id: str = Path(..., description="The ID of the vector store")) -> VectorStoreMetadata:
+async def get(
+    req: Request, vector_store_id: str = Path(..., description="The ID of the vector store")
+) -> VectorStoreMetadata:
     try:
-        async with get_session(read_only=True) as session:
+        async with req.app.state.get_db_session(read_only=True) as session:
             vector_store = await session.get(VectorStore, vector_store_id)
         if not vector_store:
             raise HTTPException(status_code=404, detail=f"Vector store {vector_store_id} not found")
@@ -203,9 +199,11 @@ async def get(vector_store_id: str = Path(..., description="The ID of the vector
 
 
 @router.post("/{vector_store_id}")
-async def update(vector_store_id: str = Path(...), request: VectorStoreUpdate = Body(...)) -> VectorStoreMetadata:
+async def update(
+    req: Request, vector_store_id: str = Path(...), request: VectorStoreUpdate = Body(...)
+) -> VectorStoreMetadata:
     try:
-        async with get_session() as session:
+        async with req.app.state.get_db_session() as session:
             vector_store = await session.get(VectorStore, vector_store_id)
 
             if not vector_store:
@@ -240,9 +238,10 @@ async def update(vector_store_id: str = Path(...), request: VectorStoreUpdate = 
 
 @router.delete("/{vector_store_id}")
 async def delete(
-    vector_store_id: str = Path(..., description="The ID of the vector store"),  # noqa: ARG001
+    req: Request,
+    vector_store_id: str = Path(..., description="The ID of the vector store"),
 ) -> Dict[str, Any]:
-    async with get_session() as session:
+    async with req.app.state.get_db_session() as session:
         vector_store = await session.get(VectorStore, vector_store_id)
 
         if not vector_store:
@@ -268,7 +267,7 @@ async def search_store(
     vector_store_id: str = Path(...),
     request: VectorSearch = Body(...),
 ) -> VectorSearchResult:
-    async with get_session(read_only=True) as session:
+    async with req.app.state.get_db_session(read_only=True) as session:
         vector_store = await session.get(VectorStore, vector_store_id)
     if not vector_store:
         raise HTTPException(status_code=404, detail=f"Vector store {vector_store_id} not found")
@@ -278,8 +277,8 @@ async def search_store(
 
     query_embedding = await req.app.state.embedding_model.encode(request.query)
     query_tokens = len(req.app.state.embedding_tokenizer.encode(request.query))
-    # Inline search_vector_store
-    async with get_session(read_only=True) as search_session:
+
+    async with req.app.state.get_db_session(read_only=True) as search_session:
         # Get the vector store to check dimensions
         vector_store_check = await search_session.get(VectorStore, vector_store_id)
         if not vector_store_check:
@@ -308,7 +307,6 @@ async def search_store(
             {"query_vector": query_blob, "vector_store_id": vector_store_id, "max_results": max_results},
         )
 
-        # Convert results to DocumentSearchResult objects with scores
         documents: List[DocumentSearchResult] = []
         for row in result.fetchall():
             # Parse meta JSON string back to dict
@@ -331,9 +329,8 @@ async def search_store(
             similarity = 1.0 - distance
             documents.append(DocumentSearchResult(document=doc, score=similarity))
 
-    # Inline update_last_used_timestamp as background task
     async def update_last_used() -> None:
-        async with get_session() as session:
+        async with req.app.state.get_db_session() as session:
             vs = await session.get(VectorStore, vector_store_id)
             if vs:
                 vs.last_used_at = int(time.time())

@@ -1,10 +1,9 @@
 import logging
 from typing import Literal, Optional, Sequence
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
 from openai.types import FileDeleted, FileObject
-from rose_server.database import get_session
 from rose_server.entities.files import UploadedFile
 from rose_server.schemas.files import FileListResponse
 from sqlalchemy import delete, desc
@@ -16,10 +15,10 @@ router = APIRouter(prefix="/v1")
 
 @router.post("/files")
 async def create(
+    req: Request,
     file: UploadFile = File(...),
     purpose: Literal["assistants", "batch", "fine-tune", "vision", "user_data"] = Form(...),
 ) -> FileObject:
-    """Upload a file."""
     try:
         content = await file.read()
 
@@ -35,7 +34,7 @@ async def create(
             content=content,
         )
 
-        async with get_session() as session:
+        async with req.app.state.get_db_session() as session:
             session.add(uploaded_file)
             await session.commit()
             await session.refresh(uploaded_file)
@@ -60,12 +59,12 @@ async def create(
 
 @router.get("/files")
 async def index(
+    req: Request,
     purpose: Optional[str] = Query(None),
     limit: int = Query(20, ge=1, le=100),
     after: Optional[str] = Query(None),
 ) -> FileListResponse:
-    """List files."""
-    async with get_session(read_only=True) as session:
+    async with req.app.state.get_db_session(read_only=True) as session:
         query = select(UploadedFile)
 
         if purpose:
@@ -104,9 +103,9 @@ async def index(
 
 
 @router.get("/files/{file_id}")
-async def get(file_id: str) -> FileObject:
+async def get(req: Request, file_id: str) -> FileObject:
     """Get file metadata."""
-    async with get_session(read_only=True) as session:
+    async with req.app.state.get_db_session(read_only=True) as session:
         result = await session.execute(select(UploadedFile).where(UploadedFile.id == file_id))
         uploaded_file = result.scalar_one_or_none()
 
@@ -119,26 +118,24 @@ async def get(file_id: str) -> FileObject:
         bytes=uploaded_file.bytes,
         created_at=uploaded_file.created_at,
         filename=uploaded_file.filename,
-        purpose=uploaded_file.purpose,  # type: ignore
-        status=uploaded_file.status if uploaded_file.status else "processed",  # type: ignore
+        purpose=uploaded_file.purpose,
+        status=uploaded_file.status if uploaded_file.status else "processed",
         expires_at=uploaded_file.expires_at,
         status_details=uploaded_file.status_details,
     )
 
 
 @router.get("/files/{file_id}/content")
-async def get_content(file_id: str) -> Response:
+async def get_content(req: Request, file_id: str) -> Response:
     """Get file content."""
-    # First get the file metadata
-    async with get_session(read_only=True) as session:
+    async with req.app.state.get_db_session(read_only=True) as session:
         result = await session.execute(select(UploadedFile).where(UploadedFile.id == file_id))
         file_obj = result.scalar_one_or_none()
 
     if not file_obj:
         raise HTTPException(status_code=404, detail=f"File {file_id} not found")
 
-    # Get file content
-    async with get_session(read_only=True) as session:
+    async with req.app.state.get_db_session(read_only=True) as session:
         result = await session.execute(select(UploadedFile.content).where(UploadedFile.id == file_id))
         content = result.scalar_one_or_none()
 
@@ -153,9 +150,8 @@ async def get_content(file_id: str) -> Response:
 
 
 @router.delete("/files/{file_id}")
-async def remove(file_id: str) -> FileDeleted:
-    """Delete a file."""
-    async with get_session() as session:
+async def remove(req: Request, file_id: str) -> FileDeleted:
+    async with req.app.state.get_db_session() as session:
         delete_stmt = delete(UploadedFile).where(UploadedFile.id == file_id)  # type: ignore[arg-type]
         result = await session.execute(delete_stmt)
 

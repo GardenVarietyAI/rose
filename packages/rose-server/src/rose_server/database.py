@@ -1,7 +1,3 @@
-"""Database setup and model re-exports for backward compatibility.
-Database setup stays here. SQLModel classes have been moved to entity files.
-"""
-
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -19,38 +15,38 @@ from rose_server.entities.messages import Message
 from rose_server.entities.models import LanguageModel
 from rose_server.entities.vector_stores import Document, VectorStore
 
-# Settings will be passed as parameter where needed
-
 logger = logging.getLogger(__name__)
 
-# Default data directory - will be overridden in app.py
-DEFAULT_DATA_DIR = "./data"
-DB_PATH = Path(DEFAULT_DATA_DIR) / "rose.db"
 
-
-def get_db_path(data_dir: str = DEFAULT_DATA_DIR) -> Path:
+def get_db_path(data_dir: str) -> Path:
     """Get database path for given data directory."""
     return Path(data_dir) / "rose.db"
 
 
-# Engine will be created with default path, but app.py ensures the correct path exists
-engine = create_async_engine(
-    f"sqlite+aiosqlite:///{DB_PATH}",
-    echo=False,
-    pool_size=10,
-    max_overflow=20,
-    pool_timeout=30,
-    pool_recycle=3600,
-    connect_args={"check_same_thread": False, "timeout": 20, "factory": _VecConnection},
-)
+def create_session_maker(data_dir: str) -> async_sessionmaker[AsyncSession]:
+    """Create a session maker for the given data directory."""
+    db_path = get_db_path(data_dir)
+    engine = create_async_engine(
+        f"sqlite+aiosqlite:///{db_path}",
+        echo=False,
+        pool_size=10,
+        max_overflow=20,
+        pool_timeout=30,
+        pool_recycle=3600,
+        connect_args={"check_same_thread": False, "timeout": 20, "factory": _VecConnection},
+    )
+    return async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+
 T = TypeVar("T")
-async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
 @asynccontextmanager
-async def get_session(read_only: bool = False) -> AsyncGenerator[AsyncSession, None]:
+async def get_session(
+    session_maker: async_sessionmaker[AsyncSession], read_only: bool = False
+) -> AsyncGenerator[AsyncSession, None]:
     """Get async database session context manager."""
-    async with async_session_factory() as session:
+    async with session_maker() as session:
         try:
             yield session
             if not read_only:
@@ -62,8 +58,12 @@ async def get_session(read_only: bool = False) -> AsyncGenerator[AsyncSession, N
             await session.close()
 
 
-async def create_all_tables(embedding_dimensions: int) -> None:
+async def create_all_tables(session_maker: async_sessionmaker[AsyncSession], embedding_dimensions: int) -> None:
     """Create all database tables."""
+    # Get engine from session maker's bind attribute
+    engine = session_maker.bind
+    if not engine:
+        raise ValueError("Session maker has no engine bound")
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
 
@@ -83,9 +83,13 @@ def current_timestamp() -> int:
     return int(time.time())
 
 
-async def check_database_setup() -> bool:
+async def check_database_setup(session_maker: async_sessionmaker[AsyncSession]) -> bool:
     """Check if database connection works."""
     try:
+        # Get engine from session maker's bind attribute
+        engine = session_maker.bind
+        if not engine:
+            return False
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
             return True
@@ -95,11 +99,12 @@ async def check_database_setup() -> bool:
 
 
 __all__ = [
-    "engine",
+    "create_session_maker",
     "get_session",
     "create_all_tables",
     "current_timestamp",
     "check_database_setup",
+    "get_db_path",
     "UploadedFile",
     "FineTuningJob",
     "FineTuningEvent",
