@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from typing import Any, Dict
 
@@ -93,7 +92,7 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
                         raise ValueError(f"No chunks generated from file {file_id}")
 
                     texts = [chunk.text for chunk in chunks]
-                    embeddings = await asyncio.to_thread(generate_embeddings, texts, req.app.state.embedding_model)
+                    embeddings, _ = await generate_embeddings(texts, req.app.state.embedding_model)
 
                     await store_file_chunks_with_embeddings(vector_store.id, file_id, chunks, embeddings, decode_errors)
                     logger.info(f"Added file {file_id} to vector store {request.name} ({vector_store.id})")
@@ -193,9 +192,7 @@ async def search_store(
                 raise HTTPException(status_code=500, detail="Embedding model not initialized")
 
             # Convert text to embedding
-            query_embedding = await asyncio.to_thread(
-                generate_query_embedding, request.query, req.app.state.embedding_model
-            )
+            query_embedding = await generate_query_embedding(request.query, req.app.state.embedding_model)
 
             # Calculate token usage
             prompt_tokens = len(req.app.state.embedding_tokenizer.encode(request.query).ids)
