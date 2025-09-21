@@ -5,7 +5,6 @@ from chonkie import TokenChunker
 from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Path, Request
 
 from rose_server.config.settings import settings
-from rose_server.embeddings.service import generate_embeddings, generate_query_embedding
 from rose_server.schemas.vector_stores import (
     VectorSearch,
     VectorSearchChunk,
@@ -93,7 +92,7 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
                         raise ValueError(f"No chunks generated from file {file_id}")
 
                     texts = [chunk.text for chunk in chunks]
-                    embeddings, _ = await generate_embeddings(texts, req.app.state.embedding_model)
+                    embeddings, _ = await req.app.state.embedding_model.encode_batch(texts)
 
                     await store_file_chunks_with_embeddings(vector_store.id, file_id, chunks, embeddings, decode_errors)
                     logger.info(f"Added file {file_id} to vector store {request.name} ({vector_store.id})")
@@ -189,7 +188,7 @@ async def search_store(
     if not req.app.state.embedding_model:
         raise HTTPException(status_code=500, detail="Embedding model not initialized")
 
-    query_embedding = await generate_query_embedding(request.query, req.app.state.embedding_model)
+    query_embedding = await req.app.state.embedding_model.encode(request.query)
     query_tokens = len(req.app.state.embedding_tokenizer.encode(request.query))
     documents = await search_vector_store(vector_store_id, query_embedding, request.max_num_results)
 

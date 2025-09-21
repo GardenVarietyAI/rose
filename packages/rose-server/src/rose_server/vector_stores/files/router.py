@@ -7,7 +7,6 @@ from chonkie import TokenChunker
 from fastapi import APIRouter, Body, HTTPException, Path, Query, Request
 
 from rose_server.config.settings import settings
-from rose_server.embeddings.service import generate_embeddings
 from rose_server.schemas.vector_stores import VectorStoreFile, VectorStoreFileCreate, VectorStoreFileList
 from rose_server.vector_stores.files.service import EmptyFileError, decode_file_content
 from rose_server.vector_stores.files.store import (
@@ -47,7 +46,7 @@ async def create(
             raise ChunkingError(f"No chunks generated from file {request.file_id}")
 
         texts = [chunk.text for chunk in chunks]
-        embeddings, _ = await generate_embeddings(texts, req.app.state.embedding_model)
+        embeddings, _ = await req.app.state.embedding_model.encode_batch(texts)
         vector_store_file = await store_file_chunks_with_embeddings(
             vector_store_id, request.file_id, chunks, embeddings, decode_errors
         )
