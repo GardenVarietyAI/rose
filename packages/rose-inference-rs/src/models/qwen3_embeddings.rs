@@ -14,11 +14,7 @@ pub struct Qwen3Embeddings {
 }
 
 impl Qwen3Embeddings {
-    pub fn load(model_path: &str, device: &Device) -> Result<Self> {
-        Self::load_with_dims(model_path, device, None)
-    }
-
-    pub fn load_with_dims(model_path: &str, device: &Device, output_dims: Option<usize>) -> Result<Self> {
+    pub fn load(model_path: &str, device: &Device, output_dims: Option<usize>) -> Result<Self> {
         let mut file = File::open(model_path)
             .map_err(|e| anyhow::anyhow!("Failed to open GGUF file {}: {}", model_path, e))?;
 

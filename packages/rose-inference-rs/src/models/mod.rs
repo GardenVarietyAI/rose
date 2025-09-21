@@ -84,12 +84,8 @@ pub fn load_reranker(model_path: &str, device: &Device) -> Result<Box<dyn Rerank
     )?))
 }
 
-pub fn load_embeddings(model_path: &str, device: &Device) -> Result<Box<dyn Embeddings>> {
-    load_embeddings_with_dims(model_path, device, None)
-}
-
-pub fn load_embeddings_with_dims(model_path: &str, device: &Device, output_dims: Option<usize>) -> Result<Box<dyn Embeddings>> {
-    Ok(Box::new(qwen3_embeddings::Qwen3Embeddings::load_with_dims(
+pub fn load_embeddings(model_path: &str, device: &Device, output_dims: Option<usize>) -> Result<Box<dyn Embeddings>> {
+    Ok(Box::new(qwen3_embeddings::Qwen3Embeddings::load(
         model_path, device, output_dims,
     )?))
 }
