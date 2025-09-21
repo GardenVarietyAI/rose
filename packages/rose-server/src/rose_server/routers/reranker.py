@@ -1,8 +1,6 @@
 import logging
 
 from fastapi import APIRouter, Body, HTTPException, Request
-
-from rose_server.reranker import service
 from rose_server.schemas.reranker import RerankRequest, RerankResponse, RerankResult
 
 logger = logging.getLogger(__name__)
@@ -20,10 +18,9 @@ async def rerank(
 
         model = req.app.state.reranker_model
 
-        scores_with_indices = await service.score_batch(
+        scores_with_indices = await model.score_batch(
             [request.query] * len(request.documents),
             request.documents,
-            model,
         )
 
         # Combine with indices and documents

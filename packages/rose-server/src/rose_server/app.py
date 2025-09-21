@@ -12,12 +12,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from tokenizers import Tokenizer
 
 from rose_server import __version__
-from rose_server._inference import InferenceServer
-from rose_server.config.settings import settings
-from rose_server.database import check_database_setup, create_all_tables
-from rose_server.embeddings.embeddings import get_embedding_model, get_tokenizer
-from rose_server.reranker.reranker import get_reranker_model
+from rose_server._inference import EmbeddingModel, InferenceServer, RerankerModel
+from rose_server.database import check_database_setup, create_all_tables, create_session_maker, get_session
 from rose_server.router import router
+from rose_server.settings import Settings
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["ANONYMIZED_TELEMETRY"] = "false"
@@ -26,8 +24,82 @@ os.environ["ANONYMIZED_TELEMETRY"] = "false"
 logger = logging.getLogger("rose_server")
 
 
+def get_tokenizer(models_dir: str, embedding_model_name: str) -> Tokenizer:
+    tokenizer_path = Path(models_dir) / embedding_model_name / "tokenizer.json"
+
+    if not tokenizer_path.exists():
+        raise FileNotFoundError(f"Tokenizer not found at {tokenizer_path}")
+
+    return Tokenizer.from_file(str(tokenizer_path))
+
+
+def get_embedding_model(
+    models_dir: str,
+    embedding_model_name: str,
+    embedding_model_quantization: str,
+    embedding_device: str,
+    embedding_dimensions: int,
+) -> EmbeddingModel:
+    model_path = (Path(models_dir) / embedding_model_name).resolve()
+
+    gguf_files = list(model_path.glob("*.gguf"))
+    if not gguf_files:
+        raise FileNotFoundError(f"No GGUF files found in {model_path}")
+
+    # Find the specified quantization level
+    gguf_file = next((f for f in gguf_files if embedding_model_quantization in f.name), None)
+
+    if not gguf_file:
+        available_quants = [f.name for f in gguf_files]
+        raise FileNotFoundError(
+            f"Quantization {embedding_model_quantization} not found in {model_path}. Available: {available_quants}"
+        )
+
+    tokenizer_file = model_path / "tokenizer.json"
+
+    if not tokenizer_file.exists():
+        raise FileNotFoundError(f"Tokenizer not found at {tokenizer_file}")
+
+    model = EmbeddingModel(
+        str(gguf_file.resolve()),
+        str(tokenizer_file.resolve()),
+        embedding_device,
+        embedding_dimensions,
+    )
+    logger.info(
+        f"Loaded embeddings: {gguf_file.name} on device: {embedding_device}, output_dims: {embedding_dimensions}"
+    )
+    return model
+
+
+def get_reranker_model(models_dir: str) -> RerankerModel:
+    model_path = Path(models_dir) / "QuantFactory--Qwen3-Reranker-0.6B-GGUF"
+
+    gguf_files = list(model_path.glob("*.gguf"))
+    if not gguf_files:
+        raise FileNotFoundError(f"No GGUF files found in {model_path}")
+
+    gguf_file = next((f for f in gguf_files if "Q8_0" in f.name), gguf_files[0])
+    tokenizer_file = model_path / "tokenizer.json"
+
+    if not tokenizer_file.exists():
+        raise FileNotFoundError(f"Tokenizer not found at {tokenizer_file}")
+
+    model = RerankerModel(str(gguf_file), str(tokenizer_file), "auto")
+    logger.info(f"Loaded reranker: {gguf_file.name}")
+    return model
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> Any:
+    settings = Settings()
+    app.state.settings = settings
+
+    app.state.engine, app.state.db_session_maker = create_session_maker(settings.data_dir)
+    logger.info(f"Database session maker initialized with data_dir: {settings.data_dir}")
+
+    app.state.get_db_session = lambda read_only=False: get_session(app.state.db_session_maker, read_only)
+
     directories = [
         settings.data_dir,
         settings.model_offload_dir,
@@ -37,13 +109,13 @@ async def lifespan(app: FastAPI) -> Any:
         os.makedirs(dir, exist_ok=True)
         logger.info(f"Ensured directory exists: {dir}")
 
-    if not await check_database_setup():
+    if not await check_database_setup(app.state.engine):
         logger.info("Creating database...")
         db_path = Path(settings.data_dir) / "rose.db"
         db_path.parent.mkdir(parents=True, exist_ok=True)
         db_path.touch(exist_ok=True)
 
-    await create_all_tables()
+    await create_all_tables(app.state.engine, embedding_dimensions=settings.embedding_dimensions)
 
     app.state.inference_server = InferenceServer("auto")
     logger.info("Inference server initialized")
@@ -57,8 +129,17 @@ async def lifespan(app: FastAPI) -> Any:
         logger.warning(f"Qwen3 tokenizer not found at {tokenizer_path}")
 
     try:
-        app.state.embedding_model = get_embedding_model()
-        app.state.embedding_tokenizer = get_tokenizer()
+        app.state.embedding_model = get_embedding_model(
+            models_dir=settings.models_dir,
+            embedding_model_name=settings.embedding_model_name,
+            embedding_model_quantization=settings.embedding_model_quantization,
+            embedding_device=settings.embedding_device,
+            embedding_dimensions=settings.embedding_dimensions,
+        )
+        app.state.embedding_tokenizer = get_tokenizer(
+            models_dir=settings.models_dir,
+            embedding_model_name=settings.embedding_model_name,
+        )
         logger.info("Embeddings and tokenizer loaded")
     except Exception as e:
         app.state.embedding_model = None
@@ -66,7 +147,7 @@ async def lifespan(app: FastAPI) -> Any:
         logger.warning(f"Failed to load embedding model: {e}")
 
     try:
-        app.state.reranker_model = get_reranker_model()
+        app.state.reranker_model = get_reranker_model(models_dir=settings.models_dir)
         logger.info("Reranker loaded")
     except Exception as e:
         app.state.reranker_model = None

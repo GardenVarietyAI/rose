@@ -1,8 +1,4 @@
-"""Router module for embeddings API endpoints."""
-
 from fastapi import APIRouter, HTTPException, Request
-
-from rose_server.embeddings.service import compute_embeddings_with_tokens
 from rose_server.schemas.embeddings import EmbeddingData, EmbeddingRequest, EmbeddingResponse
 
 router = APIRouter(prefix="/v1/embeddings")
@@ -14,10 +10,8 @@ async def create_embeddings(req: Request, request: EmbeddingRequest) -> Embeddin
         raise HTTPException(status_code=500, detail="Embedding model not initialized")
 
     try:
-        embeddings, total_tokens = await compute_embeddings_with_tokens(
-            request.input if isinstance(request.input, list) else [request.input],
-            req.app.state.embedding_model,
-        )
+        texts = request.input if isinstance(request.input, list) else [request.input]
+        embeddings, total_tokens = await req.app.state.embedding_model.encode_batch(texts)
 
         return EmbeddingResponse(
             object="list",

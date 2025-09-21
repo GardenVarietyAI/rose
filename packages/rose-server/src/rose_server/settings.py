@@ -58,7 +58,3 @@ class Settings(BaseSettings):
     def model_offload_dir(self) -> str:
         """Directory for model offloading."""
         return f"{self.data_dir}/offload"
-
-
-# Global settings instance
-settings = Settings()

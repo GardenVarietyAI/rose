@@ -3,8 +3,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from rose_server.entities.models import LanguageModel
 from rose_server.models.qwen_configs import get_qwen_config
-from rose_server.models.store import LanguageModel
 
 
 class ModelConfig(BaseModel):
@@ -54,10 +54,13 @@ class ModelConfig(BaseModel):
 
 class ModelCreateRequest(BaseModel):
     model_name: str  # HuggingFace model name
+    path: Optional[str] = None
     kind: Optional[str] = None
     temperature: float = 0.3
     top_p: float = 0.9
     timeout: Optional[int] = None
+    parent: Optional[str] = None  # Parent model for fine-tuned models
+    suffix: Optional[str] = None  # Suffix for fine-tuned models
     lora_target_modules: Optional[List[str]] = None
     quantization: Optional[str] = None
 
