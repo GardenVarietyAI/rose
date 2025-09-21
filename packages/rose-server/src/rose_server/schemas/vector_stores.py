@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -52,7 +52,7 @@ class VectorStoreList(BaseModel):
 
 
 class VectorSearch(BaseModel):
-    query: Union[str, List[float]]
+    query: str
     max_num_results: int = Field(default=10, ge=1, le=100, description="Maximum number of results to return (1-100)")
     filters: Optional[Dict[str, Any]] = None
     include_metadata: bool = True
@@ -60,8 +60,6 @@ class VectorSearch(BaseModel):
 
 
 class VectorSearchChunk(BaseModel):
-    """A chunk from a document in vector search results."""
-
     file_id: str
     filename: str
     similarity: float = Field(description="Similarity score (higher is more similar, range: 0-1)")
@@ -70,14 +68,12 @@ class VectorSearchChunk(BaseModel):
 
 
 class VectorSearchUsage(BaseModel):
-    """Token usage statistics for vector search operations."""
-
     prompt_tokens: int
     total_tokens: int
 
 
 class VectorSearchResult(BaseModel):
-    object: str = "vector_store.search_results.page"
+    object: str = "list"
     search_query: str
     data: List[VectorSearchChunk]
     first_id: Optional[str] = None
