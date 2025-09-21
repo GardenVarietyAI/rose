@@ -8,14 +8,25 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlmodel import SQLModel
 
 from rose_server.connect import _VecConnection
+from rose_server.entities.files import UploadedFile
+from rose_server.entities.fine_tuning import FineTuningEvent, FineTuningJob
+from rose_server.entities.messages import Message
+from rose_server.entities.models import LanguageModel
+from rose_server.entities.vector_stores import Document, VectorStore, VectorStoreFile
 
 logger = logging.getLogger(__name__)
 
 
-def create_session_maker(data_dir: str) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
-    db_path = Path(data_dir) / "rose.db"
+def create_session_maker(
+    data_dir: str,
+    db_url: str | None = None,
+) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
+    if db_url is None:
+        db_path = Path(data_dir) / "rose_20250921.db"
+        db_url = f"sqlite+aiosqlite:///{db_path}"
+
     engine = create_async_engine(
-        f"sqlite+aiosqlite:///{db_path}",
+        db_url,
         echo=False,
         pool_size=10,
         max_overflow=20,
@@ -77,4 +88,12 @@ __all__ = [
     "get_session",
     "create_all_tables",
     "check_database_setup",
+    "UploadedFile",
+    "Message",
+    "LanguageModel",
+    "FineTuningJob",
+    "FineTuningEvent",
+    "VectorStore",
+    "Document",
+    "VectorStoreFile",
 ]
