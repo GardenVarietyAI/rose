@@ -116,13 +116,10 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMess
                 chain_messages = []
 
         for msg in chain_messages:
-            if isinstance(msg.content, list):
-                for item in msg.content:
-                    if isinstance(item, dict) and item.get("type") == "text":
-                        messages.append(ChatMessage(role=msg.role, content=item.get("text", "")))  # type: ignore[arg-type]
-                        break
-            elif isinstance(msg.content, str):
-                messages.append(ChatMessage(role=msg.role, content=msg.content))  # type: ignore[arg-type]
+            for item in msg.content:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    messages.append(ChatMessage(role=msg.role, content=item.get("text", "")))  # type: ignore[arg-type]
+                    break
 
     # Combine system instructions
     system_content_parts = []
@@ -327,14 +324,10 @@ async def retrieve_response(response_id: str) -> ResponsesResponse:
 
         text_content = ""
 
-        if isinstance(response_msg.content, list):
-            for item in response_msg.content:
-                if isinstance(item, dict) and item.get("type") == "text":
-                    text_content = item.get("text", "")
-                    break
-        else:
-            # Handle other content formats
-            text_content = str(response_msg.content) if response_msg.content else ""
+        for item in response_msg.content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                text_content = item.get("text", "")
+                break
 
         model_name = response_msg.meta.get("model", "unknown") if response_msg.meta else "unknown"
 
