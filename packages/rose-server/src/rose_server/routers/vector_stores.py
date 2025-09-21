@@ -4,7 +4,6 @@ from typing import Any, Dict
 from chonkie import TokenChunker
 from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Path, Request
 from rose_server.config.settings import settings
-from rose_server.routers.vector_stores_files import router as files_router
 from rose_server.schemas.vector_stores import (
     VectorSearch,
     VectorSearchChunk,
@@ -34,8 +33,6 @@ from rose_server.vector_stores.store import (
 
 router = APIRouter(prefix="/v1/vector_stores")
 logger = logging.getLogger(__name__)
-
-router.include_router(files_router)
 
 _INTERNAL_FIELDS = frozenset(["file_id", "filename", "total_chunks", "start_index", "end_index", "decode_errors"])
 

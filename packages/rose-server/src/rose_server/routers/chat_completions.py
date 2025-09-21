@@ -16,7 +16,7 @@ from rose_server.schemas.chat import ChatMessage, ChatRequest
 from rose_server.schemas.models import ModelConfig
 from sse_starlette.sse import EventSourceResponse
 
-router = APIRouter(prefix="/completions")
+router = APIRouter(prefix="/v1/chat/completions")
 logger = logging.getLogger(__name__)
 
 

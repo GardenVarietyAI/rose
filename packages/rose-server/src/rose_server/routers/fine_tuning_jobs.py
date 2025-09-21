@@ -16,7 +16,7 @@ from rose_server.schemas.fine_tuning import (
     Hyperparameters,
 )
 
-router = APIRouter(prefix="/jobs")
+router = APIRouter(prefix="/v1/fine_tuning/jobs")
 logger = logging.getLogger(__name__)
 
 # Constants

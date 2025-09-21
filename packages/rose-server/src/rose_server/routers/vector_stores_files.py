@@ -18,7 +18,7 @@ from rose_server.vector_stores.files.store import (
     store_file_chunks_with_embeddings,
 )
 
-router = APIRouter(prefix="/{vector_store_id}/files", tags=["vector_store_files"])
+router = APIRouter(prefix="/v1/vector_stores/{vector_store_id}/files", tags=["vector_store_files"])
 logger = logging.getLogger(__name__)
 
 
