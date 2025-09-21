@@ -46,11 +46,13 @@ async def test_db():
 @pytest.fixture
 def client(test_db, monkeypatch):
     """Create test client with in-memory database."""
-    # Monkey patch the database session factory
-    monkeypatch.setattr(database, "async_session_factory", test_async_session_factory)
-    monkeypatch.setattr(database, "engine", test_engine)
-
     app = create_app()
+
+    # Replace the app's database engine and session maker with test ones
+    app.state.engine = test_engine
+    app.state.db_session_maker = test_async_session_factory
+    app.state.get_db_session = lambda read_only=False: database.get_session(test_async_session_factory, read_only)
+
     with TestClient(app) as test_client:
         # Create the default test model via API
         response = test_client.post(
