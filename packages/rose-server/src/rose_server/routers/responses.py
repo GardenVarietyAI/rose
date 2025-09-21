@@ -1,11 +1,14 @@
 import json
 import logging
+import time
+import uuid
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 from fastapi import APIRouter, Body, HTTPException, Request
 from rose_server._inference import InferenceServer
 from rose_server.database import get_session
+from rose_server.entities.messages import Message
 from rose_server.entities.models import LanguageModel
 from rose_server.events.formatters import ResponsesFormatter
 from rose_server.events.generator import EventGenerator
@@ -21,7 +24,6 @@ from rose_server.schemas.responses import (
     ResponsesUsage,
 )
 from rose_server.settings import settings
-from rose_server.stores.responses import get_chain_ids, get_conversation_messages, get_response, store_response_messages
 from sqlalchemy import select
 from sse_starlette.sse import EventSourceResponse
 
@@ -31,8 +33,17 @@ router = APIRouter(prefix="/v1", tags=["responses"])
 
 @router.get("/responses/chains")
 async def chains() -> List[str]:
-    chains: List[str] = await get_chain_ids()
-    return chains
+    """Get all conversation chain IDs."""
+    async with get_session(read_only=True) as session:
+        query = (
+            select(Message.response_chain_id)
+            .where(Message.response_chain_id.is_not(None))
+            .distinct()
+            .order_by(Message.created_at)
+        )
+        result = await session.execute(query)
+        chain_ids: List[str] = result.scalars().all()
+        return chain_ids
 
 
 @dataclass
@@ -89,7 +100,22 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMess
     messages = []
 
     if request.previous_response_id:
-        chain_messages = await get_conversation_messages(request.previous_response_id)
+        # Load all messages in the conversation chain
+        async with get_session(read_only=True) as session:
+            # Get the response message
+            response_msg = await session.get(Message, request.previous_response_id)
+            if response_msg:
+                # Load all messages in the chain
+                query = (
+                    select(Message)
+                    .where(Message.response_chain_id == response_msg.response_chain_id)
+                    .order_by(Message.created_at)
+                )
+                result = await session.execute(query)
+                chain_messages: List[Message] = result.scalars().all()
+            else:
+                chain_messages = []
+
         for msg in chain_messages:
             if isinstance(msg.content, list):
                 for item in msg.content:
@@ -245,15 +271,40 @@ async def _store_response(
                     reply_text = content_item.text
                     break
 
-    message_id = await store_response_messages(
-        messages=messages,
-        reply_text=reply_text,
-        model=model,
-        input_tokens=complete_response.usage.input_tokens,
-        output_tokens=complete_response.usage.output_tokens,
-        created_at=complete_response.created_at,
-        chain_id=chain_id,
-    )
+    # Store response messages
+    end_time = time.time()
+    # Generate new chain_id if not provided
+    if not chain_id:
+        chain_id = f"chain_{uuid.uuid4().hex[:16]}"
+
+    async with get_session() as session:
+        current_user_message = next((msg for msg in reversed(messages) if msg.role == "user"), None)
+        if current_user_message:
+            user_message = Message(
+                role="user",
+                content=[{"type": "text", "text": current_user_message.content}],
+                created_at=complete_response.created_at,
+                response_chain_id=chain_id,
+                meta={"model": model},
+            )
+            session.add(user_message)
+
+        assistant_message = Message(
+            role="assistant",
+            content=[{"type": "text", "text": reply_text}],
+            created_at=complete_response.created_at,
+            response_chain_id=chain_id,
+            meta={
+                "model": model,
+                "input_tokens": complete_response.usage.input_tokens,
+                "output_tokens": complete_response.usage.output_tokens,
+                "total_tokens": complete_response.usage.input_tokens + complete_response.usage.output_tokens,
+                "response_time_ms": int((end_time - complete_response.created_at) * 1000),
+            },
+        )
+        session.add(assistant_message)
+        await session.commit()
+        message_id: str = assistant_message.id
 
     complete_response.id = message_id
 
@@ -261,7 +312,9 @@ async def _store_response(
 @router.get("/responses/{response_id}", response_model=ResponsesResponse)
 async def retrieve_response(response_id: str) -> ResponsesResponse:
     try:
-        response_msg = await get_response(response_id)
+        async with get_session(read_only=True) as session:
+            response_msg = await session.get(Message, response_id)
+
         if not response_msg:
             raise HTTPException(status_code=404, detail=f"Response {response_id} not found")
 
@@ -321,7 +374,8 @@ async def create_response(
 
         previous_response = None
         if request.previous_response_id:
-            previous_response = await get_response(request.previous_response_id)
+            async with get_session(read_only=True) as session:
+                previous_response = await session.get(Message, request.previous_response_id)
 
         if request.previous_response_id and not previous_response:
             raise HTTPException(status_code=400, detail=f"Previous response '{request.previous_response_id}' not found")
