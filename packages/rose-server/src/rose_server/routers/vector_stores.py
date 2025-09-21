@@ -27,6 +27,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.sqlite import insert
 from sqlmodel import (
+    col,
     delete as sql_delete,
     func,
     select,
@@ -121,14 +122,16 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
                             )
                         )
 
-                        if vsf.status == "in_progress":
+                        if vsf and vsf.status == "in_progress":
                             # Use pure function to prepare documents and embeddings
                             documents, embedding_data, created_at = prepare_documents_and_embeddings(
                                 uploaded_file, vector_store.id, chunks, embeddings, decode_errors
                             )
 
                             # Delete old docs for this file
-                            await store_session.execute(sql_delete(Document).where(Document.id.like(f"{file_id}#%")))
+                            await store_session.execute(
+                                sql_delete(Document).where(col(Document.id).like(f"{file_id}#%"))
+                            )
 
                             # Insert new documents
                             for doc in documents:
@@ -145,14 +148,15 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
                             await store_session.commit()
 
                             # Mark as completed
-                            vsf.status = "completed"
-                            vsf.last_error = None
+                            if vsf:
+                                vsf.status = "completed"
+                                vsf.last_error = None
                             await store_session.commit()
 
                             # Update last_used_at
                             await store_session.execute(
                                 sql_update(VectorStore)
-                                .where(VectorStore.id == vector_store.id)
+                                .where(VectorStore.id == vector_store.id)  # type: ignore[arg-type]
                                 .values(last_used_at=created_at)
                             )
                             await store_session.commit()
@@ -245,11 +249,11 @@ async def delete(
             raise HTTPException(status_code=404, detail="VectorStore not found")
 
         file_count_result = await session.execute(
-            select(func.count(VectorStoreFile.id)).where(VectorStoreFile.vector_store_id == vector_store_id)
+            select(func.count()).where(VectorStoreFile.vector_store_id == vector_store_id)
         )
 
         file_count = file_count_result.scalar()
-        await session.execute(sql_delete(VectorStoreFile).where(VectorStoreFile.vector_store_id == vector_store_id))
+        await session.execute(sql_delete(VectorStoreFile).where(VectorStoreFile.vector_store_id == vector_store_id))  # type: ignore[arg-type]
         await session.delete(vector_store)
         await session.commit()
 
@@ -328,7 +332,7 @@ async def search_store(
             documents.append(DocumentSearchResult(document=doc, score=similarity))
 
     # Inline update_last_used_timestamp as background task
-    async def update_last_used():
+    async def update_last_used() -> None:
         async with get_session() as session:
             vs = await session.get(VectorStore, vector_store_id)
             if vs:
@@ -339,16 +343,16 @@ async def search_store(
     background_tasks.add_task(update_last_used)
 
     search_chunks = []
-    for doc in documents:
-        meta = doc.document.meta or {}
+    for search_result in documents:
+        meta = search_result.document.meta or {}
         attributes = {k: v for k, v in meta.items() if k not in _INTERNAL_FIELDS}
 
         chunk = VectorSearchChunk(
             file_id=meta["file_id"],
             filename=meta["filename"],
-            similarity=doc.score,
+            similarity=search_result.score,
             attributes=attributes,
-            content=[{"type": "text", "text": doc.document.content}],
+            content=[{"type": "text", "text": search_result.document.content}],
         )
         search_chunks.append(chunk)
 

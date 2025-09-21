@@ -90,7 +90,7 @@ async def create(req: Request, request: ModelCreateRequest) -> ModelResponse:
 @router.get("/models/{model_id}")
 async def show(model_id: str) -> ModelResponse:
     async with get_session(read_only=True) as session:
-        result = await session.execute(select(LanguageModel).where(LanguageModel.id == model_id))
+        result = await session.execute(select(LanguageModel).where(LanguageModel.id == model_id))  # type: ignore[arg-type]
         model = result.scalar_one_or_none()
 
     if not model:

@@ -121,7 +121,7 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMess
                     if isinstance(item, dict) and item.get("type") == "text":
                         messages.append(ChatMessage(role=msg.role, content=item.get("text", "")))  # type: ignore[arg-type]
                         break
-            elif isinstance(msg.content, str):  # type: ignore[unreachable]
+            elif isinstance(msg.content, str):
                 messages.append(ChatMessage(role=msg.role, content=msg.content))  # type: ignore[arg-type]
 
     # Combine system instructions
@@ -137,7 +137,7 @@ async def _convert_input_to_messages(request: ResponsesRequest) -> List[ChatMess
         messages.append(ChatMessage(role="user", content=request.input))
     elif isinstance(request.input, list):
         # Handle list of ResponsesInput objects
-        for msg in request.input:
+        for msg in request.input:  # type: ignore[assignment]
             if hasattr(msg, "type"):
                 if getattr(msg, "type", None) == "function_call":
                     # Preserve function calls in conversation history for context
@@ -325,7 +325,7 @@ async def retrieve_response(response_id: str) -> ResponsesResponse:
         if not response_msg:
             raise HTTPException(status_code=404, detail=f"Response {response_id} not found")
 
-        text_content = ""  # type: ignore[unreachable]
+        text_content = ""
 
         if isinstance(response_msg.content, list):
             for item in response_msg.content:
