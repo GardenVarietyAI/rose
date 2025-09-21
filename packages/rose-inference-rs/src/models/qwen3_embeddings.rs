@@ -9,22 +9,53 @@ use super::Embeddings;
 pub struct Qwen3Embeddings {
     model: Qwen3,
     device: Device,
+    hidden_dim: usize,  // Model's native hidden dimension
+    output_dims: Option<usize>,  // For Matryoshka truncation
 }
 
 impl Qwen3Embeddings {
     pub fn load(model_path: &str, device: &Device) -> Result<Self> {
+        Self::load_with_dims(model_path, device, None)
+    }
+
+    pub fn load_with_dims(model_path: &str, device: &Device, output_dims: Option<usize>) -> Result<Self> {
         let mut file = File::open(model_path)
             .map_err(|e| anyhow::anyhow!("Failed to open GGUF file {}: {}", model_path, e))?;
 
         let content = gguf_file::Content::read(&mut file)
             .map_err(|e| anyhow::anyhow!("Failed to read GGUF content: {}", e))?;
 
+        let hidden_dim = content
+            .metadata
+            .get("qwen3.embedding_length")
+            .and_then(|v| match v {
+                gguf_file::Value::U32(n) => Some(*n as usize),
+                gguf_file::Value::U64(n) => Some(*n as usize),
+                _ => None,
+            })
+            .ok_or_else(|| {
+                anyhow::anyhow!("Cannot find qwen3.embedding_length in GGUF metadata")
+            })?;
+
         let model = Qwen3::from_gguf(content, &mut file, device)
             .map_err(|e| anyhow::anyhow!("Failed to create Qwen3 embeddings from GGUF: {}", e))?;
+
+        if let Some(dims) = output_dims {
+            if dims > hidden_dim {
+                anyhow::bail!(
+                    "Requested output dimensions {} exceed model's hidden dimension {}",
+                    dims, hidden_dim
+                );
+            }
+        }
+
+        eprintln!("Loaded embedding model with hidden_dim={}, output_dims={:?}", hidden_dim, output_dims);
 
         Ok(Self {
             model,
             device: device.clone(),
+            hidden_dim,
+            output_dims,
         })
     }
 
@@ -51,13 +82,27 @@ impl Embeddings for Qwen3Embeddings {
         let input_tensor =
             Tensor::from_slice(truncated_tokens, (1, truncated_tokens.len()), &self.device)?;
 
-        // Get hidden states instead of logits
         let hidden_states = self.forward_embeddings(&input_tensor)?;
 
         // The output is [batch, hidden_dim] for the last token
         // Since batch size is 1, flatten to get a 1D vector
-        let embedding_vec = hidden_states.flatten_all()?.to_vec1::<f32>()?;
+        let mut embedding_vec = hidden_states.flatten_all()?.to_vec1::<f32>()?;
 
+        if embedding_vec.len() != self.hidden_dim {
+            anyhow::bail!(
+                "Model output dimension mismatch: expected {}, got {}",
+                self.hidden_dim,
+                embedding_vec.len()
+            );
+        }
+
+        if let Some(dims) = self.output_dims {
+            if dims < embedding_vec.len() {
+                embedding_vec.truncate(dims);
+            }
+        }
+
+        // L2 normalize (required after truncation for Matryoshka)
         let norm = embedding_vec
             .iter()
             .map(|x| x * x)
