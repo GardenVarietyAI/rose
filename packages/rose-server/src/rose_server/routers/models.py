@@ -48,7 +48,6 @@ async def create(request: ModelCreateRequest) -> ModelResponse:
     is_fine_tuned = request.parent is not None
     owned_by = "user" if is_fine_tuned else "system"
 
-    # Generate appropriate ID
     model_id = _generate_model_id(
         is_fine_tuned=is_fine_tuned,
         base_model=request.parent or request.model_name,
@@ -56,10 +55,15 @@ async def create(request: ModelCreateRequest) -> ModelResponse:
         suffix=request.suffix or "",
     )
 
+    if request.path:
+        model_path = request.path
+    else:
+        model_path = str(Path(settings.models_dir) / model_id)
+
     model = LanguageModel(
         id=model_id,
         model_name=request.model_name,
-        path=request.path,
+        path=model_path,
         kind=request.kind,
         is_fine_tuned=is_fine_tuned,
         temperature=request.temperature,

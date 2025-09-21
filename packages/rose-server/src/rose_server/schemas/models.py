@@ -54,7 +54,7 @@ class ModelConfig(BaseModel):
 
 class ModelCreateRequest(BaseModel):
     model_name: str  # HuggingFace model name
-    path: str  # Path to the model files
+    path: Optional[str] = None
     kind: Optional[str] = None
     temperature: float = 0.3
     top_p: float = 0.9
