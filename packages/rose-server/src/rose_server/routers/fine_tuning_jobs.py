@@ -1,10 +1,10 @@
 import logging
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from rose_server.database import current_timestamp
 from rose_server.entities.fine_tuning import FineTuningEvent, FineTuningJob
 from rose_server.entities.models import LanguageModel
 from rose_server.schemas.fine_tuning import (
@@ -201,7 +201,7 @@ async def cancel_fine_tuning_job(req: Request, job_id: str) -> FineTuningJobResp
             job = await session.get(FineTuningJob, job_id)
             if job:
                 job.status = "cancelled"
-                job.finished_at = current_timestamp()
+                job.finished_at = int(time.time())
                 session.add(job)
                 await session.commit()
                 await session.refresh(job)
@@ -302,9 +302,9 @@ async def update_job_status_direct(
 
         job.status = request.status
         if request.status in ["succeeded", "failed", "cancelled"]:
-            job.finished_at = current_timestamp()
+            job.finished_at = int(time.time())
         elif request.status == "running" and not job.started_at:
-            job.started_at = current_timestamp()
+            job.started_at = int(time.time())
 
         session.add(job)
         await session.commit()
@@ -358,9 +358,9 @@ async def update_job_status_direct(
                         updated_job.training_metrics = request.training_metrics
                     updated_job.status = request.status
                     if request.status in ["succeeded", "failed", "cancelled"]:
-                        updated_job.finished_at = current_timestamp()
+                        updated_job.finished_at = int(time.time())
                     elif request.status == "running" and not updated_job.started_at:
-                        updated_job.started_at = current_timestamp()
+                        updated_job.started_at = int(time.time())
                     update_session.add(updated_job)
                     await update_session.commit()
                     await update_session.refresh(updated_job)
@@ -388,7 +388,7 @@ async def update_job_status_direct(
                 events = list((await session.execute(statement)).scalars().all())
             detailed_metrics = build_training_results(job, events, final_loss, steps, final_perplexity)
             if detailed_metrics:
-                async with request.app.state.get_db_session() as update_session:
+                async with req.app.state.get_db_session() as update_session:
                     job_update = await update_session.get(FineTuningJob, job_id)
                     if job_update:
                         job_update.training_metrics = detailed_metrics

@@ -1,8 +1,8 @@
 import logging
+import time
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Query, Request
-from rose_server.database import current_timestamp
 from rose_server.entities.fine_tuning import FineTuningEvent
 from rose_server.schemas.fine_tuning import FineTuningJobEventRequest, FineTuningJobEventResponse
 from sqlalchemy import asc
@@ -38,7 +38,7 @@ async def list_fine_tuning_events(
 @router.post("")
 async def add_job_event(req: Request, job_id: str, event: FineTuningJobEventRequest) -> Dict[str, Any]:
     event_entity = FineTuningEvent(
-        job_id=job_id, created_at=current_timestamp(), level=event.level, message=event.message, data=event.data
+        job_id=job_id, created_at=int(time.time()), level=event.level, message=event.message, data=event.data
     )
     async with req.app.state.get_db_session() as session:
         session.add(event_entity)
