@@ -3,12 +3,10 @@
 import pytest
 from fastapi.testclient import TestClient
 from rose_server import database
-from rose_server.app import create_app
 from rose_server.connect import _VecConnection
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 
-# Create in-memory engine for testing with sqlite-vec support
 test_engine = create_async_engine(
     "sqlite+aiosqlite:///:memory:",
     echo=False,
@@ -44,14 +42,43 @@ async def test_db():
 
 
 @pytest.fixture
-def client(test_db, monkeypatch):
+def client(test_db):
     """Create test client with in-memory database."""
+    from rose_server._inference import InferenceServer
+    from rose_server.app import create_app, get_embedding_model, get_tokenizer
+    from rose_server.settings import Settings
+    from starlette.routing import _DefaultLifespan
+
     app = create_app()
 
-    # Replace the app's database engine and session maker with test ones
+    # Skip the lifespan
+    app.router.lifespan_context = _DefaultLifespan(app.router)
+
+    settings = Settings()
+    app.state.settings = settings
     app.state.engine = test_engine
     app.state.db_session_maker = test_async_session_factory
     app.state.get_db_session = lambda read_only=False: database.get_session(test_async_session_factory, read_only)
+    app.state.inference_server = InferenceServer("auto")
+
+    try:
+        app.state.embedding_model = get_embedding_model(
+            models_dir=settings.models_dir,
+            embedding_model_name=settings.embedding_model_name,
+            embedding_model_quantization=settings.embedding_model_quantization,
+            embedding_device=settings.embedding_device,
+            embedding_dimensions=settings.embedding_dimensions,
+        )
+        app.state.embedding_tokenizer = get_tokenizer(
+            models_dir=settings.models_dir,
+            embedding_model_name=settings.embedding_model_name,
+        )
+    except Exception:
+        app.state.embedding_model = None
+        app.state.embedding_tokenizer = None
+
+    app.state.reranker_model = None
+    app.state.tokenizer = None
 
     with TestClient(app) as test_client:
         # Create the default test model via API
