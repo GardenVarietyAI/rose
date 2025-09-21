@@ -70,7 +70,7 @@ def test_document_chunking_via_api(client: TestClient):
     assert len(search_results["data"]) <= 10
 
     # All scores should be numeric
-    scores = [r["similarity"] for r in search_results["data"]]
+    scores = [r["score"] for r in search_results["data"]]
     assert all(isinstance(s, (int, float)) for s in scores)
 
     # Verify chunking occurred
@@ -81,14 +81,14 @@ def test_document_chunking_via_api(client: TestClient):
 
     assert "file_id" in first_result
     assert "filename" in first_result
-    assert "similarity" in first_result
+    assert "score" in first_result
     assert "content" in first_result
     assert first_result["filename"] == "test_chunking.txt"
     assert first_result["file_id"] == file_id
 
     # Verify similarity scores are reasonable
-    assert isinstance(first_result["similarity"], (int, float))
-    assert first_result["similarity"] is not None
+    assert isinstance(first_result["score"], (int, float))
+    assert first_result["score"] is not None
 
     # Verify content structure
     assert isinstance(first_result["content"], list)
@@ -100,7 +100,7 @@ def test_document_chunking_via_api(client: TestClient):
     for result in search_results["data"]:
         assert result["file_id"] == file_id
         assert result["filename"] == "test_chunking.txt"
-        assert isinstance(result["similarity"], (int, float))
+        assert isinstance(result["score"], (int, float))
         assert isinstance(result["content"], list)
 
     # Verify that smaller max_num_results limits results appropriately

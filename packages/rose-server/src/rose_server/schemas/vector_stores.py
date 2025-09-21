@@ -60,7 +60,7 @@ class VectorSearch(BaseModel):
 class VectorSearchChunk(BaseModel):
     file_id: str
     filename: str
-    similarity: float = Field(description="Similarity score (higher is more similar, range: 0-1)")
+    score: float = Field(description="Relevance score (higher is more similar, range: 0-1)")
     attributes: Dict[str, Any] = Field(default_factory=dict)
     content: List[Dict[str, str]]
 
@@ -71,14 +71,12 @@ class VectorSearchUsage(BaseModel):
 
 
 class VectorSearchResult(BaseModel):
-    object: str = "list"
+    object: str = "vector_store.search_results.page"
     search_query: str
     data: List[VectorSearchChunk]
-    first_id: Optional[str] = None
-    last_id: Optional[str] = None
     has_more: bool = False
     next_page: Optional[str] = None
-    usage: VectorSearchUsage
+    usage: Optional[VectorSearchUsage] = None
 
 
 class VectorStoreFileCreate(BaseModel):

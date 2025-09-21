@@ -347,7 +347,7 @@ async def search_store(
         chunk = VectorSearchChunk(
             file_id=meta["file_id"],
             filename=meta["filename"],
-            similarity=search_result.score,
+            score=search_result.score,
             attributes=attributes,
             content=[{"type": "text", "text": search_result.document.content}],
         )
@@ -356,8 +356,6 @@ async def search_store(
     return VectorSearchResult(
         search_query=request.query,
         data=search_chunks,
-        first_id=None,
-        last_id=None,
         has_more=False,
         next_page=None,
         usage=VectorSearchUsage(
