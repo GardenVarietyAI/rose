@@ -1,4 +1,4 @@
-use candle_core::{Device, DType, Tensor};
+use candle_core::{DType, Device, Tensor};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -38,7 +38,12 @@ impl TensorPool {
     }
 
     #[allow(dead_code)]
-    pub fn get_or_create(&self, shape: &[usize], dtype: DType, device: &Device) -> anyhow::Result<Tensor> {
+    pub fn get_or_create(
+        &self,
+        shape: &[usize],
+        dtype: DType,
+        device: &Device,
+    ) -> anyhow::Result<Tensor> {
         let key = TensorKey::new(shape, dtype, device);
 
         {

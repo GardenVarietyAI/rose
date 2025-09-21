@@ -6,6 +6,7 @@ use std::sync::Arc;
 mod cache;
 mod chat_templates;
 mod device;
+mod embeddings;
 mod error;
 mod generate;
 mod lora;
@@ -49,6 +50,7 @@ fn _inference(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ErrorEvent>()?;
     m.add_class::<TopLogProb>()?;
     m.add_class::<reranker::RerankerModel>()?;
+    m.add_class::<embeddings::EmbeddingModel>()?;
     Ok(())
 }
 
@@ -363,40 +365,41 @@ fn convert_to_python_event(py: Python, response: &InferenceResponse) -> Py<PyAny
             .unwrap()
             .into_any()
         }
-        InferenceResponse::ToolCallStart { name, call_id } => {
-            Py::new(
-                py,
-                ToolCallStartEvent {
-                    name: name.clone(),
-                    call_id: call_id.clone(),
-                },
-            )
-            .unwrap()
-            .into_any()
-        }
-        InferenceResponse::ToolCallArgument { call_id, argument_delta } => {
-            Py::new(
-                py,
-                ToolCallArgumentEvent {
-                    call_id: call_id.clone(),
-                    argument_delta: argument_delta.clone(),
-                },
-            )
-            .unwrap()
-            .into_any()
-        }
-        InferenceResponse::ToolCall { name, arguments, call_id } => {
-            Py::new(
-                py,
-                ToolCallEvent {
-                    name: name.clone(),
-                    arguments: arguments.to_string(),
-                    call_id: call_id.clone(),
-                },
-            )
-            .unwrap()
-            .into_any()
-        }
+        InferenceResponse::ToolCallStart { name, call_id } => Py::new(
+            py,
+            ToolCallStartEvent {
+                name: name.clone(),
+                call_id: call_id.clone(),
+            },
+        )
+        .unwrap()
+        .into_any(),
+        InferenceResponse::ToolCallArgument {
+            call_id,
+            argument_delta,
+        } => Py::new(
+            py,
+            ToolCallArgumentEvent {
+                call_id: call_id.clone(),
+                argument_delta: argument_delta.clone(),
+            },
+        )
+        .unwrap()
+        .into_any(),
+        InferenceResponse::ToolCall {
+            name,
+            arguments,
+            call_id,
+        } => Py::new(
+            py,
+            ToolCallEvent {
+                name: name.clone(),
+                arguments: arguments.to_string(),
+                call_id: call_id.clone(),
+            },
+        )
+        .unwrap()
+        .into_any(),
         InferenceResponse::Complete {
             input_tokens,
             output_tokens,

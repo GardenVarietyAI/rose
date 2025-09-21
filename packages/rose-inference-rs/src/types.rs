@@ -192,7 +192,7 @@ pub struct ToolCallEvent {
     #[pyo3(get)]
     pub name: String,
     #[pyo3(get)]
-    pub arguments: String,  // JSON string
+    pub arguments: String, // JSON string
     #[pyo3(get)]
     pub call_id: String,
 }

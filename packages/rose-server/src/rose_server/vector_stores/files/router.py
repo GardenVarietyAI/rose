@@ -1,6 +1,5 @@
 """API router for vector store files endpoints."""
 
-import asyncio
 import logging
 from typing import Any, Dict
 
@@ -48,7 +47,7 @@ async def create(
             raise ChunkingError(f"No chunks generated from file {request.file_id}")
 
         texts = [chunk.text for chunk in chunks]
-        embeddings = await asyncio.to_thread(generate_embeddings, texts, req.app.state.embedding_model)
+        embeddings, _ = await generate_embeddings(texts, req.app.state.embedding_model)
         vector_store_file = await store_file_chunks_with_embeddings(
             vector_store_id, request.file_id, chunks, embeddings, decode_errors
         )

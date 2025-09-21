@@ -61,7 +61,7 @@ async def create_all_tables() -> None:
             text(f"""
             CREATE VIRTUAL TABLE IF NOT EXISTS vec0 USING vec0(
                 document_id TEXT PRIMARY KEY,
-                embedding float[{settings.default_embedding_dimensions}]
+                embedding float[{settings.embedding_dimensions}]
             )
         """)
         )
