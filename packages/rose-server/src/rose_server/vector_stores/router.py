@@ -2,7 +2,7 @@ import logging
 from typing import Any, Dict
 
 from chonkie import TokenChunker
-from fastapi import APIRouter, Body, HTTPException, Path, Request
+from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Path, Request
 
 from rose_server.config.settings import settings
 from rose_server.embeddings.service import generate_embeddings, generate_query_embedding
@@ -30,6 +30,7 @@ from rose_server.vector_stores.store import (
     get_vector_store,
     list_vector_stores,
     search_vector_store,
+    update_last_used_timestamp,
     update_vector_store,
 )
 
@@ -176,7 +177,10 @@ async def delete(
 
 @router.post("/{vector_store_id}/search")
 async def search_store(
-    req: Request, vector_store_id: str = Path(...), request: VectorSearch = Body(...)
+    req: Request,
+    background_tasks: BackgroundTasks,
+    vector_store_id: str = Path(...),
+    request: VectorSearch = Body(...),
 ) -> VectorSearchResult:
     vector_store = await get_vector_store(vector_store_id)
     if not vector_store:
@@ -187,6 +191,8 @@ async def search_store(
 
     query_embedding = await generate_query_embedding(request.query, req.app.state.embedding_model)
     documents = await search_vector_store(vector_store_id, query_embedding, request.max_num_results)
+
+    background_tasks.add_task(update_last_used_timestamp, vector_store_id)
 
     search_chunks = []
     for doc in documents:

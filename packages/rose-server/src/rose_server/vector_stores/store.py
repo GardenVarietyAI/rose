@@ -116,14 +116,17 @@ async def search_vector_store(
             similarity = 1.0 - distance
             results.append(DocumentSearchResult(document=doc, score=similarity))
 
-        # Update last_used_at timestamp if requested (even if 0 hits)
-        if update_last_used:
-            vector_store = await session.get(VectorStore, vector_store_id)
-            if vector_store:
-                vector_store.last_used_at = int(time.time())
-                session.add(vector_store)
-
         return results
+
+
+async def update_last_used_timestamp(vector_store_id: str) -> None:
+    """Update the last_used_at timestamp for a vector store."""
+    async with get_session() as session:
+        vector_store = await session.get(VectorStore, vector_store_id)
+        if vector_store:
+            vector_store.last_used_at = int(time.time())
+            session.add(vector_store)
+            await session.commit()
 
 
 async def delete_vector_store(vector_store_id: str) -> bool:
