@@ -3,7 +3,8 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query
-from rose_server.entities.fine_tuning import FineTuningJob
+from rose_server.database import get_session
+from rose_server.entities.fine_tuning import FineTuningEvent, FineTuningJob
 from rose_server.schemas.fine_tuning import (
     FineTuningJobCreateRequest,
     FineTuningJobResponse,
@@ -12,9 +13,9 @@ from rose_server.schemas.fine_tuning import (
 )
 from rose_server.services.fine_tuning_step_metrics import build_training_results
 from rose_server.settings import settings
-from rose_server.stores.fine_tuning_events import get_events
 from rose_server.stores.fine_tuning_jobs import create_job, get_job, list_jobs, list_jobs_by_status, update_job_status
 from rose_server.stores.models import create as create_language_model
+from sqlmodel import select
 
 router = APIRouter(prefix="/v1/fine_tuning/jobs")
 logger = logging.getLogger(__name__)
@@ -264,7 +265,14 @@ async def update_job_status_direct(job_id: str, request: FineTuningJobStatusUpda
             steps = request.trained_tokens or DEFAULT_STEPS_FALLBACK
             final_perplexity = request.training_metrics.get("final_perplexity")
 
-            events = await get_events(job_id, limit=MAX_EVENTS_LIMIT)
+            # Get events for training metrics
+            statement = (
+                select(FineTuningEvent)
+                .where(FineTuningEvent.job_id == job_id)
+                .order_by(FineTuningEvent.created_at.asc())
+            )
+            async with get_session(read_only=True) as session:
+                events = list((await session.execute(statement)).scalars().all())
             detailed_metrics = build_training_results(job, events, final_loss, steps, final_perplexity)
             if detailed_metrics:
                 await update_job_status(job_id=job_id, status=request.status, training_metrics=detailed_metrics)
