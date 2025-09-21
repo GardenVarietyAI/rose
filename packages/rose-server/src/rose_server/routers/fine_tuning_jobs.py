@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query
-
 from rose_server.config.settings import settings
 from rose_server.entities.fine_tuning import FineTuningJob
 from rose_server.fine_tuning.events.store import get_events

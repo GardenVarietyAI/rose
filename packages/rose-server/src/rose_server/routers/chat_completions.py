@@ -6,8 +6,6 @@ from typing import Any, AsyncGenerator, Dict
 
 from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
-from sse_starlette.sse import EventSourceResponse
-
 from rose_server.config.settings import settings
 from rose_server.events.event_types import LLMEvent
 from rose_server.events.formatters import ChatCompletionsFormatter
@@ -16,6 +14,7 @@ from rose_server.metrics import MetricsCollector
 from rose_server.models.store import get as get_language_model
 from rose_server.schemas.chat import ChatMessage, ChatRequest
 from rose_server.schemas.models import ModelConfig
+from sse_starlette.sse import EventSourceResponse
 
 router = APIRouter(prefix="/completions")
 logger = logging.getLogger(__name__)

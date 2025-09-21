@@ -2,14 +2,14 @@ import logging
 
 from fastapi import APIRouter
 
-from rose_server.chat.router import router as chat_router
-from rose_server.embeddings.router import router as embeddings_router
-from rose_server.files.router import router as files_router
-from rose_server.fine_tuning.router import router as fine_tuning_router
-from rose_server.models.router import router as llms_router
-from rose_server.reranker.router import router as reranker_router
-from rose_server.responses.router import router as responses_router
-from rose_server.vector_stores.router import router as vector_stores_router
+from rose_server.routers.chat import router as chat_router
+from rose_server.routers.embeddings import router as embeddings_router
+from rose_server.routers.files import router as files_router
+from rose_server.routers.fine_tuning import router as fine_tuning_router
+from rose_server.routers.models import router as llms_router
+from rose_server.routers.reranker import router as reranker_router
+from rose_server.routers.responses import router as responses_router
+from rose_server.routers.vector_stores import router as vector_stores_router
 
 logger = logging.getLogger(__name__)
 

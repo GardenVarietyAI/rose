@@ -4,8 +4,6 @@ from dataclasses import dataclass
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 from fastapi import APIRouter, Body, HTTPException, Request
-from sse_starlette.sse import EventSourceResponse
-
 from rose_server._inference import InferenceServer
 from rose_server.config.settings import settings
 from rose_server.events.formatters import ResponsesFormatter
@@ -23,6 +21,7 @@ from rose_server.schemas.responses import (
     ResponsesResponse,
     ResponsesUsage,
 )
+from sse_starlette.sse import EventSourceResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["responses"])

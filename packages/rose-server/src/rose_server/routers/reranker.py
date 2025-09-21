@@ -1,7 +1,6 @@
 import logging
 
 from fastapi import APIRouter, Body, HTTPException, Request
-
 from rose_server.schemas.reranker import RerankRequest, RerankResponse, RerankResult
 
 logger = logging.getLogger(__name__)

@@ -5,7 +5,6 @@ from typing import Any, Dict
 
 from chonkie import TokenChunker
 from fastapi import APIRouter, Body, HTTPException, Path, Query, Request
-
 from rose_server.config.settings import settings
 from rose_server.schemas.vector_stores import VectorStoreFile, VectorStoreFileCreate, VectorStoreFileList
 from rose_server.vector_stores.files.service import EmptyFileError, decode_file_content

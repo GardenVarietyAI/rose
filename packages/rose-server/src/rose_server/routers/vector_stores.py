@@ -3,8 +3,8 @@ from typing import Any, Dict
 
 from chonkie import TokenChunker
 from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Path, Request
-
 from rose_server.config.settings import settings
+from rose_server.routers.vector_stores_files import router as files_router
 from rose_server.schemas.vector_stores import (
     VectorSearch,
     VectorSearchChunk,
@@ -15,7 +15,6 @@ from rose_server.schemas.vector_stores import (
     VectorStoreMetadata,
     VectorStoreUpdate,
 )
-from rose_server.vector_stores.files.router import router as files_router
 from rose_server.vector_stores.files.service import decode_file_content
 from rose_server.vector_stores.files.store import (
     FileNotFoundError as StoreFileNotFoundError,

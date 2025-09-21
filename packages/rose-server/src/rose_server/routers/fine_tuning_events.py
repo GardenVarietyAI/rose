@@ -2,7 +2,6 @@ import logging
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Query
-
 from rose_server.fine_tuning.events.store import add_event, get_events
 from rose_server.schemas.fine_tuning import FineTuningJobEventRequest, FineTuningJobEventResponse
 
