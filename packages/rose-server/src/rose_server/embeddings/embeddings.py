@@ -41,8 +41,17 @@ def get_embedding_model() -> EmbeddingModel:
     if not tokenizer_file.exists():
         raise FileNotFoundError(f"Tokenizer not found at {tokenizer_file}")
 
-    model = EmbeddingModel(str(gguf_file.resolve()), str(tokenizer_file.resolve()), settings.embedding_device)
-    logger.info(f"Loaded embeddings: {gguf_file.name} on device: {settings.embedding_device}")
+    model = EmbeddingModel(
+        str(gguf_file.resolve()),
+        str(tokenizer_file.resolve()),
+        settings.embedding_device,
+        settings.embedding_dimensions,
+    )
+    logger.info(
+        f"Loaded embeddings: {gguf_file.name} "
+        f"on device: {settings.embedding_device}, "
+        f"output_dims: {settings.embedding_dimensions}"
+    )
     return model
 
 

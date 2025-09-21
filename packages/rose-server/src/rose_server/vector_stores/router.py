@@ -69,7 +69,7 @@ async def index() -> VectorStoreList:
 @router.post("")
 async def create(req: Request, request: VectorStoreCreate = Body(...)) -> VectorStoreMetadata:
     try:
-        vector_store = await create_vector_store(request.name, settings.default_embedding_dimensions)
+        vector_store = await create_vector_store(request.name, settings.embedding_dimensions)
         logger.info(f"Created vector store {request.name} ({vector_store.id})")
 
         # TODO: batch this operation
