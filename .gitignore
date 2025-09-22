@@ -164,3 +164,4 @@ CLAUDE.md
 /fastembed
 /codex
 codex.toml
+node_modules/
