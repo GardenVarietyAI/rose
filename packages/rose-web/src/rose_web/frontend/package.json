@@ -1,0 +1,24 @@
+{
+  "name": "rose-web",
+  "version": "0.1.0",
+  "description": "ROSE Web App",
+  "main": "index.js",
+  "scripts": {
+    "build:js": "esbuild src/js/index.js --bundle --outfile=dist/main.js --platform=browser",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GardenVarietyAI/rose.git"
+  },
+  "author": "Garden Variety AI",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/GardenVarietyAI/rose/issues"
+  },
+  "homepage": "https://github.com/GardenVarietyAI/rose#readme",
+  "devDependencies": {
+    "esbuild": "^0.25.10",
+    "redom": "^4.3.0"
+  }
+}

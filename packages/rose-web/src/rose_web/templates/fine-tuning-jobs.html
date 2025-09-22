@@ -24,28 +24,15 @@
 </div>
 {% endif %}
 
-{% if models %}
-<h1>Models</h1>
+{% if fine_tuning_jobs %}
+<h1>Fine-tunes</h1>
 
-<p>Listing all models. Filter by <a href="?system">system</a> and <a href="?user">user fine-tuned</a> models.</p>
+<p>Listing all fine-tuning jobs. Filter by <a href="?completed">completed</a> and <a href="?failed">failed</a>
+  fine-tunes.
+</p>
 
-<table>
-  <thead>
-    <td><a href="#">ID</a></td>
-    <td><a href="#">Name</a></td>
-    <td><a href="#">Created</a></a></td>
-  </thead>
+<fine-tuning-job></fine-tuning-job>
 
-  <tbody>
-    {% for model in models %}
-    <tr>
-      <td><a href="/models/{{ model.id }}">{{ model.id }}</a></td>
-      <td>{{ model.model_name }}</td>
-      <td>{{ model.created_at }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
 {% endif %}
 
 {% endblock %}

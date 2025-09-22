@@ -43,7 +43,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
+    app.mount("/static", StaticFiles(directory=Path(__file__).parent / "frontend" / "dist"), name="static")
     app.include_router(router)
 
     @app.get("/health")

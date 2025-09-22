@@ -42,3 +42,13 @@ async def delete_model(req: Request, model_id: str) -> Any:
         "models.html",
         {"request": req, "model": model},
     )
+
+
+@router.get("/fine_tuning", response_class=HTMLResponse)
+async def show_fine_tuning_jobs(req: Request) -> Any:
+    response = await req.app.state.openai.fine_tuning.jobs.list()
+    fine_tuning_jobs = response.data
+    return req.app.state.templates.TemplateResponse(
+        "fine-tuning-jobs.html",
+        {"request": req, "fine_tuning_jobs": fine_tuning_jobs},
+    )

@@ -3,6 +3,7 @@
 {% block title %}Home · ROSE Web{% endblock %}
 
 {% block content %}
+
 <h1>Welcome</h1>
 
 <p>Use the detailed sitemap below to navigate directly to the desired page.</p>
@@ -13,11 +14,11 @@
     <li><a href="/models?system">System models</a></li>
     <li><a href="/models?user">User fine-tuned models</a></li>
   </ul>
+  <li><a href="/fine_tuning">Fine-tunes</a></li>
+  <ul>
+    <li><a href="/fine_tuning?completed">Completed Jobs</a></li>
+    <li><a href="/fine_tuning?failed">Failed Jobs</a></li>
+  </ul>
 </ul>
 
-<script>
-  document.addEventListener("DOMContentLoaded", () => {
-    console.log("models page ready");
-  });
-</script>
 {% endblock %}
