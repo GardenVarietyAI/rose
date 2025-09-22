@@ -1,6 +1,6 @@
 [project]
 name = "rose-server"
-version = "0.1.3"
+version = "0.1.4"
 description = "ROSE Server - Run your own LLM server"
 readme = "README.md"
 requires-python = ">=3.12,<4.0"

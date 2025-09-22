@@ -29,7 +29,7 @@ This is pre-release software. Use at your own risk!
 curl https://mise.run | sh
 
 # Clone the repository
-git clone --branch 0.1.3 --depth 1 git@github.com:GardenVarietyAI/rose.git
+git clone --branch 0.1.4 --depth 1 git@github.com:GardenVarietyAI/rose.git
 cd rose
 
 # Install deps
@@ -57,7 +57,10 @@ dbmate --no-dump-schema up
 ### Build the Inference Service
 
 ```bash
-uv run maturin develop -F metal --release
+mise dev
+
+# For metal support instead of CPU
+mise dev-metal
 ```
 
 ### Download a Model
@@ -67,10 +70,10 @@ uv run maturin develop -F metal --release
 uv run rose models download Qwen/Qwen3-1.7B
 ```
 
-### Download an Embeddings Model
+### Download an Embedding Model
 
 ```bash
-# This is a temporary step that will be smoothed out in a future release
+# The base embedding model is currently required
 uv run rose models download Qwen/Qwen3-Embedding-0.6B
 uv run rose models download Qwen/Qwen3-Embedding-0.6B-GGUF
 ```
@@ -78,7 +81,7 @@ uv run rose models download Qwen/Qwen3-Embedding-0.6B-GGUF
 ### Download a Reranker
 
 ```bash
-# This is a temporary step that will be smoothed out in a future release
+# The base reranker model is currently required
 uv run rose models download Qwen/Qwen3-Reranker-0.6B
 uv run rose models download QuantFactory--Qwen3-Reranker-0.6B-GGUF
 ```
@@ -86,7 +89,7 @@ uv run rose models download QuantFactory--Qwen3-Reranker-0.6B-GGUF
 ### Running the Services
 
 ```bash
-uv run rose-server
+uv run rose-server --port 8004
 uv run rose-trainer
 ```
 
