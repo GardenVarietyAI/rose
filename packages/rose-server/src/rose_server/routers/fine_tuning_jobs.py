@@ -183,30 +183,23 @@ async def retrieve_fine_tuning_job(req: Request, job_id: str) -> FineTuningJobRe
 
 @router.post("/{job_id}/cancel", response_model=FineTuningJobResponse)
 async def cancel_fine_tuning_job(req: Request, job_id: str) -> FineTuningJobResponse:
-    async with req.app.state.get_db_session(read_only=True) as session:
+    async with req.app.state.get_db_session() as session:
         job = await session.get(FineTuningJob, job_id)
 
-    if not job:
-        raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
+        if not job:
+            raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
 
-    if job.status in ["queued", "running"]:
-        async with req.app.state.get_db_session() as session:
-            job = await session.get(FineTuningJob, job_id)
-            if job:
-                job.status = "cancelled"
-                job.finished_at = int(time.time())
-                session.add(job)
-                await session.commit()
-                await session.refresh(job)
-                logger.info(f"Updated job {job_id} status to cancelled")
-    else:
-        raise HTTPException(status_code=400, detail=f"Cannot cancel job {job_id} in status {job.status}")
-    async with req.app.state.get_db_session(read_only=True) as session:
-        updated_job = await session.get(FineTuningJob, job_id)
+        if job.status not in ["queued", "running"]:
+            raise HTTPException(status_code=400, detail=f"Cannot cancel job {job_id} in status {job.status}")
 
-    if updated_job is None:
-        raise HTTPException(status_code=404, detail="Fine-tuning job not found")
-    return FineTuningJobResponse.from_entity(updated_job)
+        job.status = "cancelled"
+        job.finished_at = int(time.time())
+        session.add(job)
+        await session.commit()
+        await session.refresh(job)
+        logger.info(f"Updated job {job_id} status to cancelled")
+
+    return FineTuningJobResponse.from_entity(job)
 
 
 @router.get("/{job_id}/checkpoints", response_model=dict)
@@ -221,64 +214,57 @@ async def list_fine_tuning_job_checkpoints(req: Request, job_id: str) -> Dict[st
 
 @router.post("/{job_id}/pause", response_model=FineTuningJobResponse)
 async def pause_fine_tuning_job(req: Request, job_id: str) -> FineTuningJobResponse:
-    async with req.app.state.get_db_session(read_only=True) as session:
+    async with req.app.state.get_db_session() as session:
         job = await session.get(FineTuningJob, job_id)
 
-    if not job:
-        raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
+        if not job:
+            raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
 
-    if job.status == "running":
-        async with req.app.state.get_db_session() as session:
-            job = await session.get(FineTuningJob, job_id)
-            if job:
-                job.status = "paused"
-                session.add(job)
-                await session.commit()
-                await session.refresh(job)
-                logger.info(f"Updated job {job_id} status to paused")
-    else:
-        raise HTTPException(status_code=400, detail=f"Cannot pause job {job_id} in status {job.status}")
+        if job.status != "running":
+            raise HTTPException(status_code=400, detail=f"Cannot pause job {job_id} in status {job.status}")
 
-    async with req.app.state.get_db_session(read_only=True) as session:
-        updated_job = await session.get(FineTuningJob, job_id)
+        job.status = "paused"
+        session.add(job)
+        await session.commit()
+        await session.refresh(job)
+        logger.info(f"Updated job {job_id} status to paused")
 
-    if updated_job is None:
-        raise HTTPException(status_code=404, detail="Fine-tuning job not found")
-    return FineTuningJobResponse.from_entity(updated_job)
+    return FineTuningJobResponse.from_entity(job)
 
 
 @router.post("/{job_id}/resume", response_model=FineTuningJobResponse)
 async def resume_fine_tuning_job(req: Request, job_id: str) -> FineTuningJobResponse:
-    async with req.app.state.get_db_session(read_only=True) as session:
+    async with req.app.state.get_db_session() as session:
         job = await session.get(FineTuningJob, job_id)
 
-    if not job:
-        raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
+        if not job:
+            raise HTTPException(status_code=404, detail=f"Fine-tuning job {job_id} not found")
 
-    if job.status in ["paused", "failed"]:
-        async with req.app.state.get_db_session() as session:
-            job = await session.get(FineTuningJob, job_id)
-            if job:
-                job.status = "queued"
-                session.add(job)
-                await session.commit()
-                await session.refresh(job)
-                logger.info(f"Updated job {job_id} status to queued")
-    else:
-        raise HTTPException(status_code=400, detail=f"Cannot resume job {job_id}, current status: {job.status}")
+        if job.status not in ["paused", "failed"]:
+            raise HTTPException(status_code=400, detail=f"Cannot resume job {job_id}, current status: {job.status}")
 
-    async with req.app.state.get_db_session(read_only=True) as session:
-        updated_job = await session.get(FineTuningJob, job_id)
+        job.status = "queued"
+        session.add(job)
+        await session.commit()
+        await session.refresh(job)
+        logger.info(f"Updated job {job_id} status to queued")
 
-    if updated_job is None:
-        raise HTTPException(status_code=404, detail="Fine-tuning job not found")
-    return FineTuningJobResponse.from_entity(updated_job)
+    return FineTuningJobResponse.from_entity(job)
 
 
 @router.patch("/{job_id}/status")
 async def update_job_status_direct(
     req: Request, job_id: str, request: FineTuningJobStatusUpdateRequest
 ) -> FineTuningJobResponse:
+    # Get events for training metrics if needed
+    events = []
+    if request.status == "succeeded" and request.training_metrics:
+        statement = (
+            select(FineTuningEvent).where(FineTuningEvent.job_id == job_id).order_by(asc(FineTuningEvent.created_at))  # type: ignore[arg-type]
+        )
+        async with req.app.state.get_db_session(read_only=True) as event_session:
+            events = list((await event_session.execute(statement)).scalars().all())
+
     async with req.app.state.get_db_session() as session:
         job = await session.get(FineTuningJob, job_id)
         if not job:
@@ -299,100 +285,65 @@ async def update_job_status_direct(
         elif request.status == "running" and not job.started_at:
             job.started_at = int(time.time())
 
-        session.add(job)
-        await session.commit()
-        await session.refresh(job)
-        logger.info(f"Updated job {job_id} status to {request.status}")
+        # Handle fine-tuned model registration
+        if request.status == "succeeded" and request.fine_tuned_model:
+            try:
+                model_path = Path("models") / request.fine_tuned_model
 
-    if request.status == "succeeded" and request.fine_tuned_model:
-        try:
-            model_path = Path("models") / request.fine_tuned_model
+                unique_hash = uuid.uuid4().hex[:6]
+                suffix_part = job.suffix if job.suffix else "default"
+                flat_base_model = job.model.replace("/", "--")
+                model_id = f"ft:{flat_base_model}:user:{suffix_part}:{unique_hash}"
 
-            unique_hash = uuid.uuid4().hex[:6]
-            suffix_part = job.suffix if job.suffix else "default"
-            flat_base_model = job.model.replace("/", "--")
-            model_id = f"ft:{flat_base_model}:user:{suffix_part}:{unique_hash}"
+                model = LanguageModel(
+                    id=model_id,
+                    model_name=request.fine_tuned_model,
+                    path=str(model_path),
+                    kind=None,
+                    is_fine_tuned=True,
+                    temperature=0.7,
+                    top_p=0.9,
+                    timeout=None,
+                    owned_by="user",
+                    parent=job.model,
+                    quantization=None,
+                    lora_target_modules=[],
+                )
 
-            model = LanguageModel(
-                id=model_id,
-                model_name=request.fine_tuned_model,
-                path=str(model_path),
-                kind=None,
-                is_fine_tuned=True,
-                temperature=0.7,
-                top_p=0.9,
-                timeout=None,
-                owned_by="user",
-                parent=job.model,
-                quantization=None,
-                lora_target_modules=[],
-            )
-
-            async with req.app.state.get_db_session() as session:
                 try:
                     session.add(model)
-                    await session.commit()
-                    await session.refresh(model)
+                    await session.flush()  # Flush to check for integrity errors
+                    logger.info(f"Registered fine-tuned model {request.fine_tuned_model} with ID {model.id}")
+                    job.fine_tuned_model = model.id  # Use the generated ID instead of training name
                 except IntegrityError:
-                    # Model already exists, retrieve and return it
+                    # Model already exists, retrieve and use it
                     await session.rollback()
                     result = await session.execute(select(LanguageModel).where(LanguageModel.id == model_id))
                     model = result.scalar_one()
+                    job.fine_tuned_model = model.id
 
-            logger.info(f"Registered fine-tuned model {request.fine_tuned_model} with ID {model.id}")
+            except Exception as e:
+                logger.error(f"Failed to register fine-tuned model {request.fine_tuned_model}: {e}")
+                # Don't fail the status update if model registration fails
 
-            async with req.app.state.get_db_session() as update_session:
-                updated_job = await update_session.get(FineTuningJob, job_id)
-                if updated_job:
-                    updated_job.fine_tuned_model = model.id  # Use the generated ID instead of training name
-                    if request.trained_tokens:
-                        updated_job.trained_tokens = request.trained_tokens
-                    if request.training_metrics:
-                        updated_job.training_metrics = request.training_metrics
-                    updated_job.status = request.status
-                    if request.status in ["succeeded", "failed", "cancelled"]:
-                        updated_job.finished_at = int(time.time())
-                    elif request.status == "running" and not updated_job.started_at:
-                        updated_job.started_at = int(time.time())
-                    update_session.add(updated_job)
-                    await update_session.commit()
-                    await update_session.refresh(updated_job)
-                    logger.info(f"Updated job {job_id} status to {request.status}")
-            if updated_job:
-                job = updated_job
+        # Handle training metrics
+        if request.status == "succeeded" and request.training_metrics and events:
+            try:
+                final_loss = request.training_metrics.get("final_loss", 0.0)
+                steps = request.trained_tokens or DEFAULT_STEPS_FALLBACK
+                final_perplexity = request.training_metrics.get("final_perplexity")
 
-        except Exception as e:
-            logger.error(f"Failed to register fine-tuned model {request.fine_tuned_model}: {e}")
-            # Don't fail the status update if model registration fails
+                detailed_metrics = build_training_results(job, events, final_loss, steps, final_perplexity)
+                if detailed_metrics:
+                    job.training_metrics = detailed_metrics
+                    logger.info(f"Training results updated for job {job_id}")
+            except Exception as e:
+                logger.error(f"Failed to build training results for job {job_id}: {e}")
+                # Don't fail the status update if training results build fails
 
-    if request.status == "succeeded" and request.training_metrics:
-        try:
-            final_loss = request.training_metrics.get("final_loss", 0.0)
-            steps = request.trained_tokens or DEFAULT_STEPS_FALLBACK
-            final_perplexity = request.training_metrics.get("final_perplexity")
-
-            # Get events for training metrics
-            statement = (
-                select(FineTuningEvent)
-                .where(FineTuningEvent.job_id == job_id)
-                .order_by(asc(FineTuningEvent.created_at))  # type: ignore[arg-type]
-            )
-            async with req.app.state.get_db_session(read_only=True) as session:
-                events = list((await session.execute(statement)).scalars().all())
-            detailed_metrics = build_training_results(job, events, final_loss, steps, final_perplexity)
-            if detailed_metrics:
-                async with req.app.state.get_db_session() as update_session:
-                    job_update = await update_session.get(FineTuningJob, job_id)
-                    if job_update:
-                        job_update.training_metrics = detailed_metrics
-                        job_update.status = request.status
-                        update_session.add(job_update)
-                        await update_session.commit()
-                        await update_session.refresh(job_update)
-                        logger.info(f"Updated job {job_id} training metrics")
-                logger.info(f"Training results updated for job {job_id}")
-        except Exception as e:
-            logger.error(f"Failed to build training results for job {job_id}: {e}")
-            # Don't fail the status update if training results build fails
+        # Save all changes
+        await session.commit()
+        await session.refresh(job)
+        logger.info(f"Updated job {job_id} status to {request.status}")
 
     return FineTuningJobResponse.from_entity(job)
