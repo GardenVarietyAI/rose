@@ -1,25 +1,21 @@
 import logging
 from typing import Any, Dict
 
-from chonkie import TokenChunker
-from fastapi import APIRouter, Body, HTTPException, Path, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Path, Query, Request
 from rose_server.entities.files import UploadedFile
 from rose_server.entities.vector_stores import (
     Document,
     VectorStore,
     VectorStoreFile as VectorStoreFileEntity,
 )
+from rose_server.routers.vector_stores import _process_vector_store_files
 from rose_server.schemas.vector_stores import VectorStoreFile, VectorStoreFileCreate, VectorStoreFileList
-from rose_server.services.vector_store_documents import (
-    prepare_documents_and_embeddings,
-    prepare_embedding_deletion_params,
-)
-from rose_server.services.vector_store_files import EmptyFileError, decode_file_content
+from rose_server.services.vector_store_documents import prepare_embedding_deletion_params
+from rose_server.services.vector_store_files import EmptyFileError
 from sqlalchemy import (
     delete as sql_delete,
     desc,
     text,
-    update as sql_update,
 )
 from sqlalchemy.dialects.sqlite import insert
 from sqlmodel import col, select
@@ -33,10 +29,6 @@ class FileNotFoundError(ValueError):
     """File does not exist."""
 
 
-class ChunkingError(ValueError):
-    """Failed to generate chunks from file."""
-
-
 router = APIRouter(prefix="/v1/vector_stores/{vector_store_id}/files", tags=["vector_store_files"])
 logger = logging.getLogger(__name__)
 
@@ -44,6 +36,7 @@ logger = logging.getLogger(__name__)
 @router.post("", response_model=VectorStoreFile)
 async def create(
     req: Request,
+    background_tasks: BackgroundTasks,
     vector_store_id: str = Path(..., description="The ID of the vector store"),
     request: VectorStoreFileCreate = Body(...),
 ) -> VectorStoreFile:
@@ -51,34 +44,18 @@ async def create(
         raise HTTPException(status_code=500, detail="Embedding model not initialized")
 
     try:
-        # Inline get_uploaded_file
+        # Validate vector store and file exist
         async with req.app.state.get_db_session(read_only=True) as session:
-            uploaded_file = await session.get(UploadedFile, request.file_id)
-            if not uploaded_file:
-                raise FileNotFoundError(f"Uploaded file {request.file_id} not found")
-        text_content, decode_errors = decode_file_content(uploaded_file.content, uploaded_file.filename)
-        chunker = TokenChunker(
-            chunk_size=req.app.state.settings.default_chunk_size,
-            chunk_overlap=req.app.state.settings.default_chunk_overlap,
-            tokenizer=req.app.state.embedding_tokenizer,
-        )
-        chunks = chunker.chunk(text_content)
-
-        if not chunks:
-            raise ChunkingError(f"No chunks generated from file {request.file_id}")
-
-        texts = [chunk.text for chunk in chunks]
-        embeddings, _ = await req.app.state.embedding_model.encode_batch(texts)
-
-        async with req.app.state.get_db_session() as session:
             vector_store = await session.get(VectorStore, vector_store_id)
             if not vector_store:
                 raise VectorStoreNotFoundError(f"Vector store {vector_store_id} not found")
 
-            uploaded_file_check = await session.get(UploadedFile, request.file_id)
-            if not uploaded_file_check:
+            uploaded_file = await session.get(UploadedFile, request.file_id)
+            if not uploaded_file:
                 raise FileNotFoundError(f"Uploaded file {request.file_id} not found")
 
+        # Create the file association (but mark as in_progress)
+        async with req.app.state.get_db_session() as session:
             await session.execute(
                 insert(VectorStoreFileEntity)
                 .values(vector_store_id=vector_store_id, file_id=request.file_id)
@@ -86,6 +63,7 @@ async def create(
                     index_elements=[VectorStoreFileEntity.vector_store_id, VectorStoreFileEntity.file_id]
                 )
             )
+            await session.commit()
 
             vector_store_file = await session.scalar(
                 select(VectorStoreFileEntity).where(
@@ -94,44 +72,9 @@ async def create(
                 )
             )
 
-            if vector_store_file and vector_store_file.status != "in_progress":
-                pass  # don't double-ingest
-            else:
-                try:
-                    documents, embedding_data, created_at = prepare_documents_and_embeddings(
-                        uploaded_file, vector_store_id, chunks, embeddings, decode_errors
-                    )
+        background_tasks.add_task(_process_vector_store_files, req.app, vector_store_id, [request.file_id])
 
-                    await session.execute(sql_delete(Document).where(col(Document.id).like(f"{request.file_id}#%")))
-
-                    for doc in documents:
-                        session.add(doc)
-
-                    # Batch insert embeddings using sqlite-vec
-                    await session.execute(
-                        text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
-                        embedding_data,
-                    )
-
-                    if vector_store_file:
-                        vector_store_file.status = "completed"
-                        vector_store_file.last_error = None
-
-                    await session.execute(
-                        sql_update(VectorStore).where(VectorStore.id == vector_store_id).values(last_used_at=created_at)  # type: ignore[arg-type]
-                    )
-
-                    await session.commit()
-
-                except Exception as e:
-                    logger.error(f"Failed to add file {request.file_id} to vector store {vector_store_id}: {str(e)}")
-                    if vector_store_file:
-                        vector_store_file.status = "failed"
-                        vector_store_file.last_error = {"error": str(e)}
-                        await session.commit()
-                    raise
-
-        logger.info("Added file %s to vector store %s", request.file_id, vector_store_id)
+        logger.info("Scheduled file %s for processing in vector store %s", request.file_id, vector_store_id)
 
         if not vector_store_file:
             raise HTTPException(status_code=500, detail="Failed to create vector store file")
@@ -143,7 +86,7 @@ async def create(
         )
     except (VectorStoreNotFoundError, FileNotFoundError) as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except (EmptyFileError, ChunkingError) as e:
+    except EmptyFileError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         logger.error(f"Error adding file to vector store: {str(e)}")

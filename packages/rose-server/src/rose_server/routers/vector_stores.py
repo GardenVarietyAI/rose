@@ -61,8 +61,94 @@ async def index(req: Request) -> VectorStoreList:
         raise HTTPException(status_code=500, detail=f"Error listing vector stores: {str(e)}")
 
 
+async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: list[str]) -> None:
+    for file_id in file_ids:
+        try:
+            async with app.state.get_db_session(read_only=True) as session:
+                uploaded_file = await session.get(UploadedFile, file_id)
+                if not uploaded_file:
+                    logger.error(f"Uploaded file {file_id} not found")
+                    continue
+
+            text_content, decode_errors = decode_file_content(uploaded_file.content, uploaded_file.filename)
+
+            chunker = TokenChunker(
+                chunk_size=app.state.settings.default_chunk_size,
+                chunk_overlap=app.state.settings.default_chunk_overlap,
+                tokenizer=app.state.embedding_tokenizer,
+            )
+            chunks = chunker.chunk(text_content)
+
+            if not chunks:
+                logger.warning(f"No chunks generated from file {file_id}")
+                continue
+
+            texts = [chunk.text for chunk in chunks]
+            embeddings, _ = await app.state.embedding_model.encode_batch(texts)
+
+            async with app.state.get_db_session() as session:
+                await session.execute(
+                    insert(VectorStoreFile)
+                    .values(vector_store_id=vector_store_id, file_id=file_id)
+                    .on_conflict_do_nothing(index_elements=[VectorStoreFile.vector_store_id, VectorStoreFile.file_id])
+                )
+
+                vsf = await session.scalar(
+                    select(VectorStoreFile).where(
+                        VectorStoreFile.vector_store_id == vector_store_id,
+                        VectorStoreFile.file_id == file_id,
+                    )
+                )
+
+                documents, embedding_data, created_at = prepare_documents_and_embeddings(
+                    uploaded_file, vector_store_id, chunks, embeddings, decode_errors
+                )
+
+                await session.execute(sql_delete(Document).where(col(Document.id).like(f"{file_id}#%")))
+
+                for doc in documents:
+                    session.add(doc)
+
+                await session.execute(
+                    text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
+                    embedding_data,
+                )
+
+                if vsf:
+                    vsf.status = "completed"
+                    vsf.last_error = None
+
+                await session.execute(
+                    sql_update(VectorStore).where(VectorStore.id == vector_store_id).values(last_used_at=created_at)
+                )
+
+                await session.commit()
+                logger.info(f"Processed file {file_id} for vector store {vector_store_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to process file {file_id} for vector store {vector_store_id}: {str(e)}")
+            try:
+                async with app.state.get_db_session() as session:
+                    vsf = await session.scalar(
+                        select(VectorStoreFile).where(
+                            VectorStoreFile.vector_store_id == vector_store_id,
+                            VectorStoreFile.file_id == file_id,
+                        )
+                    )
+                    if vsf:
+                        vsf.status = "failed"
+                        vsf.last_error = {"error": str(e)}
+                        await session.commit()
+            except Exception:
+                pass
+
+
 @router.post("")
-async def create(req: Request, request: VectorStoreCreate = Body(...)) -> VectorStoreMetadata:
+async def create(
+    req: Request,
+    background_tasks: BackgroundTasks,
+    request: VectorStoreCreate = Body(...),
+) -> VectorStoreMetadata:
     try:
         vector_store = VectorStore(
             object="vector_store",
@@ -80,82 +166,14 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
             if not req.app.state.embedding_model or not req.app.state.embedding_tokenizer:
                 raise HTTPException(status_code=500, detail="Embedding model not initialized")
 
-            uploaded_files = {}
-            async with req.app.state.get_db_session(read_only=True) as file_session:
+            # Validate files exist
+            async with req.app.state.get_db_session(read_only=True) as session:
                 for file_id in request.file_ids:
-                    uploaded_file = await file_session.get(UploadedFile, file_id)
+                    uploaded_file = await session.get(UploadedFile, file_id)
                     if not uploaded_file:
                         raise HTTPException(status_code=404, detail=f"Uploaded file {file_id} not found")
-                    uploaded_files[file_id] = uploaded_file
 
-            async with req.app.state.get_db_session() as store_session:
-                for file_id, uploaded_file in uploaded_files.items():
-                    try:
-                        text_content, decode_errors = decode_file_content(uploaded_file.content, uploaded_file.filename)
-                        chunker = TokenChunker(
-                            chunk_size=req.app.state.settings.default_chunk_size,
-                            chunk_overlap=req.app.state.settings.default_chunk_overlap,
-                            tokenizer=req.app.state.embedding_tokenizer,
-                        )
-                        chunks = chunker.chunk(text_content)
-
-                        if not chunks:
-                            raise ValueError(f"No chunks generated from file {file_id}")
-
-                        texts = [chunk.text for chunk in chunks]
-                        embeddings, _ = await req.app.state.embedding_model.encode_batch(texts)
-
-                        await store_session.execute(
-                            insert(VectorStoreFile)
-                            .values(vector_store_id=vector_store.id, file_id=file_id)
-                            .on_conflict_do_nothing(
-                                index_elements=[VectorStoreFile.vector_store_id, VectorStoreFile.file_id]
-                            )
-                        )
-
-                        vsf = await store_session.scalar(
-                            select(VectorStoreFile).where(
-                                VectorStoreFile.vector_store_id == vector_store.id,
-                                VectorStoreFile.file_id == file_id,
-                            )
-                        )
-
-                        if vsf and vsf.status == "in_progress":
-                            documents, embedding_data, created_at = prepare_documents_and_embeddings(
-                                uploaded_file, vector_store.id, chunks, embeddings, decode_errors
-                            )
-
-                            await store_session.execute(
-                                sql_delete(Document).where(col(Document.id).like(f"{file_id}#%"))
-                            )
-
-                            for doc in documents:
-                                store_session.add(doc)
-
-                            # Batch insert embeddings using sqlite-vec
-                            await store_session.execute(
-                                text(
-                                    "INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"
-                                ),
-                                embedding_data,
-                            )
-
-                            if vsf:
-                                vsf.status = "completed"
-                                vsf.last_error = None
-
-                            await store_session.execute(
-                                sql_update(VectorStore)
-                                .where(VectorStore.id == vector_store.id)  # type: ignore[arg-type]
-                                .values(last_used_at=created_at)
-                            )
-                        logger.info(f"Added file {file_id} to vector store {request.name} ({vector_store.id})")
-                    except HTTPException:
-                        raise
-                    except Exception as e:
-                        raise HTTPException(status_code=422, detail=f"Failed to process file {file_id}: {str(e)}")
-
-                await store_session.commit()
+            background_tasks.add_task(_process_vector_store_files, req.app, vector_store.id, request.file_ids)
 
         return VectorStoreMetadata(
             id=vector_store.id,
@@ -173,7 +191,8 @@ async def create(req: Request, request: VectorStoreCreate = Body(...)) -> Vector
 
 @router.get("/{vector_store_id}")
 async def get(
-    req: Request, vector_store_id: str = Path(..., description="The ID of the vector store")
+    req: Request,
+    vector_store_id: str = Path(..., description="The ID of the vector store"),
 ) -> VectorStoreMetadata:
     try:
         async with req.app.state.get_db_session(read_only=True) as session:
@@ -197,7 +216,9 @@ async def get(
 
 @router.post("/{vector_store_id}")
 async def update(
-    req: Request, vector_store_id: str = Path(...), request: VectorStoreUpdate = Body(...)
+    req: Request,
+    vector_store_id: str = Path(...),
+    request: VectorStoreUpdate = Body(...),
 ) -> VectorStoreMetadata:
     try:
         async with req.app.state.get_db_session() as session:
