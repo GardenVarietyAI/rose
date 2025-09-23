@@ -2,23 +2,34 @@
 
  [![CI](https://github.com/GardenVarietyAI/rose-server/actions/workflows/ci.yml/badge.svg)](https://github.com/GardenVarietyAI/rose-server/actions/workflows/ci.yml)
 
-An LLM server implementing a subset of OpenAI’s API for local model experimentation
+> This project is under active development. Expect rapid changes and improvements.
 
-This is pre-release software. Use at your own risk!
+**ROSE** is a local AI provider: A self-hosted OpenAI-compatible API built on the Qwen3 model family.
+
+Run your own LLM server locally with chat completions, embeddings, reranking and fine-tuning.
+
+Why ROSE?
+
+- **Drop-in OpenAI compatible API** - Just change the base URL
+- **Built on Qwen3** - Chat, embeddings and reranking
+- **Local-first design** - All data stored in SQLite, backed up with Litestream
 
 ## Features
 
-- Local Model Inference
+- Chat Completions
+- Responses & Tool Calling
 - LoRA Fine-Tuning
 - Embeddings
+- Reranker
 - SSE Streaming Support
 
 ### OpenAI-Compatible API
 
 - `v1/chat/completions`
+- `v1/responses`
 - `v1/embeddings`
 - `v1/fine_tuning`
-- `v1/responses`
+- `v1/reranker`
 
 ## Quick Start
 

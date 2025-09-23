@@ -1,5 +1,5 @@
 -- migrate:up
-CREATE TABLE vector_store_files (
+CREATE TABLE IF NOT EXISTS vector_store_files (
     id TEXT PRIMARY KEY,
     object TEXT,
     vector_store_id TEXT NOT NULL REFERENCES vector_stores(id),
@@ -10,8 +10,8 @@ CREATE TABLE vector_store_files (
     UNIQUE (vector_store_id, file_id)
 );
 
-CREATE INDEX idx_vector_store_files_vector_store_id ON vector_store_files(vector_store_id);
-CREATE INDEX idx_vector_store_files_file_id ON vector_store_files(file_id);
+CREATE INDEX IF NOT EXISTS idx_vector_store_files_vector_store_id ON vector_store_files(vector_store_id);
+CREATE INDEX IF NOT EXISTS idx_vector_store_files_file_id ON vector_store_files(file_id);
 
 -- migrate:down
 DROP INDEX IF EXISTS idx_vector_store_files_file_id;
