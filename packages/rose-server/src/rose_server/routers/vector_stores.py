@@ -163,7 +163,7 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
                     )
                     if vsf:
                         vsf.status = "failed"
-                        vsf.last_error = {"error": str(e)}
+                        vsf.last_error = {"error": type(e).__name__}
                         await session.commit()
             except Exception:
                 pass
