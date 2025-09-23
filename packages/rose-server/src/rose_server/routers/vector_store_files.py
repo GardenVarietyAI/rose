@@ -64,7 +64,6 @@ async def create(
                     ]
                 )
             )
-            await session.commit()
 
             vector_store_file = await session.scalar(
                 select(VectorStoreFileEntity).where(
@@ -72,6 +71,8 @@ async def create(
                     VectorStoreFileEntity.file_id == request.file_id,
                 )
             )
+
+            await session.commit()
 
         background_tasks.add_task(_process_vector_store_files, req.app, vector_store_id, [request.file_id])
 
