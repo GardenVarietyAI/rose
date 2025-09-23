@@ -167,9 +167,7 @@ async def delete_file(
                 deleted = False
             else:
                 doc_ids_result = await session.scalars(
-                    select(Document.id).where(
-                        Document.vector_store_id == vector_store_id, Document.meta["file_id"].as_string() == file_id
-                    )
+                    select(Document.id).where(Document.vector_store_id == vector_store_id, Document.file_id == file_id)
                 )
                 doc_ids = list(doc_ids_result)
 

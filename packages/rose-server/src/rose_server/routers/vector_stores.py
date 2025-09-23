@@ -61,27 +61,29 @@ async def index(req: Request) -> VectorStoreList:
 
 
 async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: list[str]) -> None:
-    for file_id in file_ids:
+    uploaded_files = []
+    async with app.state.get_db_session(read_only=True) as session:
+        result = await session.execute(select(UploadedFile).where(UploadedFile.id.in_(file_ids)))
+        uploaded_files = list(result.scalars().all())
+
+    found_file_ids = {f.id for f in uploaded_files}
+    missing_file_ids = set(file_ids) - found_file_ids
+    if missing_file_ids:
+        for file_id in missing_file_ids:
+            logger.error(f"Uploaded file {file_id} not found")
+        async with app.state.get_db_session() as session:
+            await session.execute(
+                sql_update(VectorStoreFile)
+                .where(
+                    VectorStoreFile.vector_store_id == vector_store_id,
+                    VectorStoreFile.file_id.in_(list(missing_file_ids)),
+                )
+                .values(status="failed", last_error={"error": "Uploaded file not found"})
+            )
+            await session.commit()
+
+    for uploaded_file in uploaded_files:
         try:
-            uploaded_file = None
-            async with app.state.get_db_session(read_only=True) as session:
-                uploaded_file = await session.get(UploadedFile, file_id)
-
-            if not uploaded_file:
-                logger.error(f"Uploaded file {file_id} not found")
-                async with app.state.get_db_session() as session:
-                    vsf = await session.scalar(
-                        select(VectorStoreFile).where(
-                            VectorStoreFile.vector_store_id == vector_store_id,
-                            VectorStoreFile.file_id == file_id,
-                        )
-                    )
-                    if vsf:
-                        vsf.status = "failed"
-                        vsf.last_error = {"error": f"Uploaded file {file_id} not found"}
-                        await session.commit()
-                continue
-
             text_content, decode_errors = decode_file_content(uploaded_file.content, uploaded_file.filename)
 
             chunker = TokenChunker(
@@ -92,12 +94,12 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
             chunks = chunker.chunk(text_content)
 
             if not chunks:
-                logger.warning(f"No chunks generated from file {file_id}")
+                logger.warning(f"No chunks generated from file {uploaded_file.id}")
                 async with app.state.get_db_session() as session:
                     vsf = await session.scalar(
                         select(VectorStoreFile).where(
                             VectorStoreFile.vector_store_id == vector_store_id,
-                            VectorStoreFile.file_id == file_id,
+                            VectorStoreFile.file_id == uploaded_file.id,
                         )
                     )
                     if vsf:
@@ -112,22 +114,30 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
             async with app.state.get_db_session() as session:
                 await session.execute(
                     insert(VectorStoreFile)
-                    .values(vector_store_id=vector_store_id, file_id=file_id)
-                    .on_conflict_do_nothing(index_elements=[VectorStoreFile.vector_store_id, VectorStoreFile.file_id])
+                    .values(
+                        vector_store_id=vector_store_id,
+                        file_id=uploaded_file.id,
+                    )
+                    .on_conflict_do_nothing(
+                        index_elements=[
+                            VectorStoreFile.vector_store_id,
+                            VectorStoreFile.file_id,
+                        ]
+                    )
                 )
 
                 vsf = await session.scalar(
                     select(VectorStoreFile).where(
                         VectorStoreFile.vector_store_id == vector_store_id,
-                        VectorStoreFile.file_id == file_id,
+                        VectorStoreFile.file_id == uploaded_file.id,
                     )
                 )
 
                 # Delete any existing documents for this file
-                # Find documents with this file_id in metadata
                 existing_docs = await session.execute(
                     select(Document.id).where(
-                        Document.vector_store_id == vector_store_id, Document.meta["file_id"].as_string() == file_id
+                        Document.vector_store_id == vector_store_id,
+                        Document.file_id == uploaded_file.id,
                     )
                 )
                 doc_ids_to_delete = [doc_id for (doc_id,) in existing_docs.fetchall()]
@@ -140,30 +150,29 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
                     # Then delete documents
                     await session.execute(sql_delete(Document).where(col(Document.id).in_(doc_ids_to_delete)))
 
-                created_at = int(time.time())
-
-                # Create documents and embeddings
+                documents = []
                 embedding_data = []
+
                 for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
                     doc = Document(
                         vector_store_id=vector_store_id,
+                        file_id=uploaded_file.id,
                         chunk_index=i,
                         content=chunk.text,
                         meta={
-                            "file_id": file_id,
                             "filename": uploaded_file.filename,
                             "total_chunks": len(chunks),
                             "start_index": chunk.start_index,
                             "end_index": chunk.end_index,
                             "decode_errors": decode_errors,
                         },
-                        created_at=created_at,
                     )
-                    session.add(doc)
-                    await session.flush()  # Get the generated ID
+                    documents.append(doc)
 
                     embedding_blob = np.array(embedding, dtype=np.float32).tobytes()
                     embedding_data.append({"doc_id": doc.id, "embedding": embedding_blob})
+
+                session.add_all(documents)
 
                 await session.execute(
                     text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
@@ -177,20 +186,20 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
                 await session.execute(
                     sql_update(VectorStore)
                     .where(col(VectorStore.id) == vector_store_id)
-                    .values(last_used_at=created_at)
+                    .values(last_used_at=int(time.time()))
                 )
 
                 await session.commit()
-                logger.info(f"Processed file {file_id} for vector store {vector_store_id}")
+                logger.info(f"Processed file {uploaded_file.id} for vector store {vector_store_id}")
 
         except Exception as e:
-            logger.error(f"Failed to process file {file_id} for vector store {vector_store_id}: {str(e)}")
+            logger.error(f"Failed to process file {uploaded_file.id} for vector store {vector_store_id}: {str(e)}")
             try:
                 async with app.state.get_db_session() as session:
                     vsf = await session.scalar(
                         select(VectorStoreFile).where(
                             VectorStoreFile.vector_store_id == vector_store_id,
-                            VectorStoreFile.file_id == file_id,
+                            VectorStoreFile.file_id == uploaded_file.id,
                         )
                     )
                     if vsf:
@@ -384,7 +393,7 @@ async def search_store(
         # Vector search using cosine distance with sqlite-vec
         result = await search_session.execute(
             text("""
-                SELECT d.id, d.vector_store_id, d.chunk_index, d.content, d.meta, d.created_at,
+                SELECT d.id, d.vector_store_id, d.file_id, d.chunk_index, d.content, d.meta, d.created_at,
                        vec_distance_cosine(v.embedding, :query_vector) as distance
                 FROM documents d
                 JOIN vec0 v ON d.id = v.document_id
@@ -397,7 +406,7 @@ async def search_store(
 
         documents: List[DocumentSearchResult] = []
         for row in result.fetchall():
-            raw_meta = row[4]
+            raw_meta = row[5]
             if isinstance(raw_meta, (dict, list)):
                 meta = raw_meta
             else:
@@ -406,13 +415,14 @@ async def search_store(
             doc = Document(
                 id=row[0],
                 vector_store_id=row[1],
-                chunk_index=row[2],
-                content=row[3],
+                file_id=row[2],
+                chunk_index=row[3],
+                content=row[4],
                 meta=meta,
-                created_at=row[5],
+                created_at=row[6],
             )
 
-            distance = row[6]
+            distance = row[7]
             similarity = 1.0 - distance
             documents.append(DocumentSearchResult(document=doc, score=similarity))
 
@@ -432,8 +442,8 @@ async def search_store(
         attributes = {k: v for k, v in meta.items() if k not in _INTERNAL_FIELDS}
 
         chunk = VectorSearchChunk(
-            file_id=meta["file_id"],
-            filename=meta["filename"],
+            file_id=search_result.document.file_id,
+            filename=meta.get("filename", "unknown"),
             score=search_result.score,
             attributes=attributes,
             content=[{"type": "text", "text": search_result.document.content}],
