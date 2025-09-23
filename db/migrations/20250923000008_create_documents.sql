@@ -10,11 +10,11 @@ CREATE TABLE IF NOT EXISTS documents (
 );
 
 CREATE INDEX IF NOT EXISTS idx_documents_vector_store_id ON documents(vector_store_id);
-CREATE INDEX IF NOT EXISTS idx_documents_created_at ON documents(created_at);
 CREATE INDEX IF NOT EXISTS idx_documents_file_id ON documents(file_id);
 CREATE INDEX IF NOT EXISTS idx_documents_vector_store_file ON documents(vector_store_id, file_id);
 
 -- migrate:down
-DROP INDEX IF EXISTS idx_documents_created_at;
+DROP INDEX IF EXISTS idx_documents_vector_store_file;
+DROP INDEX IF EXISTS idx_documents_file_id;
 DROP INDEX IF EXISTS idx_documents_vector_store_id;
 DROP TABLE documents;
