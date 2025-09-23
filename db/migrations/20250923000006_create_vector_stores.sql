@@ -1,5 +1,5 @@
 -- migrate:up
-CREATE TABLE vector_stores (
+CREATE TABLE IF NOT EXISTS vector_stores (
     id TEXT PRIMARY KEY,
     object TEXT,
     name TEXT NOT NULL,
@@ -9,8 +9,8 @@ CREATE TABLE vector_stores (
     last_used_at INTEGER
 );
 
-CREATE INDEX idx_vector_stores_created_at ON vector_stores(created_at);
-CREATE INDEX idx_vector_stores_name ON vector_stores(name);
+CREATE INDEX IF NOT EXISTS idx_vector_stores_created_at ON vector_stores(created_at);
+CREATE INDEX IF NOT EXISTS idx_vector_stores_name ON vector_stores(name);
 
 -- migrate:down
 DROP INDEX IF EXISTS idx_vector_stores_name;

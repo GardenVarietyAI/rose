@@ -1,5 +1,5 @@
 -- migrate:up
-CREATE TABLE fine_tuning_jobs (
+CREATE TABLE IF NOT EXISTS fine_tuning_jobs (
     id TEXT PRIMARY KEY,
     organization_id TEXT,
     model TEXT NOT NULL,
@@ -22,8 +22,8 @@ CREATE TABLE fine_tuning_jobs (
     training_metrics JSON
 );
 
-CREATE INDEX idx_fine_tuning_jobs_status ON fine_tuning_jobs(status);
-CREATE INDEX idx_fine_tuning_jobs_created_at ON fine_tuning_jobs(created_at);
+CREATE INDEX IF NOT EXISTS idx_fine_tuning_jobs_status ON fine_tuning_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_fine_tuning_jobs_created_at ON fine_tuning_jobs(created_at);
 
 -- migrate:down
 DROP INDEX IF EXISTS idx_fine_tuning_jobs_created_at;
