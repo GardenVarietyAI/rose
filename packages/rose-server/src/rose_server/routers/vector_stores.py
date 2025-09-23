@@ -119,7 +119,9 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
                     vsf.last_error = None
 
                 await session.execute(
-                    sql_update(VectorStore).where(VectorStore.id == vector_store_id).values(last_used_at=created_at)
+                    sql_update(VectorStore)
+                    .where(col(VectorStore.id) == vector_store_id)
+                    .values(last_used_at=created_at)
                 )
 
                 await session.commit()

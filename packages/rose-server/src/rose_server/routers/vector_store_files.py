@@ -44,7 +44,6 @@ async def create(
         raise HTTPException(status_code=500, detail="Embedding model not initialized")
 
     try:
-        # Validate vector store and file exist
         async with req.app.state.get_db_session(read_only=True) as session:
             vector_store = await session.get(VectorStore, vector_store_id)
             if not vector_store:
@@ -54,13 +53,15 @@ async def create(
             if not uploaded_file:
                 raise FileNotFoundError(f"Uploaded file {request.file_id} not found")
 
-        # Create the file association (but mark as in_progress)
         async with req.app.state.get_db_session() as session:
             await session.execute(
                 insert(VectorStoreFileEntity)
                 .values(vector_store_id=vector_store_id, file_id=request.file_id)
                 .on_conflict_do_nothing(
-                    index_elements=[VectorStoreFileEntity.vector_store_id, VectorStoreFileEntity.file_id]
+                    index_elements=[
+                        VectorStoreFileEntity.vector_store_id,
+                        VectorStoreFileEntity.file_id,
+                    ]
                 )
             )
             await session.commit()
