@@ -66,9 +66,10 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
         try:
             async with app.state.get_db_session(read_only=True) as session:
                 uploaded_file = await session.get(UploadedFile, file_id)
-                if not uploaded_file:
-                    logger.error(f"Uploaded file {file_id} not found")
-                    continue
+
+            if not uploaded_file:
+                logger.error(f"Uploaded file {file_id} not found")
+                continue
 
             text_content, decode_errors = decode_file_content(uploaded_file.content, uploaded_file.filename)
 
@@ -81,6 +82,17 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
 
             if not chunks:
                 logger.warning(f"No chunks generated from file {file_id}")
+                async with app.state.get_db_session() as session:
+                    vsf = await session.scalar(
+                        select(VectorStoreFile).where(
+                            VectorStoreFile.vector_store_id == vector_store_id,
+                            VectorStoreFile.file_id == file_id,
+                        )
+                    )
+                    if vsf:
+                        vsf.status = "failed"
+                        vsf.last_error = {"error": "No chunks could be generated from file content"}
+                        await session.commit()
                 continue
 
             texts = [chunk.text for chunk in chunks]
