@@ -29,6 +29,7 @@ class Document(SQLModel, table=True):
 
     id: str = Field(primary_key=True, default_factory=lambda: f"doc_{uuid.uuid4().hex[:24]}")
     vector_store_id: str = Field(foreign_key="vector_stores.id")
+    file_id: Optional[str] = Field(default=None, index=True)
     chunk_index: int
     content: str
     meta: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
