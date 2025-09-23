@@ -124,7 +124,21 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
                 )
 
                 # Delete any existing documents for this file
-                await session.execute(sql_delete(Document).where(col(Document.id).like(f"{file_id}#%")))
+                # Find documents with this file_id in metadata
+                existing_docs = await session.execute(
+                    select(Document.id).where(
+                        Document.vector_store_id == vector_store_id, Document.meta["file_id"].as_string() == file_id
+                    )
+                )
+                doc_ids_to_delete = [doc_id for (doc_id,) in existing_docs.fetchall()]
+
+                if doc_ids_to_delete:
+                    # Delete from vec0 first
+                    placeholders = ", ".join([f":doc_id_{i}" for i in range(len(doc_ids_to_delete))])
+                    params = {f"doc_id_{i}": doc_id for i, doc_id in enumerate(doc_ids_to_delete)}
+                    await session.execute(text(f"DELETE FROM vec0 WHERE document_id IN ({placeholders})"), params)
+                    # Then delete documents
+                    await session.execute(sql_delete(Document).where(col(Document.id).in_(doc_ids_to_delete)))
 
                 created_at = int(time.time())
 
@@ -132,7 +146,6 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
                 embedding_data = []
                 for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
                     doc = Document(
-                        id=f"{file_id}#{i}",
                         vector_store_id=vector_store_id,
                         chunk_index=i,
                         content=chunk.text,
@@ -147,6 +160,7 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
                         created_at=created_at,
                     )
                     session.add(doc)
+                    await session.flush()  # Get the generated ID
 
                     embedding_blob = np.array(embedding, dtype=np.float32).tobytes()
                     embedding_data.append({"doc_id": doc.id, "embedding": embedding_blob})
