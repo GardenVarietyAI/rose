@@ -58,7 +58,7 @@ async def index(req: Request) -> VectorStoreList:
         )
     except Exception as e:
         logger.error(f"Error listing vector stores: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error listing vector stores: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: list[str]) -> None:
@@ -225,7 +225,7 @@ async def create(
         raise
     except Exception as e:
         logger.error(f"Error creating vector store: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error creating vector store: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/{vector_store_id}")
@@ -250,7 +250,7 @@ async def get(
         raise
     except Exception as e:
         logger.error(f"Error getting vector store: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error getting vector store: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/{vector_store_id}")
@@ -290,7 +290,7 @@ async def update(
         raise
     except Exception as e:
         logger.error(f"Error updating vector store: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error updating vector store: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/{vector_store_id}")

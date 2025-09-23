@@ -92,7 +92,7 @@ async def create(
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         logger.error(f"Error adding file to vector store: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error adding file to vector store: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("", response_model=VectorStoreFileList)
@@ -145,7 +145,7 @@ async def list_files(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Error listing vector store files: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error listing vector store files: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/{file_id}")
@@ -192,4 +192,4 @@ async def delete_file(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Error deleting file from vector store: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error deleting file from vector store: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
