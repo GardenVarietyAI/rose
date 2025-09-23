@@ -2,7 +2,7 @@ logging:
   level: info
 
 dbs:
-  - path: ./data/rose_20250921.db
+  - path: ./data/rose_20250923.db
     exclude:
       - "vec0_*"
     replicas:
