@@ -192,12 +192,25 @@ async def create(
             if not req.app.state.embedding_model or not req.app.state.embedding_tokenizer:
                 raise HTTPException(status_code=500, detail="Embedding model not initialized")
 
-            # Validate files exist
             async with req.app.state.get_db_session(read_only=True) as session:
                 for file_id in request.file_ids:
                     uploaded_file = await session.get(UploadedFile, file_id)
                     if not uploaded_file:
                         raise HTTPException(status_code=404, detail=f"Uploaded file {file_id} not found")
+
+            async with req.app.state.get_db_session() as session:
+                for file_id in request.file_ids:
+                    await session.execute(
+                        insert(VectorStoreFile)
+                        .values(vector_store_id=vector_store.id, file_id=file_id)
+                        .on_conflict_do_nothing(
+                            index_elements=[
+                                VectorStoreFile.vector_store_id,
+                                VectorStoreFile.file_id,
+                            ]
+                        )
+                    )
+                await session.commit()
 
             background_tasks.add_task(_process_vector_store_files, req.app, vector_store.id, request.file_ids)
 
