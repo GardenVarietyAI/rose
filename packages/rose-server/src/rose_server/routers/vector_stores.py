@@ -18,7 +18,6 @@ from rose_server.schemas.vector_stores import (
     VectorStoreMetadata,
     VectorStoreUpdate,
 )
-from rose_server.services.vector_store_documents import prepare_documents_and_embeddings
 from rose_server.services.vector_store_files import decode_file_content
 from sqlalchemy import (
     text,
@@ -124,14 +123,33 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
                     )
                 )
 
-                documents, embedding_data, created_at = prepare_documents_and_embeddings(
-                    uploaded_file, vector_store_id, chunks, embeddings, decode_errors
-                )
-
+                # Delete any existing documents for this file
                 await session.execute(sql_delete(Document).where(col(Document.id).like(f"{file_id}#%")))
 
-                for doc in documents:
+                created_at = int(time.time())
+
+                # Create documents and embeddings
+                embedding_data = []
+                for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+                    doc = Document(
+                        id=f"{file_id}#{i}",
+                        vector_store_id=vector_store_id,
+                        chunk_index=i,
+                        content=chunk.text,
+                        meta={
+                            "file_id": file_id,
+                            "filename": uploaded_file.filename,
+                            "total_chunks": len(chunks),
+                            "start_index": chunk.start_index,
+                            "end_index": chunk.end_index,
+                            "decode_errors": decode_errors,
+                        },
+                        created_at=created_at,
+                    )
                     session.add(doc)
+
+                    embedding_blob = np.array(embedding, dtype=np.float32).tobytes()
+                    embedding_data.append({"doc_id": doc.id, "embedding": embedding_blob})
 
                 await session.execute(
                     text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
