@@ -48,14 +48,3 @@ def prepare_documents_and_embeddings(
         embedding_data.append({"doc_id": doc.id, "embedding": embedding_blob})
 
     return documents, embedding_data, created_at
-
-
-def prepare_embedding_deletion_params(doc_ids: List[str]) -> Tuple[str, Dict[str, str]]:
-    """Prepare SQL placeholders and parameters for deleting embeddings.
-
-    Returns:
-        Tuple of (placeholders_string, params_dict)
-    """
-    placeholders = ", ".join([f":doc_id_{i}" for i in range(len(doc_ids))])
-    params = {f"doc_id_{i}": doc_id for i, doc_id in enumerate(doc_ids)}
-    return placeholders, params

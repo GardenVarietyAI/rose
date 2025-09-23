@@ -10,7 +10,6 @@ from rose_server.entities.vector_stores import (
 )
 from rose_server.routers.vector_stores import _process_vector_store_files
 from rose_server.schemas.vector_stores import VectorStoreFile, VectorStoreFileCreate, VectorStoreFileList
-from rose_server.services.vector_store_documents import prepare_embedding_deletion_params
 from rose_server.services.vector_store_files import EmptyFileError
 from sqlalchemy import (
     delete as sql_delete,
@@ -176,7 +175,9 @@ async def delete_file(
                 doc_ids = list(doc_ids_result)
 
                 if doc_ids:
-                    placeholders, params = prepare_embedding_deletion_params(doc_ids)
+                    # Prepare SQL placeholders and parameters for deleting embeddings
+                    placeholders = ", ".join([f":doc_id_{i}" for i in range(len(doc_ids))])
+                    params = {f"doc_id_{i}": doc_id for i, doc_id in enumerate(doc_ids)}
                     await session.execute(text(f"DELETE FROM vec0 WHERE document_id IN ({placeholders})"), params)
 
                     await session.execute(sql_delete(Document).where(col(Document.id).in_(doc_ids)))
