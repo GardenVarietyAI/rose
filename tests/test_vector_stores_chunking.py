@@ -1,7 +1,5 @@
 # mypy: ignore-errors
 
-"""Tests for vector store chunking functionality."""
-
 import io
 import os
 
@@ -55,11 +53,29 @@ def test_document_chunking_via_api(client: TestClient):
     file_obj = response.json()
     file_id = file_obj["id"]
 
-    # Add file to vector store (should trigger chunking)
+    # Check file is processed (background task should run synchronously in TestClient)
+    response = client.get(f"/v1/files/{file_id}")
+    assert response.status_code == 200
+    file_obj = response.json()
+    assert file_obj["status"] == "processed", f"File not processed, status: {file_obj['status']}"
+
+    # Add file to vector store (should trigger processing)
     response = client.post(f"/v1/vector_stores/{vector_store_id}/files", json={"file_id": file_id})
     assert response.status_code == 200
     vector_file = response.json()
-    assert vector_file["status"] == "completed"
+
+    # Initial status might be "in_progress" as background task hasn't completed
+    assert vector_file["status"] == "in_progress"
+
+    # Check the actual status after background task completes
+    response = client.get(f"/v1/vector_stores/{vector_store_id}/files")
+    assert response.status_code == 200
+    files_list = response.json()
+
+    # Find our file in the list
+    vsf = next((f for f in files_list["data"] if f["id"] == vector_file["id"]), None)
+    assert vsf is not None
+    assert vsf["status"] == "completed"
 
     # Search the vector store
     response = client.post(
