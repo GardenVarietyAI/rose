@@ -1,5 +1,3 @@
-"""File chunks entity models."""
-
 import time
 from typing import Any, Dict, Optional
 
