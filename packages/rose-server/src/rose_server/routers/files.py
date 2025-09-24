@@ -1,21 +1,111 @@
+import hashlib
 import logging
-from typing import Literal, Optional, Sequence
+from typing import Any, Literal, Optional, Sequence
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
+import numpy as np
+from chonkie import TokenChunker
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
 from openai.types import FileDeleted, FileObject
+from rose_server.entities.file_chunks import FileChunk
 from rose_server.entities.files import UploadedFile
 from rose_server.schemas.files import FileListResponse
-from sqlalchemy import delete, desc
+from rose_server.services.vector_store_files import decode_file_content
+from sqlalchemy import col, delete, desc
 from sqlmodel import select
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1")
 
 
+async def process_file_chunks(app: Any, file_id: str) -> None:
+    """Background task to chunk and embed uploaded files."""
+    try:
+        async with app.state.get_db_session() as session:
+            # Get the file
+            uploaded_file = await session.get(UploadedFile, file_id)
+            if not uploaded_file:
+                logger.error(f"File {file_id} not found for processing")
+                return
+
+        # Decode and chunk the content
+        text_content, decode_errors = decode_file_content(uploaded_file.content, uploaded_file.filename)
+
+        chunker = TokenChunker(
+            chunk_size=app.state.settings.default_chunk_size,
+            chunk_overlap=app.state.settings.default_chunk_overlap,
+            tokenizer=app.state.embedding_tokenizer,
+        )
+        chunks = chunker.chunk(text_content)
+
+        if not chunks:
+            async with app.state.get_db_session() as session:
+                uploaded_file = await session.get(UploadedFile, file_id)
+                if uploaded_file:
+                    uploaded_file.status = "processed"
+                    await session.commit()
+            logger.warning(f"No chunks generated from file {file_id}")
+            return
+
+        # Generate embeddings for all chunks
+        texts = [chunk.text for chunk in chunks]
+        embeddings, _ = await app.state.embedding_model.encode_batch(texts)
+
+        # Build all chunks upfront
+        file_chunks = []
+        for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+            content_hash = hashlib.sha256(chunk.text.encode()).hexdigest()
+            file_chunk = FileChunk(
+                content_hash=content_hash,
+                file_id=file_id,
+                chunk_index=i,
+                content=chunk.text,
+                embedding=np.array(embedding, dtype=np.float32).tobytes(),
+                meta={
+                    "start_index": chunk.start_index,
+                    "end_index": chunk.end_index,
+                    "decode_errors": decode_errors,
+                },
+            )
+            file_chunks.append(file_chunk)
+
+        # Batch insert all chunks
+        async with app.state.get_db_session() as session:
+            # Get existing hashes to avoid duplicates
+            existing_hashes = set()
+            if file_chunks:
+                hashes = [c.content_hash for c in file_chunks]
+                result = await session.execute(
+                    select(FileChunk.content_hash).where(col(FileChunk.content_hash).in_(hashes))
+                )
+                existing_hashes = {h for (h,) in result.fetchall()}
+
+            # Only add new chunks
+            new_chunks = [c for c in file_chunks if c.content_hash not in existing_hashes]
+            if new_chunks:
+                session.add_all(new_chunks)
+
+            # Update file status
+            uploaded_file = await session.get(UploadedFile, file_id)
+            if uploaded_file:
+                uploaded_file.status = "processed"
+
+            await session.commit()
+            logger.info(f"Added {len(new_chunks)} new chunks for file {file_id}")
+
+    except Exception as e:
+        logger.error(f"Failed to process file {file_id}: {e}")
+        async with app.state.get_db_session() as session:
+            uploaded_file = await session.get(UploadedFile, file_id)
+            if uploaded_file:
+                uploaded_file.status = "error"
+                await session.commit()
+
+
 @router.post("/files")
 async def create(
     req: Request,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     purpose: Literal["assistants", "batch", "fine-tune", "vision", "user_data"] = Form(...),
 ) -> FileObject:
@@ -30,7 +120,7 @@ async def create(
             bytes=file_size,
             filename=filename,
             purpose=purpose,
-            status="processed",
+            status="processing",
             content=content,
         )
 
@@ -39,6 +129,9 @@ async def create(
             await session.commit()
             await session.refresh(uploaded_file)
             logger.info(f"Created file {uploaded_file.id} with BLOB content, filename {uploaded_file.filename}")
+
+        # Trigger background processing
+        background_tasks.add_task(process_file_chunks, req.app, uploaded_file.id)
 
         # Return response without binary content to avoid serialization issues
         return FileObject(

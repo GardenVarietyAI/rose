@@ -19,7 +19,7 @@ class UploadedFile(SQLModel, table=True):
     filename: str = Field(description="Name of the file")
     purpose: str = Field(description="assistants, assistants_output, batch, batch_output, fine-tune, fine-tune-results")
     # deprecated
-    status: Optional[str] = Field(default="processed", description="Deprecated. Status: uploaded, processed, or error")
+    status: Optional[str] = Field(default="processing", description="Deprecated. Status: uploaded, processed, or error")
     # deprecated
     status_details: Optional[str] = Field(default=None, description="Deprecated. Details on validation errors")
     # todo: remove this column
