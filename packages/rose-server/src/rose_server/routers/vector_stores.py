@@ -67,22 +67,6 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
         result = await session.execute(select(UploadedFile).where(col(UploadedFile.id).in_(file_ids)))
         uploaded_files = list(result.scalars().all())
 
-    found_file_ids = {f.id for f in uploaded_files}
-    missing_file_ids = set(file_ids) - found_file_ids
-    if missing_file_ids:
-        for file_id in missing_file_ids:
-            logger.error(f"Uploaded file {file_id} not found")
-        async with app.state.get_db_session() as session:
-            await session.execute(
-                sql_update(VectorStoreFile)
-                .where(
-                    col(VectorStoreFile.vector_store_id) == vector_store_id,
-                    col(VectorStoreFile.file_id).in_(list(missing_file_ids)),
-                )
-                .values(status="failed", last_error={"error": "Uploaded file not found"})
-            )
-            await session.commit()
-
     for uploaded_file in uploaded_files:
         async with app.state.get_db_session() as session:
             vsf = await session.scalar(
@@ -93,7 +77,6 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
             )
 
             if vsf and vsf.status == "completed":
-                logger.info(f"File {uploaded_file.id} already processed for vector store {vector_store_id}")
                 continue
 
             if not vsf:
