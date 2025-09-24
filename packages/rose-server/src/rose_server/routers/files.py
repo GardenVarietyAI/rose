@@ -112,7 +112,7 @@ async def create(
             created_at=uploaded_file.created_at,
             filename=uploaded_file.filename,
             purpose=uploaded_file.purpose,  # type: ignore
-            status="uploaded",  # type: ignore
+            status="uploaded",
             expires_at=uploaded_file.expires_at,
             status_details=uploaded_file.status_details,
         )
