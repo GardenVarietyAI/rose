@@ -106,7 +106,18 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
 
         for uploaded_file in files:
             if uploaded_file.status != "processed":
-                logger.warning(f"Skipping file {uploaded_file.id} (status: {uploaded_file.status})")
+                logger.warning(f"File {uploaded_file.id} not yet processed (status: {uploaded_file.status})")
+                await session.execute(
+                    sql_update(VectorStoreFile)
+                    .where(
+                        col(VectorStoreFile.vector_store_id) == vector_store_id,
+                        col(VectorStoreFile.file_id) == uploaded_file.id,
+                    )
+                    .values(
+                        status="failed",
+                        last_error={"message": f"Failed on file status: {uploaded_file.status}. Retry again later."},
+                    )
+                )
                 continue
 
             async with track_file_processing(session, vector_store_id, uploaded_file.id) as vsf:
@@ -181,8 +192,6 @@ async def create(
                     uploaded_file = await session.get(UploadedFile, file_id)
                     if not uploaded_file:
                         raise HTTPException(status_code=404, detail=f"Uploaded file {file_id} not found")
-                    if uploaded_file.status != "processed":
-                        raise HTTPException(status_code=400, detail=f"File {file_id} not yet processed")
 
             async with req.app.state.get_db_session() as session:
                 for file_id in request.file_ids:
