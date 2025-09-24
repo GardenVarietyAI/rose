@@ -32,6 +32,7 @@ class Document(SQLModel, table=True):
     file_id: str = Field(index=True)
     chunk_index: int
     content: str
+    content_hash: Optional[str] = Field(default=None, index=True)  # SHA256 hash of content
     meta: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
     created_at: int = Field(default_factory=lambda: int(time.time()))
 

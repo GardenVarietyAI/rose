@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import time
@@ -63,7 +64,7 @@ async def index(req: Request) -> VectorStoreList:
 async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: list[str]) -> None:
     uploaded_files = []
     async with app.state.get_db_session(read_only=True) as session:
-        result = await session.execute(select(UploadedFile).where(UploadedFile.id.in_(file_ids)))
+        result = await session.execute(select(UploadedFile).where(col(UploadedFile.id).in_(file_ids)))
         uploaded_files = list(result.scalars().all())
 
     found_file_ids = {f.id for f in uploaded_files}
@@ -75,8 +76,8 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
             await session.execute(
                 sql_update(VectorStoreFile)
                 .where(
-                    VectorStoreFile.vector_store_id == vector_store_id,
-                    VectorStoreFile.file_id.in_(list(missing_file_ids)),
+                    col(VectorStoreFile.vector_store_id) == vector_store_id,
+                    col(VectorStoreFile.file_id).in_(list(missing_file_ids)),
                 )
                 .values(status="failed", last_error={"error": "Uploaded file not found"})
             )
@@ -108,9 +109,6 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
                         await session.commit()
                 continue
 
-            texts = [chunk.text for chunk in chunks]
-            embeddings, _ = await app.state.embedding_model.encode_batch(texts)
-
             async with app.state.get_db_session() as session:
                 await session.execute(
                     insert(VectorStoreFile)
@@ -133,51 +131,83 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
                     )
                 )
 
-                # Delete any existing documents for this file
                 existing_docs = await session.execute(
-                    select(Document.id).where(
+                    select(Document).where(
                         Document.vector_store_id == vector_store_id,
                         Document.file_id == uploaded_file.id,
                     )
                 )
-                doc_ids_to_delete = [doc_id for (doc_id,) in existing_docs.fetchall()]
+                existing_docs_list = list(existing_docs.scalars().all())
+                existing_by_chunk = {
+                    (d.chunk_index, d.content_hash): d.id for d in existing_docs_list if d.content_hash
+                }
 
-                if doc_ids_to_delete:
+                # Calculate hashes for all new chunks
+                chunk_hashes = [hashlib.sha256(chunk.text.encode()).hexdigest() for chunk in chunks]
+
+                # Determine which chunks need embedding
+                documents_to_add = []
+                documents_to_keep = set()
+                chunks_to_embed = []
+
+                for i, (chunk, content_hash) in enumerate(zip(chunks, chunk_hashes)):
+                    existing_id = existing_by_chunk.get((i, content_hash))
+
+                    if existing_id:
+                        # Content unchanged, keep existing document and embedding
+                        documents_to_keep.add(existing_id)
+                        logger.debug(f"Keeping unchanged chunk {i} for file {uploaded_file.id}")
+                    else:
+                        # New or changed content, need to embed
+                        doc = Document(
+                            vector_store_id=vector_store_id,
+                            file_id=uploaded_file.id,
+                            chunk_index=i,
+                            content=chunk.text,
+                            content_hash=content_hash,
+                            meta={
+                                "filename": uploaded_file.filename,
+                                "total_chunks": len(chunks),
+                                "start_index": chunk.start_index,
+                                "end_index": chunk.end_index,
+                                "decode_errors": decode_errors,
+                            },
+                        )
+                        documents_to_add.append(doc)
+                        chunks_to_embed.append(chunk.text)
+
+                # Delete documents that are no longer needed
+                all_existing_ids = {d.id for d in existing_docs_list}
+                docs_to_delete = list(all_existing_ids - documents_to_keep)
+
+                if docs_to_delete:
                     # Delete from vec0 first
-                    placeholders = ", ".join([f":doc_id_{i}" for i in range(len(doc_ids_to_delete))])
-                    params = {f"doc_id_{i}": doc_id for i, doc_id in enumerate(doc_ids_to_delete)}
+                    placeholders = ", ".join([f":doc_id_{i}" for i in range(len(docs_to_delete))])
+                    params = {f"doc_id_{i}": doc_id for i, doc_id in enumerate(docs_to_delete)}
                     await session.execute(text(f"DELETE FROM vec0 WHERE document_id IN ({placeholders})"), params)
                     # Then delete documents
-                    await session.execute(sql_delete(Document).where(col(Document.id).in_(doc_ids_to_delete)))
+                    await session.execute(sql_delete(Document).where(col(Document.id).in_(docs_to_delete)))
+                    logger.info(f"Deleted {len(docs_to_delete)} outdated chunks for file {uploaded_file.id}")
 
-                documents = []
-                embedding_data = []
+                if documents_to_add:
+                    if chunks_to_embed:
+                        embeddings, _ = await app.state.embedding_model.encode_batch(chunks_to_embed)
+                    else:
+                        embeddings = []
 
-                for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
-                    doc = Document(
-                        vector_store_id=vector_store_id,
-                        file_id=uploaded_file.id,
-                        chunk_index=i,
-                        content=chunk.text,
-                        meta={
-                            "filename": uploaded_file.filename,
-                            "total_chunks": len(chunks),
-                            "start_index": chunk.start_index,
-                            "end_index": chunk.end_index,
-                            "decode_errors": decode_errors,
-                        },
-                    )
-                    documents.append(doc)
+                    session.add_all(documents_to_add)
 
-                    embedding_blob = np.array(embedding, dtype=np.float32).tobytes()
-                    embedding_data.append({"doc_id": doc.id, "embedding": embedding_blob})
+                    embedding_data = []
+                    for doc, embedding in zip(documents_to_add, embeddings):
+                        embedding_blob = np.array(embedding, dtype=np.float32).tobytes()
+                        embedding_data.append({"doc_id": doc.id, "embedding": embedding_blob})
 
-                session.add_all(documents)
-
-                await session.execute(
-                    text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
-                    embedding_data,
-                )
+                    if embedding_data:
+                        await session.execute(
+                            text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
+                            embedding_data,
+                        )
+                    logger.info(f"Added {len(documents_to_add)} new/changed chunks for file {uploaded_file.id}")
 
                 if vsf:
                     vsf.status = "completed"
