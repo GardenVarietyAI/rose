@@ -92,7 +92,7 @@ async def create(
             bytes=file_size,
             filename=filename,
             purpose=purpose,
-            status="processing",
+            status="uploaded",
             content=content,
         )
 
@@ -112,7 +112,7 @@ async def create(
             created_at=uploaded_file.created_at,
             filename=uploaded_file.filename,
             purpose=uploaded_file.purpose,  # type: ignore
-            status=uploaded_file.status if uploaded_file.status else "processed",  # type: ignore
+            status="uploaded",  # type: ignore
             expires_at=uploaded_file.expires_at,
             status_details=uploaded_file.status_details,
         )
