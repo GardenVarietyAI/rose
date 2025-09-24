@@ -43,7 +43,6 @@ async def track_file_processing(
     vector_store_id: str,
     file_id: str,
 ) -> AsyncGenerator[Optional[VectorStoreFile], None]:
-    """Handles VectorStoreFile status tracking."""
     vsf = await session.scalar(
         select(VectorStoreFile).where(
             VectorStoreFile.vector_store_id == vector_store_id,
@@ -397,7 +396,7 @@ async def search_store(
 
         chunk = VectorSearchChunk(
             file_id=search_result.document.file_id,
-            filename=meta.get("filename", "unknown"),
+            filename=meta["filename"],
             score=search_result.score,
             attributes=attributes,
             content=[{"type": "text", "text": search_result.document.content}],
