@@ -17,4 +17,3 @@ CREATE INDEX IF NOT EXISTS idx_file_chunks_content_hash ON file_chunks(content_h
 
 -- migrate:down
 DROP TABLE IF EXISTS file_chunks;
-ALTER TABLE files DROP COLUMN processing_status;
