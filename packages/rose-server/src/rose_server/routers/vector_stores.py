@@ -84,110 +84,90 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
             await session.commit()
 
     for uploaded_file in uploaded_files:
-        try:
-            text_content, decode_errors = decode_file_content(uploaded_file.content, uploaded_file.filename)
-
-            chunker = TokenChunker(
-                chunk_size=app.state.settings.default_chunk_size,
-                chunk_overlap=app.state.settings.default_chunk_overlap,
-                tokenizer=app.state.embedding_tokenizer,
+        async with app.state.get_db_session() as session:
+            vsf = await session.scalar(
+                select(VectorStoreFile).where(
+                    VectorStoreFile.vector_store_id == vector_store_id,
+                    VectorStoreFile.file_id == uploaded_file.id,
+                )
             )
-            chunks = chunker.chunk(text_content)
 
-            if not chunks:
-                logger.warning(f"No chunks generated from file {uploaded_file.id}")
-                async with app.state.get_db_session() as session:
-                    vsf = await session.scalar(
-                        select(VectorStoreFile).where(
-                            VectorStoreFile.vector_store_id == vector_store_id,
-                            VectorStoreFile.file_id == uploaded_file.id,
-                        )
-                    )
-                    if vsf:
-                        vsf.status = "failed"
-                        vsf.last_error = {"error": "No chunks could be generated from file content"}
-                        await session.commit()
+            if vsf and vsf.status == "completed":
+                logger.info(f"File {uploaded_file.id} already processed for vector store {vector_store_id}")
                 continue
 
-            async with app.state.get_db_session() as session:
-                await session.execute(
-                    insert(VectorStoreFile)
-                    .values(
-                        vector_store_id=vector_store_id,
-                        file_id=uploaded_file.id,
-                    )
-                    .on_conflict_do_nothing(
-                        index_elements=[
-                            VectorStoreFile.vector_store_id,
-                            VectorStoreFile.file_id,
-                        ]
-                    )
+            if not vsf:
+                vsf = VectorStoreFile(
+                    vector_store_id=vector_store_id,
+                    file_id=uploaded_file.id,
+                    status="in_progress",
                 )
+                session.add(vsf)
 
-                vsf = await session.scalar(
-                    select(VectorStoreFile).where(
-                        VectorStoreFile.vector_store_id == vector_store_id,
-                        VectorStoreFile.file_id == uploaded_file.id,
-                    )
+            try:
+                text_content, decode_errors = decode_file_content(uploaded_file.content, uploaded_file.filename)
+
+                chunker = TokenChunker(
+                    chunk_size=app.state.settings.default_chunk_size,
+                    chunk_overlap=app.state.settings.default_chunk_overlap,
+                    tokenizer=app.state.embedding_tokenizer,
                 )
+                chunks = chunker.chunk(text_content)
 
-                existing_docs = await session.execute(
-                    select(Document).where(
-                        Document.vector_store_id == vector_store_id,
-                        Document.file_id == uploaded_file.id,
-                    )
-                )
-                existing_docs_list = list(existing_docs.scalars().all())
-                existing_by_chunk = {
-                    (d.chunk_index, d.content_hash): d.id for d in existing_docs_list if d.content_hash
-                }
+                if not chunks:
+                    raise ValueError(f"No chunks generated from file {uploaded_file.id}")
 
-                # Calculate hashes for all new chunks
                 chunk_hashes = [hashlib.sha256(chunk.text.encode()).hexdigest() for chunk in chunks]
 
-                # Determine which chunks need embedding
+                existing_hashes_result = await session.execute(
+                    select(Document.content_hash, Document.chunk_index).where(
+                        Document.vector_store_id == vector_store_id,
+                        Document.file_id == uploaded_file.id,
+                        col(Document.content_hash).in_(chunk_hashes),
+                    )
+                )
+                existing_by_index = {chunk_idx: hash for hash, chunk_idx in existing_hashes_result}
+
+                docs_to_delete = await session.execute(
+                    select(Document.id).where(
+                        Document.vector_store_id == vector_store_id,
+                        Document.file_id == uploaded_file.id,
+                        ~col(Document.content_hash).in_(chunk_hashes),
+                    )
+                )
+                doc_ids_to_delete = [doc_id for (doc_id,) in docs_to_delete.fetchall()]
+
+                if doc_ids_to_delete:
+                    # Delete embeddings first
+                    placeholders = ", ".join([f":doc_id_{i}" for i in range(len(doc_ids_to_delete))])
+                    params = {f"doc_id_{i}": doc_id for i, doc_id in enumerate(doc_ids_to_delete)}
+                    await session.execute(text(f"DELETE FROM vec0 WHERE document_id IN ({placeholders})"), params)
+                    # Then delete documents
+                    await session.execute(sql_delete(Document).where(col(Document.id).in_(doc_ids_to_delete)))
+
                 documents_to_add = []
-                documents_to_keep = set()
                 chunks_to_embed = []
 
                 for i, (chunk, content_hash) in enumerate(zip(chunks, chunk_hashes)):
-                    existing_id = existing_by_chunk.get((i, content_hash))
+                    if existing_by_index.get(i) == content_hash:
+                        continue
 
-                    if existing_id:
-                        # Content unchanged, keep existing document and embedding
-                        documents_to_keep.add(existing_id)
-                        logger.debug(f"Keeping unchanged chunk {i} for file {uploaded_file.id}")
-                    else:
-                        # New or changed content, need to embed
-                        doc = Document(
-                            vector_store_id=vector_store_id,
-                            file_id=uploaded_file.id,
-                            chunk_index=i,
-                            content=chunk.text,
-                            content_hash=content_hash,
-                            meta={
-                                "filename": uploaded_file.filename,
-                                "total_chunks": len(chunks),
-                                "start_index": chunk.start_index,
-                                "end_index": chunk.end_index,
-                                "decode_errors": decode_errors,
-                            },
-                        )
-                        documents_to_add.append(doc)
-                        chunks_to_embed.append(chunk.text)
-
-                # Delete documents that are no longer needed
-                all_existing_ids = {d.id for d in existing_docs_list}
-                docs_to_delete = list(all_existing_ids - documents_to_keep)
-
-                if docs_to_delete:
-                    # Delete from vec0 first
-                    placeholders = ", ".join([f":doc_id_{i}" for i in range(len(docs_to_delete))])
-                    params = {f"doc_id_{i}": doc_id for i, doc_id in enumerate(docs_to_delete)}
-                    await session.execute(text(f"DELETE FROM vec0 WHERE document_id IN ({placeholders})"), params)
-                    # Then delete documents
-                    await session.execute(sql_delete(Document).where(col(Document.id).in_(docs_to_delete)))
-                    logger.info(f"Deleted {len(docs_to_delete)} outdated chunks for file {uploaded_file.id}")
+                    doc = Document(
+                        vector_store_id=vector_store_id,
+                        file_id=uploaded_file.id,
+                        chunk_index=i,
+                        content=chunk.text,
+                        content_hash=content_hash,
+                        meta={
+                            "filename": uploaded_file.filename,
+                            "total_chunks": len(chunks),
+                            "start_index": chunk.start_index,
+                            "end_index": chunk.end_index,
+                            "decode_errors": decode_errors,
+                        },
+                    )
+                    documents_to_add.append(doc)
+                    chunks_to_embed.append(chunk.text)
 
                 if documents_to_add:
                     if chunks_to_embed:
@@ -209,9 +189,8 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
                         )
                     logger.info(f"Added {len(documents_to_add)} new/changed chunks for file {uploaded_file.id}")
 
-                if vsf:
-                    vsf.status = "completed"
-                    vsf.last_error = None
+                vsf.status = "completed"
+                vsf.last_error = None
 
                 await session.execute(
                     sql_update(VectorStore)
@@ -219,25 +198,16 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
                     .values(last_used_at=int(time.time()))
                 )
 
-                await session.commit()
                 logger.info(f"Processed file {uploaded_file.id} for vector store {vector_store_id}")
 
-        except Exception as e:
-            logger.error(f"Failed to process file {uploaded_file.id} for vector store {vector_store_id}: {str(e)}")
-            try:
-                async with app.state.get_db_session() as session:
-                    vsf = await session.scalar(
-                        select(VectorStoreFile).where(
-                            VectorStoreFile.vector_store_id == vector_store_id,
-                            VectorStoreFile.file_id == uploaded_file.id,
-                        )
-                    )
-                    if vsf:
-                        vsf.status = "failed"
-                        vsf.last_error = {"error": type(e).__name__}
-                        await session.commit()
-            except Exception:
-                pass
+            except Exception as e:
+                vsf.status = "failed"
+                vsf.last_error = {"error": type(e).__name__, "message": str(e)[:500]}
+                logger.error(f"Failed to process file {uploaded_file.id}: {e}")
+
+            finally:
+                # Always commit the status update
+                await session.commit()
 
 
 @router.post("")
