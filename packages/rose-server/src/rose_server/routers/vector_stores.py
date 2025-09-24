@@ -120,6 +120,8 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
                 )
                 doc_ids_to_delete = [doc_id for (doc_id,) in docs_to_delete.fetchall()]
 
+                # TODO: Add soft-deletes so this becomes an update statemment
+                # TODO: Create a pipeline to chunk and generate embeddings on file upload
                 if doc_ids_to_delete:
                     # Delete embeddings first
                     placeholders = ", ".join([f":doc_id_{i}" for i in range(len(doc_ids_to_delete))])
