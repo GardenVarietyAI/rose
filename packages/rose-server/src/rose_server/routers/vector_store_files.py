@@ -10,7 +10,6 @@ from rose_server.entities.vector_stores import (
 )
 from rose_server.routers.vector_stores import _process_vector_store_files
 from rose_server.schemas.vector_stores import VectorStoreFile, VectorStoreFileCreate, VectorStoreFileList
-from rose_server.services.vector_store_files import EmptyFileError
 from sqlalchemy import (
     delete as sql_delete,
     desc,
@@ -21,11 +20,7 @@ from sqlmodel import col, select
 
 
 class VectorStoreNotFoundError(ValueError):
-    """Vector store does not exist."""
-
-
-class FileNotFoundError(ValueError):
-    """File does not exist."""
+    pass
 
 
 router = APIRouter(prefix="/v1/vector_stores/{vector_store_id}/files", tags=["vector_store_files"])
@@ -77,8 +72,6 @@ async def create(
 
         logger.info("Scheduled file %s for processing in vector store %s", request.file_id, vector_store_id)
 
-        if not vector_store_file:
-            raise HTTPException(status_code=500, detail="Failed to create vector store file")
         return VectorStoreFile(
             id=vector_store_file.id,
             vector_store_id=vector_store_file.vector_store_id,
@@ -87,8 +80,6 @@ async def create(
         )
     except (VectorStoreNotFoundError, FileNotFoundError) as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except EmptyFileError as e:
-        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         logger.error(f"Error adding file to vector store: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
