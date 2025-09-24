@@ -29,9 +29,10 @@ class Document(SQLModel, table=True):
 
     id: str = Field(primary_key=True, default_factory=lambda: f"doc_{uuid.uuid4().hex[:24]}")
     vector_store_id: str = Field(foreign_key="vector_stores.id")
-    file_id: Optional[str] = Field(default=None, index=True)
+    file_id: str = Field(index=True)
     chunk_index: int
     content: str
+    content_hash: Optional[str] = Field(default=None, index=True)  # SHA256 hash of content
     meta: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
     created_at: int = Field(default_factory=lambda: int(time.time()))
 

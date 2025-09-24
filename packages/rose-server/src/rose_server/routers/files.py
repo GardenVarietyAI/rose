@@ -1,21 +1,83 @@
+import hashlib
 import logging
-from typing import Literal, Optional, Sequence
+from typing import Any, Literal, Optional, Sequence
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
+import numpy as np
+from chonkie import TokenChunker
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
 from openai.types import FileDeleted, FileObject
+from rose_server.entities.file_chunks import FileChunk
 from rose_server.entities.files import UploadedFile
 from rose_server.schemas.files import FileListResponse
+from rose_server.services.vector_store_files import decode_file_content
 from sqlalchemy import delete, desc
-from sqlmodel import select
+from sqlmodel import (
+    select,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1")
 
 
+async def process_file_chunks(app: Any, file_id: str) -> None:
+    async with app.state.get_db_session() as session:
+        try:
+            uploaded_file = await session.get(UploadedFile, file_id)
+            if not uploaded_file:
+                logger.error(f"File {file_id} not found")
+                return
+
+            text_content, decode_errors = decode_file_content(uploaded_file.content, uploaded_file.filename)
+
+            chunker = TokenChunker(
+                chunk_size=app.state.settings.default_chunk_size,
+                chunk_overlap=app.state.settings.default_chunk_overlap,
+                tokenizer=app.state.embedding_tokenizer,
+            )
+            chunks = chunker.chunk(text_content)
+
+            if not chunks:
+                raise ValueError(f"No chunks generated from file {file_id}")
+
+            texts = [chunk.text for chunk in chunks]
+            embeddings, _ = await app.state.embedding_model.encode_batch(texts)
+
+            file_chunks = []
+            for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+                content_hash = hashlib.sha256(chunk.text.encode()).hexdigest()
+                file_chunk = FileChunk(
+                    content_hash=content_hash,
+                    file_id=file_id,
+                    chunk_index=i,
+                    content=chunk.text,
+                    embedding=np.array(embedding, dtype=np.float32).tobytes(),
+                    meta={
+                        "start_index": chunk.start_index,
+                        "end_index": chunk.end_index,
+                        "decode_errors": decode_errors,
+                    },
+                )
+                file_chunks.append(file_chunk)
+
+            session.add_all(file_chunks)
+
+            uploaded_file.status = "processed"
+            logger.info(f"Processed file {file_id} with {len(file_chunks)} chunks")
+
+        except Exception as e:
+            logger.error(f"Failed to process file {file_id}: {e}")
+            if uploaded_file:
+                uploaded_file.status = "error"
+
+        finally:
+            await session.commit()
+
+
 @router.post("/files")
 async def create(
     req: Request,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     purpose: Literal["assistants", "batch", "fine-tune", "vision", "user_data"] = Form(...),
 ) -> FileObject:
@@ -30,7 +92,7 @@ async def create(
             bytes=file_size,
             filename=filename,
             purpose=purpose,
-            status="processed",
+            status="uploaded",
             content=content,
         )
 
@@ -40,6 +102,8 @@ async def create(
             await session.refresh(uploaded_file)
             logger.info(f"Created file {uploaded_file.id} with BLOB content, filename {uploaded_file.filename}")
 
+        background_tasks.add_task(process_file_chunks, req.app, uploaded_file.id)
+
         # Return response without binary content to avoid serialization issues
         return FileObject(
             id=uploaded_file.id,
@@ -48,7 +112,7 @@ async def create(
             created_at=uploaded_file.created_at,
             filename=uploaded_file.filename,
             purpose=uploaded_file.purpose,  # type: ignore
-            status=uploaded_file.status if uploaded_file.status else "processed",  # type: ignore
+            status="uploaded",
             expires_at=uploaded_file.expires_at,
             status_details=uploaded_file.status_details,
         )

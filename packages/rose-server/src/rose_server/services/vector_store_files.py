@@ -14,7 +14,6 @@ class EmptyFileError(ValueError):
 
 
 def decode_file_content(content: bytes, filename: str) -> Tuple[str, bool]:
-    """Pure function to decode file content with PDF and text support."""
     if not content:
         raise EmptyFileError(f"File {filename} has no content")
 
