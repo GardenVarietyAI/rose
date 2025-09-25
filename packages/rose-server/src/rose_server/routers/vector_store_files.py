@@ -138,6 +138,40 @@ async def list_files(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@router.get("/{file_id}", response_model=VectorStoreFile)
+async def retrieve_file(
+    req: Request,
+    vector_store_id: str = Path(..., description="The ID of the vector store"),
+    file_id: str = Path(..., description="The ID of the file"),
+) -> VectorStoreFile:
+    try:
+        async with req.app.state.get_db_session() as session:
+            vsf = await session.scalar(
+                select(VectorStoreFileEntity).where(
+                    VectorStoreFileEntity.vector_store_id == vector_store_id,
+                    VectorStoreFileEntity.file_id == file_id,
+                )
+            )
+
+            if not vsf:
+                raise HTTPException(status_code=404, detail="Vector store file not found")
+
+            return VectorStoreFile(
+                id=vsf.id,
+                vector_store_id=vsf.vector_store_id,
+                file_id=vsf.file_id,
+                status=vsf.status,
+                created_at=vsf.created_at,
+                last_error=vsf.last_error,
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving vector store file: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
 @router.delete("/{file_id}")
 async def delete_file(
     req: Request,
