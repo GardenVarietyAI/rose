@@ -23,12 +23,16 @@ Why ROSE?
 - Reranker
 - SSE Streaming Support
 
-### OpenAI-Compatible API
+### OpenAI-Compatible Endpoints
 
 - `v1/chat/completions`
 - `v1/responses`
 - `v1/embeddings`
+- `v1/vector_stores`
 - `v1/fine_tuning`
+
+### Other Endpoints
+
 - `v1/reranker`
 
 ## Quick Start
@@ -130,12 +134,19 @@ query_params = {}
 
 ## Model Library
 
-| Model | Size | Download |
-| ----- | ---- | -------- |
-| Qwen/Qwen3-0.6B | 0.6B | `uv run rose models download Qwen/Qwen3-0.6B` |
-| Qwen/Qwen3-1.7B | 1.7B | `uv run rose models download Qwen/Qwen3-1.7B` |
-| Qwen/Qwen3-1.7B-Base | 1.7B | `uv run rose models download Qwen/Qwen3-1.7B-Base` |
-| Qwen/Qwen3-0.6B-GGUF | 0.6B | `uv run rose models download Qwen/Qwen3-0.6B-GGUF` |
+| Model                                 | Size | Download                                                            |
+| ------------------------------------- | ---- | ------------------------------------------------------------------- |
+| Qwen/Qwen3-0.6B                       | 0.6B | `uv run rose models download Qwen/Qwen3-0.6B`                       |
+| Qwen/Qwen3-0.6B-GGUF                  | 0.6B | `uv run rose models download Qwen/Qwen3-0.6B-GGUF`                  |
+| Qwen/Qwen3-1.7B                       | 1.7B | `uv run rose models download Qwen/Qwen3-1.7B`                       |
+| Qwen/Qwen3-1.7B-Base                  | 1.7B | `uv run rose models download Qwen/Qwen3-1.7B-Base`                  |
+| Qwen/Qwen3-1.7B-GGUF                  | 1.7B | `uv run rose models download Qwen/Qwen3-1.7B-GGUF`                  |
+| Qwen/Qwen3-4B                         | 4B   | `uv run rose models download Qwen/Qwen3-4B`                         |
+| Qwen/Qwen3-4B-GGUF                    | 4B   | `uv run rose models download Qwen/Qwen3-4B-GGUF`                    |
+| Qwen/Qwen3-Embedding-0.6B             | 0.6B | `uv run rose models download Qwen/Qwen3-Embedding-0.6B`             |
+| Qwen/Qwen3-Embedding-0.6B-GGUF        | 0.6B | `uv run rose models download Qwen/Qwen3-Embedding-0.6B-GGUF`        |
+| Qwen/Qwen3-Reranker-0.6B              | 0.6B | `uv run rose models download Qwen/Qwen3-Reranker-0.6B`              |
+| QuantFactory/Qwen3-Reranker-0.6B-GGUF | 0.6B | `uv run rose models download QuantFactory/Qwen3-Reranker-0.6B-GGUF` |
 
 ## Documentation
 
