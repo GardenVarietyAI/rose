@@ -10,7 +10,6 @@ from openai.types import FileDeleted, FileObject
 from rose_server.entities.file_chunks import FileChunk
 from rose_server.entities.files import UploadedFile
 from rose_server.schemas.files import FileListResponse
-from rose_server.services.vector_store_files import decode_file_content
 from sqlalchemy import delete, desc
 from sqlmodel import (
     select,
@@ -28,7 +27,12 @@ async def process_file_chunks(app: Any, file_id: str) -> None:
                 logger.error(f"File {file_id} not found")
                 return
 
-            text_content, decode_errors = decode_file_content(uploaded_file.content, uploaded_file.filename)
+            try:
+                text_content = uploaded_file.content.decode("utf-8")
+                decode_errors = False
+            except UnicodeDecodeError:
+                text_content = uploaded_file.content.decode("utf-8", errors="replace")
+                decode_errors = True
 
             chunker = TokenChunker(
                 chunk_size=app.state.settings.default_chunk_size,
@@ -81,8 +85,13 @@ async def create(
     file: UploadFile = File(...),
     purpose: Literal["assistants", "batch", "fine-tune", "vision", "user_data"] = Form(...),
 ) -> FileObject:
+    if file.content_type and not file.content_type.startswith("text/"):
+        raise HTTPException(status_code=415, detail=f"Unsupported media type: {file.content_type}.")
+
     try:
         content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="File is empty")
 
         file_size = file.size if file.size is not None else len(content)
         filename = file.filename if file.filename else "unknown"
