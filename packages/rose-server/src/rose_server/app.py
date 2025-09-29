@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -16,7 +15,6 @@ from rose_server import __version__
 from rose_server._inference import EmbeddingModel, InferenceServer, RerankerModel
 from rose_server.database import check_database_setup, create_all_tables, create_session_maker, get_session
 from rose_server.router import router
-from rose_server.routers.files import process_file_chunks
 from rose_server.settings import Settings
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -24,8 +22,6 @@ os.environ["ANONYMIZED_TELEMETRY"] = "false"
 
 
 logger = logging.getLogger("rose_server")
-
-MAX_CONCURRENT_WORKERS = 3
 
 
 def get_tokenizer(models_dir: str, embedding_model_name: str) -> Tokenizer:
@@ -94,28 +90,10 @@ def get_reranker_model(models_dir: str) -> RerankerModel:
     return model
 
 
-async def file_processor_worker(app: FastAPI, worker_id: int, queue: asyncio.Queue[str]) -> None:
-    while True:
-        try:
-            file_id = await queue.get()
-            logger.info(f"Worker {worker_id} processing file {file_id}")
-            await process_file_chunks(app, file_id)
-        except asyncio.CancelledError:
-            logger.info(f"Worker {worker_id} shutting down")
-            return
-        except Exception as e:
-            logger.error(f"Worker {worker_id} failed processing file {file_id}: {e}")
-
-        queue.task_done()
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> Any:
     settings = Settings()
     app.state.settings = settings
-
-    app.state.file_processing_queue = asyncio.Queue(maxsize=100)
-    app.state.worker_tasks = []
 
     app.state.engine, app.state.db_session_maker = create_session_maker(settings.data_dir)
     logger.info(f"Database session maker initialized with data_dir: {settings.data_dir}")
@@ -175,17 +153,8 @@ async def lifespan(app: FastAPI) -> Any:
         app.state.reranker_model = None
         logger.warning(f"Failed to load reranker: {e}")
 
-    app.state.worker_tasks = [
-        asyncio.create_task(file_processor_worker(app, i, app.state.file_processing_queue))
-        for i in range(MAX_CONCURRENT_WORKERS)
-    ]
-    logger.info(f"Started {MAX_CONCURRENT_WORKERS} file processing workers")
-
     yield
 
-    for task in app.state.worker_tasks:
-        task.cancel()
-    await asyncio.gather(*app.state.worker_tasks, return_exceptions=True)
     logger.info("Application shutdown completed")
 
 

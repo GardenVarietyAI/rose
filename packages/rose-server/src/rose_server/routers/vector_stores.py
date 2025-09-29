@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import time
@@ -5,8 +6,8 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import numpy as np
+from chonkie import TokenChunker
 from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Path, Request
-from rose_server.entities.file_chunks import FileChunk
 from rose_server.entities.files import UploadedFile
 from rose_server.entities.vector_stores import Document, DocumentSearchResult, VectorStore, VectorStoreFile
 from rose_server.schemas.vector_stores import (
@@ -99,13 +100,15 @@ async def index(req: Request) -> VectorStoreList:
 
 
 async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: list[str]) -> None:
+    MAX_EMBEDDING_BATCH_SIZE = 10
+
     async with app.state.get_db_session() as session:
         files_result = await session.execute(select(UploadedFile).where(col(UploadedFile.id).in_(file_ids)))
         files = list(files_result.scalars().all())
 
         for uploaded_file in files:
-            if uploaded_file.status != "processed":
-                logger.warning(f"File {uploaded_file.id} not yet processed (status: {uploaded_file.status})")
+            if not uploaded_file.content:
+                logger.warning(f"File {uploaded_file.id} has no content")
                 await session.execute(
                     sql_update(VectorStoreFile)
                     .where(
@@ -114,7 +117,7 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
                     )
                     .values(
                         status="failed",
-                        last_error={"message": f"Failed on file status: {uploaded_file.status}. Retry again later."},
+                        last_error={"message": "File has no content"},
                     )
                 )
                 continue
@@ -123,34 +126,59 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
                 if not vsf:  # Already completed
                     continue
 
-                chunks_result = await session.execute(
-                    select(FileChunk).where(FileChunk.file_id == uploaded_file.id).order_by(col(FileChunk.chunk_index))
+                try:
+                    text_content = uploaded_file.content.decode("utf-8")
+                    decode_errors = False
+                except UnicodeDecodeError:
+                    text_content = uploaded_file.content.decode("utf-8", errors="replace")
+                    decode_errors = True
+
+                chunker = TokenChunker(
+                    chunk_size=app.state.settings.default_chunk_size,
+                    chunk_overlap=app.state.settings.default_chunk_overlap,
+                    tokenizer=app.state.embedding_tokenizer,
                 )
-                file_chunks = list(chunks_result.scalars().all())
+                chunks = chunker.chunk(text_content)
+
+                if not chunks:
+                    raise ValueError(f"No chunks generated from file {uploaded_file.id}")
+
+                texts = [chunk.text for chunk in chunks]
+
+                embeddings = []
+                for i in range(0, len(texts), MAX_EMBEDDING_BATCH_SIZE):
+                    batch_texts = texts[i : i + MAX_EMBEDDING_BATCH_SIZE]
+                    batch_embeddings, _ = await app.state.embedding_model.encode_batch(batch_texts)
+                    embeddings.extend(batch_embeddings)
 
                 documents = []
-                embeddings = []
-                for chunk in file_chunks:
+                embedding_records = []
+                for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+                    content_hash = hashlib.sha256(chunk.text.encode()).hexdigest()
                     doc = Document(
                         vector_store_id=vector_store_id,
                         file_id=uploaded_file.id,
                         vector_store_file_id=vsf.id,
-                        chunk_index=chunk.chunk_index,
-                        content=chunk.content,
-                        content_hash=chunk.content_hash,
+                        chunk_index=i,
+                        content=chunk.text,
+                        content_hash=content_hash,
                         meta={
                             "filename": uploaded_file.filename,
-                            **(chunk.meta or {}),
+                            "start_index": chunk.start_index,
+                            "end_index": chunk.end_index,
+                            "decode_errors": decode_errors,
                         },
                     )
                     documents.append(doc)
-                    embeddings.append({"doc_id": doc.id, "embedding": chunk.embedding})
+                    embedding_records.append(
+                        {"doc_id": doc.id, "embedding": np.array(embedding, dtype=np.float32).tobytes()}
+                    )
 
                 session.add_all(documents)
 
                 await session.execute(
                     text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
-                    embeddings,
+                    embedding_records,
                 )
 
                 logger.info(
