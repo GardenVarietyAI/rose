@@ -134,6 +134,7 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
                     doc = Document(
                         vector_store_id=vector_store_id,
                         file_id=uploaded_file.id,
+                        vector_store_file_id=vsf.id,
                         chunk_index=chunk.chunk_index,
                         content=chunk.content,
                         content_hash=chunk.content_hash,
