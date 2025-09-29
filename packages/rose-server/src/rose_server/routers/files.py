@@ -97,7 +97,7 @@ async def retrieve(
             id=uploaded_file.id,
             object=uploaded_file.object,
             bytes=uploaded_file.bytes,
-            created_at=int(uploaded_file.created_at.timestamp()),
+            created_at=uploaded_file.created_at,
             filename=uploaded_file.filename,
             purpose=uploaded_file.purpose,
             status=uploaded_file.status,
