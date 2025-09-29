@@ -12,6 +12,7 @@ from rose_server.entities.files import UploadedFile
 from rose_server.schemas.files import FileListResponse
 from sqlalchemy import delete, desc
 from sqlmodel import (
+    col,
     select,
 )
 
@@ -23,19 +24,19 @@ async def process_file_chunks(app: Any, file_id: str) -> None:
     MAX_EMBEDDING_BATCH_SIZE = 10
 
     async with app.state.get_db_session() as session:
+        uploaded_file = await session.get(UploadedFile, file_id)
+        if not uploaded_file:
+            logger.error(f"File {file_id} not found")
+            return
+
         try:
-            uploaded_file = await session.get(UploadedFile, file_id)
-            if not uploaded_file:
-                logger.error(f"File {file_id} not found")
-                return
+            text_content = uploaded_file.content.decode("utf-8")
+            decode_errors = False
+        except UnicodeDecodeError:
+            text_content = uploaded_file.content.decode("utf-8", errors="replace")
+            decode_errors = True
 
-            try:
-                text_content = uploaded_file.content.decode("utf-8")
-                decode_errors = False
-            except UnicodeDecodeError:
-                text_content = uploaded_file.content.decode("utf-8", errors="replace")
-                decode_errors = True
-
+        try:
             chunker = TokenChunker(
                 chunk_size=app.state.settings.default_chunk_size,
                 chunk_overlap=app.state.settings.default_chunk_overlap,
@@ -48,15 +49,11 @@ async def process_file_chunks(app: Any, file_id: str) -> None:
 
             texts = [chunk.text for chunk in chunks]
 
-            if len(texts) > MAX_EMBEDDING_BATCH_SIZE:
-                all_embeddings = []
-                for i in range(0, len(texts), MAX_EMBEDDING_BATCH_SIZE):
-                    batch_texts = texts[i : i + MAX_EMBEDDING_BATCH_SIZE]
-                    batch_embeddings, _ = await app.state.embedding_model.encode_batch(batch_texts)
-                    all_embeddings.extend(batch_embeddings)
-                embeddings = all_embeddings
-            else:
-                embeddings, _ = await app.state.embedding_model.encode_batch(texts)
+            embeddings = []
+            for i in range(0, len(texts), MAX_EMBEDDING_BATCH_SIZE):
+                batch_texts = texts[i : i + MAX_EMBEDDING_BATCH_SIZE]
+                batch_embeddings, _ = await app.state.embedding_model.encode_batch(batch_texts)
+                embeddings.extend(batch_embeddings)
 
             file_chunks = []
             for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
@@ -76,16 +73,13 @@ async def process_file_chunks(app: Any, file_id: str) -> None:
                 file_chunks.append(file_chunk)
 
             session.add_all(file_chunks)
-
             uploaded_file.status = "processed"
+            await session.commit()
             logger.info(f"Processed file {file_id} with {len(file_chunks)} chunks")
 
         except Exception as e:
             logger.error(f"Failed to process file {file_id}: {e}")
-            if uploaded_file:
-                uploaded_file.status = "error"
-
-        finally:
+            uploaded_file.status = "error"
             await session.commit()
 
 
@@ -191,7 +185,7 @@ async def index(
         if purpose:
             query = query.where(UploadedFile.purpose == purpose)
 
-        query = query.order_by(desc(UploadedFile.created_at))  # type: ignore[arg-type]
+        query = query.order_by(desc(col(UploadedFile.created_at)))
 
         if after:
             after_result = await session.execute(select(UploadedFile.created_at).where(UploadedFile.id == after))
