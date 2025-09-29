@@ -4,7 +4,7 @@ from typing import Any, Literal, Optional, Sequence
 
 import numpy as np
 from chonkie import TokenChunker
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Path, Query, Request, UploadFile
 from fastapi.responses import Response
 from openai.types import FileDeleted, FileObject
 from rose_server.entities.file_chunks import FileChunk
@@ -20,6 +20,8 @@ router = APIRouter(prefix="/v1")
 
 
 async def process_file_chunks(app: Any, file_id: str) -> None:
+    MAX_EMBEDDING_BATCH_SIZE = 10
+
     async with app.state.get_db_session() as session:
         try:
             uploaded_file = await session.get(UploadedFile, file_id)
@@ -45,7 +47,16 @@ async def process_file_chunks(app: Any, file_id: str) -> None:
                 raise ValueError(f"No chunks generated from file {file_id}")
 
             texts = [chunk.text for chunk in chunks]
-            embeddings, _ = await app.state.embedding_model.encode_batch(texts)
+
+            if len(texts) > MAX_EMBEDDING_BATCH_SIZE:
+                all_embeddings = []
+                for i in range(0, len(texts), MAX_EMBEDDING_BATCH_SIZE):
+                    batch_texts = texts[i : i + MAX_EMBEDDING_BATCH_SIZE]
+                    batch_embeddings, _ = await app.state.embedding_model.encode_batch(batch_texts)
+                    all_embeddings.extend(batch_embeddings)
+                embeddings = all_embeddings
+            else:
+                embeddings, _ = await app.state.embedding_model.encode_batch(texts)
 
             file_chunks = []
             for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
@@ -78,22 +89,59 @@ async def process_file_chunks(app: Any, file_id: str) -> None:
             await session.commit()
 
 
+@router.get("/files/{file_id}")
+async def retrieve(
+    req: Request,
+    file_id: str = Path(..., description="The ID of the file to retrieve"),
+) -> FileObject:
+    async with req.app.state.get_db_session() as session:
+        uploaded_file = await session.get(UploadedFile, file_id)
+        if not uploaded_file:
+            raise HTTPException(status_code=404, detail=f"File {file_id} not found")
+
+        return FileObject(
+            id=uploaded_file.id,
+            object=uploaded_file.object,
+            bytes=uploaded_file.bytes,
+            created_at=int(uploaded_file.created_at.timestamp()),
+            filename=uploaded_file.filename,
+            purpose=uploaded_file.purpose,
+            status=uploaded_file.status,
+        )
+
+
 @router.post("/files")
 async def create(
     req: Request,
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     purpose: Literal["assistants", "batch", "fine-tune", "vision", "user_data"] = Form(...),
 ) -> FileObject:
+    MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+    CHUNK_SIZE = 1024 * 1024  # 1MB chunks
+
     if file.content_type and not file.content_type.startswith("text/"):
         raise HTTPException(status_code=415, detail=f"Unsupported media type: {file.content_type}.")
 
     try:
-        content = await file.read()
-        if not content:
+        chunks = []
+        total_size = 0
+
+        while True:
+            chunk = await file.read(CHUNK_SIZE)
+            if not chunk:
+                break
+
+            total_size += len(chunk)
+            if total_size > MAX_FILE_SIZE:
+                raise HTTPException(status_code=413, detail=("File too large."))
+
+            chunks.append(chunk)
+
+        if total_size == 0:
             raise HTTPException(status_code=400, detail="File is empty")
 
-        file_size = file.size if file.size is not None else len(content)
+        content = b"".join(chunks)
+        file_size = total_size
         filename = file.filename if file.filename else "unknown"
 
         uploaded_file = UploadedFile(
@@ -111,7 +159,7 @@ async def create(
             await session.refresh(uploaded_file)
             logger.info(f"Created file {uploaded_file.id} with BLOB content, filename {uploaded_file.filename}")
 
-        background_tasks.add_task(process_file_chunks, req.app, uploaded_file.id)
+        await req.app.state.file_processing_queue.put(uploaded_file.id)
 
         # Return response without binary content to avoid serialization issues
         return FileObject(
