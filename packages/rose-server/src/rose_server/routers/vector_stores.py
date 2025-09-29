@@ -194,17 +194,16 @@ async def create(
                         raise HTTPException(status_code=404, detail=f"Uploaded file {file_id} not found")
 
             async with req.app.state.get_db_session() as session:
-                for file_id in request.file_ids:
-                    await session.execute(
-                        insert(VectorStoreFile)
-                        .values(vector_store_id=vector_store.id, file_id=file_id)
-                        .on_conflict_do_nothing(
-                            index_elements=[
-                                VectorStoreFile.vector_store_id,
-                                VectorStoreFile.file_id,
-                            ]
-                        )
+                await session.execute(
+                    insert(VectorStoreFile)
+                    .values([{"vector_store_id": vector_store.id, "file_id": file_id} for file_id in request.file_ids])
+                    .on_conflict_do_nothing(
+                        index_elements=[
+                            VectorStoreFile.vector_store_id,
+                            VectorStoreFile.file_id,
+                        ]
                     )
+                )
                 await session.commit()
 
             background_tasks.add_task(_process_vector_store_files, req.app, vector_store.id, request.file_ids)
@@ -231,16 +230,16 @@ async def get(
     try:
         async with req.app.state.get_db_session(read_only=True) as session:
             vector_store = await session.get(VectorStore, vector_store_id)
-        if not vector_store:
-            raise HTTPException(status_code=404, detail=f"Vector store {vector_store_id} not found")
+            if not vector_store:
+                raise HTTPException(status_code=404, detail=f"Vector store {vector_store_id} not found")
 
-        return VectorStoreMetadata(
-            id=vector_store.id,
-            name=vector_store.name,
-            dimensions=vector_store.dimensions,
-            metadata=vector_store.meta or {},
-            created_at=vector_store.created_at,
-        )
+            return VectorStoreMetadata(
+                id=vector_store.id,
+                name=vector_store.name,
+                dimensions=vector_store.dimensions,
+                metadata=vector_store.meta or {},
+                created_at=vector_store.created_at,
+            )
     except HTTPException:
         raise
     except Exception as e:
@@ -272,15 +271,15 @@ async def update(
             await session.flush()
             await session.refresh(vector_store)
 
-        logger.info(f"Updated vector store {vector_store_id}")
+            logger.info(f"Updated vector store {vector_store_id}")
 
-        return VectorStoreMetadata(
-            id=vector_store_id,
-            name=vector_store.name,
-            dimensions=vector_store.dimensions,
-            metadata=vector_store.meta or {},
-            created_at=vector_store.created_at,
-        )
+            return VectorStoreMetadata(
+                id=vector_store_id,
+                name=vector_store.name,
+                dimensions=vector_store.dimensions,
+                metadata=vector_store.meta or {},
+                created_at=vector_store.created_at,
+            )
     except HTTPException:
         raise
     except Exception as e:
@@ -309,7 +308,8 @@ async def delete(
         await session.commit()
 
         logger.info(f"Deleted vector store: {vector_store_id} and {file_count} files")
-    return {"id": vector_store_id, "object": "vector_store.deleted", "deleted": True}
+
+        return {"id": vector_store_id, "object": "vector_store.deleted", "deleted": True}
 
 
 @router.post("/{vector_store_id}/search")
@@ -344,13 +344,15 @@ async def search_store(
         query_blob = np.array(query_embedding, dtype=np.float32).tobytes()
         max_results = max(1, min(100, request.max_num_results))
 
-        # Vector search using cosine distance with sqlite-vec
+        # Vector search using cosine distance with sqlite-vec, joining to get VectorStoreFile attributes
         result = await search_session.execute(
             text("""
                 SELECT d.id, d.vector_store_id, d.file_id, d.chunk_index, d.content, d.meta, d.created_at,
-                       vec_distance_cosine(v.embedding, :query_vector) as distance
+                       vec_distance_cosine(v.embedding, :query_vector) as distance,
+                       vsf.attributes
                 FROM documents d
                 JOIN vec0 v ON d.id = v.document_id
+                LEFT JOIN vector_store_files vsf ON d.vector_store_file_id = vsf.id
                 WHERE d.vector_store_id = :vector_store_id
                 ORDER BY distance ASC, d.created_at DESC, d.id
                 LIMIT :max_results
@@ -377,8 +379,20 @@ async def search_store(
             )
 
             distance = row[7]
+            vsf_attributes = row[8]
+            if isinstance(vsf_attributes, str):
+                vsf_attributes = json.loads(vsf_attributes) if vsf_attributes else {}
+            elif not vsf_attributes:
+                vsf_attributes = {}
+
             similarity = 1.0 - distance
-            documents.append(DocumentSearchResult(document=doc, score=similarity))
+            documents.append(
+                DocumentSearchResult(
+                    document=doc,
+                    score=similarity,
+                    attributes=vsf_attributes,
+                )
+            )
 
     async def update_last_used() -> None:
         async with req.app.state.get_db_session() as session:
@@ -393,7 +407,11 @@ async def search_store(
     search_chunks = []
     for search_result in documents:
         meta = search_result.document.meta or {}
-        attributes = {k: v for k, v in meta.items() if k not in _INTERNAL_FIELDS}
+        # Use attributes from VectorStoreFile if available or extract from meta
+        if search_result.attributes:
+            attributes = search_result.attributes
+        else:
+            attributes = {k: v for k, v in meta.items() if k not in _INTERNAL_FIELDS}
 
         chunk = VectorSearchChunk(
             file_id=search_result.document.file_id,
