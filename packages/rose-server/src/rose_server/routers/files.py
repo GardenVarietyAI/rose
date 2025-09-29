@@ -153,20 +153,20 @@ async def create(
             await session.refresh(uploaded_file)
             logger.info(f"Created file {uploaded_file.id} with BLOB content, filename {uploaded_file.filename}")
 
-        await req.app.state.file_processing_queue.put(uploaded_file.id)
+            await req.app.state.file_processing_queue.put(uploaded_file.id)
 
-        # Return response without binary content to avoid serialization issues
-        return FileObject(
-            id=uploaded_file.id,
-            object="file",
-            bytes=uploaded_file.bytes,
-            created_at=uploaded_file.created_at,
-            filename=uploaded_file.filename,
-            purpose=uploaded_file.purpose,  # type: ignore
-            status="uploaded",
-            expires_at=uploaded_file.expires_at,
-            status_details=uploaded_file.status_details,
-        )
+            # Return response without binary content to avoid serialization issues
+            return FileObject(
+                id=uploaded_file.id,
+                object="file",
+                bytes=uploaded_file.bytes,
+                created_at=uploaded_file.created_at,
+                filename=uploaded_file.filename,
+                purpose=uploaded_file.purpose,  # type: ignore
+                status="uploaded",
+                expires_at=uploaded_file.expires_at,
+                status_details=uploaded_file.status_details,
+            )
     except Exception as e:
         logger.error(f"File upload error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -197,23 +197,23 @@ async def index(
         result = await session.execute(query)
         uploaded_files: Sequence[UploadedFile] = result.scalars().all()
 
-    return FileListResponse(
-        data=[
-            FileObject(
-                id=f.id,
-                object="file",
-                bytes=f.bytes,
-                created_at=f.created_at,
-                filename=f.filename,
-                purpose=f.purpose,  # type: ignore
-                status=f.status if f.status else "processed",  # type: ignore
-                expires_at=f.expires_at,
-                status_details=f.status_details,
-            )
-            for f in uploaded_files
-        ],
-        has_more=len(uploaded_files) == limit,
-    )
+        return FileListResponse(
+            data=[
+                FileObject(
+                    id=f.id,
+                    object="file",
+                    bytes=f.bytes,
+                    created_at=f.created_at,
+                    filename=f.filename,
+                    purpose=f.purpose,  # type: ignore
+                    status=f.status if f.status else "processed",  # type: ignore
+                    expires_at=f.expires_at,
+                    status_details=f.status_details,
+                )
+                for f in uploaded_files
+            ],
+            has_more=len(uploaded_files) == limit,
+        )
 
 
 @router.get("/files/{file_id}")
@@ -222,20 +222,20 @@ async def get(req: Request, file_id: str) -> FileObject:
         result = await session.execute(select(UploadedFile).where(UploadedFile.id == file_id))
         uploaded_file = result.scalar_one_or_none()
 
-    if not uploaded_file:
-        raise HTTPException(status_code=404, detail=f"File {file_id} not found")
+        if not uploaded_file:
+            raise HTTPException(status_code=404, detail=f"File {file_id} not found")
 
-    return FileObject(
-        id=uploaded_file.id,
-        object="file",
-        bytes=uploaded_file.bytes,
-        created_at=uploaded_file.created_at,
-        filename=uploaded_file.filename,
-        purpose=uploaded_file.purpose,
-        status=uploaded_file.status if uploaded_file.status else "processed",
-        expires_at=uploaded_file.expires_at,
-        status_details=uploaded_file.status_details,
-    )
+        return FileObject(
+            id=uploaded_file.id,
+            object="file",
+            bytes=uploaded_file.bytes,
+            created_at=uploaded_file.created_at,
+            filename=uploaded_file.filename,
+            purpose=uploaded_file.purpose,
+            status=uploaded_file.status if uploaded_file.status else "processed",
+            expires_at=uploaded_file.expires_at,
+            status_details=uploaded_file.status_details,
+        )
 
 
 @router.get("/files/{file_id}/content")
@@ -250,11 +250,11 @@ async def get_content(req: Request, file_id: str) -> Response:
         if file_obj.content is None:
             raise HTTPException(status_code=404, detail=f"File {file_id} content not found")
 
-    return Response(
-        content=file_obj.content,
-        media_type="application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{file_obj.filename}"'},
-    )
+        return Response(
+            content=file_obj.content,
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": f'attachment; filename="{file_obj.filename}"'},
+        )
 
 
 @router.delete("/files/{file_id}")
@@ -269,4 +269,4 @@ async def remove(req: Request, file_id: str) -> FileDeleted:
         await session.commit()
         logger.info(f"Deleted file {file_id}")
 
-    return FileDeleted(id=file_id, object="file", deleted=True)
+        return FileDeleted(id=file_id, object="file", deleted=True)
