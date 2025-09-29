@@ -69,3 +69,4 @@ class DocumentSearchResult(SQLModel):
 
     document: Document
     score: float  # Raw distance from sqlite-vec
+    attributes: Optional[Dict[str, Union[str, float, bool]]] = None
