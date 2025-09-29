@@ -50,7 +50,7 @@ async def create(
         async with req.app.state.get_db_session() as session:
             await session.execute(
                 insert(VectorStoreFileEntity)
-                .values(vector_store_id=vector_store_id, file_id=request.file_id)
+                .values(vector_store_id=vector_store_id, file_id=request.file_id, attributes=request.attributes)
                 .on_conflict_do_nothing(
                     index_elements=[
                         VectorStoreFileEntity.vector_store_id,
@@ -77,6 +77,7 @@ async def create(
             vector_store_id=vector_store_file.vector_store_id,
             status=vector_store_file.status,
             created_at=vector_store_file.created_at,
+            attributes=vector_store_file.attributes,
         )
     except (VectorStoreNotFoundError, FileNotFoundError) as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -126,6 +127,7 @@ async def list_files(
                     status=f.status,
                     created_at=f.created_at,
                     last_error=f.last_error,
+                    attributes=f.attributes,
                 )
                 for f in files
             ]
@@ -163,6 +165,7 @@ async def retrieve_file(
                 status=vsf.status,
                 created_at=vsf.created_at,
                 last_error=vsf.last_error,
+                attributes=vsf.attributes,
             )
 
     except HTTPException:

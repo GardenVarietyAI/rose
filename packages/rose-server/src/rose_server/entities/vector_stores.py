@@ -2,7 +2,7 @@
 
 import time
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from sqlalchemy import JSON, Column, Index, UniqueConstraint
 from sqlmodel import Field, SQLModel
@@ -54,6 +54,7 @@ class VectorStoreFile(SQLModel, table=True):
     status: str = Field(default="in_progress")
     created_at: int = Field(default_factory=lambda: int(time.time()))
     last_error: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
+    attributes: Optional[Dict[str, Union[str, float, bool]]] = Field(default=None, sa_column=Column(JSON))
 
     __table_args__ = (
         UniqueConstraint("vector_store_id", "file_id", name="idx_vector_store_files_unique"),
