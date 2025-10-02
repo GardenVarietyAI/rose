@@ -96,6 +96,9 @@ async def create(
                 status="processed",
                 expires_at=uploaded_file.expires_at,
             )
+    except HTTPException:
+        # Re-raise to preserve status codes
+        raise
     except Exception as e:
         logger.error(f"File upload error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
