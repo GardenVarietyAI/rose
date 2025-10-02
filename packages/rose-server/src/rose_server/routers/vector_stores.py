@@ -2,10 +2,10 @@ import hashlib
 import json
 import logging
 import time
+from array import array
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
-import numpy as np
 from chonkie import TokenChunker
 from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Path, Request
 from rose_server.entities.files import UploadedFile
@@ -170,9 +170,8 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
                         },
                     )
                     documents.append(doc)
-                    embedding_records.append(
-                        {"doc_id": doc.id, "embedding": np.array(embedding, dtype=np.float32).tobytes()}
-                    )
+                    embedding_bytes = array("f", embedding).tobytes()
+                    embedding_records.append({"doc_id": doc.id, "embedding": embedding_bytes})
 
                 session.add_all(documents)
 
@@ -369,7 +368,7 @@ async def search_store(
                 f"Query vector dimension mismatch: got {got_dim}, expected {vector_store_check.dimensions}",
             )
 
-        query_blob = np.array(query_embedding, dtype=np.float32).tobytes()
+        query_blob = array("f", query_embedding).tobytes()
         max_results = max(1, min(100, request.max_num_results))
 
         # Vector search using cosine distance with sqlite-vec, joining to get VectorStoreFile attributes
