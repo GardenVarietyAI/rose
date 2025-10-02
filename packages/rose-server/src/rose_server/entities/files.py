@@ -18,10 +18,6 @@ class UploadedFile(SQLModel, table=True):
     expires_at: Optional[int] = Field(default=None, description="Unix timestamp when file expires")
     filename: str = Field(description="Name of the file")
     purpose: str = Field(description="assistants, assistants_output, batch, batch_output, fine-tune, fine-tune-results")
-    # deprecated
-    status: Optional[str] = Field(default="processing", description="Deprecated. Status: uploaded, processed, or error")
-    # deprecated
-    status_details: Optional[str] = Field(default=None, description="Deprecated. Details on validation errors")
     # todo: remove this column
     storage_path: Optional[str] = Field(default=None, description="Internal storage path relative to uploads directory")
     content: Any = Field(default=None, sa_column=Column(LargeBinary), description="File content stored as BLOB (bytes)")

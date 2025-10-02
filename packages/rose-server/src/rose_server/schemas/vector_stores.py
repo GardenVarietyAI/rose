@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -82,6 +82,7 @@ class VectorSearchResult(BaseModel):
 class VectorStoreFileCreate(BaseModel):
     file_id: str
     chunking_strategy: Optional[ChunkingStrategy] = None
+    attributes: Optional[Dict[str, Union[str, float, bool]]] = None
 
 
 class VectorStoreFile(BaseModel):
@@ -91,6 +92,7 @@ class VectorStoreFile(BaseModel):
     status: str
     created_at: int
     last_error: Optional[Dict[str, Any]] = None
+    attributes: Optional[Dict[str, Union[str, float, bool]]] = None
 
 
 class VectorStoreFileList(BaseModel):

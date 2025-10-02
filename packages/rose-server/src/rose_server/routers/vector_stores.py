@@ -1,12 +1,13 @@
+import hashlib
 import json
 import logging
 import time
+from array import array
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
-import numpy as np
+from chonkie import TokenChunker
 from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Path, Request
-from rose_server.entities.file_chunks import FileChunk
 from rose_server.entities.files import UploadedFile
 from rose_server.entities.vector_stores import Document, DocumentSearchResult, VectorStore, VectorStoreFile
 from rose_server.schemas.vector_stores import (
@@ -99,13 +100,15 @@ async def index(req: Request) -> VectorStoreList:
 
 
 async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: list[str]) -> None:
+    MAX_EMBEDDING_BATCH_SIZE = 10
+
     async with app.state.get_db_session() as session:
         files_result = await session.execute(select(UploadedFile).where(col(UploadedFile.id).in_(file_ids)))
         files = list(files_result.scalars().all())
 
         for uploaded_file in files:
-            if uploaded_file.status != "processed":
-                logger.warning(f"File {uploaded_file.id} not yet processed (status: {uploaded_file.status})")
+            if not uploaded_file.content:
+                logger.warning(f"File {uploaded_file.id} has no content")
                 await session.execute(
                     sql_update(VectorStoreFile)
                     .where(
@@ -114,7 +117,7 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
                     )
                     .values(
                         status="failed",
-                        last_error={"message": f"Failed on file status: {uploaded_file.status}. Retry again later."},
+                        last_error={"message": "File has no content"},
                     )
                 )
                 continue
@@ -123,33 +126,58 @@ async def _process_vector_store_files(app: Any, vector_store_id: str, file_ids: 
                 if not vsf:  # Already completed
                     continue
 
-                chunks_result = await session.execute(
-                    select(FileChunk).where(FileChunk.file_id == uploaded_file.id).order_by(col(FileChunk.chunk_index))
+                try:
+                    text_content = uploaded_file.content.decode("utf-8")
+                    decode_errors = False
+                except UnicodeDecodeError:
+                    text_content = uploaded_file.content.decode("utf-8", errors="replace")
+                    decode_errors = True
+
+                chunker = TokenChunker(
+                    chunk_size=app.state.settings.default_chunk_size,
+                    chunk_overlap=app.state.settings.default_chunk_overlap,
+                    tokenizer=app.state.embedding_tokenizer,
                 )
-                file_chunks = list(chunks_result.scalars().all())
+                chunks = chunker.chunk(text_content)
+
+                if not chunks:
+                    raise ValueError(f"No chunks generated from file {uploaded_file.id}")
+
+                texts = [chunk.text for chunk in chunks]
+
+                embeddings = []
+                for i in range(0, len(texts), MAX_EMBEDDING_BATCH_SIZE):
+                    batch_texts = texts[i : i + MAX_EMBEDDING_BATCH_SIZE]
+                    batch_embeddings, _ = await app.state.embedding_model.encode_batch(batch_texts)
+                    embeddings.extend(batch_embeddings)
 
                 documents = []
-                embeddings = []
-                for chunk in file_chunks:
+                embedding_records = []
+                for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+                    content_hash = hashlib.sha256(chunk.text.encode()).hexdigest()
                     doc = Document(
                         vector_store_id=vector_store_id,
                         file_id=uploaded_file.id,
-                        chunk_index=chunk.chunk_index,
-                        content=chunk.content,
-                        content_hash=chunk.content_hash,
+                        vector_store_file_id=vsf.id,
+                        chunk_index=i,
+                        content=chunk.text,
+                        content_hash=content_hash,
                         meta={
                             "filename": uploaded_file.filename,
-                            **(chunk.meta or {}),
+                            "start_index": chunk.start_index,
+                            "end_index": chunk.end_index,
+                            "decode_errors": decode_errors,
                         },
                     )
                     documents.append(doc)
-                    embeddings.append({"doc_id": doc.id, "embedding": chunk.embedding})
+                    embedding_bytes = array("f", embedding).tobytes()
+                    embedding_records.append({"doc_id": doc.id, "embedding": embedding_bytes})
 
                 session.add_all(documents)
 
                 await session.execute(
                     text("INSERT OR REPLACE INTO vec0 (document_id, embedding) VALUES (:doc_id, :embedding)"),
-                    embeddings,
+                    embedding_records,
                 )
 
                 logger.info(
@@ -193,17 +221,16 @@ async def create(
                         raise HTTPException(status_code=404, detail=f"Uploaded file {file_id} not found")
 
             async with req.app.state.get_db_session() as session:
-                for file_id in request.file_ids:
-                    await session.execute(
-                        insert(VectorStoreFile)
-                        .values(vector_store_id=vector_store.id, file_id=file_id)
-                        .on_conflict_do_nothing(
-                            index_elements=[
-                                VectorStoreFile.vector_store_id,
-                                VectorStoreFile.file_id,
-                            ]
-                        )
+                await session.execute(
+                    insert(VectorStoreFile)
+                    .values([{"vector_store_id": vector_store.id, "file_id": file_id} for file_id in request.file_ids])
+                    .on_conflict_do_nothing(
+                        index_elements=[
+                            VectorStoreFile.vector_store_id,
+                            VectorStoreFile.file_id,
+                        ]
                     )
+                )
                 await session.commit()
 
             background_tasks.add_task(_process_vector_store_files, req.app, vector_store.id, request.file_ids)
@@ -230,16 +257,16 @@ async def get(
     try:
         async with req.app.state.get_db_session(read_only=True) as session:
             vector_store = await session.get(VectorStore, vector_store_id)
-        if not vector_store:
-            raise HTTPException(status_code=404, detail=f"Vector store {vector_store_id} not found")
+            if not vector_store:
+                raise HTTPException(status_code=404, detail=f"Vector store {vector_store_id} not found")
 
-        return VectorStoreMetadata(
-            id=vector_store.id,
-            name=vector_store.name,
-            dimensions=vector_store.dimensions,
-            metadata=vector_store.meta or {},
-            created_at=vector_store.created_at,
-        )
+            return VectorStoreMetadata(
+                id=vector_store.id,
+                name=vector_store.name,
+                dimensions=vector_store.dimensions,
+                metadata=vector_store.meta or {},
+                created_at=vector_store.created_at,
+            )
     except HTTPException:
         raise
     except Exception as e:
@@ -271,15 +298,15 @@ async def update(
             await session.flush()
             await session.refresh(vector_store)
 
-        logger.info(f"Updated vector store {vector_store_id}")
+            logger.info(f"Updated vector store {vector_store_id}")
 
-        return VectorStoreMetadata(
-            id=vector_store_id,
-            name=vector_store.name,
-            dimensions=vector_store.dimensions,
-            metadata=vector_store.meta or {},
-            created_at=vector_store.created_at,
-        )
+            return VectorStoreMetadata(
+                id=vector_store_id,
+                name=vector_store.name,
+                dimensions=vector_store.dimensions,
+                metadata=vector_store.meta or {},
+                created_at=vector_store.created_at,
+            )
     except HTTPException:
         raise
     except Exception as e:
@@ -308,7 +335,8 @@ async def delete(
         await session.commit()
 
         logger.info(f"Deleted vector store: {vector_store_id} and {file_count} files")
-    return {"id": vector_store_id, "object": "vector_store.deleted", "deleted": True}
+
+        return {"id": vector_store_id, "object": "vector_store.deleted", "deleted": True}
 
 
 @router.post("/{vector_store_id}/search")
@@ -340,16 +368,18 @@ async def search_store(
                 f"Query vector dimension mismatch: got {got_dim}, expected {vector_store_check.dimensions}",
             )
 
-        query_blob = np.array(query_embedding, dtype=np.float32).tobytes()
+        query_blob = array("f", query_embedding).tobytes()
         max_results = max(1, min(100, request.max_num_results))
 
-        # Vector search using cosine distance with sqlite-vec
+        # Vector search using cosine distance with sqlite-vec, joining to get VectorStoreFile attributes
         result = await search_session.execute(
             text("""
                 SELECT d.id, d.vector_store_id, d.file_id, d.chunk_index, d.content, d.meta, d.created_at,
-                       vec_distance_cosine(v.embedding, :query_vector) as distance
+                       vec_distance_cosine(v.embedding, :query_vector) as distance,
+                       vsf.attributes
                 FROM documents d
                 JOIN vec0 v ON d.id = v.document_id
+                LEFT JOIN vector_store_files vsf ON d.vector_store_file_id = vsf.id
                 WHERE d.vector_store_id = :vector_store_id
                 ORDER BY distance ASC, d.created_at DESC, d.id
                 LIMIT :max_results
@@ -376,8 +406,20 @@ async def search_store(
             )
 
             distance = row[7]
+            vsf_attributes = row[8]
+            if isinstance(vsf_attributes, str):
+                vsf_attributes = json.loads(vsf_attributes) if vsf_attributes else {}
+            elif not vsf_attributes:
+                vsf_attributes = {}
+
             similarity = 1.0 - distance
-            documents.append(DocumentSearchResult(document=doc, score=similarity))
+            documents.append(
+                DocumentSearchResult(
+                    document=doc,
+                    score=similarity,
+                    attributes=vsf_attributes,
+                )
+            )
 
     async def update_last_used() -> None:
         async with req.app.state.get_db_session() as session:
@@ -392,7 +434,11 @@ async def search_store(
     search_chunks = []
     for search_result in documents:
         meta = search_result.document.meta or {}
-        attributes = {k: v for k, v in meta.items() if k not in _INTERNAL_FIELDS}
+        # Use attributes from VectorStoreFile if available or extract from meta
+        if search_result.attributes:
+            attributes = search_result.attributes
+        else:
+            attributes = {k: v for k, v in meta.items() if k not in _INTERNAL_FIELDS}
 
         chunk = VectorSearchChunk(
             file_id=search_result.document.file_id,

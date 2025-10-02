@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     # Inference settings
     inference_timeout: int = Field(default=300, description="Inference timeout in seconds")
-    max_concurrent_inference: int = Field(default=10, description="Maximum concurrent inference requests")
+    max_concurrent_inference: int = Field(default=1, description="Maximum concurrent inference requests")
 
     # Vector store settings
     default_chunk_size: int = Field(default=512, description="Default chunk size in tokens for document chunking")

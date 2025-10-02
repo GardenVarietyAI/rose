@@ -1,5 +1,6 @@
 # mypy: ignore-errors
 
+
 import pytest
 from fastapi.testclient import TestClient
 from rose_server import database
@@ -44,6 +45,7 @@ async def test_db():
 @pytest.fixture
 def client(test_db):
     """Create test client with in-memory database."""
+
     from rose_server.app import create_app, get_embedding_model, get_tokenizer
     from rose_server.settings import Settings
     from starlette.routing import _DefaultLifespan
