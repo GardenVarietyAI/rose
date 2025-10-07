@@ -25,10 +25,10 @@ pyo3 = { version = "0.26.0", features = ["extension-module"] }
 pyo3-async-runtimes = { version = "0.26.0", features = ["tokio-runtime"] }
 pythonize = "0.26"
 tokio = { version = "1.47", features = ["rt-multi-thread", "macros", "sync"] }
-candle-core = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "5a1c95b753a51cd992a6a511d56838c0a34daafe", default-features = false }
-candle-nn = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "5a1c95b753a51cd992a6a511d56838c0a34daafe" }
-candle-transformers = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "5a1c95b753a51cd992a6a511d56838c0a34daafe" }
-candle-lora = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "5a1c95b753a51cd992a6a511d56838c0a34daafe" }
+candle-core = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "b06c09e55f707a998ec2a9e2e919d2b63dd0e538", default-features = false }
+candle-nn = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "b06c09e55f707a998ec2a9e2e919d2b63dd0e538" }
+candle-transformers = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "b06c09e55f707a998ec2a9e2e919d2b63dd0e538" }
+candle-lora = { git = "https://github.com/GardenVarietyAI/candle.git", rev = "b06c09e55f707a998ec2a9e2e919d2b63dd0e538" }
 tokenizers = { version = "0.21", features = ["http"] }
 safetensors = "0.4"
 anyhow = "1"

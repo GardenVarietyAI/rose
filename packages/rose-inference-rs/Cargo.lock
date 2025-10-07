@@ -212,13 +212,13 @@ checksum = "d71b6127be86fdcfddb610f7182ac57211d4b18a3e9c82eb2d17662f2227ad6a"
 [[package]]
 name = "candle-core"
 version = "0.9.1"
-source = "git+https://github.com/GardenVarietyAI/candle.git?rev=5a1c95b753a51cd992a6a511d56838c0a34daafe#5a1c95b753a51cd992a6a511d56838c0a34daafe"
+source = "git+https://github.com/GardenVarietyAI/candle.git?rev=b06c09e55f707a998ec2a9e2e919d2b63dd0e538#b06c09e55f707a998ec2a9e2e919d2b63dd0e538"
 dependencies = [
  "accelerate-src",
  "byteorder",
  "candle-kernels",
  "candle-metal-kernels",
- "cudarc 0.17.3",
+ "cudarc",
  "float8 0.4.2",
  "gemm 0.17.1",
  "half",
@@ -244,7 +244,7 @@ dependencies = [
 [[package]]
 name = "candle-kernels"
 version = "0.9.1"
-source = "git+https://github.com/GardenVarietyAI/candle.git?rev=5a1c95b753a51cd992a6a511d56838c0a34daafe#5a1c95b753a51cd992a6a511d56838c0a34daafe"
+source = "git+https://github.com/GardenVarietyAI/candle.git?rev=b06c09e55f707a998ec2a9e2e919d2b63dd0e538#b06c09e55f707a998ec2a9e2e919d2b63dd0e538"
 dependencies = [
  "bindgen_cuda",
 ]
@@ -252,7 +252,7 @@ dependencies = [
 [[package]]
 name = "candle-lora"
 version = "0.9.1"
-source = "git+https://github.com/GardenVarietyAI/candle.git?rev=5a1c95b753a51cd992a6a511d56838c0a34daafe#5a1c95b753a51cd992a6a511d56838c0a34daafe"
+source = "git+https://github.com/GardenVarietyAI/candle.git?rev=b06c09e55f707a998ec2a9e2e919d2b63dd0e538#b06c09e55f707a998ec2a9e2e919d2b63dd0e538"
 dependencies = [
  "candle-core",
  "candle-nn",
@@ -263,7 +263,7 @@ dependencies = [
 [[package]]
 name = "candle-metal-kernels"
 version = "0.9.1"
-source = "git+https://github.com/GardenVarietyAI/candle.git?rev=5a1c95b753a51cd992a6a511d56838c0a34daafe#5a1c95b753a51cd992a6a511d56838c0a34daafe"
+source = "git+https://github.com/GardenVarietyAI/candle.git?rev=b06c09e55f707a998ec2a9e2e919d2b63dd0e538#b06c09e55f707a998ec2a9e2e919d2b63dd0e538"
 dependencies = [
  "half",
  "objc2",
@@ -277,7 +277,7 @@ dependencies = [
 [[package]]
 name = "candle-nn"
 version = "0.9.1"
-source = "git+https://github.com/GardenVarietyAI/candle.git?rev=5a1c95b753a51cd992a6a511d56838c0a34daafe#5a1c95b753a51cd992a6a511d56838c0a34daafe"
+source = "git+https://github.com/GardenVarietyAI/candle.git?rev=b06c09e55f707a998ec2a9e2e919d2b63dd0e538#b06c09e55f707a998ec2a9e2e919d2b63dd0e538"
 dependencies = [
  "candle-core",
  "candle-metal-kernels",
@@ -294,7 +294,7 @@ dependencies = [
 [[package]]
 name = "candle-transformers"
 version = "0.9.1"
-source = "git+https://github.com/GardenVarietyAI/candle.git?rev=5a1c95b753a51cd992a6a511d56838c0a34daafe#5a1c95b753a51cd992a6a511d56838c0a34daafe"
+source = "git+https://github.com/GardenVarietyAI/candle.git?rev=b06c09e55f707a998ec2a9e2e919d2b63dd0e538#b06c09e55f707a998ec2a9e2e919d2b63dd0e538"
 dependencies = [
  "byteorder",
  "candle-core",
@@ -459,16 +459,6 @@ checksum = "1bfb12502f3fc46cca1bb51ac28df9d618d813cdc3d2f25b9fe775a34af26bb3"
 dependencies = [
  "generic-array",
  "typenum",
-]
-
-[[package]]
-name = "cudarc"
-version = "0.16.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17200eb07e7d85a243aa1bf4569a7aa998385ba98d14833973a817a63cc86e92"
-dependencies = [
- "half",
- "libloading",
 ]
 
 [[package]]
@@ -763,7 +753,7 @@ version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4203231de188ebbdfb85c11f3c20ca2b063945710de04e7b59268731e728b462"
 dependencies = [
- "cudarc 0.17.3",
+ "cudarc",
  "half",
  "num-traits",
  "rand",
@@ -2889,9 +2879,9 @@ checksum = "1dccffe3ce07af9386bfd29e80c0ab1a8205a2fc34e4bcd40364df902cfa8f3f"
 
 [[package]]
 name = "ug"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90b70b37e9074642bc5f60bb23247fd072a84314ca9e71cdf8527593406a0dd3"
+checksum = "76b761acf8af3494640d826a8609e2265e19778fb43306c7f15379c78c9b05b0"
 dependencies = [
  "gemm 0.18.2",
  "half",
@@ -2910,11 +2900,11 @@ dependencies = [
 
 [[package]]
 name = "ug-cuda"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14053653d0b7fa7b21015aa9a62edc8af2f60aa6f9c54e66386ecce55f22ed29"
+checksum = "9f0a1fa748f26166778c33b8498255ebb7c6bffb472bcc0a72839e07ebb1d9b5"
 dependencies = [
- "cudarc 0.16.6",
+ "cudarc",
  "half",
  "serde",
  "thiserror 1.0.69",
@@ -2923,9 +2913,9 @@ dependencies = [
 
 [[package]]
 name = "ug-metal"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76daec3c7a32a1b4a0e3307b6b057fa067aa64e750713987410a2c402e5cd731"
+checksum = "9f7adf545a99a086d362efc739e7cf4317c18cbeda22706000fd434d70ea3d95"
 dependencies = [
  "half",
  "metal",
