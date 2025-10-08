@@ -10,7 +10,7 @@ crate-type = ["cdylib", "rlib"]
 [features]
 default = []
 python = ["pyo3/extension-module", "pyo3-async-runtimes/tokio-runtime"]
-cuda = ["candle-core/cuda", "candle-lora/cuda"]
+cuda = ["candle-core/cuda", "candle-nn/cuda", "candle-lora/cuda"]
 metal = [
   "candle-core/metal",
   "candle-nn/metal",
