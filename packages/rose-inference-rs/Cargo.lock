@@ -212,14 +212,14 @@ checksum = "d71b6127be86fdcfddb610f7182ac57211d4b18a3e9c82eb2d17662f2227ad6a"
 [[package]]
 name = "candle-core"
 version = "0.9.1"
-source = "git+https://github.com/GardenVarietyAI/candle.git?rev=89bbf72532dc90c01d3e329992a7a38d6cc64553#89bbf72532dc90c01d3e329992a7a38d6cc64553"
+source = "git+https://github.com/GardenVarietyAI/candle.git?rev=b06c09e55f707a998ec2a9e2e919d2b63dd0e538#b06c09e55f707a998ec2a9e2e919d2b63dd0e538"
 dependencies = [
  "accelerate-src",
  "byteorder",
  "candle-kernels",
  "candle-metal-kernels",
  "cudarc",
- "float8",
+ "float8 0.4.2",
  "gemm 0.17.1",
  "half",
  "intel-mkl-src",
@@ -244,7 +244,7 @@ dependencies = [
 [[package]]
 name = "candle-kernels"
 version = "0.9.1"
-source = "git+https://github.com/GardenVarietyAI/candle.git?rev=89bbf72532dc90c01d3e329992a7a38d6cc64553#89bbf72532dc90c01d3e329992a7a38d6cc64553"
+source = "git+https://github.com/GardenVarietyAI/candle.git?rev=b06c09e55f707a998ec2a9e2e919d2b63dd0e538#b06c09e55f707a998ec2a9e2e919d2b63dd0e538"
 dependencies = [
  "bindgen_cuda",
 ]
@@ -252,7 +252,7 @@ dependencies = [
 [[package]]
 name = "candle-lora"
 version = "0.9.1"
-source = "git+https://github.com/GardenVarietyAI/candle.git?rev=89bbf72532dc90c01d3e329992a7a38d6cc64553#89bbf72532dc90c01d3e329992a7a38d6cc64553"
+source = "git+https://github.com/GardenVarietyAI/candle.git?rev=b06c09e55f707a998ec2a9e2e919d2b63dd0e538#b06c09e55f707a998ec2a9e2e919d2b63dd0e538"
 dependencies = [
  "candle-core",
  "candle-nn",
@@ -263,7 +263,7 @@ dependencies = [
 [[package]]
 name = "candle-metal-kernels"
 version = "0.9.1"
-source = "git+https://github.com/GardenVarietyAI/candle.git?rev=89bbf72532dc90c01d3e329992a7a38d6cc64553#89bbf72532dc90c01d3e329992a7a38d6cc64553"
+source = "git+https://github.com/GardenVarietyAI/candle.git?rev=b06c09e55f707a998ec2a9e2e919d2b63dd0e538#b06c09e55f707a998ec2a9e2e919d2b63dd0e538"
 dependencies = [
  "half",
  "objc2",
@@ -277,7 +277,7 @@ dependencies = [
 [[package]]
 name = "candle-nn"
 version = "0.9.1"
-source = "git+https://github.com/GardenVarietyAI/candle.git?rev=89bbf72532dc90c01d3e329992a7a38d6cc64553#89bbf72532dc90c01d3e329992a7a38d6cc64553"
+source = "git+https://github.com/GardenVarietyAI/candle.git?rev=b06c09e55f707a998ec2a9e2e919d2b63dd0e538#b06c09e55f707a998ec2a9e2e919d2b63dd0e538"
 dependencies = [
  "candle-core",
  "candle-metal-kernels",
@@ -294,7 +294,7 @@ dependencies = [
 [[package]]
 name = "candle-transformers"
 version = "0.9.1"
-source = "git+https://github.com/GardenVarietyAI/candle.git?rev=89bbf72532dc90c01d3e329992a7a38d6cc64553#89bbf72532dc90c01d3e329992a7a38d6cc64553"
+source = "git+https://github.com/GardenVarietyAI/candle.git?rev=b06c09e55f707a998ec2a9e2e919d2b63dd0e538#b06c09e55f707a998ec2a9e2e919d2b63dd0e538"
 dependencies = [
  "byteorder",
  "candle-core",
@@ -463,10 +463,11 @@ dependencies = [
 
 [[package]]
 name = "cudarc"
-version = "0.16.6"
+version = "0.17.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17200eb07e7d85a243aa1bf4569a7aa998385ba98d14833973a817a63cc86e92"
+checksum = "72ba848ae5c6f3cb36e71eab5f268763e3fabcabe3f7bc683e16f7fa3d46281e"
 dependencies = [
+ "float8 0.3.0",
  "half",
  "libloading",
 ]
@@ -739,8 +740,18 @@ dependencies = [
 
 [[package]]
 name = "float8"
-version = "0.2.1"
-source = "git+https://github.com/zackangelo/float8?branch=cudarc_0_16#03c1f5fe7cdb2f9cb690823fdd40593be57c408f"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f498aec3b227cd892ce18967f4033d9d397d28a80a7ab67e9f6b0176a79654e"
+dependencies = [
+ "half",
+]
+
+[[package]]
+name = "float8"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4203231de188ebbdfb85c11f3c20ca2b063945710de04e7b59268731e728b462"
 dependencies = [
  "cudarc",
  "half",
@@ -2868,9 +2879,9 @@ checksum = "1dccffe3ce07af9386bfd29e80c0ab1a8205a2fc34e4bcd40364df902cfa8f3f"
 
 [[package]]
 name = "ug"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90b70b37e9074642bc5f60bb23247fd072a84314ca9e71cdf8527593406a0dd3"
+checksum = "76b761acf8af3494640d826a8609e2265e19778fb43306c7f15379c78c9b05b0"
 dependencies = [
  "gemm 0.18.2",
  "half",
@@ -2889,9 +2900,9 @@ dependencies = [
 
 [[package]]
 name = "ug-cuda"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14053653d0b7fa7b21015aa9a62edc8af2f60aa6f9c54e66386ecce55f22ed29"
+checksum = "9f0a1fa748f26166778c33b8498255ebb7c6bffb472bcc0a72839e07ebb1d9b5"
 dependencies = [
  "cudarc",
  "half",
@@ -2902,9 +2913,9 @@ dependencies = [
 
 [[package]]
 name = "ug-metal"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76daec3c7a32a1b4a0e3307b6b057fa067aa64e750713987410a2c402e5cd731"
+checksum = "9f7adf545a99a086d362efc739e7cf4317c18cbeda22706000fd434d70ea3d95"
 dependencies = [
  "half",
  "metal",

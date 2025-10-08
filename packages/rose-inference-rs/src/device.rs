@@ -37,13 +37,25 @@ impl DeviceConfig {
                 }
             }
             _ => {
-                // Auto selection: try Metal first, then CPU
-                if let Ok(d) = Device::new_metal(0) {
-                    tracing::info!("Auto-selected Metal device");
-                    d
-                } else {
-                    tracing::info!("Metal not available, using CPU device");
-                    Device::Cpu
+                match Device::new_cuda(0) {
+                    Ok(d) => {
+                        tracing::info!("Auto-selected CUDA device");
+                        d
+                    }
+                    Err(cuda_err) => {
+                        tracing::warn!("CUDA device not available: {:?}", cuda_err);
+                        match Device::new_metal(0) {
+                            Ok(d) => {
+                                tracing::info!("Auto-selected Metal device");
+                                d
+                            }
+                            Err(metal_err) => {
+                                tracing::warn!("Metal device not available: {:?}", metal_err);
+                                tracing::info!("Falling back to CPU device");
+                                Device::Cpu
+                            }
+                        }
+                    }
                 }
             }
         };
