@@ -84,15 +84,15 @@ impl DeviceConfig {
                 kv_cache_dtype: DType::F32,
             },
             Device::Cuda(_) => {
-                // All modern CUDA GPUs support F16, force it instead of F32
-                // F32 doesn't have CUDA kernels for some ops like RMS-norm
                 let weights = if has_bf16 {
                     DType::BF16
-                } else {
+                } else if has_f16 {
                     DType::F16
+                } else {
+                    DType::F32
                 };
-                let compute = DType::F16;
-                let kv = DType::F16;
+                let compute = if has_f16 { DType::F16 } else { DType::F32 };
+                let kv = if has_f16 { DType::F16 } else { DType::F32 };
                 Self {
                     device: device.clone(),
                     weights_dtype: weights,
