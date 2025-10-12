@@ -64,7 +64,7 @@ uv sync --no-dev
 
 ```bash
 # Set up the database schema using dbmate
-cp env.example .env
+cp .env.example .env
 mkdir -p data
 dbmate --no-dump-schema up
 ```
@@ -76,6 +76,13 @@ mise dev
 
 # For metal support instead of CPU
 mise dev-metal
+```
+
+### Build the Frontend
+
+```bash
+cd packages/rose-web/src/rose_web/frontend 
+npm i && npm run build
 ```
 
 ### Download a Model
@@ -106,6 +113,7 @@ uv run rose models download QuantFactory--Qwen3-Reranker-0.6B-GGUF
 ```bash
 uv run rose-server --port 8004
 uv run rose-trainer
+uv run rose-web
 ```
 
 ### Start a chat
@@ -120,7 +128,7 @@ uv run rose chat --model Qwen/Qwen3-1.7B
 Add a `~/.codex/config.toml` and then add Rose as a provider
 
 ```
-# Recall that in TOML, root keys must be listed before tables.
+# Root keys must be listed before tables.
 model = "Qwen--Qwen3-1.7B-GGUF"
 model_provider = "rose"
 experimental_instructions_file = "PATH/TO/rose/codex.md"
