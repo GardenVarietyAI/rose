@@ -51,6 +51,7 @@ class ResponsesFormatter:
                 "type": "response.output_item.done",
                 "output_index": len(self.tool_calls) - 1,
                 "item": {
+                    "id": event.call_id,
                     "type": "function_call",
                     "role": "assistant",
                     "name": event.function_name,
@@ -91,7 +92,7 @@ class ResponsesFormatter:
         # Format function calls as separate items
         for tool_call in self.tool_calls:
             function_item = {
-                "id": f"fc_{uuid.uuid4().hex[:12]}",
+                "id": tool_call["id"],
                 "call_id": tool_call["id"],
                 "type": "function_call",
                 "role": "assistant",
@@ -172,7 +173,7 @@ class ResponsesFormatter:
         # Add tool calls if any
         for tool_event in tool_events:
             function_item = {
-                "id": f"fc_{uuid.uuid4().hex[:12]}",
+                "id": tool_event.call_id,
                 "call_id": tool_event.call_id,
                 "type": "function_call",
                 "role": "assistant",
