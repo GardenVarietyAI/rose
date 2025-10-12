@@ -363,6 +363,7 @@ async def create_response(
                 chain_id=chain_id,
             ):
                 metrics.process_event(event)
+                formatter.format_event(event)
                 all_events.append(event)
 
             complete_response = formatter.format_complete_response(all_events)
