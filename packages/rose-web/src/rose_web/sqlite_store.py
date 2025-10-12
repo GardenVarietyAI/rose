@@ -105,7 +105,10 @@ class SQLiteStore(Store[Any]):
             query = select(Thread)
 
             if after:
-                query = query.where(col(Thread.id) > after)
+                if order == "asc":
+                    query = query.where(col(Thread.id) > after)
+                else:
+                    query = query.where(col(Thread.id) < after)
 
             query = query.order_by(asc(Thread.id) if order == "asc" else desc(Thread.id)).limit(limit + 1)
 
@@ -129,7 +132,10 @@ class SQLiteStore(Store[Any]):
             query = select(ThreadItemEntity).where(col(ThreadItemEntity.thread_id) == thread_id)
 
             if after:
-                query = query.where(col(ThreadItemEntity.id) > after)
+                if order == "asc":
+                    query = query.where(col(ThreadItemEntity.id) > after)
+                else:
+                    query = query.where(col(ThreadItemEntity.id) < after)
 
             query = query.order_by(asc(ThreadItemEntity.id) if order == "asc" else desc(ThreadItemEntity.id)).limit(
                 limit + 1
