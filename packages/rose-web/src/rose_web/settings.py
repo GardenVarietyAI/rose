@@ -8,7 +8,7 @@ class Settings:
     port: int = 8005
     openai_api_url: str = "http://localhost:8004/v1"
     openai_api_key: str = "sk-dummykey"
-    default_model: str = "Qwen--Qwen3-1.7B-GGUF"
+    default_model: str = "Qwen--Qwen3-4B-GGUF"
     data_dir: str = "./data"
 
 
