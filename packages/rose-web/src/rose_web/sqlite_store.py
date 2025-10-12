@@ -1,3 +1,4 @@
+import json
 from typing import Any
 from uuid import uuid4
 
@@ -59,7 +60,7 @@ class SQLiteStore(Store[Any]):
             attachment_with_data["preview_url"] = str(attachment.preview_url)
 
         async with self.session_maker() as session:
-            entity = AttachmentEntity(id=attachment_id, data=str(attachment_with_data))
+            entity = AttachmentEntity(id=attachment_id, data=json.dumps(attachment_with_data))
             session.add(entity)
             await session.commit()
 
