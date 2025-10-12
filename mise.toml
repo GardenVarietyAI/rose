@@ -5,6 +5,10 @@ uv = "0.8.3"
 dbmate = "2.22.0"
 "ubi:benbjohnson/litestream" = "0.3.13"
 sqlite = "3.50.4"
+node = "22.19.0"
+
+[env]
+MISE_NODE_COREPACK = "1"
 
 [tasks]
 backup = "litestream replicate -config ./litestream.yml"
