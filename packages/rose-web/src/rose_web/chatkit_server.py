@@ -32,7 +32,7 @@ class RoseChatKitServer(ChatKitServer[Any]):
         context: Any,
     ) -> AsyncIterator[ThreadStreamEvent]:
         model = self.default_model
-        if input_user_message and input_user_message.inference_options.model:
+        if input_user_message and input_user_message.inference_options and input_user_message.inference_options.model:
             model = input_user_message.inference_options.model
 
         agent_context = AgentContext(
