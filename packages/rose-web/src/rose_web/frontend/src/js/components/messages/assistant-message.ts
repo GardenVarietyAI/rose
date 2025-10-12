@@ -4,7 +4,7 @@ class AssistantMessage extends HTMLElement {
   content?: string;
 
   connectedCallback() {
-    setAttr(this, { class: 'self-start bg-neutral-800 text-neutral-100 p-3 rounded-lg max-w-[80%]' });
+    setAttr(this, { class: 'self-start text-neutral-100 max-w-[80%]' });
     setChildren(this, [
       el('div', { className: 'whitespace-pre-wrap break-words' }, this.content || '')
     ]);

@@ -75,7 +75,7 @@ class RoseChat extends HTMLElement {
   }
 
   createLoadingElement() {
-    return el('div', { className: 'self-start bg-transparent p-0' },
+    return el('div', { className: 'self-start' },
       el('div', { className: 'flex gap-1' },
         el('span', { className: 'w-2 h-2 bg-neutral-500 rounded-full animate-bounce', style: 'animation-delay: -0.32s' }),
         el('span', { className: 'w-2 h-2 bg-neutral-500 rounded-full animate-bounce', style: 'animation-delay: -0.16s' }),
