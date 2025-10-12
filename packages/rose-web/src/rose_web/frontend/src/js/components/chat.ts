@@ -9,13 +9,14 @@ class RoseChat extends HTMLElement {
   private messages: ChatMessage[] = [];
   private threadId: string | null = null;
   private isLoading: boolean = false;
-  private model: string = 'Qwen--Qwen3-4B-GGUF';
+  private model!: string;
   private messagesContainer!: HTMLElement;
   private input!: HTMLInputElement;
   private sendButton!: HTMLButtonElement;
   private currentAssistantMessage: ChatMessage | null = null;
 
   connectedCallback() {
+    this.model = this.dataset.model || 'Qwen--Qwen3-1.7B-GGUF';
     this.render();
   }
 

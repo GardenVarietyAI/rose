@@ -3,12 +3,17 @@ from typing import Any
 from fastapi import APIRouter, Request
 from starlette.responses import HTMLResponse, Response, StreamingResponse
 
+from rose_web.settings import get_settings
+
 router = APIRouter()
 
 
 @router.get("/", response_class=HTMLResponse)
 async def chat(req: Request) -> Any:
-    return req.app.state.templates.TemplateResponse("index.html", {"request": req})
+    settings = get_settings()
+    return req.app.state.templates.TemplateResponse(
+        "index.html", {"request": req, "default_model": settings.default_model}
+    )
 
 
 @router.post("/chatkit")
