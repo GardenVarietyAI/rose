@@ -3,10 +3,9 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Any, AsyncIterator, Dict, List, Optional, Union
+from typing import Any, AsyncIterator, Dict, List
 
 from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Request
-from rose_server._inference import InferenceServer
 from rose_server.entities.messages import Message
 from rose_server.entities.models import LanguageModel
 from rose_server.events.formatters import ResponsesFormatter
@@ -22,7 +21,7 @@ from rose_server.schemas.responses import (
     ResponsesResponse,
     ResponsesUsage,
 )
-from sqlmodel import select
+from sqlmodel import col, select
 from sse_starlette.sse import EventSourceResponse
 
 logger = logging.getLogger(__name__)
@@ -91,7 +90,7 @@ def _smart_truncate_messages(tokenized_messages: List[TokenizedMessage], max_tok
     return final_result
 
 
-async def _save_streaming_messages(
+async def _save_response_messages(
     formatter: ResponsesFormatter,
     messages: List[ChatMessage],
     config: ModelConfig,
@@ -128,47 +127,9 @@ async def _save_streaming_messages(
             )
             session.add(assistant_message)
             await session.commit()
-            logger.info(f"Saved streaming response {response_id} to chain {chain_id}")
+            logger.info(f"Saved response {response_id} to chain {chain_id}")
     except Exception as e:
-        logger.error(f"Failed to save streaming messages: {e}", exc_info=True)
-
-
-async def _generate_complete_response(
-    config: ModelConfig,
-    messages: List[ChatMessage],
-    inference_server: InferenceServer,
-    tools: Optional[List[Any]] = None,
-    max_output_tokens: Optional[int] = None,
-    temperature: Optional[float] = None,
-    tool_choice: Optional[str] = None,
-    chain_id: Optional[str] = None,
-    max_concurrent_inference: int = 2,
-) -> ResponsesResponse:
-    generator = EventGenerator(config, inference_server, max_concurrent_inference)
-    formatter = ResponsesFormatter()
-    metrics = MetricsCollector(model=config.model_name)
-    all_events = []
-
-    async for event in generator.generate_events(
-        messages,
-        enable_tools=bool(tools),
-        tools=tools,
-        max_tokens=max_output_tokens,
-        temperature=temperature,
-        tool_choice=tool_choice,
-        chain_id=chain_id,
-    ):
-        metrics.process_event(event)
-        all_events.append(event)
-
-    complete_response = formatter.format_complete_response(all_events)
-    complete_response.model = config.model_name
-
-    performance_metrics = metrics.get_metrics()
-    if performance_metrics:
-        logger.info(f"[METRICS] Response generation complete for {config.model_name}")
-
-    return complete_response
+        logger.error(f"Failed to save response messages: {e}", exc_info=True)
 
 
 @router.get("/responses/{response_id}", response_model=ResponsesResponse)
@@ -223,7 +184,7 @@ async def create_response(
     req: Request,
     background_tasks: BackgroundTasks,
     request: ResponsesRequest = Body(...),
-) -> Union[EventSourceResponse, ResponsesResponse]:
+) -> EventSourceResponse | ResponsesResponse:
     try:
         inference_server = req.app.state.inference_server
         use_codex_format = req.headers.get("user-agent", "").startswith("codex_cli_rs/")
@@ -232,46 +193,43 @@ async def create_response(
         logger.info(f"RESPONSES API - use_codex_format: {use_codex_format}")
 
         previous_response = None
-        if request.previous_response_id:
-            async with req.app.state.get_db_session(read_only=True) as session:
-                previous_response = await session.get(Message, request.previous_response_id)
-
-        if request.previous_response_id and not previous_response:
-            raise HTTPException(status_code=400, detail=f"Previous response '{request.previous_response_id}' not found")
-
         messages = []
 
         if request.previous_response_id:
             async with req.app.state.get_db_session(read_only=True) as session:
-                response_msg = await session.get(Message, request.previous_response_id)
-                if response_msg:
-                    query = (
-                        select(Message)
-                        .where(Message.response_chain_id == response_msg.response_chain_id)
-                        .order_by(Message.created_at)  # type: ignore[arg-type]
-                    )
-                    result = await session.execute(query)
-                    chain_messages: List[Message] = list(result.scalars().all())
-                else:
-                    chain_messages = []
+                previous_response = await session.get(Message, request.previous_response_id)
 
-            for msg in chain_messages:
-                for item in msg.content:
-                    if isinstance(item, dict) and item.get("type") == "text":
-                        messages.append(ChatMessage(role=msg.role, content=item.get("text", "")))  # type: ignore[arg-type]
-                        break
+                if not previous_response:
+                    raise HTTPException(
+                        status_code=400, detail=f"Previous response '{request.previous_response_id}' not found"
+                    )
+
+                query = (
+                    select(Message)
+                    .where(Message.response_chain_id == previous_response.response_chain_id)
+                    .order_by(col(Message.created_at))
+                )
+                result = await session.execute(query)
+                chain_messages: List[Message] = list(result.scalars().all())
+
+                for msg in chain_messages:
+                    for item in msg.content:
+                        if isinstance(item, dict) and item.get("type") == "text":
+                            messages.append(ChatMessage(role=msg.role, content=item.get("text", "")))  # type: ignore[arg-type]
+                            break
 
         system_content_parts = []
         if request.instructions:
             system_content_parts.append(request.instructions)
-        if system_content_parts:
-            combined_instructions = "\n\n".join(system_content_parts)
-            messages.append(ChatMessage(role="system", content=combined_instructions))
+
+        combined_instructions = "\n\n".join(system_content_parts)
+        messages.append(ChatMessage(role="system", content=combined_instructions))
 
         # Add current user input
         if isinstance(request.input, str):
             messages.append(ChatMessage(role="user", content=request.input))
-        elif isinstance(request.input, list):
+
+        if isinstance(request.input, list):
             # Handle list of ResponsesInput objects
             for msg in request.input:  # type: ignore[assignment]
                 if hasattr(msg, "type"):
@@ -325,6 +283,7 @@ async def create_response(
 
         if not model:
             raise HTTPException(status_code=400, detail=f"No configuration found for model '{request.model}'")
+
         config = ModelConfig.from_language_model(
             model,
             inference_timeout=req.app.state.settings.inference_timeout,
@@ -344,25 +303,21 @@ async def create_response(
         total_tokens = sum(tm.token_count for tm in tokenized_messages)
         qwen_config = get_qwen_config(config.model_id)
         if total_tokens > qwen_config.max_context_length:
-            logger.warning(f"Messages use {total_tokens} tokens, exceeds {qwen_config.max_context_length}, truncating")
+            logger.warning(f"Total tokens {total_tokens} exceeds max {qwen_config.max_context_length}, truncating")
             messages = _smart_truncate_messages(tokenized_messages, qwen_config.max_context_length)
 
-        if request.stream:
-            chain_id = request.prompt_cache_key or (previous_response.response_chain_id if previous_response else None)
-            if not chain_id:
-                chain_id = f"chain_{uuid.uuid4().hex[:16]}"
+        chain_id = request.prompt_cache_key or (previous_response.response_chain_id if previous_response else None)
+        if not chain_id:
+            chain_id = str(uuid.uuid4())
 
-            formatter = ResponsesFormatter()
+        formatter = ResponsesFormatter()
+        generator = EventGenerator(config, inference_server, req.app.state.settings.max_concurrent_inference)
+        metrics = MetricsCollector(model=config.model_name)
+
+        if request.stream:
 
             async def generate() -> AsyncIterator[Dict[str, Any]]:
                 try:
-                    generator = EventGenerator(
-                        config,
-                        inference_server,
-                        req.app.state.settings.max_concurrent_inference,
-                    )
-                    metrics = MetricsCollector(model=config.model_name)
-
                     async for event in generator.generate_events(
                         messages,
                         enable_tools=bool(request.tools),
@@ -384,11 +339,9 @@ async def create_response(
                     yield {"data": json.dumps(error_event)}
                     yield {"data": "[DONE]"}
 
-            response = EventSourceResponse(generate())
-
             if request.store:
                 background_tasks.add_task(
-                    _save_streaming_messages,
+                    _save_response_messages,
                     formatter=formatter,
                     messages=messages,
                     config=config,
@@ -396,63 +349,38 @@ async def create_response(
                     get_db_session=req.app.state.get_db_session,
                 )
 
-            return response
+            return EventSourceResponse(generate())
         else:
-            chain_id = request.prompt_cache_key or (previous_response.response_chain_id if previous_response else None)
-            complete_response = await _generate_complete_response(
-                config=config,
-                messages=messages,
-                inference_server=inference_server,
+            all_events = []
+
+            async for event in generator.generate_events(
+                messages,
+                enable_tools=bool(request.tools),
                 tools=request.tools,
-                max_output_tokens=request.max_output_tokens,
+                max_tokens=request.max_output_tokens,
                 temperature=request.temperature,
                 tool_choice=request.tool_choice,
                 chain_id=chain_id,
-                max_concurrent_inference=req.app.state.settings.max_concurrent_inference,
-            )
+            ):
+                metrics.process_event(event)
+                all_events.append(event)
+
+            complete_response = formatter.format_complete_response(all_events)
+            complete_response.model = config.model_name
+
+            performance_metrics = metrics.get_metrics()
+            if performance_metrics:
+                logger.info(f"[METRICS] Response generation complete for {config.model_name}")
 
             if request.store:
-                reply_text = ""
-                for output_item in complete_response.output:
-                    if output_item.type == "message":
-                        content_list = output_item.content or []
-                        for content_item in content_list:
-                            if content_item.type == "output_text":
-                                reply_text = content_item.text
-                                break
-
-                if not chain_id:
-                    chain_id = f"chain_{uuid.uuid4().hex[:16]}"
-
-                async with req.app.state.get_db_session() as session:
-                    current_user_message = next((msg for msg in reversed(messages) if msg.role == "user"), None)
-                    if current_user_message:
-                        user_message = Message(
-                            role="user",
-                            content=[{"type": "text", "text": current_user_message.content}],
-                            created_at=complete_response.created_at,
-                            response_chain_id=chain_id,
-                            meta={"model": config.model_name},
-                        )
-                        session.add(user_message)
-
-                    assistant_message = Message(
-                        role="assistant",
-                        content=[{"type": "text", "text": reply_text}],
-                        created_at=complete_response.created_at,
-                        response_chain_id=chain_id,
-                        meta={
-                            "model": config.model_name,
-                            "input_tokens": complete_response.usage.input_tokens,
-                            "output_tokens": complete_response.usage.output_tokens,
-                            "total_tokens": complete_response.usage.total_tokens,
-                            "response_time_ms": int((time.time() - complete_response.created_at) * 1000),
-                        },
-                    )
-                    session.add(assistant_message)
-                    await session.commit()
-                    message_id: str = assistant_message.id
-                    complete_response.id = message_id
+                background_tasks.add_task(
+                    _save_response_messages,
+                    formatter=formatter,
+                    messages=messages,
+                    config=config,
+                    chain_id=chain_id,
+                    get_db_session=req.app.state.get_db_session,
+                )
 
             return complete_response
     except HTTPException:
