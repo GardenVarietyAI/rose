@@ -5,7 +5,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
-from fastapi import APIRouter, Body, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Request
 from rose_server._inference import InferenceServer
 from rose_server.entities.messages import Message
 from rose_server.entities.models import LanguageModel
@@ -91,45 +91,46 @@ def _smart_truncate_messages(tokenized_messages: List[TokenizedMessage], max_tok
     return final_result
 
 
-async def _generate_streaming_response(
-    config: ModelConfig,
+async def _save_streaming_messages(
+    formatter: ResponsesFormatter,
     messages: List[ChatMessage],
-    inference_server: InferenceServer,
-    tools: Optional[List[Any]] = None,
-    max_output_tokens: Optional[int] = None,
-    temperature: Optional[float] = None,
-    tool_choice: Optional[str] = None,
-    chain_id: Optional[str] = None,
-    max_concurrent_inference: int = 2,
-) -> EventSourceResponse:
-    async def generate() -> AsyncIterator[Dict[str, Any]]:
-        try:
-            generator = EventGenerator(config, inference_server, max_concurrent_inference)
-            formatter = ResponsesFormatter()
-            metrics = MetricsCollector(model=config.model_name)
+    config: ModelConfig,
+    chain_id: str,
+    get_db_session: Any,
+) -> None:
+    response_text = formatter.accumulated_content
+    response_id = formatter.response_id
 
-            async for event in generator.generate_events(
-                messages,
-                enable_tools=bool(tools),
-                tools=tools,
-                max_tokens=max_output_tokens,
-                temperature=temperature,
-                tool_choice=tool_choice,
-                chain_id=chain_id,
-            ):
-                metrics.process_event(event)
-                formatted = formatter.format_event(event)
-                if formatted:
-                    ev_name = formatted.get("type", "")
-                    yield {"data": json.dumps(formatted), "event": ev_name}
+    if not response_text or not response_id:
+        logger.warning("No response text or ID captured, skipping save")
+        return
 
-            yield {"data": "[DONE]", "event": "done"}
-        except Exception as e:
-            error_event = {"type": "response.error", "error": str(e)}
-            yield {"data": json.dumps(error_event)}
-            yield {"data": "[DONE]"}
+    try:
+        async with get_db_session() as session:
+            current_user_message = next((msg for msg in reversed(messages) if msg.role == "user"), None)
+            if current_user_message:
+                user_message = Message(
+                    role="user",
+                    content=[{"type": "text", "text": current_user_message.content}],
+                    created_at=formatter.created_at or int(time.time()),
+                    response_chain_id=chain_id,
+                    meta={"model": config.model_name},
+                )
+                session.add(user_message)
 
-    return EventSourceResponse(generate())
+            assistant_message = Message(
+                id=response_id,
+                role="assistant",
+                content=[{"type": "text", "text": response_text}],
+                created_at=formatter.created_at or int(time.time()),
+                response_chain_id=chain_id,
+                meta={"model": config.model_name},
+            )
+            session.add(assistant_message)
+            await session.commit()
+            logger.info(f"Saved streaming response {response_id} to chain {chain_id}")
+    except Exception as e:
+        logger.error(f"Failed to save streaming messages: {e}", exc_info=True)
 
 
 async def _generate_complete_response(
@@ -220,6 +221,7 @@ async def retrieve_response(req: Request, response_id: str) -> ResponsesResponse
 @router.post("/responses", response_model=None)
 async def create_response(
     req: Request,
+    background_tasks: BackgroundTasks,
     request: ResponsesRequest = Body(...),
 ) -> Union[EventSourceResponse, ResponsesResponse]:
     try:
@@ -346,18 +348,55 @@ async def create_response(
             messages = _smart_truncate_messages(tokenized_messages, qwen_config.max_context_length)
 
         if request.stream:
-            return await _generate_streaming_response(
-                config=config,
-                messages=messages,
-                inference_server=inference_server,
-                tools=request.tools,
-                max_output_tokens=request.max_output_tokens,
-                temperature=request.temperature,
-                tool_choice=request.tool_choice,
-                chain_id=request.prompt_cache_key
-                or (previous_response.response_chain_id if previous_response else None),
-                max_concurrent_inference=req.app.state.settings.max_concurrent_inference,
-            )
+            chain_id = request.prompt_cache_key or (previous_response.response_chain_id if previous_response else None)
+            if not chain_id:
+                chain_id = f"chain_{uuid.uuid4().hex[:16]}"
+
+            formatter = ResponsesFormatter()
+
+            async def generate() -> AsyncIterator[Dict[str, Any]]:
+                try:
+                    generator = EventGenerator(
+                        config,
+                        inference_server,
+                        req.app.state.settings.max_concurrent_inference,
+                    )
+                    metrics = MetricsCollector(model=config.model_name)
+
+                    async for event in generator.generate_events(
+                        messages,
+                        enable_tools=bool(request.tools),
+                        tools=request.tools,
+                        max_tokens=request.max_output_tokens,
+                        temperature=request.temperature,
+                        tool_choice=request.tool_choice,
+                        chain_id=chain_id,
+                    ):
+                        metrics.process_event(event)
+                        formatted = formatter.format_event(event)
+                        if formatted:
+                            ev_name = formatted.get("type", "")
+                            yield {"data": json.dumps(formatted), "event": ev_name}
+
+                    yield {"data": "[DONE]", "event": "done"}
+                except Exception as e:
+                    error_event = {"type": "response.error", "error": str(e)}
+                    yield {"data": json.dumps(error_event)}
+                    yield {"data": "[DONE]"}
+
+            response = EventSourceResponse(generate())
+
+            if request.store:
+                background_tasks.add_task(
+                    _save_streaming_messages,
+                    formatter=formatter,
+                    messages=messages,
+                    config=config,
+                    chain_id=chain_id,
+                    get_db_session=req.app.state.get_db_session,
+                )
+
+            return response
         else:
             chain_id = request.prompt_cache_key or (previous_response.response_chain_id if previous_response else None)
             complete_response = await _generate_complete_response(
