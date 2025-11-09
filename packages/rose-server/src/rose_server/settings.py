@@ -14,20 +14,6 @@ class Settings(BaseSettings):
     # Data directories
     data_dir: str = Field(default="./data", description="Base data directory")
 
-    # Fine-tuning settings
-    fine_tuning_checkpoint_dir: str = Field(default="data/checkpoints", description="Checkpoint directory")
-    fine_tuning_checkpoint_interval: int = Field(default=10, description="Steps between checkpoints")
-    fine_tuning_max_checkpoints: int = Field(default=5, description="Maximum checkpoints to keep")
-    fine_tuning_eval_batch_size: int = Field(default=1, description="Evaluation batch size")
-    fine_tuning_base_learning_rate: float = Field(
-        default=2e-5, description="Base learning rate for OpenAI-compatible multiplier"
-    )
-    fine_tuning_auto_batch_size: int = Field(default=4, description="Batch size when 'auto' is specified")
-    fine_tuning_auto_epochs: int = Field(default=3, description="Number of epochs when 'auto' is specified")
-    fine_tuning_auto_learning_rate_multiplier: float = Field(
-        default=0.1, description="Learning rate multiplier when 'auto' is specified"
-    )
-
     # Inference settings
     inference_timeout: int = Field(default=300, description="Inference timeout in seconds")
     max_concurrent_inference: int = Field(default=1, description="Maximum concurrent inference requests")

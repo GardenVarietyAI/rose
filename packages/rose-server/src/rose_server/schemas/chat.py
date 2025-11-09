@@ -1,4 +1,4 @@
-"""Chat completions API schemas."""
+"""Chat message schemas."""
 
 from typing import Any, Dict, List, Literal, Optional, Union
 
@@ -18,24 +18,3 @@ class ChatMessage(BaseModel):
     tool_call_id: Optional[str] = Field(default=None, description="ID of the tool call this message is responding to")
     refusal: Optional[str] = Field(default=None, description="Refusal message from the assistant")
     audio: Optional[Dict[str, Any]] = Field(default=None, description="Audio content from the assistant")
-
-
-class ChatRequest(BaseModel):
-    messages: List[ChatMessage] = Field(description="Chat messages in the conversation")
-    model: str = Field(default="Qwen--Qwen3-4B-GGUF", description="Model to use for generation")
-    mode: Optional[str] = Field(default=None, description="Deprecated: Use model instead")
-    temperature: Optional[float] = Field(default=0.7, description="Sampling temperature")
-    max_tokens: Optional[int] = Field(default=None, description="Maximum tokens to generate")
-    stream: Optional[bool] = Field(default=False, description="Stream response")
-    tools: Optional[List[Dict[str, Any]]] = Field(default=None, description="Available tools")
-    tool_choice: Optional[str] = Field(default="auto", description="Tool selection mode")
-    return_tool_calls: Optional[bool] = Field(default=True, description="Return tool calls in response")
-    seed: Optional[int] = Field(default=None, ge=0, description="Seed for deterministic generation")
-
-
-class ChatResponse(BaseModel):
-    reply: str = Field(description="Generated response from the LLM")
-    model: str = Field(description="Model used for generation")
-    prompt_tokens: Optional[int] = Field(default=None, description="Number of tokens in the prompt")
-    completion_tokens: Optional[int] = Field(default=None, description="Number of tokens in the completion")
-    total_tokens: Optional[int] = Field(default=None, description="Total number of tokens used")

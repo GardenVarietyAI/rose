@@ -103,7 +103,6 @@ async def lifespan(app: FastAPI) -> Any:
     directories = [
         settings.data_dir,
         settings.model_offload_dir,
-        settings.fine_tuning_checkpoint_dir,
     ]
     for dir in directories:
         os.makedirs(dir, exist_ok=True)
