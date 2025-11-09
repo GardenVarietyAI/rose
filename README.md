@@ -6,7 +6,7 @@
 
 **ROSE** is a local AI provider: A self-hosted OpenAI-compatible API built on the Qwen3 model family.
 
-Run your own LLM server locally with chat completions, embeddings, reranking and fine-tuning.
+Run your own LLM server locally with chat completions, embeddings, and reranking.
 
 Why ROSE?
 
@@ -18,7 +18,6 @@ Why ROSE?
 
 - Chat Completions
 - Responses & Tool Calling
-- LoRA Fine-Tuning
 - Embeddings
 - Reranker
 - SSE Streaming Support
@@ -29,7 +28,6 @@ Why ROSE?
 - `v1/responses`
 - `v1/embeddings`
 - `v1/vector_stores`
-- `v1/fine_tuning`
 
 ### Other Endpoints
 
@@ -101,11 +99,10 @@ uv run rose models download Qwen/Qwen3-Reranker-0.6B
 uv run rose models download QuantFactory--Qwen3-Reranker-0.6B-GGUF
 ```
 
-### Running the Services
+### Running the Server
 
 ```bash
 uv run rose-server --port 8004
-uv run rose-trainer
 ```
 
 ### Start a chat
