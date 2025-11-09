@@ -6,32 +6,29 @@
 
 **ROSE** is a local AI provider: A self-hosted OpenAI-compatible API built on the Qwen3 model family.
 
-Run your own LLM server locally with chat completions, embeddings, and reranking.
+Run your own LLM server locally with inference, embeddings, and reranking.
 
 Why ROSE?
 
-- **Drop-in OpenAI compatible API** - Just change the base URL
-- **Built on Qwen3** - Chat, embeddings and reranking
-- **Local-first design** - All data stored in SQLite, backed up with Litestream
+- **Unified inference API** - Single `/v1/responses` endpoint for all inference with streaming support
+- **Built on Qwen3** - Inference, embeddings and reranking
+- **Local-first design** - All data stored in SQLite
 
 ## Features
 
-- Chat Completions
 - Responses & Tool Calling
 - Embeddings
 - Reranker
 - SSE Streaming Support
 
-### OpenAI-Compatible Endpoints
+### API Endpoints
 
-- `v1/chat/completions`
-- `v1/responses`
-- `v1/embeddings`
-- `v1/vector_stores`
-
-### Other Endpoints
-
-- `v1/reranker`
+- `v1/responses` - Inference with tool calling and streaming
+- `v1/embeddings` - Generate embeddings
+- `v1/reranker` - Rerank documents
+- `v1/vector_stores` - Vector store management
+- `v1/models` - Model management
+- `v1/files` - File operations
 
 ## Quick Start
 
@@ -105,13 +102,6 @@ uv run rose models download QuantFactory--Qwen3-Reranker-0.6B-GGUF
 uv run rose-server --port 8004
 ```
 
-### Start a chat
-
-```bash
-# Chat with Qwen/Qwen3-0.6B
-uv run rose chat --model Qwen/Qwen3-1.7B
-```
-
 ### Codex Configuration
 
 Add a `~/.codex/config.toml` and then add Rose as a provider
@@ -149,9 +139,8 @@ query_params = {}
 
 Full documentation is available in the `docs/` directory:
 
+- [API Reference](docs/api-reference.md)
 - [OpenAI Compatibility](docs/openai-compatibility.md)
 - [Using the ROSE CLI](docs/using-the-rose-cli.md)
 - [Available Models](docs/available-models.md)
-- [API Reference](docs/api-reference.md)
 - [Development](docs/development.md)
-- [License](docs/license.md)

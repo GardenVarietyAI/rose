@@ -1,179 +1,85 @@
 ## Using the ROSE CLI
 
-The `rose` CLI provides a convenient command-line interface with enhanced features beyond the OpenAI CLI.
-
-### Basic Chat
-
-```bash
-# Simple chat
-poetry run rose chat "What is Python?"
-
-# With custom model
-poetry run rose chat "Explain decorators" --model qwen-coder
-
-# With system prompt
-poetry run rose chat "Fix this code: print(hello)" --system "You are a Python expert"
-
-# Streaming response (default behavior)
-poetry run rose chat "Write a long story"
-
-# Without streaming
-poetry run rose chat "Give me a quick answer" --no-stream
-```
-
-### Completions
-
-```bash
-# Generate a completion
-poetry run rose completions "Once upon a time"
-
-# With custom parameters
-poetry run rose completions "def fibonacci(" --model qwen-coder --max-tokens 200
-
-# Stream the completion
-poetry run rose completions "Write a poem" --stream
-
-# Echo the prompt in response
-poetry run rose completions "The sky is" --echo
-```
+The `rose` CLI provides commands for managing models, files, vectors stores, and making inference requests.
 
 ### Model Management
 
 ```bash
 # List available models
-poetry run rose models list
+uv run rose models list
+
+# Download a model
+uv run rose models download Qwen/Qwen3-1.7B
 
 # Get model details
-poetry run rose models get qwen-coder
-
-# Pull a new model (if supported)
-poetry run rose models pull phi-4
+uv run rose models get Qwen/Qwen3-1.7B
 ```
 
 ### File Operations
 
 ```bash
 # Upload a file
-poetry run rose files upload training_data.jsonl --purpose fine-tune
+uv run rose files upload data.jsonl
 
 # List files
-poetry run rose files list
+uv run rose files list
 
 # Get file details
-poetry run rose files get file_abc123
+uv run rose files get file_abc123
 
 # Delete a file
-poetry run rose files delete file_abc123
+uv run rose files delete file_abc123
 ```
 
-### Fine-Tuning
+### Vector Store Management
 
 ```bash
-# List fine-tuning jobs
-poetry run rose finetune list
+# Create a vector store
+uv run rose vectorstores create my-store
 
-# Create a fine-tuning job
-poetry run rose finetune create --model qwen2.5-0.5b --file file_abc123 --suffix custom
+# List vector stores
+uv run rose vectorstores list
 
-# Get job details
-poetry run rose finetune get job_xyz789
+# Add files to vector store
+uv run rose vectorstores add store_123 --file file_abc123
 
-# List model checkpoints
-poetry run rose finetune checkpoints job_xyz789
-
-# Test a fine-tuned model
-poetry run rose finetune test ft:qwen2.5-0.5b:custom:job_xyz789 "Your test prompt"
-
-# Export a model
-poetry run rose finetune export ft:qwen2.5-0.5b:custom:job_xyz789 ./exported_model
-
-# Convert model format
-poetry run rose finetune convert job_xyz789 --format gguf
-
-# Cancel a running job
-poetry run rose finetune cancel job_xyz789
+# Search a vector store
+uv run rose vectorstores search store_123 --query "find documents about Python"
 ```
 
-### Evaluations
-
-```bash
-# List evaluations
-poetry run rose evals list
-
-# Create an evaluation
-poetry run rose evals create --name "Color Recognition" --file eval_data.jsonl
-
-# Get evaluation details
-poetry run rose evals get eval_abc123
-
-# Run an evaluation
-poetry run rose evals run eval_abc123 --model qwen2.5-0.5b
-
-# Delete an evaluation
-poetry run rose evals delete eval_abc123
-```
-
-### Compare Models
-
-```bash
-# Compare local vs remote model responses
-poetry run rose compare "What is machine learning?"
-
-# With custom models
-poetry run rose compare "Explain Python decorators" --local-model qwen-coder --remote-model gpt-4o
-
-# With system prompt
-poetry run rose compare "Fix this bug" --system "You are a debugging expert"
-```
-
-### Responses API (Stateless)
+### Making Inference Requests
 
 ```bash
 # Create a response
-poetry run rose responses create "What is recursion?"
+uv run rose responses create --model Qwen/Qwen3-1.7B --input "What is Python?"
 
-# Store for later retrieval
-poetry run rose responses create "Explain async/await" --store
-# Output: Response stored with ID: resp_abc123...
+# Stream a response
+uv run rose responses create --model Qwen/Qwen3-1.7B --input "Write a story" --stream
+
+# With system instructions
+uv run rose responses create --model Qwen/Qwen3-1.7B --input "Code review" --system "You are an expert code reviewer"
 
 # Retrieve stored response
-poetry run rose responses retrieve resp_abc123
-
-# Stream response
-poetry run rose responses create "Generate a Python class" --stream
-
-# With custom instructions
-poetry run rose responses create "List colors" --instructions "Be brief, max 3 items"
-
-# Test storage functionality
-poetry run rose responses test-storage
+uv run rose responses get response_xyz789
 ```
 
-### Cleanup Operations
+### Embeddings
 
 ```bash
-# Clean up fine-tuned models
-poetry run rose cleanup models
-
-# Clean up uploaded files
-poetry run rose cleanup files
-
-# Clean up fine-tuning jobs by status
-poetry run rose cleanup jobs --status failed
-
-# Clean up everything
-poetry run rose cleanup all
+# Generate embeddings
+uv run rose embeddings create --model Qwen/Qwen3-Embedding-0.6B --input "Hello world"
 ```
 
-### Advanced Usage
+### Reranking
 
 ```bash
-# Use remote endpoint
-poetry run rose chat "Hello" --remote --url https://api.openai.com/v1
+# Rerank documents
+uv run rose rerank --model Qwen/Qwen3-Reranker-0.6B --query "What is AI?" --documents doc1.txt doc2.txt
+```
 
-# Use local endpoint with custom URL
-poetry run rose chat "Hello" --local --url http://localhost:8004/v1
+### Exploring Available Actors
 
-# Batch operations with files
-poetry run rose files list | grep training | xargs -I {} poetry run rose files delete {}
+```bash
+# List available actors (models that can be used)
+uv run rose actors list
 ```
