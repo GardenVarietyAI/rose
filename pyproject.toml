@@ -5,7 +5,6 @@ rose = "rose_cli.main:main"
 members = [
     "packages/rose-server",
     "packages/rose-cli",
-    "packages/rose-trainer",
     "packages/rose-utils",
     "packages/rose-web",
 ]
@@ -29,7 +28,6 @@ dev-dependencies = [
 pythonpath = [
     "packages/rose-server/src",
     "packages/rose-cli/src",
-    "packages/rose-trainer/src",
     "packages/rose-utils/src",
     "packages/rose-web/src",
 ]
@@ -39,7 +37,6 @@ asyncio_mode = "auto"
 [tool.uv.sources]
 rose-server = { workspace = true }
 rose-cli = { workspace = true }
-rose-trainer = { workspace = true }
 rose-utils = { workspace = true }
 rose-web = { workspace = true }
 
