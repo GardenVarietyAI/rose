@@ -6,13 +6,9 @@ API schemas are in the schemas/ module.
 from rose_server.entities.files import UploadedFile
 from rose_server.entities.messages import Message
 from rose_server.entities.models import LanguageModel
-from rose_server.entities.vector_stores import Document, VectorStore, VectorStoreFile
 
 __all__ = [
     "UploadedFile",
     "Message",
     "LanguageModel",
-    "Document",
-    "VectorStore",
-    "VectorStoreFile",
 ]
