@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from tokenizers import Tokenizer
 
 from rose_server import __version__
-from rose_server._inference import InferenceServer, RerankerModel
+from rose_server._inference import InferenceServer
 from rose_server.database import check_database_setup, create_all_tables, create_session_maker, get_session
 from rose_server.router import router
 from rose_server.settings import Settings
@@ -22,24 +22,6 @@ os.environ["ANONYMIZED_TELEMETRY"] = "false"
 
 
 logger = logging.getLogger("rose_server")
-
-
-def get_reranker_model(models_dir: str) -> RerankerModel:
-    model_path = Path(models_dir) / "QuantFactory--Qwen3-Reranker-0.6B-GGUF"
-
-    gguf_files = list(model_path.glob("*.gguf"))
-    if not gguf_files:
-        raise FileNotFoundError(f"No GGUF files found in {model_path}")
-
-    gguf_file = next((f for f in gguf_files if "Q8_0" in f.name), gguf_files[0])
-    tokenizer_file = model_path / "tokenizer.json"
-
-    if not tokenizer_file.exists():
-        raise FileNotFoundError(f"Tokenizer not found at {tokenizer_file}")
-
-    model = RerankerModel(str(gguf_file), str(tokenizer_file), "auto")
-    logger.info(f"Loaded reranker: {gguf_file.name}")
-    return model
 
 
 @asynccontextmanager
@@ -78,13 +60,6 @@ async def lifespan(app: FastAPI) -> Any:
     else:
         app.state.tokenizer = None
         logger.warning(f"Qwen3 tokenizer not found at {tokenizer_path}")
-
-    try:
-        app.state.reranker_model = get_reranker_model(models_dir=settings.models_dir)
-        logger.info("Reranker loaded")
-    except Exception as e:
-        app.state.reranker_model = None
-        logger.warning(f"Failed to load reranker: {e}")
 
     yield
 
