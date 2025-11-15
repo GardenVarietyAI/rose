@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlmodel import SQLModel
 
 from rose_server.connect import _VecConnection
-from rose_server.entities.files import UploadedFile
 from rose_server.entities.messages import Message
 from rose_server.entities.models import LanguageModel
 from rose_server.entities.vector_stores import Document, VectorStore, VectorStoreFile
@@ -87,7 +86,6 @@ __all__ = [
     "get_session",
     "create_all_tables",
     "check_database_setup",
-    "UploadedFile",
     "Message",
     "LanguageModel",
     "VectorStore",
