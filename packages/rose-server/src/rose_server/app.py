@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from tokenizers import Tokenizer
 
 from rose_server import __version__
-from rose_server._inference import EmbeddingModel, InferenceServer, RerankerModel
+from rose_server._inference import InferenceServer, RerankerModel
 from rose_server.database import check_database_setup, create_all_tables, create_session_maker, get_session
 from rose_server.router import router
 from rose_server.settings import Settings
@@ -22,54 +22,6 @@ os.environ["ANONYMIZED_TELEMETRY"] = "false"
 
 
 logger = logging.getLogger("rose_server")
-
-
-def get_tokenizer(models_dir: str, embedding_model_name: str) -> Tokenizer:
-    tokenizer_path = Path(models_dir) / embedding_model_name / "tokenizer.json"
-
-    if not tokenizer_path.exists():
-        raise FileNotFoundError(f"Tokenizer not found at {tokenizer_path}")
-
-    return Tokenizer.from_file(str(tokenizer_path))
-
-
-def get_embedding_model(
-    models_dir: str,
-    embedding_model_name: str,
-    embedding_model_quantization: str,
-    embedding_device: str,
-    embedding_dimensions: int,
-) -> EmbeddingModel:
-    model_path = (Path(models_dir) / embedding_model_name).resolve()
-
-    gguf_files = list(model_path.glob("*.gguf"))
-    if not gguf_files:
-        raise FileNotFoundError(f"No GGUF files found in {model_path}")
-
-    # Find the specified quantization level
-    gguf_file = next((f for f in gguf_files if embedding_model_quantization in f.name), None)
-
-    if not gguf_file:
-        available_quants = [f.name for f in gguf_files]
-        raise FileNotFoundError(
-            f"Quantization {embedding_model_quantization} not found in {model_path}. Available: {available_quants}"
-        )
-
-    tokenizer_file = model_path / "tokenizer.json"
-
-    if not tokenizer_file.exists():
-        raise FileNotFoundError(f"Tokenizer not found at {tokenizer_file}")
-
-    model = EmbeddingModel(
-        str(gguf_file.resolve()),
-        str(tokenizer_file.resolve()),
-        embedding_device,
-        embedding_dimensions,
-    )
-    logger.info(
-        f"Loaded embeddings: {gguf_file.name} on device: {embedding_device}, output_dims: {embedding_dimensions}"
-    )
-    return model
 
 
 def get_reranker_model(models_dir: str) -> RerankerModel:
@@ -114,7 +66,7 @@ async def lifespan(app: FastAPI) -> Any:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         db_path.touch(exist_ok=True)
 
-    await create_all_tables(app.state.engine, embedding_dimensions=settings.embedding_dimensions)
+    await create_all_tables(app.state.engine)
 
     app.state.inference_server = InferenceServer("auto")
     logger.info("Inference server initialized")
@@ -126,24 +78,6 @@ async def lifespan(app: FastAPI) -> Any:
     else:
         app.state.tokenizer = None
         logger.warning(f"Qwen3 tokenizer not found at {tokenizer_path}")
-
-    try:
-        app.state.embedding_model = get_embedding_model(
-            models_dir=settings.models_dir,
-            embedding_model_name=settings.embedding_model_name,
-            embedding_model_quantization=settings.embedding_model_quantization,
-            embedding_device=settings.embedding_device,
-            embedding_dimensions=settings.embedding_dimensions,
-        )
-        app.state.embedding_tokenizer = get_tokenizer(
-            models_dir=settings.models_dir,
-            embedding_model_name=settings.embedding_model_name,
-        )
-        logger.info("Embeddings and tokenizer loaded")
-    except Exception as e:
-        app.state.embedding_model = None
-        app.state.embedding_tokenizer = None
-        logger.warning(f"Failed to load embedding model: {e}")
 
     try:
         app.state.reranker_model = get_reranker_model(models_dir=settings.models_dir)

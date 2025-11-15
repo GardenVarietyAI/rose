@@ -7,11 +7,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 
-from rose_server.connect import _VecConnection
-from rose_server.entities.files import UploadedFile
 from rose_server.entities.messages import Message
 from rose_server.entities.models import LanguageModel
-from rose_server.entities.vector_stores import Document, VectorStore, VectorStoreFile
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +31,6 @@ def create_session_maker(
         connect_args={
             "check_same_thread": False,
             "timeout": 20,
-            "factory": _VecConnection,
         },
     )
     return engine, async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -57,19 +53,9 @@ async def get_session(
             await session.close()
 
 
-async def create_all_tables(engine: AsyncEngine, embedding_dimensions: int) -> None:
+async def create_all_tables(engine: AsyncEngine) -> None:
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
-
-        await conn.execute(
-            text(f"""
-            CREATE VIRTUAL TABLE IF NOT EXISTS vec0 USING vec0(
-                document_id TEXT PRIMARY KEY,
-                embedding float[{embedding_dimensions}]
-            )
-        """)
-        )
-        logger.info("vec0 table created successfully")
 
 
 async def check_database_setup(engine: AsyncEngine) -> bool:
@@ -87,10 +73,6 @@ __all__ = [
     "get_session",
     "create_all_tables",
     "check_database_setup",
-    "UploadedFile",
     "Message",
     "LanguageModel",
-    "VectorStore",
-    "Document",
-    "VectorStoreFile",
 ]
