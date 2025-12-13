@@ -45,6 +45,7 @@ async def stream_chat_completion(
     """Stream chat completion chunks and save to database."""
     accumulated_content = ""
     finish_reason = None
+    usage = None
 
     try:
         stream = llama.create_chat_completion(messages=messages, stream=True, **kwargs)  # type: ignore[arg-type]
@@ -53,6 +54,8 @@ async def stream_chat_completion(
                 accumulated_content += chunk["choices"][0]["delta"]["content"]
             if chunk["choices"][0].get("finish_reason"):
                 finish_reason = chunk["choices"][0]["finish_reason"]
+            if chunk.get("usage"):
+                usage = chunk["usage"]
             yield json.dumps(chunk)
         yield "[DONE]"
 
@@ -61,16 +64,21 @@ async def stream_chat_completion(
                 message = Message(
                     thread_id=thread_id,
                     role=msg["role"],
-                    content=[{"type": "text", "text": msg["content"]}],
-                    meta={"model": model},
+                    content=msg["content"],
+                    model=model,
                 )
                 session.add(message)
+
+            assistant_meta = {"finish_reason": finish_reason}
+            if usage:
+                assistant_meta["usage"] = usage
 
             assistant_msg = Message(
                 thread_id=thread_id,
                 role="assistant",
-                content=[{"type": "text", "text": accumulated_content}],
-                meta={"model": model, "finish_reason": finish_reason},
+                content=accumulated_content,
+                model=model,
+                meta=assistant_meta,
             )
             session.add(assistant_msg)
 
@@ -135,17 +143,22 @@ async def create_chat_completion(
             message = Message(
                 thread_id=thread_id,
                 role=msg["role"],
-                content=[{"type": "text", "text": msg["content"]}],
-                meta={"model": body.model},
+                content=msg["content"],
+                model=body.model,
             )
             session.add(message)
 
         assistant_content = response["choices"][0]["message"]["content"]
+        assistant_meta = {"finish_reason": response["choices"][0]["finish_reason"]}
+        if response.get("usage"):
+            assistant_meta["usage"] = response["usage"]
+
         assistant_msg = Message(
             thread_id=thread_id,
             role="assistant",
-            content=[{"type": "text", "text": assistant_content}],
-            meta={"model": body.model, "finish_reason": response["choices"][0]["finish_reason"]},
+            content=assistant_content,
+            model=body.model,
+            meta=assistant_meta,
         )
         session.add(assistant_msg)
 
