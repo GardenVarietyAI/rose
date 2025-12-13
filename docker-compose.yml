@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   rose-server:
     build: .
@@ -8,7 +6,7 @@ services:
     volumes:
       - rose-data:/app
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8004/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
