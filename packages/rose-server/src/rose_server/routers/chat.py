@@ -1,39 +1,92 @@
 import json
 import logging
-from typing import Any, AsyncIterator, Dict, Union
+import uuid
+from typing import Any, AsyncIterator, Dict, Optional, Union
 
 import llama_cpp
-from fastapi import APIRouter, HTTPException, Request
-from llama_cpp.server.types import CreateChatCompletionRequest
+from fastapi import APIRouter, Request
+from pydantic import BaseModel
+from rose_server.models.messages import Message
 from sse_starlette import EventSourceResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["chat"])
 
 
-async def chat_completion_stream(
+class ChatRequest(BaseModel):
+    thread_id: Optional[str] = None
+    model: str
+    messages: list[dict[str, Any]]
+    temperature: Optional[float] = None
+    top_p: Optional[float] = None
+    top_k: Optional[int] = None
+    min_p: Optional[float] = None
+    max_tokens: Optional[int] = None
+    presence_penalty: Optional[float] = None
+    frequency_penalty: Optional[float] = None
+    repeat_penalty: Optional[float] = None
+    stop: Optional[Union[str, list[str]]] = None
+    seed: Optional[int] = None
+    response_format: Optional[dict[str, Any]] = None
+    tools: Optional[list[dict[str, Any]]] = None
+    tool_choice: Optional[Union[str, dict[str, Any]]] = None
+    stream: bool = False
+
+
+async def stream_chat_completion(
     llama: llama_cpp.Llama,
     messages: list[Dict[str, Any]],
     kwargs: Dict[str, Any],
+    thread_id: str,
+    model: str,
+    get_db_session: Any,
+    input_messages: list[dict[str, Any]],
 ) -> AsyncIterator[str]:
-    """Stream chat completion chunks as SSE events."""
+    """Stream chat completion chunks and save to database."""
+    accumulated_content = ""
+    finish_reason = None
+
     try:
         stream = llama.create_chat_completion(messages=messages, stream=True, **kwargs)  # type: ignore[arg-type]
         for chunk in stream:
+            if chunk["choices"][0]["delta"].get("content"):
+                accumulated_content += chunk["choices"][0]["delta"]["content"]
+            if chunk["choices"][0].get("finish_reason"):
+                finish_reason = chunk["choices"][0]["finish_reason"]
             yield json.dumps(chunk)
         yield "[DONE]"
+
+        async with get_db_session() as session:
+            for msg in input_messages:
+                message = Message(
+                    thread_id=thread_id,
+                    role=msg["role"],
+                    content=[{"type": "text", "text": msg["content"]}],
+                    meta={"model": model},
+                )
+                session.add(message)
+
+            assistant_msg = Message(
+                thread_id=thread_id,
+                role="assistant",
+                content=[{"type": "text", "text": accumulated_content}],
+                meta={"model": model, "finish_reason": finish_reason},
+            )
+            session.add(assistant_msg)
+
     except Exception as e:
         logger.error(f"Streaming error: {e}")
-        error_chunk = {"error": str(e)}
-        yield json.dumps(error_chunk)
+        yield json.dumps({"error": str(e)})
 
 
 @router.post("/chat/completions", response_model=None)
 async def create_chat_completion(
     request: Request,
-    body: CreateChatCompletionRequest,
-) -> Union[llama_cpp.ChatCompletion, EventSourceResponse]:
+    body: ChatRequest,
+) -> Union[dict[str, Any], EventSourceResponse]:
     llama: llama_cpp.Llama = request.app.state.chat_model
+
+    thread_id = body.thread_id or str(uuid.uuid4())
 
     kwargs: Dict[str, Any] = {
         "temperature": body.temperature,
@@ -59,17 +112,41 @@ async def create_chat_completion(
     if body.tool_choice is not None:
         kwargs["tool_choice"] = body.tool_choice
 
-    messages = [dict(msg) for msg in body.messages]
+    messages = body.messages
 
     if body.stream:
         return EventSourceResponse(
-            chat_completion_stream(llama, messages, kwargs),
+            stream_chat_completion(
+                llama=llama,
+                messages=messages,
+                kwargs=kwargs,
+                thread_id=thread_id,
+                model=body.model,
+                get_db_session=request.app.state.get_db_session,
+                input_messages=body.messages,
+            ),
             media_type="text/event-stream",
         )
 
-    try:
-        response: llama_cpp.ChatCompletion = llama.create_chat_completion(messages=messages, **kwargs)  # type: ignore[arg-type,assignment]
-        return response
-    except Exception as e:
-        logger.error(f"Chat completion error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    response: llama_cpp.ChatCompletion = llama.create_chat_completion(messages=messages, **kwargs)  # type: ignore[arg-type,assignment]
+
+    async with request.app.state.get_db_session() as session:
+        for msg in body.messages:
+            message = Message(
+                thread_id=thread_id,
+                role=msg["role"],
+                content=[{"type": "text", "text": msg["content"]}],
+                meta={"model": body.model},
+            )
+            session.add(message)
+
+        assistant_content = response["choices"][0]["message"]["content"]
+        assistant_msg = Message(
+            thread_id=thread_id,
+            role="assistant",
+            content=[{"type": "text", "text": assistant_content}],
+            meta={"model": body.model, "finish_reason": response["choices"][0]["finish_reason"]},
+        )
+        session.add(assistant_msg)
+
+    return response
