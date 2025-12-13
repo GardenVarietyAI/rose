@@ -1,10 +1,11 @@
 import json
 import logging
 import uuid
-from typing import Any, AsyncIterator, Dict, Optional, Union
+from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union, cast
 
 import llama_cpp
 from fastapi import APIRouter, Request
+from llama_cpp.llama_types import ChatCompletionRequestMessage
 from pydantic import BaseModel
 from rose_server.models.messages import Message
 from sse_starlette import EventSourceResponse
@@ -35,7 +36,7 @@ class ChatRequest(BaseModel):
 
 async def stream_chat_completion(
     llama: llama_cpp.Llama,
-    messages: list[Dict[str, Any]],
+    messages: List[ChatCompletionRequestMessage],
     kwargs: Dict[str, Any],
     thread_id: str,
     model: str,
@@ -44,11 +45,11 @@ async def stream_chat_completion(
 ) -> AsyncIterator[str]:
     """Stream chat completion chunks and save to database."""
     accumulated_content = ""
-    finish_reason = None
-    usage = None
+    finish_reason: Optional[str] = None
+    usage: Optional[Dict[str, Any]] = None
 
     try:
-        stream = llama.create_chat_completion(messages=messages, stream=True, **kwargs)  # type: ignore[arg-type]
+        stream = cast(Iterator[Dict[str, Any]], llama.create_chat_completion(messages=messages, stream=True, **kwargs))
         for chunk in stream:
             if chunk["choices"][0]["delta"].get("content"):
                 accumulated_content += chunk["choices"][0]["delta"]["content"]
@@ -69,7 +70,7 @@ async def stream_chat_completion(
                 )
                 session.add(message)
 
-            assistant_meta = {"finish_reason": finish_reason}
+            assistant_meta: Dict[str, Any] = {"finish_reason": finish_reason}
             if usage:
                 assistant_meta["usage"] = usage
 
@@ -120,7 +121,7 @@ async def create_chat_completion(
     if body.tool_choice is not None:
         kwargs["tool_choice"] = body.tool_choice
 
-    messages = body.messages
+    messages = cast(List[ChatCompletionRequestMessage], body.messages)
 
     if body.stream:
         return EventSourceResponse(
@@ -136,7 +137,7 @@ async def create_chat_completion(
             media_type="text/event-stream",
         )
 
-    response: llama_cpp.ChatCompletion = llama.create_chat_completion(messages=messages, **kwargs)  # type: ignore[arg-type,assignment]
+    response = cast(Dict[str, Any], llama.create_chat_completion(messages=messages, **kwargs))
 
     async with request.app.state.get_db_session() as session:
         for msg in body.messages:
@@ -149,7 +150,7 @@ async def create_chat_completion(
             session.add(message)
 
         assistant_content = response["choices"][0]["message"]["content"]
-        assistant_meta = {"finish_reason": response["choices"][0]["finish_reason"]}
+        assistant_meta: Dict[str, Any] = {"finish_reason": response["choices"][0]["finish_reason"]}
         if response.get("usage"):
             assistant_meta["usage"] = response["usage"]
 
