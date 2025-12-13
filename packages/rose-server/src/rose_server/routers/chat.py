@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import uuid
 from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union, cast
 
@@ -12,6 +13,19 @@ from sse_starlette import EventSourceResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["chat"])
+
+
+def extract_reasoning(text: str) -> Optional[str]:
+    """Extract <think>...</think> content and return reasoning."""
+    match = re.search(r"<think>(.*?)</think>", text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return None
+
+
+def strip_reasoning_tags(text: str) -> str:
+    """Remove <think>...</think> tags from text."""
+    return re.sub(r"<think>.*?</think>\s*", "", text, flags=re.DOTALL).strip()
 
 
 class ChatRequest(BaseModel):
@@ -41,7 +55,6 @@ async def stream_chat_completion(
     thread_id: str,
     model: str,
     get_db_session: Any,
-    input_messages: list[dict[str, Any]],
 ) -> AsyncIterator[str]:
     """Stream chat completion chunks and save to database."""
     accumulated_content = ""
@@ -63,14 +76,18 @@ async def stream_chat_completion(
             yield json.dumps(chunk)
 
         async with get_db_session() as session:
-            for msg in input_messages:
-                message = Message(
+            user_msg = messages[-1]
+            if user_msg["role"] == "user":
+                user_message = Message(
                     thread_id=thread_id,
-                    role=msg["role"],
-                    content=msg["content"],
+                    role="user",
+                    content=user_msg["content"],
                     model=model,
                 )
-                session.add(message)
+                session.add(user_message)
+
+            reasoning = extract_reasoning(accumulated_content)
+            cleaned_content = strip_reasoning_tags(accumulated_content)
 
             assistant_meta: Dict[str, Any] = {"finish_reason": finish_reason}
             if completion_id:
@@ -81,7 +98,8 @@ async def stream_chat_completion(
             assistant_msg = Message(
                 thread_id=thread_id,
                 role="assistant",
-                content=accumulated_content,
+                content=cleaned_content,
+                reasoning=reasoning,
                 model=model,
                 meta=assistant_meta,
             )
@@ -138,7 +156,6 @@ async def create_chat_completion(
                 thread_id=thread_id,
                 model=body.model,
                 get_db_session=request.app.state.get_db_session,
-                input_messages=body.messages,
             ),
             media_type="text/event-stream",
         )
@@ -146,16 +163,20 @@ async def create_chat_completion(
     response = cast(Dict[str, Any], llama.create_chat_completion(messages=messages, **kwargs))
 
     async with request.app.state.get_db_session() as session:
-        for msg in body.messages:
-            message = Message(
+        user_msg = body.messages[-1]
+        if user_msg["role"] == "user":
+            user_message = Message(
                 thread_id=thread_id,
-                role=msg["role"],
-                content=msg["content"],
+                role="user",
+                content=user_msg["content"],
                 model=body.model,
             )
-            session.add(message)
+            session.add(user_message)
 
         assistant_content = response["choices"][0]["message"]["content"]
+        reasoning = extract_reasoning(assistant_content)
+        cleaned_content = strip_reasoning_tags(assistant_content)
+
         assistant_meta: Dict[str, Any] = {
             "completion_id": response["id"],
             "finish_reason": response["choices"][0]["finish_reason"],
@@ -166,7 +187,8 @@ async def create_chat_completion(
         assistant_msg = Message(
             thread_id=thread_id,
             role="assistant",
-            content=assistant_content,
+            content=cleaned_content,
+            reasoning=reasoning,
             model=body.model,
             meta=assistant_meta,
         )

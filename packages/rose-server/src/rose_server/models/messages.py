@@ -17,6 +17,7 @@ class Message(SQLModel, table=True):
     thread_id: str = Field(index=True)
     role: str
     content: str
+    reasoning: Optional[str] = Field(default=None)
     model: str
     meta: Optional[Dict[str, Any]] = Field(default=None, sa_type=JSON)
     created_at: int = Field(default_factory=lambda: int(time.time()))
