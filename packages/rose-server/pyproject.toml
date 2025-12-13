@@ -1,6 +1,6 @@
 [project]
 name = "rose-server"
-version = "0.1.4"
+version = "0.1.5"
 description = "ROSE Server - Run your own LLM server"
 requires-python = ">=3.12,<4.0"
 authors = [{ name = "Garden Variety AI" }]

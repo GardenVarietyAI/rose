@@ -12,7 +12,7 @@ A FastAPI wrapper around llama-cpp-python and SQLite.
 
 ```bash
 # Clone the repository
-git clone --branch 0.1.4 --depth 1 git@github.com:GardenVarietyAI/rose.git
+git clone --branch 0.1.5 --depth 1 git@github.com:GardenVarietyAI/rose.git
 cd rose
 
 # Install dependencies
