@@ -4,7 +4,7 @@
 
 > This project is under active development. Expect rapid changes and improvements.
 
-A thin wrapper around llama-cpp-python and SQLite.
+A FastAPI wrapper around llama-cpp-python and SQLite.
 
 ## Quick Start
 
