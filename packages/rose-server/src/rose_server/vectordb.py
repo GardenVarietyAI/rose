@@ -90,4 +90,4 @@ async def store_embedding(db: aiosqlite.Connection, message_id: str, embedding: 
 def generate_embedding(embed_model: llama_cpp.Llama, text: str) -> list[float]:
     """Generate embedding for text using the embedding model."""
     result = embed_model.create_embedding(text)
-    return result["data"][0]["embedding"]  # type: ignore[index,return-value]
+    return result["data"][0]["embedding"]  # type: ignore[return-value]
