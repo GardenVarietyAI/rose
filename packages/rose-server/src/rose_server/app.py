@@ -1,67 +1,71 @@
+import glob
 import logging
-import os
 from contextlib import asynccontextmanager
-from pathlib import Path
-from typing import Any, Dict
-
-# Disable PostHog analytics
-os.environ["POSTHOG_DISABLED"] = "1"
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from tokenizers import Tokenizer
+from llama_cpp import Llama
 
-from rose_server import __version__
-from rose_server._inference import InferenceServer
 from rose_server.database import check_database_setup, create_all_tables, create_session_maker, get_session
+from rose_server.llms import MODELS, ModelConfig
 from rose_server.router import router
-from rose_server.settings import Settings
-
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["ANONYMIZED_TELEMETRY"] = "false"
-
+from rose_server.vectordb import connect
 
 logger = logging.getLogger("rose_server")
 
 
+def load_model(model_path: str, n_gpu_layers: int, n_ctx: int, embedding: bool = False) -> Llama:
+    matches = glob.glob(model_path)
+    if not matches:
+        raise FileNotFoundError(f"Model not found at {model_path}")
+
+    resolved_path = matches[0]
+    logger.info(f"Loading model from {resolved_path}")
+    return Llama(
+        model_path=resolved_path,
+        n_gpu_layers=n_gpu_layers,
+        n_ctx=n_ctx,
+        embedding=embedding,
+        verbose=False,
+    )
+
+
+def load_chat_model(config: ModelConfig) -> Llama:
+    return load_model(config["path"], config["n_gpu_layers"], config["n_ctx"])
+
+
+def load_embedding_model(config: ModelConfig) -> Llama:
+    return load_model(config["path"], config["n_gpu_layers"], config["n_ctx"], embedding=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> Any:
-    settings = Settings()
-    app.state.settings = settings
-
-    app.state.engine, app.state.db_session_maker = create_session_maker(settings.data_dir)
-    logger.info(f"Database session maker initialized with data_dir: {settings.data_dir}")
+    app.state.engine, app.state.db_session_maker = create_session_maker()
+    logger.info("Database session maker initialized")
 
     app.state.get_db_session = lambda read_only=False: get_session(app.state.db_session_maker, read_only)
 
-    directories = [
-        settings.data_dir,
-        settings.model_offload_dir,
-    ]
-    for dir in directories:
-        os.makedirs(dir, exist_ok=True)
-        logger.info(f"Ensured directory exists: {dir}")
-
     if not await check_database_setup(app.state.engine):
         logger.info("Creating database...")
-        db_path = Path(settings.data_dir) / "rose.db"
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        db_path.touch(exist_ok=True)
 
     await create_all_tables(app.state.engine)
 
-    app.state.inference_server = InferenceServer("auto")
-    logger.info("Inference server initialized")
+    if "chat" not in MODELS:
+        raise RuntimeError("Chat model configuration missing from MODELS")
 
-    tokenizer_path = Path(settings.data_dir) / "models/Qwen--Qwen3-0.6B/tokenizer.json"
-    if tokenizer_path.exists():
-        app.state.tokenizer = Tokenizer.from_file(str(tokenizer_path))
-        logger.info(f"Qwen3 tokenizer loaded from {tokenizer_path}")
-    else:
-        app.state.tokenizer = None
-        logger.warning(f"Qwen3 tokenizer not found at {tokenizer_path}")
+    if "embedding" not in MODELS:
+        raise RuntimeError("Embedding model configuration missing from MODELS")
+
+    app.state.chat_model = load_chat_model(MODELS["chat"])
+    app.state.embed_model = load_embedding_model(MODELS["embedding"])
+
+    app.state.vectordb = await connect("rose_20251211.vectordb")
 
     yield
+
+    await app.state.vectordb.close()
+    logger.info("Vector database connection closed")
 
     logger.info("Application shutdown completed")
 
@@ -70,7 +74,6 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="ROSE",
         description="Run your own LLM server",
-        version=__version__,
         lifespan=lifespan,
     )
     app.add_middleware(
@@ -84,7 +87,7 @@ def create_app() -> FastAPI:
     app.include_router(router)
 
     @app.get("/health")
-    async def health_check() -> Dict[str, str]:
+    async def health_check() -> dict[str, str]:
         return {"status": "ok"}
 
     return app

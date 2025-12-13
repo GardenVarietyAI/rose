@@ -24,15 +24,14 @@ class _VecConnection(sqlite3.Connection):
 
 
 async def connect(path: str, *, pragmas: bool = True, **kwargs: Any) -> aiosqlite.Connection:
-    """
-    Open an aiosqlite connection with sqlite-vec preloaded.
-    Usage: db = await connect('rose.db')
-    """
+    """Open an aiosqlite connection with sqlite-vec"""
+
     factory = functools.partial(_VecConnection)
+
     # aiosqlite will pass this factory through to sqlite3.connect()
     db = await aiosqlite.connect(path, factory=factory, **kwargs)
 
-    # Fail-fast version check
+    # Version check
     row = await (await db.execute("SELECT vec_version()")).fetchone()
     if not row or not row[0]:
         raise RuntimeError("sqlite-vec loaded, but vec_version() returned no result")
