@@ -1,34 +1,17 @@
 version: '3.8'
 
 services:
-
-  rose-api:
+  rose-server:
     build: .
-    command: ["rose-server"]
     ports:
       - "8004:8004"
-    environment:
-      - ROSE_API_KEY=${ROSE_API_KEY:-docker-dev-key-123456}
-      - ROSE_SERVER_HOST=0.0.0.0
-      - ROSE_SERVER_PORT=8004
-      - ROSE_SERVER_DATA_DIR=/app/data
     volumes:
-      - ./data:/app/data
+      - rose-data:/app
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  # rose-trainer:
-  #   build: .
-  #   command: ["rose-trainer"]
-  #   environment:
-  #     - ROSE_SERVER_URL=http://rose-api:8004
-  #     - ROSE_API_KEY=${ROSE_API_KEY:-docker-dev-key-123456}
-  #     - ROSE_SERVER_TRAINING_INTERVAL=30
-  #   volumes:
-  #     - ./data:/app/data
-  #   depends_on:
-  #     rose-api:
-  #       condition: service_healthy
+volumes:
+  rose-data:
