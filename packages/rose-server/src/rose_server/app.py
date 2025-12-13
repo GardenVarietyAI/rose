@@ -46,10 +46,11 @@ async def lifespan(app: FastAPI) -> Any:
 
     await create_all_tables(app.state.engine)
 
-    if "chat" not in MODELS:
-        raise RuntimeError("Chat model configuration missing from MODELS")
-
-    app.state.chat_model = load_chat_model(MODELS["chat"])
+    try:
+        app.state.chat_model = load_chat_model(MODELS["chat"])
+    except Exception as e:
+        app.state.chat_model = None
+        logger.warning(f"Failed to load chat model: {e}")
 
     yield
 
