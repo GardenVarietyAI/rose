@@ -10,7 +10,6 @@ from llama_cpp import Llama
 from rose_server.database import check_database_setup, create_all_tables, create_session_maker, get_session
 from rose_server.llms import MODELS, ModelConfig
 from rose_server.router import router
-from rose_server.vectordb import connect
 
 logger = logging.getLogger("rose_server")
 
@@ -35,10 +34,6 @@ def load_chat_model(config: ModelConfig) -> Llama:
     return load_model(config["path"], config["n_gpu_layers"], config["n_ctx"])
 
 
-def load_embedding_model(config: ModelConfig) -> Llama:
-    return load_model(config["path"], config["n_gpu_layers"], config["n_ctx"], embedding=True)
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> Any:
     app.state.engine, app.state.db_session_maker = create_session_maker()
@@ -54,18 +49,9 @@ async def lifespan(app: FastAPI) -> Any:
     if "chat" not in MODELS:
         raise RuntimeError("Chat model configuration missing from MODELS")
 
-    if "embedding" not in MODELS:
-        raise RuntimeError("Embedding model configuration missing from MODELS")
-
     app.state.chat_model = load_chat_model(MODELS["chat"])
-    app.state.embed_model = load_embedding_model(MODELS["embedding"])
-
-    app.state.vectordb = await connect("rose_20251211.vectordb")
 
     yield
-
-    await app.state.vectordb.close()
-    logger.info("Vector database connection closed")
 
     logger.info("Application shutdown completed")
 

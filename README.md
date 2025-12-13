@@ -4,7 +4,7 @@
 
 > This project is under active development. Expect rapid changes and improvements.
 
-A thin wrapper around llama-cpp-python, FastAPI and SQLite.
+A FastAPI wrapper around llama-cpp-python and SQLite.
 
 ## Quick Start
 
@@ -23,8 +23,7 @@ uv sync
 
 ```bash
 # Download models from HuggingFace
-huggingface-cli download Qwen/Qwen3-0.6B-GGUF qwen3-0.6b-q8_0.gguf
-huggingface-cli download Qwen/Qwen3-Embedding-0.6B-GGUF qwen3-embedding-0.6b-q8_0.gguf
+hf download Qwen/Qwen3-0.6B-GGUF qwen3-0.6b-q8_0.gguf
 ```
 
 ### Running the Server
@@ -38,6 +37,4 @@ Server runs on http://localhost:8004. Database files are created automatically i
 ## API Endpoints
 
 - `POST /v1/chat/completions` - Chat with streaming support
-- `POST /v1/embeddings` - Generate embeddings
-- `POST /v1/rerank` - Rerank documents by relevance
 - `GET /v1/models` - List available models

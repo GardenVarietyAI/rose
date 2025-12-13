@@ -18,10 +18,4 @@ MODELS: dict[str, ModelConfig] = {
         "n_gpu_layers": -1,
         "n_ctx": 2048,
     },
-    "embedding": {
-        "id": "Qwen/Qwen3-Embedding-0.6B-GGUF",
-        "path": f"{HF_HOME}/hub/models--Qwen--Qwen3-Embedding-0.6B-GGUF/snapshots/*/qwen3-embedding-0.6b-q8_0.gguf",
-        "n_gpu_layers": -1,
-        "n_ctx": 2048,
-    },
 }
