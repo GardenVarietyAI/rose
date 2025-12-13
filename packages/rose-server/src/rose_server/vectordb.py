@@ -5,6 +5,7 @@ import sqlite3
 from typing import Any
 
 import aiosqlite
+import llama_cpp
 import sqlite_vec
 
 
@@ -61,3 +62,32 @@ async def create_all_tables(db: aiosqlite.Connection, embedding_dim: int) -> Non
         )
     """)
     await db.commit()
+
+
+async def get_missing_embeddings(db: aiosqlite.Connection, message_ids: list[str]) -> list[str]:
+    """Check which message IDs don't have embeddings yet."""
+    if not message_ids:
+        return []
+
+    placeholders = ",".join("?" * len(message_ids))
+    query = f"SELECT message_id FROM message_embeddings WHERE message_id IN ({placeholders})"
+
+    cursor = await db.execute(query, message_ids)
+    existing = {row[0] for row in await cursor.fetchall()}
+
+    return [msg_id for msg_id in message_ids if msg_id not in existing]
+
+
+async def store_embedding(db: aiosqlite.Connection, message_id: str, embedding: list[float]) -> None:
+    """Store a message embedding in the vector database."""
+    await db.execute(
+        "INSERT OR REPLACE INTO message_embeddings (message_id, embedding) VALUES (?, ?)",
+        (message_id, embedding),
+    )
+    await db.commit()
+
+
+def generate_embedding(embed_model: llama_cpp.Llama, text: str) -> list[float]:
+    """Generate embedding for text using the embedding model."""
+    result = embed_model.create_embedding(text)
+    return result["data"][0]["embedding"]  # type: ignore[index,return-value]
