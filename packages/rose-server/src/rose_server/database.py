@@ -63,6 +63,50 @@ async def create_all_tables(engine: AsyncEngine) -> None:
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
 
+        await conn.execute(
+            text("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+                content,
+                role UNINDEXED,
+                model UNINDEXED,
+                thread_id UNINDEXED,
+                created_at UNINDEXED,
+                content='messages',
+                content_rowid='id',
+                tokenize = 'unicode61 remove_diacritics 2'
+            )
+        """)
+        )
+
+        await conn.execute(
+            text("""
+            CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
+                INSERT INTO messages_fts(rowid, content, role, model, thread_id, created_at)
+                VALUES (new.id, new.content, new.role, new.model, new.thread_id, new.created_at);
+            END
+        """)
+        )
+
+        await conn.execute(
+            text("""
+            CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
+                INSERT INTO messages_fts(messages_fts, rowid, content, role, model, thread_id, created_at)
+                VALUES('delete', old.id, old.content, old.role, old.model, old.thread_id, old.created_at);
+            END
+        """)
+        )
+
+        await conn.execute(
+            text("""
+            CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
+                INSERT INTO messages_fts(messages_fts, rowid, content, role, model, thread_id, created_at)
+                VALUES('delete', old.id, old.content, old.role, old.model, old.thread_id, old.created_at);
+                INSERT INTO messages_fts(rowid, content, role, model, thread_id, created_at)
+                VALUES (new.id, new.content, new.role, new.model, new.thread_id, new.created_at);
+            END
+        """)
+        )
+
 
 async def check_database_setup(engine: AsyncEngine) -> bool:
     try:

@@ -47,10 +47,13 @@ async def stream_chat_completion(
     accumulated_content = ""
     finish_reason: Optional[str] = None
     usage: Optional[Dict[str, Any]] = None
+    completion_id: Optional[str] = None
 
     try:
         stream = cast(Iterator[Dict[str, Any]], llama.create_chat_completion(messages=messages, stream=True, **kwargs))
         for chunk in stream:
+            if chunk.get("id"):
+                completion_id = chunk["id"]
             if chunk["choices"][0]["delta"].get("content"):
                 accumulated_content += chunk["choices"][0]["delta"]["content"]
             if chunk["choices"][0].get("finish_reason"):
@@ -58,7 +61,6 @@ async def stream_chat_completion(
             if chunk.get("usage"):
                 usage = chunk["usage"]
             yield json.dumps(chunk)
-        yield "[DONE]"
 
         async with get_db_session() as session:
             for msg in input_messages:
@@ -71,6 +73,8 @@ async def stream_chat_completion(
                 session.add(message)
 
             assistant_meta: Dict[str, Any] = {"finish_reason": finish_reason}
+            if completion_id:
+                assistant_meta["completion_id"] = completion_id
             if usage:
                 assistant_meta["usage"] = usage
 
@@ -82,6 +86,8 @@ async def stream_chat_completion(
                 meta=assistant_meta,
             )
             session.add(assistant_msg)
+
+        yield "[DONE]"
 
     except Exception as e:
         logger.error(f"Streaming error: {e}")
@@ -150,7 +156,10 @@ async def create_chat_completion(
             session.add(message)
 
         assistant_content = response["choices"][0]["message"]["content"]
-        assistant_meta: Dict[str, Any] = {"finish_reason": response["choices"][0]["finish_reason"]}
+        assistant_meta: Dict[str, Any] = {
+            "completion_id": response["id"],
+            "finish_reason": response["choices"][0]["finish_reason"],
+        }
         if response.get("usage"):
             assistant_meta["usage"] = response["usage"]
 
