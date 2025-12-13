@@ -1,24 +1,9 @@
 [tools]
 python = "3.12"
-rust = "1.88"
 uv = "0.8.3"
-dbmate = "2.22.0"
-"ubi:benbjohnson/litestream" = "0.3.13"
-sqlite = "3.50.4"
-node = "22.19.0"
-
-[env]
-MISE_NODE_COREPACK = "1"
 
 [tasks]
-backup = "litestream replicate -config ./litestream.yml"
-restore = "litestream restore -config ./litestream.yml -replica local -o ./data/rose.db ./data/rose.db"
-dev-metal = "cd packages/rose-server && uv run maturin develop --features metal --release --target aarch64-apple-darwin"
-dev-cuda = "cd packages/rose-server && uv run maturin develop --features cuda --release"
-dev = "cd packages/rose-server && uv run maturin develop --release"
-build = "cd packages/rose-server && uv run maturin build --release"
-build-cuda = "cd packages/rose-server && uv run maturin build --features cuda --release"
-migrate = "dbmate --no-dump-schema up"
+dev = "uv run rose-server"
 
 [settings]
 lockfile = true

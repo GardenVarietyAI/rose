@@ -1,25 +1,21 @@
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import AsyncGenerator
 
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 
-from rose_server.entities.messages import Message
-from rose_server.entities.models import LanguageModel
+from rose_server.models.messages import Message
 
 logger = logging.getLogger(__name__)
 
 
 def create_session_maker(
-    data_dir: str,
     db_url: str | None = None,
 ) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
     if db_url is None:
-        db_path = Path(data_dir) / "rose_20250923.db"
-        db_url = f"sqlite+aiosqlite:///{db_path}"
+        db_url = "sqlite+aiosqlite:///rose_20251211.db"
 
     engine = create_async_engine(
         db_url,
@@ -33,6 +29,16 @@ def create_session_maker(
             "timeout": 20,
         },
     )
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def set_sqlite_pragma(dbapi_conn, _connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA cache_size=-64000")
+        cursor.execute("PRAGMA busy_timeout=5000")
+        cursor.close()
+
     return engine, async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -74,5 +80,4 @@ __all__ = [
     "create_all_tables",
     "check_database_setup",
     "Message",
-    "LanguageModel",
 ]

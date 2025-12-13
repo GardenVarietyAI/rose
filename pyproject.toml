@@ -1,11 +1,6 @@
-[scripts]
-rose = "rose_cli.main:main"
-
 [tool.uv.workspace]
 members = [
     "packages/rose-server",
-    "packages/rose-cli",
-    "packages/rose-web",
 ]
 
 [tool.uv]
@@ -20,22 +15,17 @@ dev-dependencies = [
     "pytest-cov>=6.0.0",
     "pytest-asyncio>=0.26.0",
     "httpx>=0.28.1",
-    "maturin~=1.9.3",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = [
     "packages/rose-server/src",
-    "packages/rose-cli/src",
-    "packages/rose-web/src",
 ]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 
 [tool.uv.sources]
 rose-server = { workspace = true }
-rose-cli = { workspace = true }
-rose-web = { workspace = true }
 
 [tool.ruff]
 line-length = 120
@@ -78,14 +68,6 @@ strict_equality = true
 
 [[tool.mypy.overrides]]
 module = [
-    "transformers.*",
-    "sentencepiece.*",
-    "peft.*",
-    "accelerate.*",
-    "datasets.*",
     "sse_starlette.*",
-    "apscheduler.*",
-    "fastembed.*",
-    "nvidia_ml_py.*",
 ]
 ignore_errors = true

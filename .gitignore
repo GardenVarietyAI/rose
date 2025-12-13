@@ -144,6 +144,7 @@ cython_debug/
 *.db
 *.db-wal
 *.db-shm
+*.vectordb
 
 # Logs
 logs/
@@ -166,3 +167,5 @@ CLAUDE.md
 codex.toml
 node_modules/
 /K2-Vendor-Verfier
+*.vectordb-shm
+*.vectordb-wal
