@@ -3,32 +3,15 @@ import logging
 import uuid
 from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union, cast
 
-import aiosqlite
 import llama_cpp
-from fastapi import APIRouter, BackgroundTasks, Request
+from fastapi import APIRouter, Request
 from llama_cpp.llama_types import ChatCompletionRequestMessage
 from pydantic import BaseModel
 from rose_server.models.messages import Message
-from rose_server.vectordb import generate_embedding, store_embedding
 from sse_starlette import EventSourceResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["chat"])
-
-
-async def embed_messages_task(
-    vectordb: aiosqlite.Connection,
-    embed_model: llama_cpp.Llama,
-    message_ids: list[str],
-    message_contents: list[str],
-) -> None:
-    """Background task to generate and store embeddings for messages."""
-    for message_id, content in zip(message_ids, message_contents):
-        try:
-            embedding = generate_embedding(embed_model, content)
-            await store_embedding(vectordb, message_id, embedding)
-        except Exception as e:
-            logger.error(f"Failed to generate embedding for message {message_id}: {e}")
 
 
 class ChatRequest(BaseModel):
@@ -109,7 +92,6 @@ async def stream_chat_completion(
 async def create_chat_completion(
     request: Request,
     body: ChatRequest,
-    background_tasks: BackgroundTasks,
 ) -> Union[dict[str, Any], EventSourceResponse]:
     llama: llama_cpp.Llama = request.app.state.chat_model
 
@@ -157,9 +139,6 @@ async def create_chat_completion(
 
     response = cast(Dict[str, Any], llama.create_chat_completion(messages=messages, **kwargs))
 
-    message_ids: list[str] = []
-    message_contents: list[str] = []
-
     async with request.app.state.get_db_session() as session:
         for msg in body.messages:
             message = Message(
@@ -169,9 +148,6 @@ async def create_chat_completion(
                 model=body.model,
             )
             session.add(message)
-            await session.flush()
-            message_ids.append(message.id)
-            message_contents.append(msg["content"])
 
         assistant_content = response["choices"][0]["message"]["content"]
         assistant_meta: Dict[str, Any] = {"finish_reason": response["choices"][0]["finish_reason"]}
@@ -186,16 +162,5 @@ async def create_chat_completion(
             meta=assistant_meta,
         )
         session.add(assistant_msg)
-        await session.flush()
-        message_ids.append(assistant_msg.id)
-        message_contents.append(assistant_content)
-
-    background_tasks.add_task(
-        embed_messages_task,
-        request.app.state.vectordb,
-        request.app.state.embed_model,
-        message_ids,
-        message_contents,
-    )
 
     return response
