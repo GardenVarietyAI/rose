@@ -7,10 +7,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from llama_cpp import Llama
 
-from rose_server.database import check_database_setup, create_all_tables, create_session_maker, get_session
+import rose_server.vectordb as vectordb
+from rose_server.database import (
+    check_database_setup,
+    create_all_tables as create_db_tables,
+    create_session_maker,
+    get_session,
+)
 from rose_server.llms import MODELS, ModelConfig
 from rose_server.router import router
-from rose_server.vectordb import connect
 
 logger = logging.getLogger("rose_server")
 
@@ -49,7 +54,7 @@ async def lifespan(app: FastAPI) -> Any:
     if not await check_database_setup(app.state.engine):
         logger.info("Creating database...")
 
-    await create_all_tables(app.state.engine)
+    await create_db_tables(app.state.engine)
 
     if "chat" not in MODELS:
         raise RuntimeError("Chat model configuration missing from MODELS")
@@ -60,7 +65,10 @@ async def lifespan(app: FastAPI) -> Any:
     app.state.chat_model = load_chat_model(MODELS["chat"])
     app.state.embed_model = load_embedding_model(MODELS["embedding"])
 
-    app.state.vectordb = await connect("rose_20251211.vectordb")
+    app.state.vectordb = await vectordb.connect("rose_20251211.vectordb")
+
+    embedding_dim = app.state.embed_model.n_embd()
+    await vectordb.create_all_tables(app.state.vectordb, embedding_dim)
 
     yield
 

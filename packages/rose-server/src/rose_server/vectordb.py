@@ -50,3 +50,14 @@ async def connect(path: str, *, pragmas: bool = True, **kwargs: Any) -> aiosqlit
         await db.commit()
 
     return db
+
+
+async def create_all_tables(db: aiosqlite.Connection, embedding_dim: int) -> None:
+    """Initialize vector embedding tables."""
+    await db.execute(f"""
+        CREATE TABLE IF NOT EXISTS message_embeddings (
+            message_id TEXT PRIMARY KEY,
+            embedding FLOAT[{embedding_dim}]
+        )
+    """)
+    await db.commit()
