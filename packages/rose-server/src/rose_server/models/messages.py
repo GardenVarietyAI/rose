@@ -19,7 +19,7 @@ class Message(SQLModel, table=True):
     content: str
     reasoning: Optional[str] = Field(default=None)
     model: str
-    meta: Optional[Dict[str, Any]] = Field(default=None, sa_type=JSON)
+    meta: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON, nullable=True))
     created_at: int = Field(default_factory=lambda: int(time.time()))
 
     completion_id: Optional[str] = Field(
