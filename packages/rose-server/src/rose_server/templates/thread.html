@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Thread: {{ thread_id }}{% endblock %}
+
+{% block extra_style %}
+.message {
+    margin: 20px 0;
+    padding: 15px;
+    border-left: 3px solid #333;
+    scroll-margin-top: 20px;
+}
+.message:target { border-left-color: #0af; background: #111; }
+.message-header { color: #888; font-size: 0.9em; margin-bottom: 10px; }
+.message-role { color: #0af; }
+.message-content { white-space: pre-wrap; }
+.message-meta { color: #666; font-size: 0.85em; margin-top: 10px; }
+{% endblock %}
+
+{% block content %}
+<p>Thread ID: <strong>{{ thread_id }}</strong></p>
+<p>Messages: {{ messages|length }}</p>
+
+{% for msg in messages %}
+<div class="message" id="msg-{{ msg.uuid }}">
+    <div class="message-header">
+        <span class="message-role">{{ msg.role }}</span>
+        {% if msg.role == 'assistant' and msg.model %} | {{ msg.model }}{% endif %}
+    </div>
+    <div class="message-content">{{ msg.content }}</div>
+    <div class="message-meta">
+        {{ msg.created_at }}
+    </div>
+</div>
+{% endfor %}
+{% endblock %}
