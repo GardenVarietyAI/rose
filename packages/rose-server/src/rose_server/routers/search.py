@@ -18,6 +18,7 @@ class SearchHit(BaseModel):
     id: str
     score: float
     text: str
+    excerpt: str
     metadata: Dict[str, Any]
 
 
@@ -37,6 +38,7 @@ async def search_messages(
         SELECT
             m.uuid,
             -bm25(messages_fts) as score,
+            snippet(messages_fts, -1, '', '', '...', 64) as excerpt,
             m.content,
             m.thread_id,
             m.role,
@@ -67,6 +69,7 @@ async def search_messages(
                 id=row.uuid,
                 score=row.score,
                 text=row.content,
+                excerpt=row.excerpt,
                 metadata=metadata,
             )
         )
