@@ -3,15 +3,19 @@
 {% block title %}Search: {{ query }}{% endblock %}
 
 {% block extra_style %}
-.result { margin: 20px 0; padding: 15px; border: 1px solid #333; }
-.result:hover { background: #111; }
+.result { margin: 20px 0; padding: 15px; border: 1px solid gainsboro; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05); border-radius: 3px; }
 .score { color: #666; font-size: 0.9em; }
 .metadata { color: #888; font-size: 0.85em; margin-top: 10px; }
 .content { margin: 10px 0; white-space: pre-wrap; }
+input[type="text"] { font-family: monospace; padding: 5px; width: 400px; border-radius: 3px; }
+input[type="submit"] { font-family: monospace; padding: 5px 15px; border-radius: 3px; }
 {% endblock %}
 
 {% block content %}
-<p>Query: <strong>{{ query }}</strong></p>
+<form action="/v1/search" method="get">
+    <input type="text" name="q" value="{{ query }}" autofocus>
+    <input type="submit" value="Search">
+</form>
 <p>Results: {{ hits|length }}</p>
 
 {% for hit in hits %}
