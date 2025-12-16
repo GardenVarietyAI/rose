@@ -18,7 +18,7 @@
     {% for hit in hits %}
     <div class="result">
         <div class="score">Score: {{ "%.4f"|format(hit.score) }}</div>
-        <div class="content">{{ hit.text }}</div>
+        <div class="content">{{ hit.excerpt }}</div>
         <div class="metadata">
             ID: {{ hit.id }} | Thread: {{ hit.metadata.get('thread_id', 'N/A') }} |
             Role: {{ hit.metadata.get('role', 'N/A') }} |
