@@ -34,7 +34,31 @@ uv run rose-server
 
 Server runs on http://localhost:8004. Database files are created automatically in the project root.
 
+The spell check dictionary (MIT licensed) is downloaded automatically on first run.
+
 ## API Endpoints
 
 - `POST /v1/chat/completions` - Chat with streaming support
 - `GET /v1/models` - List available models
+
+## Rebuild Search Index
+
+1. Stop the server
+
+2. Drop the messages table
+
+```sql
+DROP TABLE messages_fts;
+```
+
+3. Start the server to recreate the table
+
+```sh
+uv run rose-server
+```
+
+4. Rebuild the index
+
+```sql
+INSERT INTO messages_fts(messages_fts) VALUES('rebuild');
+```

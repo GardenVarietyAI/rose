@@ -73,7 +73,7 @@ async def create_all_tables(engine: AsyncEngine) -> None:
                 created_at UNINDEXED,
                 content='messages',
                 content_rowid='id',
-                tokenize = 'unicode61 remove_diacritics 2'
+                tokenize = 'porter unicode61 remove_diacritics 2'
             )
         """)
         )
