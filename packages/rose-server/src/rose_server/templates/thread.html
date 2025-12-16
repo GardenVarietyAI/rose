@@ -6,12 +6,17 @@
 .message {
     margin: 20px 0;
     padding: 15px;
-    border-left: 3px solid #333;
+    border: 1px solid gainsboro;
     scroll-margin-top: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    border-radius: 3px;
 }
-.message:target { border-left-color: #00f; background: #f0f0f0; }
+.message:target { border: none; border-left: 1px dotted darkslategray; background: honeydew; border-radius: 0 3px 3px 0; box-shadow: none; }
+.message:target .message-role { color: darkslategray; }
+.message:target .message-header { color: seagreen; }
+.message:target .message-meta { color: seagreen; }
 .message-header { color: #888; font-size: 0.9em; margin-bottom: 10px; }
-.message-role { color: #00f; }
+.message-role { color: #000; font-weight: bold; }
 .message-content { white-space: pre-wrap; color: #000; }
 .message-meta { color: #666; font-size: 0.85em; margin-top: 10px; }
 {% endblock %}
