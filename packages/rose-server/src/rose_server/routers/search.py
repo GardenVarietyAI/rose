@@ -1,12 +1,17 @@
 import logging
+from pathlib import Path
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Query, Request
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["search"])
+
+TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 class SearchHit(BaseModel):
@@ -22,12 +27,12 @@ class SearchResponse(BaseModel):
     hits: List[SearchHit]
 
 
-@router.get("/search", response_model=SearchResponse)
+@router.get("/search")
 async def search_messages(
     request: Request,
     q: str = Query(..., description="Search query"),
     limit: int = Query(10, ge=1, le=100, description="Maximum number of results"),
-) -> SearchResponse:
+) -> Any:
     query = text("""
         SELECT
             m.uuid,
@@ -66,8 +71,17 @@ async def search_messages(
             )
         )
 
-    return SearchResponse(
+    response_data = SearchResponse(
         index="messages",
         query=q,
         hits=hits,
     )
+
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept:
+        return templates.TemplateResponse(
+            "search.html",
+            {"request": request, "query": q, "hits": hits},
+        )
+
+    return response_data
