@@ -7,10 +7,15 @@
 .score { color: #666; font-size: 0.9em; }
 .metadata { color: #888; font-size: 0.85em; margin-top: 10px; }
 .content { margin: 10px 0; white-space: pre-wrap; }
+input[type="text"] { font-family: monospace; padding: 5px; width: 400px; }
+input[type="submit"] { font-family: monospace; padding: 5px 15px; }
 {% endblock %}
 
 {% block content %}
-<p>Query: <strong>{{ query }}</strong></p>
+<form action="/v1/search" method="get">
+    <input type="text" name="q" value="{{ query }}" autofocus>
+    <input type="submit" value="Search">
+</form>
 <p>Results: {{ hits|length }}</p>
 
 {% for hit in hits %}
