@@ -1,30 +1,30 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>ROSE Search: {{ query }}</title>
-    <style>
-        body { font-family: monospace; max-width: 800px; margin: 40px auto; padding: 0 20px; }
-        .result { margin: 20px 0; padding: 15px; border: 1px solid #333; }
-        .score { color: #666; font-size: 0.9em; }
-        .metadata { color: #888; font-size: 0.85em; margin-top: 10px; }
-        .content { margin: 10px 0; white-space: pre-wrap; }
-    </style>
-</head>
-<body>
-    <h1>ROSE Search</h1>
-    <p>Query: <strong>{{ query }}</strong></p>
-    <p>Results: {{ hits|length }}</p>
-    {% for hit in hits %}
+{% extends "base.html" %}
+
+{% block title %}Search: {{ query }}{% endblock %}
+
+{% block extra_style %}
+.result { margin: 20px 0; padding: 15px; border: 1px solid #333; }
+.result:hover { background: #111; }
+.score { color: #666; font-size: 0.9em; }
+.metadata { color: #888; font-size: 0.85em; margin-top: 10px; }
+.content { margin: 10px 0; white-space: pre-wrap; }
+{% endblock %}
+
+{% block content %}
+<p>Query: <strong>{{ query }}</strong></p>
+<p>Results: {{ hits|length }}</p>
+
+{% for hit in hits %}
+<a href="/v1/threads/{{ hit.metadata.get('thread_id') }}#msg-{{ hit.id }}">
     <div class="result">
         <div class="score">Score: {{ "%.4f"|format(hit.score) }}</div>
         <div class="content">{{ hit.excerpt }}</div>
         <div class="metadata">
-            ID: {{ hit.id }} | Thread: {{ hit.metadata.get('thread_id', 'N/A') }} |
+            Thread: {{ hit.metadata.get('thread_id', 'N/A') }} |
             Role: {{ hit.metadata.get('role', 'N/A') }} |
             Created: {{ hit.metadata.get('created_at', 'N/A') }}
         </div>
     </div>
-    {% endfor %}
-</body>
-</html>
+</a>
+{% endfor %}
+{% endblock %}
