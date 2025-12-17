@@ -70,15 +70,13 @@ document.getElementById('ask-btn').addEventListener('click', async function() {
         });
 
         const data = await response.json();
-        clearInterval(interval);
-        this.disabled = false;
-        this.textContent = 'Ask';
         window.location.href = '/v1/threads/' + data.thread_id;
     } catch (error) {
+        alert('Error: ' + error.message);
+    } finally {
         clearInterval(interval);
         this.disabled = false;
         this.textContent = 'Ask';
-        alert('Error: ' + error.message);
     }
 });
 </script>
