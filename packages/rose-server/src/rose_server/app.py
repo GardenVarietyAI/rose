@@ -15,9 +15,6 @@ from rose_server.router import router
 
 logger = logging.getLogger("rose_server")
 
-TEMPLATES_DIR = Path(__file__).parent / "templates"
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
-
 
 def load_model(model_path: str, n_gpu_layers: int, n_ctx: int, embedding: bool = False) -> Llama:
     matches = glob.glob(model_path)
@@ -41,6 +38,9 @@ def load_chat_model(config: ModelConfig) -> Llama:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> Any:
+    templates_dir = Path("./packages/rose-server/src/rose_server/templates")
+    app.state.templates = Jinja2Templates(directory=str(templates_dir))
+
     app.state.engine, app.state.db_session_maker = create_session_maker()
     logger.info("Database session maker initialized")
 
@@ -85,7 +85,7 @@ def create_app() -> FastAPI:
     @app.get("/opensearch.xml")
     async def opensearch_descriptor(request: Request) -> str:
         base_url = str(request.base_url).rstrip("/")
-        return templates.TemplateResponse(
+        return request.app.state.templates.TemplateResponse(
             "opensearch.xml",
             {"request": request, "base_url": base_url},
             media_type="application/opensearchdescription+xml",

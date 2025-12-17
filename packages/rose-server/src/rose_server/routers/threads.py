@@ -1,18 +1,13 @@
 import logging
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
-from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from rose_server.models.messages import Message
 from sqlmodel import col, select
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["threads"])
-
-TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 class ThreadResponse(BaseModel):
@@ -40,7 +35,7 @@ async def get_thread(
 
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
-        return templates.TemplateResponse(
+        return request.app.state.templates.TemplateResponse(
             "thread.html",
             {"request": request, "thread_id": thread_id, "messages": messages},
         )
