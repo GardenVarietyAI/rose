@@ -8,14 +8,19 @@
 .metadata { color: #888; font-size: 0.85em; margin-top: 10px; }
 .content { margin: 10px 0; white-space: pre-wrap; }
 input[type="text"] { font-family: monospace; padding: 5px; width: 400px; border-radius: 3px; }
-input[type="submit"] { font-family: monospace; padding: 5px 15px; border-radius: 3px; }
+input[type="submit"], button { font-family: monospace; padding: 5px 15px; border-radius: 3px; }
+.original-query { font-weight: 600; font-style: italic; text-decoration: underline; }
 {% endblock %}
 
 {% block content %}
 <form action="/v1/search" method="get">
     <input type="text" name="q" value="{{ query }}" autofocus>
     <input type="submit" value="Search">
+    <button type="button" id="ask-btn">Ask</button>
 </form>
+{% if corrected_query %}
+<p>Showing results for <strong>{{ query }}</strong><br>Search for <a href="/v1/search?q={{ original_query }}&exact=true"><span class="original-query">{{ original_query }}</span></a></p>
+{% endif %}
 <p>Results: {{ hits|length }}</p>
 
 {% for hit in hits %}
@@ -31,4 +36,41 @@ input[type="submit"] { font-family: monospace; padding: 5px 15px; border-radius:
     </div>
 </a>
 {% endfor %}
+
+<script>
+document.getElementById('ask-btn').addEventListener('click', async function() {
+    const query = document.querySelector('input[name="q"]').value;
+    if (!query) return;
+
+    this.disabled = true;
+
+    let dots = 0;
+    const interval = setInterval(() => {
+        dots = (dots % 3) + 1;
+        this.textContent = 'Asking' + '.'.repeat(dots);
+    }, 400);
+
+    try {
+        const response = await fetch('/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'default',
+                messages: [{ role: 'user', content: query }]
+            })
+        });
+
+        const data = await response.json();
+        clearInterval(interval);
+        this.disabled = false;
+        this.textContent = 'Ask';
+        window.location.href = '/v1/threads/' + data.thread_id;
+    } catch (error) {
+        clearInterval(interval);
+        this.disabled = false;
+        this.textContent = 'Ask';
+        alert('Error: ' + error.message);
+    }
+});
+</script>
 {% endblock %}

@@ -194,4 +194,5 @@ async def create_chat_completion(
         )
         session.add(assistant_msg)
 
+    response["thread_id"] = thread_id
     return response

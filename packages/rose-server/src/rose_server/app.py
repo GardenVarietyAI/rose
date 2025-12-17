@@ -1,5 +1,6 @@
 import glob
 import logging
+import urllib.request
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from llama_cpp import Llama
+from symspellpy import SymSpell
 
 from rose_server.database import check_database_setup, create_all_tables, create_session_maker, get_session
 from rose_server.llms import MODELS, ModelConfig
@@ -56,6 +58,30 @@ async def lifespan(app: FastAPI) -> Any:
     except Exception as e:
         app.state.chat_model = None
         logger.warning(f"Failed to load chat model: {e}")
+
+    sym_spell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
+    data_dir = Path("./data")
+    data_dir.mkdir(parents=True, exist_ok=True)
+    dictionary_path = data_dir / "frequency_dictionary_en_82_765.txt"
+
+    if not dictionary_path.exists():
+        logger.info(f"Downloading spell check dictionary to {dictionary_path}")
+        dictionary_url = (
+            "https://raw.githubusercontent.com/mammothb/symspellpy/master/symspellpy/frequency_dictionary_en_82_765.txt"
+        )
+        try:
+            urllib.request.urlretrieve(dictionary_url, dictionary_path)
+            logger.info("Dictionary downloaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to download dictionary: {e}")
+
+    if dictionary_path.exists():
+        sym_spell.load_dictionary(str(dictionary_path), term_index=0, count_index=1)
+        logger.info("Spell check dictionary loaded")
+        app.state.spell_checker = sym_spell
+    else:
+        logger.warning("Spell check dictionary not available")
+        app.state.spell_checker = None
 
     yield
 

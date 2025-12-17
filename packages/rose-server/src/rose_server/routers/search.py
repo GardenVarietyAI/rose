@@ -28,10 +28,32 @@ async def search_messages(
     request: Request,
     q: str = Query("", description="Search query"),
     limit: int = Query(10, ge=1, le=100, description="Maximum number of results"),
+    exact: bool = Query(False, description="Skip spell correction"),
 ) -> Any:
     hits = []
+    corrected_query = None
+    original_query = q
 
     if q:
+        # Normalize query for spell checking (remove punctuation that doesn't affect meaning)
+        normalized_q = q
+        for char in ["?", "!", ".", ",", ";", ":", "-", "+", "(", ")", "[", "]", "{", "}", "*", "^"]:
+            normalized_q = normalized_q.replace(char, " ")
+        normalized_q = " ".join(normalized_q.split())
+
+        if not exact and request.app.state.spell_checker:
+            suggestions = request.app.state.spell_checker.lookup_compound(normalized_q, max_edit_distance=2)
+            if suggestions and suggestions[0].term.lower() != normalized_q.lower():
+                corrected_query = suggestions[0].term
+                q = corrected_query
+
+        # Escape FTS5 special characters
+        fts_query = q.replace('"', '""')
+
+        # Remove FTS5 operators that could cause syntax errors
+        for char in ["?", "*", "(", ")", "{", "}", "[", "]", "^", ":", "-", "+"]:
+            fts_query = fts_query.replace(char, " ")
+
         query = text("""
             SELECT
                 m.uuid,
@@ -50,7 +72,7 @@ async def search_messages(
         """)
 
         async with request.app.state.get_db_session(read_only=True) as session:
-            result = await session.execute(query, {"query": q, "limit": limit})
+            result = await session.execute(query, {"query": fts_query, "limit": limit})
             rows = result.fetchall()
 
         for row in rows:
@@ -81,7 +103,13 @@ async def search_messages(
     if "text/html" in accept:
         return request.app.state.templates.TemplateResponse(
             "search.html",
-            {"request": request, "query": q, "hits": hits},
+            {
+                "request": request,
+                "query": q,
+                "hits": hits,
+                "corrected_query": corrected_query,
+                "original_query": original_query,
+            },
         )
 
     return response_data
