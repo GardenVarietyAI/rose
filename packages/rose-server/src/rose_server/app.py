@@ -109,7 +109,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     @app.get("/opensearch.xml")
-    async def opensearch_descriptor(request: Request) -> str:
+    async def opensearch_descriptor(request: Request) -> Any:
         base_url = str(request.base_url).rstrip("/")
         return request.app.state.templates.TemplateResponse(
             "opensearch.xml",
