@@ -34,12 +34,13 @@ uv run rose-server
 
 Server runs on http://localhost:8004. Database files are created automatically in the project root.
 
-The spell check dictionary (MIT licensed) is downloaded automatically on first run.
+The spell check dictionary is downloaded automatically on the first run.
 
 ## API Endpoints
 
 - `POST /v1/chat/completions` - Chat with streaming support
 - `GET /v1/models` - List available models
+- `GET /v1/search` - Search past messages
 
 ## Rebuild Search Index
 
