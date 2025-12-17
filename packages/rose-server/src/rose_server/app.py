@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
+import nltk
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
@@ -58,6 +59,12 @@ async def lifespan(app: FastAPI) -> Any:
     except Exception as e:
         app.state.chat_model = None
         logger.warning(f"Failed to load chat model: {e}")
+
+    try:
+        nltk.download("stopwords", quiet=True)
+        logger.info("NLTK stopwords loaded")
+    except Exception as e:
+        logger.warning(f"Failed to download NLTK stopwords: {e}")
 
     sym_spell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
     data_dir = Path("./data")
