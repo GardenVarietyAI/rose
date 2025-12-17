@@ -28,6 +28,8 @@ dependencies = [
     "greenlet>=3.2.2",
     "tokenizers>=0.21.2",
     "jinja2>=3.1.6",
+    "symspellpy>=6.9.0",
+    "rake-nltk>=1.0.6",
 ]
 
 [project.optional-dependencies]

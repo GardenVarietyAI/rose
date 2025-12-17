@@ -8,15 +8,29 @@
 .metadata { color: #888; font-size: 0.85em; margin-top: 10px; }
 .content { margin: 10px 0; white-space: pre-wrap; }
 input[type="text"] { font-family: monospace; padding: 5px; width: 400px; border-radius: 3px; }
-input[type="submit"] { font-family: monospace; padding: 5px 15px; border-radius: 3px; }
+input[type="submit"], button { font-family: monospace; padding: 5px 15px; border-radius: 3px; }
+.original-query { font-weight: 600; font-style: italic; text-decoration: underline; }
 {% endblock %}
 
 {% block content %}
 <form action="/v1/search" method="get">
     <input type="text" name="q" value="{{ query }}" autofocus>
     <input type="submit" value="Search">
+    <button type="button" id="ask-btn">Ask</button>
 </form>
+{% if corrected_query %}
+<p>Showing results for <strong>{{ query }}</strong><br>Search for <a href="/v1/search?q={{ original_query|urlencode }}&exact=true"><span class="original-query">{{ original_query }}</span></a></p>
+{% endif %}
+
+{% if fallback_keywords and hits|length == 0 %}
+<p>No matches. Try searching for:
+{% for keyword in fallback_keywords %}
+<a href="/v1/search?q={{ keyword|urlencode }}"><span class="original-query">{{ keyword }}</span></a>{% if not loop.last %}, {% endif %}
+{% endfor %}
+</p>
+{% else %}
 <p>Results: {{ hits|length }}</p>
+{% endif %}
 
 {% for hit in hits %}
 <a href="/v1/threads/{{ hit.metadata.get('thread_id') }}#msg-{{ hit.id }}">
@@ -31,4 +45,39 @@ input[type="submit"] { font-family: monospace; padding: 5px 15px; border-radius:
     </div>
 </a>
 {% endfor %}
+
+<script>
+document.getElementById('ask-btn').addEventListener('click', async function() {
+    const query = document.querySelector('input[name="q"]').value;
+    if (!query) return;
+
+    this.disabled = true;
+
+    let dots = 0;
+    const interval = setInterval(() => {
+        dots = (dots % 3) + 1;
+        this.textContent = 'Asking' + '.'.repeat(dots);
+    }, 400);
+
+    try {
+        const response = await fetch('/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'default',
+                messages: [{ role: 'user', content: query }]
+            })
+        });
+
+        const data = await response.json();
+        window.location.href = '/v1/threads/' + data.thread_id;
+    } catch (error) {
+        alert('Error: ' + error.message);
+    } finally {
+        clearInterval(interval);
+        this.disabled = false;
+        this.textContent = 'Ask';
+    }
+});
+</script>
 {% endblock %}

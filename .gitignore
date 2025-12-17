@@ -146,6 +146,9 @@ cython_debug/
 *.db-shm
 *.vectordb
 
+# Spell check dictionaries
+frequency_dictionary_*.txt
+
 # Logs
 logs/
 *.log

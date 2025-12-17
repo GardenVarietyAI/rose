@@ -1,12 +1,29 @@
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
+from rake_nltk import Rake
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["search"])
+
+
+def normalize_query(query: str) -> str:
+    """Normalize query by removing punctuation for spell checking."""
+    chars_to_remove = "?!.,;:-+()[]{}*^"
+    translator = str.maketrans(chars_to_remove, " " * len(chars_to_remove))
+    normalized = query.translate(translator)
+    return " ".join(normalized.split())
+
+
+def sanitize_fts5_query(query: str) -> str:
+    """Escape and sanitize query string for FTS5."""
+    sanitized = query.replace('"', '""')
+    chars_to_remove = "?*(){}[]^:-+"
+    translator = str.maketrans(chars_to_remove, " " * len(chars_to_remove))
+    return sanitized.translate(translator)
 
 
 class SearchHit(BaseModel):
@@ -28,10 +45,23 @@ async def search_messages(
     request: Request,
     q: str = Query("", description="Search query"),
     limit: int = Query(10, ge=1, le=100, description="Maximum number of results"),
+    exact: bool = Query(False, description="Skip spell correction"),
 ) -> Any:
     hits = []
+    corrected_query = None
+    original_query = q
 
     if q:
+        normalized_q = normalize_query(q)
+
+        if not exact and request.app.state.spell_checker:
+            suggestions = request.app.state.spell_checker.lookup_compound(normalized_q, max_edit_distance=2)
+            if suggestions and suggestions[0].term.lower() != normalized_q.lower():
+                corrected_query = suggestions[0].term
+                q = corrected_query
+
+        fts_query = sanitize_fts5_query(q)
+
         query = text("""
             SELECT
                 m.uuid,
@@ -50,7 +80,7 @@ async def search_messages(
         """)
 
         async with request.app.state.get_db_session(read_only=True) as session:
-            result = await session.execute(query, {"query": q, "limit": limit})
+            result = await session.execute(query, {"query": fts_query, "limit": limit})
             rows = result.fetchall()
 
         for row in rows:
@@ -71,6 +101,27 @@ async def search_messages(
                 )
             )
 
+    fallback_keywords: Optional[List[str]] = None
+    if q and len(hits) == 0:
+        rake = Rake()
+        rake.extract_keywords_from_text(q)
+        keywords = rake.get_ranked_phrases()
+        if keywords:
+            verified_keywords = []
+            async with request.app.state.get_db_session(read_only=True) as session:
+                for keyword in keywords[:5]:
+                    sanitized_keyword = sanitize_fts5_query(keyword)
+                    check_query = text("SELECT COUNT(*) as count FROM messages_fts WHERE messages_fts MATCH :query")
+                    result = await session.execute(check_query, {"query": sanitized_keyword})
+                    count = result.scalar()
+
+                    if count and count > 0:
+                        verified_keywords.append(keyword)
+                        if len(verified_keywords) >= 3:
+                            break
+
+            fallback_keywords = verified_keywords if verified_keywords else None
+
     response_data = SearchResponse(
         index="messages",
         query=q,
@@ -81,7 +132,14 @@ async def search_messages(
     if "text/html" in accept:
         return request.app.state.templates.TemplateResponse(
             "search.html",
-            {"request": request, "query": q, "hits": hits},
+            {
+                "request": request,
+                "query": q,
+                "hits": hits,
+                "corrected_query": corrected_query,
+                "original_query": original_query,
+                "fallback_keywords": fallback_keywords,
+            },
         )
 
     return response_data
