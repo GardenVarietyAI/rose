@@ -1,12 +1,29 @@
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
+from rake_nltk import Rake
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["search"])
+
+
+def normalize_query(query: str) -> str:
+    """Normalize query by removing punctuation for spell checking."""
+    chars_to_remove = "?!.,;:-+()[]{}*^"
+    translator = str.maketrans(chars_to_remove, " " * len(chars_to_remove))
+    normalized = query.translate(translator)
+    return " ".join(normalized.split())
+
+
+def sanitize_fts5_query(query: str) -> str:
+    """Escape and sanitize query string for FTS5."""
+    sanitized = query.replace('"', '""')
+    chars_to_remove = "?*(){}[]^:-+"
+    translator = str.maketrans(chars_to_remove, " " * len(chars_to_remove))
+    return sanitized.translate(translator)
 
 
 class SearchHit(BaseModel):
@@ -35,11 +52,7 @@ async def search_messages(
     original_query = q
 
     if q:
-        # Normalize query for spell checking (remove punctuation that doesn't affect meaning)
-        normalized_q = q
-        for char in ["?", "!", ".", ",", ";", ":", "-", "+", "(", ")", "[", "]", "{", "}", "*", "^"]:
-            normalized_q = normalized_q.replace(char, " ")
-        normalized_q = " ".join(normalized_q.split())
+        normalized_q = normalize_query(q)
 
         if not exact and request.app.state.spell_checker:
             suggestions = request.app.state.spell_checker.lookup_compound(normalized_q, max_edit_distance=2)
@@ -47,12 +60,7 @@ async def search_messages(
                 corrected_query = suggestions[0].term
                 q = corrected_query
 
-        # Escape FTS5 special characters
-        fts_query = q.replace('"', '""')
-
-        # Remove FTS5 operators that could cause syntax errors
-        for char in ["?", "*", "(", ")", "{", "}", "[", "]", "^", ":", "-", "+"]:
-            fts_query = fts_query.replace(char, " ")
+        fts_query = sanitize_fts5_query(q)
 
         query = text("""
             SELECT
@@ -93,6 +101,27 @@ async def search_messages(
                 )
             )
 
+    fallback_keywords: Optional[List[str]] = None
+    if q and len(hits) == 0:
+        rake = Rake()
+        rake.extract_keywords_from_text(q)
+        keywords = rake.get_ranked_phrases()
+        if keywords:
+            verified_keywords = []
+            async with request.app.state.get_db_session(read_only=True) as session:
+                for keyword in keywords[:5]:
+                    sanitized_keyword = sanitize_fts5_query(keyword)
+                    check_query = text("SELECT COUNT(*) as count FROM messages_fts WHERE messages_fts MATCH :query")
+                    result = await session.execute(check_query, {"query": sanitized_keyword})
+                    count = result.scalar()
+
+                    if count and count > 0:
+                        verified_keywords.append(keyword)
+                        if len(verified_keywords) >= 3:
+                            break
+
+            fallback_keywords = verified_keywords if verified_keywords else None
+
     response_data = SearchResponse(
         index="messages",
         query=q,
@@ -109,6 +138,7 @@ async def search_messages(
                 "hits": hits,
                 "corrected_query": corrected_query,
                 "original_query": original_query,
+                "fallback_keywords": fallback_keywords,
             },
         )
 
