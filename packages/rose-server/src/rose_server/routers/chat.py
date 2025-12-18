@@ -11,9 +11,17 @@ from pydantic import BaseModel, field_validator
 from rose_server.llms import MODELS
 from rose_server.models.messages import Message
 from rose_server.models.search_events import SearchEvent
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col, select
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["chat"])
+
+
+async def _thread_exists(session: AsyncSession, thread_id: str) -> bool:
+    stmt = select(Message).where(col(Message.thread_id) == thread_id).limit(1)
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none() is not None
 
 
 def extract_reasoning(text: str) -> Optional[str]:
