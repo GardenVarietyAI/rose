@@ -5,7 +5,7 @@ from typing import Any, AsyncGenerator
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
-from rose_server.models.messages import Message
+from rose_server.models import Message, SearchEvent
 
 logger = logging.getLogger(__name__)
 
@@ -73,4 +73,5 @@ __all__ = [
     "get_session",
     "check_database_setup",
     "Message",
+    "SearchEvent",
 ]
