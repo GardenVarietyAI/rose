@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
 from rake_nltk import Rake
-from rose_server.models.search_events import SearchEvent
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
@@ -122,24 +121,6 @@ async def search_messages(
                             break
 
             fallback_keywords = verified_keywords if verified_keywords else None
-
-    if q:
-        if corrected_query:
-            search_mode = "fts_corrected"
-        elif fallback_keywords:
-            search_mode = "fts_rake"
-        else:
-            search_mode = "fts"
-
-        async with request.app.state.get_db_session() as session:
-            search_event = SearchEvent(
-                event_type="search",
-                search_mode=search_mode,
-                original_query=original_query,
-                effective_query=fts_query,
-                result_count=len(hits),
-            )
-            session.add(search_event)
 
     response_data = SearchResponse(
         index="messages",
