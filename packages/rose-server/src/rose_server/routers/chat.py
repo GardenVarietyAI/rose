@@ -9,6 +9,7 @@ from fastapi import APIRouter, Request
 from llama_cpp.llama_types import ChatCompletionRequestMessage
 from pydantic import BaseModel
 from rose_server.models.messages import Message
+from rose_server.models.search_events import SearchEvent
 from sse_starlette import EventSourceResponse
 
 logger = logging.getLogger(__name__)
@@ -193,6 +194,16 @@ async def create_chat_completion(
             meta=assistant_meta,
         )
         session.add(assistant_msg)
+
+        if not body.thread_id and len(body.messages) == 1 and body.messages[0]["role"] == "user":
+            search_event = SearchEvent(
+                event_type="ask",
+                search_mode="llm",
+                query=user_msg["content"],
+                result_count=0,
+                thread_id=thread_id,
+            )
+            session.add(search_event)
 
     response["thread_id"] = thread_id
     return response
