@@ -30,6 +30,7 @@ dependencies = [
     "jinja2>=3.1.6",
     "symspellpy>=6.9.0",
     "rake-nltk>=1.0.6",
+    "yoyo-migrations>=9.0.0",
 ]
 
 [project.optional-dependencies]

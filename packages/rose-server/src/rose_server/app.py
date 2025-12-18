@@ -12,7 +12,7 @@ from fastapi.templating import Jinja2Templates
 from llama_cpp import Llama
 from symspellpy import SymSpell
 
-from rose_server.database import check_database_setup, create_all_tables, create_session_maker, get_session
+from rose_server.database import check_database_setup, create_session_maker, get_session
 from rose_server.llms import MODELS, ModelConfig
 from rose_server.router import router
 
@@ -50,9 +50,8 @@ async def lifespan(app: FastAPI) -> Any:
     app.state.get_db_session = lambda read_only=False: get_session(app.state.db_session_maker, read_only)
 
     if not await check_database_setup(app.state.engine):
-        logger.info("Creating database...")
-
-    await create_all_tables(app.state.engine)
+        logger.error("Database not initialized. Run: yoyo apply --database 'sqlite:///rose_20251211.db' db/migrations")
+        raise RuntimeError("Database not initialized")
 
     try:
         app.state.chat_model = load_chat_model(MODELS["chat"])
