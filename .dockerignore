@@ -2,82 +2,37 @@
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
 *.egg-info/
-dist/
-build/
 .pytest_cache/
-.coverage
-.mypy_cache/
 .ruff_cache/
+.mypy_cache/
 
 # Virtual environments
+.venv/
 venv/
 env/
-ENV/
-.venv/
 
-# Data directories (these are mounted as volumes)
-data/
+# Data and databases (mounted as volumes)
+/data/
 *.db
-*.sqlite
-*.sqlite3
-
-# Model files (these should be in volume)
-*.bin
-*.pt
-*.pth
-*.safetensors
-*.gguf
-
-# Rust build artifacts
-target/
-*/target/
-**/target/
-packages/rose-inference-rs/target/
-candle/target/
-*.so
-*.dylib
-*.rlib
-Cargo.lock
-
-# Logs
-*.log
-logs/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
+*.db-wal
+*.db-shm
 
 # Git
 .git/
 .gitignore
 
-# Documentation
-docs/
-*.md
-!README.md
+# IDE
+.vscode/
+.idea/
 
-# Docker
-Dockerfile*
-docker-compose*.yml
-.dockerignore
+# OS
+.DS_Store
+
+# Development
+.env
+yoyo.ini
+CLAUDE.md
 
 # CI/CD
 .github/
-.gitlab-ci.yml
-
-# Development
-tests/
-scripts/test_*
-.env
-.env.*
-!.env.example
