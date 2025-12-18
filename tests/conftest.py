@@ -20,7 +20,8 @@ test_async_session_factory = async_sessionmaker(test_engine, class_=AsyncSession
 @pytest.fixture
 async def test_db() -> AsyncGenerator[None, None]:
     """Create test database tables."""
-    await database.create_all_tables(test_engine)
+    async with test_engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
     yield
     async with test_engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.drop_all)
