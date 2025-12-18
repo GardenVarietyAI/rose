@@ -26,13 +26,25 @@ uv sync
 hf download Qwen/Qwen3-0.6B-GGUF qwen3-0.6b-q8_0.gguf
 ```
 
+### Database Setup
+
+```bash
+# Run migrations to create database schema
+uv run yoyo apply --database "sqlite:///rose_20251211.db" db/migrations
+```
+
+```bash
+# Create new migration
+uv run yoyo new ./db/migrations -m "MIGRATION_NAME"
+```
+
 ### Running the Server
 
 ```bash
 uv run rose-server
 ```
 
-Server runs on http://localhost:8004. Database files are created automatically in the project root.
+Server runs on http://localhost:8004.
 
 The spell check dictionary is downloaded automatically on the first run.
 

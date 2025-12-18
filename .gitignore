@@ -172,3 +172,4 @@ node_modules/
 /K2-Vendor-Verfier
 *.vectordb-shm
 *.vectordb-wal
+yoyo.ini
