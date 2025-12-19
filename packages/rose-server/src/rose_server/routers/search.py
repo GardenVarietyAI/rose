@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Query, Request
@@ -21,10 +22,8 @@ def normalize_query(query: str) -> str:
 
 def sanitize_fts5_query(query: str) -> str:
     """Escape and sanitize query string for FTS5."""
-    sanitized = query.replace('"', '""')
-    chars_to_remove = "?*(){}[]^:-+"
-    translator = str.maketrans(chars_to_remove, " " * len(chars_to_remove))
-    return sanitized.translate(translator)
+    sanitized = re.sub(r"[^\w\s]", " ", query)
+    return " ".join(sanitized.split())
 
 
 class SearchHit(BaseModel):
