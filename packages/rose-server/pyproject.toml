@@ -44,4 +44,4 @@ packages = ["src/rose_server"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/rose_server"]
-include = ["src/rose_server/templates/*"]
+include = ["src/rose_server/templates/**", "src/rose_server/static/**"]

@@ -7,6 +7,7 @@ from typing import Any
 import nltk
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from openai import AsyncOpenAI
 from symspellpy import SymSpell
@@ -25,6 +26,7 @@ OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "http://localhost:8080/v1")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "sk-nopenai")
 NLTK_DATA = os.getenv("NLTK_DATA", "./vendor/nltk_data")
 SPELLCHECK_DICTIONARY = "frequency_dictionary_en_82_765.txt"
+STATIC_PATH = files("rose_server").joinpath("static")
 
 
 @asynccontextmanager
@@ -71,6 +73,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    app.mount("/static", StaticFiles(directory=str(STATIC_PATH)), name="static")
     app.include_router(router)
 
     @app.get("/health")
