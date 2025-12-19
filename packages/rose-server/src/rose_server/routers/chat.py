@@ -24,9 +24,10 @@ def extract_reasoning(text: str) -> Optional[str]:
     return None
 
 
-def strip_reasoning_tags(text: str) -> str:
+def strip_reasoning_tags(text: str) -> Optional[str]:
     """Remove <think>...</think> tags from text."""
-    return re.sub(r"<think>.*?</think>\s*", "", text, flags=re.DOTALL).strip()
+    result = re.sub(r"<think>.*?</think>\s*", "", text, flags=re.DOTALL).strip()
+    return result if result else None
 
 
 class ChatRequest(BaseModel):
@@ -82,7 +83,7 @@ async def stream_chat_completion(
                 user_message = Message(
                     thread_id=thread_id,
                     role="user",
-                    content=user_msg["content"],
+                    content=user_msg.get("content"),
                     model=model,
                 )
                 session.add(user_message)
@@ -169,14 +170,17 @@ async def create_chat_completion(
             user_message = Message(
                 thread_id=thread_id,
                 role="user",
-                content=user_msg["content"],
+                content=user_msg.get("content"),
                 model=body.model,
             )
             session.add(user_message)
 
-        assistant_content = response["choices"][0]["message"]["content"]
-        reasoning = extract_reasoning(assistant_content)
-        cleaned_content = strip_reasoning_tags(assistant_content)
+        reasoning = None
+        cleaned_content = None
+        assistant_content = response["choices"][0]["message"].get("content")
+        if assistant_content is not None:
+            reasoning = extract_reasoning(assistant_content)
+            cleaned_content = strip_reasoning_tags(assistant_content)
 
         assistant_meta: Dict[str, Any] = {
             "completion_id": response["id"],
@@ -196,14 +200,16 @@ async def create_chat_completion(
         session.add(assistant_msg)
 
         if not body.thread_id and len(body.messages) == 1 and body.messages[0]["role"] == "user":
-            search_event = SearchEvent(
-                event_type="ask",
-                search_mode="llm",
-                query=user_msg["content"],
-                result_count=0,
-                thread_id=thread_id,
-            )
-            session.add(search_event)
+            query = user_msg.get("content")
+            if query is not None:
+                search_event = SearchEvent(
+                    event_type="ask",
+                    search_mode="llm",
+                    query=query,
+                    result_count=0,
+                    thread_id=thread_id,
+                )
+                session.add(search_event)
 
     response["thread_id"] = thread_id
     return response

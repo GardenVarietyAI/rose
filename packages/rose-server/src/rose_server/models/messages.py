@@ -16,7 +16,7 @@ class Message(SQLModel, table=True):
     uuid: str = Field(default_factory=lambda: str(uuid_module.uuid4()), index=True, unique=True)
     thread_id: str = Field(index=True)
     role: str
-    content: str
+    content: Optional[str] = Field(default=None)
     reasoning: Optional[str] = Field(default=None)
     model: str
     meta: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON, nullable=True))
