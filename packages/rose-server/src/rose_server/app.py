@@ -20,7 +20,7 @@ from rose_server.router import router
 logger = logging.getLogger("rose_server")
 
 DB_NAME = "rose_20251218.db"
-MIGRATIONS_DIR = "db/migrations"
+DB_MIGRATIONS = "db/migrations"
 
 
 def load_model(model_path: str, n_gpu_layers: int, n_ctx: int, embedding: bool = False) -> Llama:
@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI) -> Any:
         app.state.engine, app.state.db_session_maker = create_session_maker(DB_NAME)
         app.state.get_db_session = lambda read_only=False: get_session(app.state.db_session_maker, read_only)
         backend = get_backend(f"sqlite:///{DB_NAME}")
-        migrations = read_migrations(MIGRATIONS_DIR)
+        migrations = read_migrations(DB_MIGRATIONS)
         with backend.lock():
             backend.apply_migrations(backend.to_apply(migrations))
     except Exception as e:
