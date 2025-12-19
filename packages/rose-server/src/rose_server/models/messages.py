@@ -21,6 +21,7 @@ class Message(SQLModel, table=True):
     model: str
     meta: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON, nullable=True))
     created_at: int = Field(default_factory=lambda: int(time.time()))
+    accepted_at: Optional[int] = Field(default=None, index=True)
 
     completion_id: Optional[str] = Field(
         default=None,
