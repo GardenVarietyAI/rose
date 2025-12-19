@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI) -> Any:
     app.state.get_db_session = lambda read_only=False: get_session(app.state.db_session_maker, read_only)
 
     if not await check_database_setup(app.state.engine):
-        logger.error("Database not initialized. Run: yoyo apply --database 'sqlite:///rose_20251211.db' db/migrations")
+        logger.error("Database not initialized. Run: yoyo apply --database 'sqlite:///rose_20251218.db' db/migrations")
         raise RuntimeError("Database not initialized")
 
     try:

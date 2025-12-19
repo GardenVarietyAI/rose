@@ -14,7 +14,7 @@ def create_session_maker(
     db_url: str | None = None,
 ) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
     if db_url is None:
-        db_url = "sqlite+aiosqlite:///rose_20251211.db"
+        db_url = "sqlite+aiosqlite:///rose_20251218.db"
 
     engine = create_async_engine(
         db_url,
