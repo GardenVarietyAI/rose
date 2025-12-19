@@ -1,20 +1,18 @@
-import glob
 import logging
-import urllib.request
+import os
 from contextlib import asynccontextmanager
-from pathlib import Path
+from importlib.resources import files
 from typing import Any
 
 import nltk
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
-from llama_cpp import Llama
+from openai import AsyncOpenAI
 from symspellpy import SymSpell
 from yoyo import get_backend, read_migrations
 
 from rose_server.database import create_session_maker, get_session
-from rose_server.llms import MODELS, ModelConfig
 from rose_server.router import router
 
 logger = logging.getLogger("rose_server")
@@ -23,30 +21,15 @@ DB_NAME = "rose_20251218.db"
 DB_MIGRATIONS = "db/migrations"
 
 
-def load_model(model_path: str, n_gpu_layers: int, n_ctx: int, embedding: bool = False) -> Llama:
-    matches = glob.glob(model_path)
-    if not matches:
-        raise FileNotFoundError(f"Model not found at {model_path}")
-
-    resolved_path = matches[0]
-    logger.info(f"Loading model from {resolved_path}")
-    return Llama(
-        model_path=resolved_path,
-        n_gpu_layers=n_gpu_layers,
-        n_ctx=n_ctx,
-        embedding=embedding,
-        verbose=False,
-    )
-
-
-def load_chat_model(config: ModelConfig) -> Llama:
-    return load_model(config["path"], config["n_gpu_layers"], config["n_ctx"])
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "http://localhost:8080/v1")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "sk-nopenai")
+NLTK_DATA = os.getenv("NLTK_DATA", "./vendor/nltk_data")
+SPELLCHECK_DICTIONARY = "frequency_dictionary_en_82_765.txt"
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> Any:
-    templates_dir = Path("./packages/rose-server/src/rose_server/templates")
-    app.state.templates = Jinja2Templates(directory=str(templates_dir))
+    app.state.templates = Jinja2Templates(directory=str(files("rose_server").joinpath("templates")))
 
     try:
         app.state.engine, app.state.db_session_maker = create_session_maker(DB_NAME)
@@ -59,41 +42,15 @@ async def lifespan(app: FastAPI) -> Any:
         logger.warning(f"Failed to create database session: {e}")
         raise
 
-    try:
-        app.state.chat_model = load_chat_model(MODELS["chat"])
-    except Exception as e:
-        app.state.chat_model = None
-        logger.warning(f"Failed to load chat model: {e}")
+    app.state.openai_client = AsyncOpenAI(base_url=OPENAI_BASE_URL, api_key=OPENAI_API_KEY)
+    logger.info(f"OPENAI_BASE_URL: {OPENAI_BASE_URL}")
 
-    try:
-        nltk.download("stopwords", quiet=True)
-        logger.info("NLTK stopwords loaded")
-    except Exception as e:
-        logger.warning(f"Failed to download NLTK stopwords: {e}")
+    if NLTK_DATA not in nltk.data.path:
+        nltk.data.path.insert(0, NLTK_DATA)
 
     sym_spell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
-    data_dir = Path("./data")
-    data_dir.mkdir(parents=True, exist_ok=True)
-    dictionary_path = data_dir / "frequency_dictionary_en_82_765.txt"
-
-    if not dictionary_path.exists():
-        logger.info(f"Downloading spell check dictionary to {dictionary_path}")
-        dictionary_url = (
-            "https://raw.githubusercontent.com/mammothb/symspellpy/master/symspellpy/frequency_dictionary_en_82_765.txt"
-        )
-        try:
-            urllib.request.urlretrieve(dictionary_url, dictionary_path)
-            logger.info("Dictionary downloaded successfully")
-        except Exception as e:
-            logger.error(f"Failed to download dictionary: {e}")
-
-    if dictionary_path.exists():
-        sym_spell.load_dictionary(str(dictionary_path), term_index=0, count_index=1)
-        logger.info("Spell check dictionary loaded")
-        app.state.spell_checker = sym_spell
-    else:
-        logger.warning("Spell check dictionary not available")
-        app.state.spell_checker = None
+    sym_spell.load_dictionary(str(files("symspellpy").joinpath(SPELLCHECK_DICTIONARY)), term_index=0, count_index=1)
+    app.state.spell_checker = sym_spell
 
     yield
 

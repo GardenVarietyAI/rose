@@ -2,15 +2,15 @@ import json
 import logging
 import re
 import uuid
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Union, cast
 
-import llama_cpp
-from fastapi import APIRouter, Request
-from llama_cpp.llama_types import ChatCompletionRequestMessage
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Request
+from openai import APIConnectionError
+from openai.types.chat import ChatCompletionMessageParam
+from pydantic import BaseModel, field_validator
+from rose_server.llms import MODELS
 from rose_server.models.messages import Message
 from rose_server.models.search_events import SearchEvent
-from sse_starlette import EventSourceResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["chat"])
@@ -32,16 +32,13 @@ def strip_reasoning_tags(text: str) -> Optional[str]:
 
 class ChatRequest(BaseModel):
     thread_id: Optional[str] = None
-    model: str
+    model: Optional[str] = None
     messages: list[dict[str, Any]]
     temperature: Optional[float] = None
     top_p: Optional[float] = None
-    top_k: Optional[int] = None
-    min_p: Optional[float] = None
     max_tokens: Optional[int] = None
     presence_penalty: Optional[float] = None
     frequency_penalty: Optional[float] = None
-    repeat_penalty: Optional[float] = None
     stop: Optional[Union[str, list[str]]] = None
     seed: Optional[int] = None
     response_format: Optional[dict[str, Any]] = None
@@ -49,89 +46,39 @@ class ChatRequest(BaseModel):
     tool_choice: Optional[Union[str, dict[str, Any]]] = None
     stream: bool = False
 
+    @field_validator("messages")
+    @classmethod
+    def validate_messages(cls, value: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if not value:
+            raise ValueError("messages must contain at least one entry")
+        return value
 
-async def stream_chat_completion(
-    llama: llama_cpp.Llama,
-    messages: List[ChatCompletionRequestMessage],
-    kwargs: Dict[str, Any],
-    thread_id: str,
-    model: str,
-    get_db_session: Any,
-) -> AsyncIterator[str]:
-    """Stream chat completion chunks and save to database."""
-    accumulated_content = ""
-    finish_reason: Optional[str] = None
-    usage: Optional[Dict[str, Any]] = None
-    completion_id: Optional[str] = None
 
+def serialize_message_content(content: Any) -> Optional[str]:
+    if content is None:
+        return None
+    if isinstance(content, str):
+        return content
     try:
-        stream = cast(Iterator[Dict[str, Any]], llama.create_chat_completion(messages=messages, stream=True, **kwargs))
-        for chunk in stream:
-            if chunk.get("id"):
-                completion_id = chunk["id"]
-            if chunk["choices"][0]["delta"].get("content"):
-                accumulated_content += chunk["choices"][0]["delta"]["content"]
-            if chunk["choices"][0].get("finish_reason"):
-                finish_reason = chunk["choices"][0]["finish_reason"]
-            if chunk.get("usage"):
-                usage = chunk["usage"]
-            yield json.dumps(chunk)
-
-        async with get_db_session() as session:
-            user_msg = messages[-1]
-            if user_msg["role"] == "user":
-                user_message = Message(
-                    thread_id=thread_id,
-                    role="user",
-                    content=user_msg.get("content"),
-                    model=model,
-                )
-                session.add(user_message)
-
-            reasoning = extract_reasoning(accumulated_content)
-            cleaned_content = strip_reasoning_tags(accumulated_content)
-
-            assistant_meta: Dict[str, Any] = {"finish_reason": finish_reason}
-            if completion_id:
-                assistant_meta["completion_id"] = completion_id
-            if usage:
-                assistant_meta["usage"] = usage
-
-            assistant_msg = Message(
-                thread_id=thread_id,
-                role="assistant",
-                content=cleaned_content,
-                reasoning=reasoning,
-                model=model,
-                meta=assistant_meta,
-            )
-            session.add(assistant_msg)
-
-        yield "[DONE]"
-
-    except Exception as e:
-        logger.error(f"Streaming error: {e}")
-        yield json.dumps({"error": str(e)})
+        return json.dumps(content)
+    except (TypeError, ValueError):
+        return str(content)
 
 
 @router.post("/chat/completions", response_model=None)
-async def create_chat_completion(
-    request: Request,
-    body: ChatRequest,
-) -> Union[dict[str, Any], EventSourceResponse]:
-    llama: llama_cpp.Llama = request.app.state.chat_model
+async def create_chat_completion(request: Request, body: ChatRequest) -> dict[str, Any]:
+    if body.stream:
+        raise HTTPException(status_code=400, detail="Streaming unavailable.")
 
     thread_id = body.thread_id or str(uuid.uuid4())
+    model = body.model if body.model and body.model != "default" else MODELS["chat"]["id"]
 
     kwargs: Dict[str, Any] = {
         "temperature": body.temperature,
         "top_p": body.top_p,
-        "top_k": body.top_k,
-        "min_p": body.min_p,
         "max_tokens": body.max_tokens,
         "presence_penalty": body.presence_penalty,
         "frequency_penalty": body.frequency_penalty,
-        "repeat_penalty": body.repeat_penalty,
         "stop": body.stop,
         "seed": body.seed,
     }
@@ -147,69 +94,70 @@ async def create_chat_completion(
     if body.tool_choice is not None:
         kwargs["tool_choice"] = body.tool_choice
 
-    messages = cast(List[ChatCompletionRequestMessage], body.messages)
+    messages = cast(List[ChatCompletionMessageParam], body.messages)
 
-    if body.stream:
-        return EventSourceResponse(
-            stream_chat_completion(
-                llama=llama,
-                messages=messages,
-                kwargs=kwargs,
-                thread_id=thread_id,
-                model=body.model,
-                get_db_session=request.app.state.get_db_session,
-            ),
-            media_type="text/event-stream",
+    try:
+        response = await request.app.state.openai_client.chat.completions.create(
+            messages=messages,
+            model=model,
+            **kwargs,
         )
-
-    response = cast(Dict[str, Any], llama.create_chat_completion(messages=messages, **kwargs))
+    except APIConnectionError as e:
+        raise HTTPException(status_code=503, detail=f"LLM server unavailable: {str(e)}")
 
     async with request.app.state.get_db_session() as session:
         user_msg = body.messages[-1]
+        prompt = serialize_message_content(user_msg.get("content"))
         if user_msg["role"] == "user":
-            user_message = Message(
-                thread_id=thread_id,
-                role="user",
-                content=user_msg.get("content"),
-                model=body.model,
+            session.add(
+                Message(
+                    thread_id=thread_id,
+                    role="user",
+                    content=prompt,
+                    model=model,
+                )
             )
-            session.add(user_message)
 
-        reasoning = None
-        cleaned_content = None
-        assistant_content = response["choices"][0]["message"].get("content")
-        if assistant_content is not None:
-            reasoning = extract_reasoning(assistant_content)
-            cleaned_content = strip_reasoning_tags(assistant_content)
+        assistant_raw_content = response.choices[0].message.content
+        if isinstance(assistant_raw_content, str):
+            assistant_content = serialize_message_content(assistant_raw_content)
+            reasoning = extract_reasoning(assistant_raw_content)
+            cleaned_content = strip_reasoning_tags(assistant_raw_content)
+        else:
+            assistant_content = serialize_message_content(assistant_raw_content)
+            reasoning = None
+            cleaned_content = assistant_content
 
         assistant_meta: Dict[str, Any] = {
-            "completion_id": response["id"],
-            "finish_reason": response["choices"][0]["finish_reason"],
+            "completion_id": response.id,
+            "finish_reason": response.choices[0].finish_reason,
         }
-        if response.get("usage"):
-            assistant_meta["usage"] = response["usage"]
+        if response.usage:
+            assistant_meta["usage"] = response.usage.model_dump()
 
-        assistant_msg = Message(
-            thread_id=thread_id,
-            role="assistant",
-            content=cleaned_content,
-            reasoning=reasoning,
-            model=body.model,
-            meta=assistant_meta,
+        session.add(
+            Message(
+                thread_id=thread_id,
+                role="assistant",
+                content=cleaned_content,
+                reasoning=reasoning,
+                model=model,
+                meta=assistant_meta,
+            )
         )
-        session.add(assistant_msg)
 
-        if not body.thread_id and len(body.messages) == 1 and body.messages[0]["role"] == "user":
-            query = user_msg.get("content")
-            if query is not None:
-                search_event = SearchEvent(
-                    event_type="ask",
-                    search_mode="llm",
-                    query=query,
-                    result_count=0,
-                    thread_id=thread_id,
+        if not body.thread_id and len(body.messages) == 1:
+            if body.messages[0]["role"] == "user" and prompt is not None:
+                session.add(
+                    SearchEvent(
+                        event_type="ask",
+                        search_mode="llm",
+                        query=prompt,
+                        result_count=0,
+                        thread_id=thread_id,
+                    )
                 )
-                session.add(search_event)
 
-    response["thread_id"] = thread_id
-    return response
+    response_dict: Dict[str, Any] = response.model_dump()
+    response_dict["thread_id"] = thread_id
+    return response_dict

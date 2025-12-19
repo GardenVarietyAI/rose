@@ -64,7 +64,6 @@ document.getElementById('ask-btn').addEventListener('click', async function() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                model: 'default',
                 messages: [{ role: 'user', content: query }]
             })
         });

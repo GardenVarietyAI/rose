@@ -1,175 +1,38 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-.ruff_cache
-
-# C extensions
 *.so
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# PyInstaller
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
+dist/
+build/
 .pytest_cache/
-cover/
-
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-# Flask stuff:
-instance/
-.webassets-cache
-
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-.pybuilder/
-target/
-
-# Tauri
-gen/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# pyenv
-.python-version
-
-# pipenv
-Pipfile.lock
-
-# PEP 582
-__pypackages__/
-
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
+.ruff_cache/
 .mypy_cache/
-.dmypy.json
-dmypy.json
+.coverage
 
-# Pyre type checker
-.pyre/
+# Virtual environments
+.venv/
+venv/
+env/
 
-# pytype static type analyzer
-.pytype/
-
-# Cython debug symbols
-cython_debug/
-
-# VS Code
-.vscode/
-
-# PyCharm
-.idea/
-
-# Local data and models
-/data
+# Data and databases
+/data/
 *.db
 *.db-wal
 *.db-shm
-*.vectordb
-
-# Spell check dictionaries
-frequency_dictionary_*.txt
 
 # Logs
-logs/
 *.log
 
-# OS files
+# IDE
+.vscode/
+.idea/
+
+# OS
 .DS_Store
-Thumbs.db
 
-# Temporary files
-*.tmp
-*.bak
-*.swp
-*~
-
-CLAUDE.md
-/candle
-/fastembed
-/codex
-codex.toml
-node_modules/
-/K2-Vendor-Verfier
-*.vectordb-shm
-*.vectordb-wal
+# Config
 yoyo.ini
+CLAUDE.md
+.env
