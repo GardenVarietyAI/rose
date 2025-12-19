@@ -179,7 +179,7 @@ document.querySelector('.regenerate-link').addEventListener('click', async funct
     const promptContent = this.dataset.promptContent;
     const model = this.dataset.model;
 
-    const tempId = crypto.randomUUID();
+    const tempId = Math.random().toString(36).slice(2, 10);
     const placeholder = createPlaceholder(tempId);
     responsesContainer.prepend(placeholder);
 
