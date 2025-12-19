@@ -30,7 +30,7 @@ hf download Qwen/Qwen3-0.6B-GGUF qwen3-0.6b-q8_0.gguf
 
 ```bash
 # Run migrations to create database schema
-uv run yoyo apply --database "sqlite:///rose_20251211.db" db/migrations
+uv run yoyo apply --database "sqlite:///rose_20251218.db" db/migrations
 ```
 
 ```bash
