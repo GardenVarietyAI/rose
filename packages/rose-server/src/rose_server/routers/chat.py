@@ -143,16 +143,15 @@ async def create_chat_completion(request: Request, body: ChatRequest) -> dict[st
         if response.usage:
             assistant_meta["usage"] = response.usage.model_dump()
 
-        session.add(
-            Message(
-                thread_id=thread_id,
-                role="assistant",
-                content=cleaned_content,
-                reasoning=reasoning,
-                model=model,
-                meta=assistant_meta,
-            )
+        assistant_msg = Message(
+            thread_id=thread_id,
+            role="assistant",
+            content=cleaned_content,
+            reasoning=reasoning,
+            model=model,
+            meta=assistant_meta,
         )
+        session.add(assistant_msg)
 
         if not body.thread_id and len(body.messages) == 1:
             if body.messages[0]["role"] == "user" and prompt is not None:
@@ -168,4 +167,5 @@ async def create_chat_completion(request: Request, body: ChatRequest) -> dict[st
 
     response_dict: Dict[str, Any] = response.model_dump()
     response_dict["thread_id"] = thread_id
+    response_dict["message_uuid"] = assistant_msg.uuid
     return response_dict

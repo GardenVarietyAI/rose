@@ -116,7 +116,10 @@ function createPlaceholder(tempId) {
 function createResponse(data) {
     const clone = responseTemplate.content.cloneNode(true);
     const message = clone.querySelector('.message');
-    const uuid = data.choices[0].message.uuid || data.id;
+    const uuid = data.message_uuid;
+    if (!uuid) {
+        throw new Error("Chat response missing message uuid");
+    }
 
     message.dataset.uuid = uuid;
     message.id = `msg-${uuid}`;
