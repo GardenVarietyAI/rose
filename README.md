@@ -41,7 +41,7 @@ Server runs on http://localhost:8004.
 
 ## API Endpoints
 
-- `POST /v1/chat/completions` - Chat with streaming support
+- `POST /v1/chat/completions` - Generate a completion
 - `GET /v1/models` - List available models
 - `GET /v1/search` - Search past messages
 
