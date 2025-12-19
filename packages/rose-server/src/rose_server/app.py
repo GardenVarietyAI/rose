@@ -11,12 +11,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from llama_cpp import Llama
 from symspellpy import SymSpell
+from yoyo import get_backend, read_migrations
 
-from rose_server.database import check_database_setup, create_session_maker, get_session
+from rose_server.database import create_session_maker, get_session
 from rose_server.llms import MODELS, ModelConfig
 from rose_server.router import router
 
 logger = logging.getLogger("rose_server")
+
+DB_NAME = "rose_20251218.db"
+MIGRATIONS_DIR = "db/migrations"
 
 
 def load_model(model_path: str, n_gpu_layers: int, n_ctx: int, embedding: bool = False) -> Llama:
@@ -44,14 +48,16 @@ async def lifespan(app: FastAPI) -> Any:
     templates_dir = Path("./packages/rose-server/src/rose_server/templates")
     app.state.templates = Jinja2Templates(directory=str(templates_dir))
 
-    app.state.engine, app.state.db_session_maker = create_session_maker()
-    logger.info("Database session maker initialized")
-
-    app.state.get_db_session = lambda read_only=False: get_session(app.state.db_session_maker, read_only)
-
-    if not await check_database_setup(app.state.engine):
-        logger.error("Database not initialized. Run: yoyo apply --database 'sqlite:///rose_20251218.db' db/migrations")
-        raise RuntimeError("Database not initialized")
+    try:
+        app.state.engine, app.state.db_session_maker = create_session_maker(DB_NAME)
+        app.state.get_db_session = lambda read_only=False: get_session(app.state.db_session_maker, read_only)
+        backend = get_backend(f"sqlite:///{DB_NAME}")
+        migrations = read_migrations(MIGRATIONS_DIR)
+        with backend.lock():
+            backend.apply_migrations(backend.to_apply(migrations))
+    except Exception as e:
+        logger.warning(f"Failed to create database session: {e}")
+        raise
 
     try:
         app.state.chat_model = load_chat_model(MODELS["chat"])

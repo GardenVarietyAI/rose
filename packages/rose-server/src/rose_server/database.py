@@ -2,7 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator
 
-from sqlalchemy import event, text
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 from rose_server.models import Message, SearchEvent
@@ -10,14 +10,9 @@ from rose_server.models import Message, SearchEvent
 logger = logging.getLogger(__name__)
 
 
-def create_session_maker(
-    db_url: str | None = None,
-) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
-    if db_url is None:
-        db_url = "sqlite+aiosqlite:///rose_20251218.db"
-
+def create_session_maker(db_name: str) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
     engine = create_async_engine(
-        db_url,
+        f"sqlite+aiosqlite:///{db_name}",
         echo=False,
         pool_size=10,
         max_overflow=20,
@@ -58,20 +53,9 @@ async def get_session(
             await session.close()
 
 
-async def check_database_setup(engine: AsyncEngine) -> bool:
-    try:
-        async with engine.begin() as conn:
-            await conn.execute(text("SELECT 1"))
-            return True
-    except Exception as e:
-        logger.error(f"Database check failed: {e}")
-        return False
-
-
 __all__ = [
     "create_session_maker",
     "get_session",
-    "check_database_setup",
     "Message",
     "SearchEvent",
 ]
