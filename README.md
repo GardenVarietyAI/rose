@@ -19,23 +19,10 @@ cd rose
 uv sync
 ```
 
-### Download Models
+### Download Models from HuggingFace
 
 ```bash
-# Download models from HuggingFace
 hf download Qwen/Qwen3-0.6B-GGUF qwen3-0.6b-q8_0.gguf
-```
-
-### Database Setup
-
-```bash
-# Run migrations to create database schema
-uv run yoyo apply --database "sqlite:///rose_20251218.db" db/migrations
-```
-
-```bash
-# Create new migration
-uv run yoyo new ./db/migrations -m "MIGRATION_NAME"
 ```
 
 ### Running the Server
@@ -44,9 +31,13 @@ uv run yoyo new ./db/migrations -m "MIGRATION_NAME"
 uv run rose-server
 ```
 
-Server runs on http://localhost:8004.
+#### Docker Compose
 
-The spell check dictionary is downloaded automatically on the first run.
+```bash
+docker compose up -d
+```
+
+Server runs on http://localhost:8004.
 
 ## API Endpoints
 
@@ -54,24 +45,8 @@ The spell check dictionary is downloaded automatically on the first run.
 - `GET /v1/models` - List available models
 - `GET /v1/search` - Search past messages
 
-## Rebuild Search Index
+## NLTK datasets licensing
 
-1. Stop the server
+This repository vendors a small subset of **NLTK data packages** under `vendor/nltk_data/`.
 
-2. Drop the messages table
-
-```sql
-DROP TABLE messages_fts;
-```
-
-3. Start the server to recreate the table
-
-```sh
-uv run rose-server
-```
-
-4. Rebuild the index
-
-```sql
-INSERT INTO messages_fts(messages_fts) VALUES('rebuild');
-```
+See https://github.com/nltk/nltk_data/blob/gh-pages/DATASET-LICENSES.md for licensing information.
