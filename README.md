@@ -4,7 +4,7 @@
 
 > This project is under active development. Expect rapid changes and improvements.
 
-A FastAPI wrapper around llama-cpp-python and SQLite.
+A FastAPI wrapper around any OpenAI compatible v1/chat/completions endpoint and SQLite.
 
 ## Quick Start
 
