@@ -6,32 +6,32 @@
 .message {
     margin: 20px 0;
     padding: 15px;
-    border: 1px solid gainsboro;
+    border: 1px solid var(--rose-color-border);
     scroll-margin-top: 20px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 1px 3px var(--rose-color-shadow);
     border-radius: 3px;
 }
-.message:target { border: none; border-left: 1px dotted darkslategray; background: honeydew; border-radius: 0 3px 3px 0; box-shadow: none; }
-.message:target .message-role { color: darkslategray; }
-.message:target .message-header { color: seagreen; }
-.message:target .message-meta { color: seagreen; }
-.message-header { color: #888; font-size: 0.9em; margin-bottom: 10px; }
-.message-role { color: #000; font-weight: bold; }
-.message-content { white-space: pre-wrap; color: #000; }
-.message-meta { color: #666; font-size: 0.85em; margin-top: 10px; }
-.section-divider { margin: 30px 0; padding: 10px 0; border-bottom: 1px solid #ddd; color: #666; font-size: 0.9em; font-weight: bold; }
-.accept-link { color: #888; text-decoration: none; cursor: pointer; }
-.accept-link:hover { color: #000; }
-.accept-link.accepted { color: seagreen; font-weight: bold; }
-.regenerate-link { color: #888; text-decoration: none; cursor: pointer; }
-.regenerate-link:hover { color: #000; }
+.message:target { border: none; border-left: 1px dotted var(--rose-color-target-border); background: var(--rose-color-target-bg); border-radius: 0 3px 3px 0; box-shadow: none; }
+.message:target .message-role { color: var(--rose-color-target-border); }
+.message:target .message-header { color: var(--rose-color-accent); }
+.message:target .message-meta { color: var(--rose-color-accent); }
+.message-header { color: var(--rose-color-text-subtle); font-size: 0.9em; margin-bottom: 10px; }
+.message-role { color: var(--rose-color-text-strong); font-weight: bold; }
+.message-content { white-space: pre-wrap; color: var(--rose-color-text-strong); }
+.message-meta { color: var(--rose-color-text-muted); font-size: 0.85em; margin-top: 10px; }
+.section-divider { margin: 30px 0; padding: 10px 0; border-bottom: 1px solid var(--rose-color-divider); color: var(--rose-color-text-muted); font-size: 0.9em; font-weight: bold; }
+.accept-link { color: var(--rose-color-text-subtle); text-decoration: none; cursor: pointer; }
+.accept-link:hover { color: var(--rose-color-text-strong); }
+.accept-link.accepted { color: var(--rose-color-accent); font-weight: bold; }
+.regenerate-link { color: var(--rose-color-text-subtle); text-decoration: none; cursor: pointer; }
+.regenerate-link:hover { color: var(--rose-color-text-strong); }
 .message.placeholder { opacity: 0.6; }
 .spinner {
     width: 0;
     height: 0;
-    border-left: 8px solid transparent;
-    border-right: 8px solid transparent;
-    border-bottom: 14px solid #888;
+    border-left: 8px solid var(--rose-color-transparent);
+    border-right: 8px solid var(--rose-color-transparent);
+    border-bottom: 14px solid var(--rose-color-text-subtle);
     animation: spin 1s linear infinite;
     margin: 0 auto;
 }

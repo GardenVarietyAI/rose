@@ -3,9 +3,9 @@
 {% block title %}Search: {{ query }}{% endblock %}
 
 {% block extra_style %}
-.result { margin: 20px 0; padding: 15px; border: 1px solid gainsboro; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05); border-radius: 3px; }
-.score { color: #666; font-size: 0.9em; }
-.metadata { color: #888; font-size: 0.85em; margin-top: 10px; }
+.result { margin: 20px 0; padding: 15px; border: 1px solid var(--rose-color-border); box-shadow: 0 1px 3px var(--rose-color-shadow); border-radius: 3px; }
+.score { color: var(--rose-color-text-muted); font-size: 0.9em; }
+.metadata { color: var(--rose-color-text-subtle); font-size: 0.85em; margin-top: 10px; }
 .content { margin: 10px 0; white-space: pre-wrap; }
 input[type="text"] { font-family: monospace; padding: 5px; width: 400px; border-radius: 3px; }
 input[type="submit"], button { font-family: monospace; padding: 5px 15px; border-radius: 3px; }
