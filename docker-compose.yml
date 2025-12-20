@@ -1,18 +1,14 @@
 services:
   llama-server:
     image: ghcr.io/ggml-org/llama.cpp:server-b7464
+    env_file:
+      - .env.docker
     ports:
       - "8080:8080"
     volumes:
       - ${HF_HOME:-~/.cache/huggingface}:/root/.cache/huggingface
       - ./llama-server/entrypoint.sh:/entrypoint.sh:ro
-    entrypoint: ["/bin/sh", "/entrypoint.sh"]
-    command: >
-      --host 0.0.0.0
-      --port 8080
-      -ngl -1
-      -c 2048
-      -n 512
+    entrypoint: ["/entrypoint.sh"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -21,6 +17,8 @@ services:
 
   rose-server:
     build: .
+    env_file:
+      - .env.docker
     ports:
       - "8004:8004"
     volumes:
@@ -30,6 +28,7 @@ services:
       llama-server:
         condition: service_healthy
     environment:
+      - SETTINGS_ENV_FILE=.env.docker
       - OPENAI_BASE_URL=http://llama-server:8080/v1
       - NLTK_DATA=/usr/local/nltk_data
     healthcheck:

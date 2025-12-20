@@ -1,20 +1,20 @@
 import logging
-import os
 from contextlib import asynccontextmanager
 from importlib.resources import files
 from typing import Any
 
+import httpx
 import nltk
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
-from openai import AsyncOpenAI
 from symspellpy import SymSpell
 from yoyo import get_backend, read_migrations
 
 from rose_server.database import create_session_maker, get_session
 from rose_server.router import router
+from rose_server.settings import Settings
 from rose_server.views.pages.opensearch import render_opensearch_xml
 
 logger = logging.getLogger("rose_server")
@@ -23,9 +23,6 @@ DB_NAME = "rose_20251218.db"
 DB_MIGRATIONS = "db/migrations"
 
 
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "http://localhost:8080/v1")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "sk-nopenai")
-NLTK_DATA = os.getenv("NLTK_DATA", "./vendor/nltk_data")
 SPELLCHECK_DICTIONARY = "frequency_dictionary_en_82_765.txt"
 STATIC_PATH = files("rose_server").joinpath("static")
 
@@ -43,11 +40,18 @@ async def lifespan(app: FastAPI) -> Any:
         logger.warning(f"Failed to create database session: {e}")
         raise
 
-    app.state.openai_client = AsyncOpenAI(base_url=OPENAI_BASE_URL, api_key=OPENAI_API_KEY)
-    logger.info(f"OPENAI_BASE_URL: {OPENAI_BASE_URL}")
+    settings = Settings()
+    app.state.settings = settings
 
-    if NLTK_DATA not in nltk.data.path:
-        nltk.data.path.insert(0, NLTK_DATA)
+    headers: dict[str, str] = {}
+    if settings.llama_api_key:
+        headers["Authorization"] = f"Bearer {settings.llama_api_key}"
+
+    app.state.llama_client = httpx.AsyncClient(base_url=settings.llama_base_url, headers=headers, timeout=300.0)
+    logger.info(f"LLAMA_BASE_URL: {settings.llama_base_url}")
+
+    if settings.nltk_data not in nltk.data.path:
+        nltk.data.path.insert(0, settings.nltk_data)
 
     sym_spell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
     sym_spell.load_dictionary(str(files("symspellpy").joinpath(SPELLCHECK_DICTIONARY)), term_index=0, count_index=1)
@@ -55,6 +59,7 @@ async def lifespan(app: FastAPI) -> Any:
 
     yield
 
+    await app.state.llama_client.aclose()
     logger.info("Application shutdown completed")
 
 
