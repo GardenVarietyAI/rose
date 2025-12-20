@@ -1,20 +1,35 @@
 import json
 import logging
+import pathlib
 import re
 import uuid
 from typing import Any, Dict, Optional, Union, cast
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, field_validator
-from rose_server.dependencies import get_db_session, get_llama_client
+from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
+from rose_server.dependencies import get_db_session, get_llama_client, get_settings
 from rose_server.models.messages import Message
 from rose_server.models.search_events import SearchEvent
+from rose_server.settings import Settings
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["chat"])
+
+
+def normalize_model_name(model: str) -> tuple[str, Optional[str]]:
+    """Pull model name from llama-server path."""
+    model = model.strip()
+    if not model:
+        return ("default", None)
+
+    if ("/" in model or "\\" in model) and model.lower().endswith(".gguf"):
+        name = pathlib.PurePath(model).name
+        return (name or model, model)
+
+    return (model, None)
 
 
 async def _thread_exists(session: AsyncSession, thread_id: str) -> bool:
@@ -61,6 +76,19 @@ class ChatRequest(BaseModel):
         return value
 
 
+class CompletionMessage(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    content: Any
+
+
+class CompletionChoice(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    message: CompletionMessage
+    finish_reason: Any = None
+
+
 def serialize_message_content(content: Any) -> Optional[str]:
     if content is None:
         return None
@@ -76,6 +104,7 @@ def serialize_message_content(content: Any) -> Optional[str]:
 async def create_chat_completion(
     body: ChatRequest,
     llama_client: httpx.AsyncClient = Depends(get_llama_client),
+    settings: Settings = Depends(get_settings),
     session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     if body.stream:
@@ -106,38 +135,50 @@ async def create_chat_completion(
 
     messages = body.messages
 
+    payload: Dict[str, Any] = {
+        "messages": messages,
+        "stream": False,
+        **kwargs,
+    }
+
+    requested_model = body.model.strip() if body.model else ""
+    if requested_model and requested_model != "default":
+        payload["model"] = requested_model
+
     try:
-        upstream = await llama_client.post(
-            "chat/completions",
-            json={"model": body.model, "messages": messages, "stream": False, **kwargs},
-        )
+        completion_request = await llama_client.post("chat/completions", json=payload)
     except httpx.RequestError as e:
         raise HTTPException(status_code=503, detail=f"LLM server unavailable: {str(e)}")
 
-    if upstream.status_code >= 400:
-        raise HTTPException(status_code=upstream.status_code, detail=upstream.text)
+    if completion_request.status_code >= 400:
+        raise HTTPException(status_code=completion_request.status_code, detail=completion_request.text)
 
-    response = cast(Dict[str, Any], upstream.json())
-    model_used = response.get("model")
+    response = cast(Dict[str, Any], completion_request.json())
+
+    configured_model_path = settings.llama_model_path
+    if configured_model_path:
+        model_used, model_path = normalize_model_name(configured_model_path)
+    elif requested_model and requested_model != "default":
+        model_used, model_path = normalize_model_name(requested_model)
+    else:
+        model_used, model_path = normalize_model_name(str(response.get("model") or "default"))
 
     user_msg = body.messages[-1]
     prompt = serialize_message_content(user_msg.get("content"))
     if user_msg["role"] == "user":
-        session.add(
-            Message(
-                thread_id=thread_id,
-                role="user",
-                content=prompt,
-                model=model_used,
-            )
-        )
+        session.add(Message(thread_id=thread_id, role="user", content=prompt, model=model_used))
         await session.commit()
 
     choices = response.get("choices") or []
-    if not choices:
-        raise HTTPException(status_code=502, detail="Upstream completion missing choices")
+    if not isinstance(choices, list) or not choices:
+        raise HTTPException(status_code=502, detail="Completion missing choices")
 
-    assistant_raw_content = (choices[0].get("message") or {}).get("content")
+    try:
+        choice = CompletionChoice.model_validate(choices[0])
+    except ValidationError:
+        raise HTTPException(status_code=502, detail={"error": "Invalid completion format"})
+
+    assistant_raw_content = choice.message.content
     if isinstance(assistant_raw_content, str):
         reasoning = extract_reasoning(assistant_raw_content)
         cleaned_content = strip_reasoning_tags(assistant_raw_content)
@@ -147,8 +188,12 @@ async def create_chat_completion(
 
     assistant_meta: Dict[str, Any] = {
         "completion_id": response.get("id"),
-        "finish_reason": choices[0].get("finish_reason"),
+        "finish_reason": choice.finish_reason,
     }
+
+    if model_path:
+        assistant_meta["model_path"] = model_path
+
     usage = response.get("usage")
     if usage is not None:
         assistant_meta["usage"] = usage
@@ -177,6 +222,7 @@ async def create_chat_completion(
 
     response_dict: Dict[str, Any] = {
         **response,
+        "model": model_used,
         "message_uuid": assistant_message.uuid,
         "thread_id": thread_id,
     }

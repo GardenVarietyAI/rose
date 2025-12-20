@@ -1,5 +1,4 @@
 import logging
-import os
 from contextlib import asynccontextmanager
 from importlib.resources import files
 from typing import Any
@@ -15,6 +14,7 @@ from yoyo import get_backend, read_migrations
 
 from rose_server.database import create_session_maker, get_session
 from rose_server.router import router
+from rose_server.settings import Settings
 from rose_server.views.pages.opensearch import render_opensearch_xml
 
 logger = logging.getLogger("rose_server")
@@ -23,9 +23,6 @@ DB_NAME = "rose_20251218.db"
 DB_MIGRATIONS = "db/migrations"
 
 
-LLAMA_BASE_URL = os.getenv("LLAMA_BASE_URL", os.getenv("OPENAI_BASE_URL", "http://localhost:8080/v1"))
-LLAMA_API_KEY = os.getenv("LLAMA_API_KEY", os.getenv("OPENAI_API_KEY", ""))
-NLTK_DATA = os.getenv("NLTK_DATA", "./vendor/nltk_data")
 SPELLCHECK_DICTIONARY = "frequency_dictionary_en_82_765.txt"
 STATIC_PATH = files("rose_server").joinpath("static")
 
@@ -43,15 +40,18 @@ async def lifespan(app: FastAPI) -> Any:
         logger.warning(f"Failed to create database session: {e}")
         raise
 
-    headers = {}
-    if LLAMA_API_KEY:
-        headers["Authorization"] = f"Bearer {LLAMA_API_KEY}"
+    settings = Settings()
+    app.state.settings = settings
 
-    app.state.llama_client = httpx.AsyncClient(base_url=LLAMA_BASE_URL, headers=headers, timeout=60.0)
-    logger.info(f"LLAMA_BASE_URL: {LLAMA_BASE_URL}")
+    headers: dict[str, str] = {}
+    if settings.llama_api_key:
+        headers["Authorization"] = f"Bearer {settings.llama_api_key}"
 
-    if NLTK_DATA not in nltk.data.path:
-        nltk.data.path.insert(0, NLTK_DATA)
+    app.state.llama_client = httpx.AsyncClient(base_url=settings.llama_base_url, headers=headers, timeout=60.0)
+    logger.info(f"LLAMA_BASE_URL: {settings.llama_base_url}")
+
+    if settings.nltk_data not in nltk.data.path:
+        nltk.data.path.insert(0, settings.nltk_data)
 
     sym_spell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
     sym_spell.load_dictionary(str(files("symspellpy").joinpath(SPELLCHECK_DICTIONARY)), term_index=0, count_index=1)

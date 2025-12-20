@@ -30,6 +30,7 @@ services:
       llama-server:
         condition: service_healthy
     environment:
+      - SETTINGS_ENV_FILE=.env.docker
       - OPENAI_BASE_URL=http://llama-server:8080/v1
       - NLTK_DATA=/usr/local/nltk_data
     healthcheck:
