@@ -1,4 +1,4 @@
-const askButton = () => ({
+export const askButton = () => ({
   disabled: false,
   label: "Ask",
   interval: null,
@@ -49,8 +49,4 @@ const askButton = () => ({
       this.disabled = false;
     }
   },
-});
-
-document.addEventListener("alpine:init", () => {
-  Alpine.data("askButton", askButton);
 });
