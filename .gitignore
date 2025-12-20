@@ -36,3 +36,4 @@ env/
 yoyo.ini
 CLAUDE.md
 .env
+.env.docker
