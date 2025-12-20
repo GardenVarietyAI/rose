@@ -1,8 +1,11 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <title>{% block title %}ROSE{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <link rel="stylesheet" href="/static/vendor/sanitize/sanitize.css">
     <style>
         body {
             font-family: monospace;
@@ -19,6 +22,10 @@
 </head>
 <body>
     <h1><a href="/v1/search">ROSE</a></h1>
-    {% block content %}{% endblock %}
+    <main class="container">
+      {% block content %}{% endblock %}
+    </main>
+    <script defer src="/static/vendor/alpine/alpine.min.js"></script>
+    <script defer src="/static/app/app.js"></script>
 </body>
 </html>
