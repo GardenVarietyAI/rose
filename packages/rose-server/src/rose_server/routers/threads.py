@@ -1,9 +1,12 @@
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+from rose_server.dependencies import get_readonly_db_session, get_templates
 from rose_server.models.messages import Message
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
 logger = logging.getLogger(__name__)
@@ -20,29 +23,30 @@ class ThreadResponse(BaseModel):
 async def get_thread(
     request: Request,
     thread_id: str,
+    session: AsyncSession = Depends(get_readonly_db_session),
+    templates: Jinja2Templates = Depends(get_templates),
 ) -> Any:
-    async with request.app.state.get_db_session(read_only=True) as session:
-        prompt_stmt = (
-            select(Message)
-            .where(col(Message.thread_id) == thread_id)
-            .where(col(Message.role) == "user")
-            .order_by(col(Message.created_at))
-            .limit(1)
-        )
-        prompt_result = await session.execute(prompt_stmt)
-        prompt = prompt_result.scalar_one_or_none()
+    prompt_stmt = (
+        select(Message)
+        .where(col(Message.thread_id) == thread_id)
+        .where(col(Message.role) == "user")
+        .order_by(col(Message.created_at))
+        .limit(1)
+    )
+    prompt_result = await session.execute(prompt_stmt)
+    prompt = prompt_result.scalar_one_or_none()
 
-        responses_stmt = (
-            select(Message)
-            .where(col(Message.thread_id) == thread_id)
-            .where(col(Message.role) == "assistant")
-            .order_by(
-                col(Message.accepted_at).desc().nulls_last(),
-                col(Message.created_at).desc(),
-            )
+    responses_stmt = (
+        select(Message)
+        .where(col(Message.thread_id) == thread_id)
+        .where(col(Message.role) == "assistant")
+        .order_by(
+            col(Message.accepted_at).desc().nulls_last(),
+            col(Message.created_at).desc(),
         )
-        responses_result = await session.execute(responses_stmt)
-        responses = list(responses_result.scalars().all())
+    )
+    responses_result = await session.execute(responses_stmt)
+    responses = list(responses_result.scalars().all())
 
     if not prompt and not responses:
         raise HTTPException(status_code=404, detail="Thread not found")
@@ -55,7 +59,7 @@ async def get_thread(
 
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
-        return request.app.state.templates.TemplateResponse(
+        return templates.TemplateResponse(
             "thread.html",
             {
                 "request": request,

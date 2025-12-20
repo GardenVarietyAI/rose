@@ -4,10 +4,11 @@ import re
 import uuid
 from typing import Any, Dict, List, Optional, Union, cast
 
-from fastapi import APIRouter, HTTPException, Request
-from openai import APIConnectionError
+from fastapi import APIRouter, Depends, HTTPException
+from openai import APIConnectionError, AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, field_validator
+from rose_server.dependencies import get_db_session, get_openai_client
 from rose_server.llms import MODELS
 from rose_server.models.messages import Message
 from rose_server.models.search_events import SearchEvent
@@ -74,11 +75,21 @@ def serialize_message_content(content: Any) -> Optional[str]:
 
 
 @router.post("/chat/completions", response_model=None)
-async def create_chat_completion(request: Request, body: ChatRequest) -> dict[str, Any]:
+async def create_chat_completion(
+    body: ChatRequest,
+    openai_client: AsyncOpenAI = Depends(get_openai_client),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
     if body.stream:
         raise HTTPException(status_code=400, detail="Streaming unavailable.")
 
-    thread_id = body.thread_id or str(uuid.uuid4())
+    if body.thread_id:
+        thread_id = body.thread_id
+        if not await _thread_exists(session, thread_id):
+            raise HTTPException(status_code=404, detail="Thread not found")
+    else:
+        thread_id = str(uuid.uuid4())
+
     model = body.model if body.model and body.model != "default" else MODELS["chat"]["id"]
 
     kwargs: Dict[str, Any] = {
@@ -105,45 +116,39 @@ async def create_chat_completion(request: Request, body: ChatRequest) -> dict[st
     messages = cast(List[ChatCompletionMessageParam], body.messages)
 
     try:
-        response = await request.app.state.openai_client.chat.completions.create(
-            messages=messages,
-            model=model,
-            **kwargs,
-        )
+        response = await openai_client.chat.completions.create(messages=messages, model=model, **kwargs)
     except APIConnectionError as e:
         raise HTTPException(status_code=503, detail=f"LLM server unavailable: {str(e)}")
 
-    async with request.app.state.get_db_session() as session:
-        user_msg = body.messages[-1]
-        prompt = serialize_message_content(user_msg.get("content"))
-        if user_msg["role"] == "user":
-            session.add(
-                Message(
-                    thread_id=thread_id,
-                    role="user",
-                    content=prompt,
-                    model=model,
-                )
+    user_msg = body.messages[-1]
+    prompt = serialize_message_content(user_msg.get("content"))
+    if user_msg["role"] == "user":
+        session.add(
+            Message(
+                thread_id=thread_id,
+                role="user",
+                content=prompt,
+                model=model,
             )
+        )
 
-        assistant_raw_content = response.choices[0].message.content
-        if isinstance(assistant_raw_content, str):
-            assistant_content = serialize_message_content(assistant_raw_content)
-            reasoning = extract_reasoning(assistant_raw_content)
-            cleaned_content = strip_reasoning_tags(assistant_raw_content)
-        else:
-            assistant_content = serialize_message_content(assistant_raw_content)
-            reasoning = None
-            cleaned_content = assistant_content
+    assistant_raw_content = response.choices[0].message.content
+    if isinstance(assistant_raw_content, str):
+        reasoning = extract_reasoning(assistant_raw_content)
+        cleaned_content = strip_reasoning_tags(assistant_raw_content)
+    else:
+        reasoning = None
+        cleaned_content = serialize_message_content(assistant_raw_content)
 
-        assistant_meta: Dict[str, Any] = {
-            "completion_id": response.id,
-            "finish_reason": response.choices[0].finish_reason,
-        }
-        if response.usage:
-            assistant_meta["usage"] = response.usage.model_dump()
+    assistant_meta: Dict[str, Any] = {
+        "completion_id": response.id,
+        "finish_reason": response.choices[0].finish_reason,
+    }
+    if response.usage:
+        assistant_meta["usage"] = response.usage.model_dump()
 
-        assistant_msg = Message(
+    session.add(
+        Message(
             thread_id=thread_id,
             role="assistant",
             content=cleaned_content,
@@ -151,21 +156,20 @@ async def create_chat_completion(request: Request, body: ChatRequest) -> dict[st
             model=model,
             meta=assistant_meta,
         )
-        session.add(assistant_msg)
+    )
 
-        if not body.thread_id and len(body.messages) == 1:
-            if body.messages[0]["role"] == "user" and prompt is not None:
-                session.add(
-                    SearchEvent(
-                        event_type="ask",
-                        search_mode="llm",
-                        query=prompt,
-                        result_count=0,
-                        thread_id=thread_id,
-                    )
+    if not body.thread_id and len(body.messages) == 1:
+        if body.messages[0]["role"] == "user" and prompt is not None:
+            session.add(
+                SearchEvent(
+                    event_type="ask",
+                    search_mode="llm",
+                    query=prompt,
+                    result_count=0,
+                    thread_id=thread_id,
                 )
+            )
 
     response_dict: Dict[str, Any] = response.model_dump()
     response_dict["thread_id"] = thread_id
-    response_dict["message_uuid"] = assistant_msg.uuid
     return response_dict
