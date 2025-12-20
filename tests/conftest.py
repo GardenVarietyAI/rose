@@ -1,11 +1,12 @@
 from typing import Any, AsyncGenerator, Generator
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from rose_server import database
 from rose_server.dependencies import (
     get_db_session,
-    get_openai_client,
+    get_llama_client,
     get_readonly_db_session,
     get_spell_checker,
 )
@@ -13,60 +14,47 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlmodel import SQLModel
 
 
-class DummyUsage:
-    def model_dump(self) -> dict[str, int]:
-        return {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+class DummyLlamaClient:
+    async def get(self, url: str, *args: Any, **kwargs: Any) -> httpx.Response:
+        if url == "models":
+            return httpx.Response(
+                200,
+                json={
+                    "object": "list",
+                    "data": [
+                        {
+                            "id": "Qwen3-0.6B-Q8_0.gguf",
+                            "object": "model",
+                            "created": 0,
+                            "owned_by": "system",
+                        }
+                    ],
+                },
+            )
+        return httpx.Response(404, json={"error": {"message": "not found"}})
 
+    async def post(self, url: str, *args: Any, **kwargs: Any) -> httpx.Response:
+        if url != "chat/completions":
+            return httpx.Response(404, json={"error": {"message": "not found"}})
 
-class DummyChoiceMessage:
-    def __init__(self, content: str) -> None:
-        self.content = content
-
-
-class DummyChoice:
-    def __init__(self, content: str) -> None:
-        self.message = DummyChoiceMessage(content)
-        self.finish_reason = "stop"
-
-
-class DummyResponse:
-    def __init__(self, content: str) -> None:
-        self.id = "dummy-completion-id"
-        self.choices = [DummyChoice(content)]
-        self.usage = DummyUsage()
-
-    def model_dump(self) -> dict[str, object]:
-        return {
-            "id": self.id,
-            "choices": [
-                {
-                    "message": {"content": self.choices[0].message.content},
-                    "finish_reason": self.choices[0].finish_reason,
-                }
-            ],
-            "usage": self.usage.model_dump(),
-        }
-
-
-class DummyChatCompletions:
-    async def create(self, *args: Any, **kwargs: Any) -> DummyResponse:
-        messages = kwargs.get("messages", [])
+        payload = kwargs.get("json") or {}
+        messages = payload.get("messages") or []
         content = ""
-        if messages and isinstance(messages, list):
-            last = messages[-1]
-            if isinstance(last, dict):
-                content = str(last.get("content", ""))
-        return DummyResponse(content)
+        if messages and isinstance(messages, list) and isinstance(messages[-1], dict):
+            content = str(messages[-1].get("content", ""))
 
-
-class DummyChat:
-    def __init__(self) -> None:
-        self.completions = DummyChatCompletions()
-
-
-class DummyOpenAI:
-    def __init__(self) -> None:
-        self.chat = DummyChat()
+        return httpx.Response(
+            200,
+            json={
+                "id": "dummy-completion-id",
+                "object": "chat.completion",
+                "model": "/tmp/Qwen3-0.6B-Q8_0.gguf",
+                "choices": [
+                    {"index": 0, "message": {"role": "assistant", "content": content}, "finish_reason": "stop"}
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            },
+        )
 
 
 test_engine = create_async_engine(
@@ -90,8 +78,8 @@ async def override_readonly_db_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
-def override_openai_client() -> DummyOpenAI:
-    return DummyOpenAI()
+def override_llama_client() -> DummyLlamaClient:
+    return DummyLlamaClient()
 
 
 def override_spell_checker() -> None:
@@ -121,7 +109,7 @@ def client(test_db: None) -> Generator[TestClient, None, None]:
 
     app.dependency_overrides[get_db_session] = override_db_session
     app.dependency_overrides[get_readonly_db_session] = override_readonly_db_session
-    app.dependency_overrides[get_openai_client] = override_openai_client
+    app.dependency_overrides[get_llama_client] = override_llama_client
     app.dependency_overrides[get_spell_checker] = override_spell_checker
 
     with TestClient(app) as test_client:
