@@ -58,21 +58,14 @@
 
 <div id="responses">
 {% for response in responses %}
-<div class="message {% if response.accepted_at %}accepted{% endif %}" id="msg-{{ response.uuid }}" data-uuid="{{ response.uuid }}">
-  <div class="message-header">
-    <span class="message-role">{{ response.role }}</span>
-    {% if response.model %}<span class="message-model"> | {{ response.model }}</span>{% endif %}
-    | <a class="accept-link {% if response.accepted_at %}accepted{% endif %}"
-          data-uuid="{{ response.uuid }}"
-          data-accepted="{% if response.accepted_at %}true{% else %}false{% endif %}">
-        {% if response.accepted_at %}accepted{% else %}accept answer{% endif %}
-    </a>
-  </div>
-  <div class="message-content">{{ response.content }}</div>
-  <div class="message-meta">
-    {{ response.created_at }}
-  </div>
-</div>
+{% set response_uuid = response.uuid %}
+{% set response_dom_id = 'msg-' ~ response.uuid %}
+{% set response_role = response.role %}
+{% set response_model = response.model %}
+{% set response_content = response.content %}
+{% set response_created_at = response.created_at %}
+{% set response_accepted = response.accepted_at %}
+{% include "partials/response_message.html" %}
 {% endfor %}
 </div>
 
@@ -90,15 +83,14 @@
 </template>
 
 <template id="response-template">
-  <div class="message" data-uuid="">
-    <div class="message-header">
-      <span class="message-role">assistant</span>
-      <span class="message-model"></span>
-      | <a class="accept-link" data-uuid="" data-accepted="false">accept answer</a>
-    </div>
-    <div class="message-content"></div>
-    <div class="message-meta"></div>
-  </div>
+  {% set response_uuid = '' %}
+  {% set response_dom_id = '' %}
+  {% set response_role = 'assistant' %}
+  {% set response_model = '' %}
+  {% set response_content = '' %}
+  {% set response_created_at = '' %}
+  {% set response_accepted = false %}
+  {% include "partials/response_message.html" %}
 </template>
 
 <script>
@@ -129,49 +121,14 @@ function createResponse(data) {
       modelSpan.textContent = ` | ${data.model}`;
   }
 
-  const acceptLink = message.querySelector('.accept-link');
-  acceptLink.dataset.uuid = uuid;
-
   const content = message.querySelector('.message-content');
   content.textContent = data.choices[0].message.content;
 
   const meta = message.querySelector('.message-meta');
   meta.textContent = new Date().toLocaleString();
 
-  attachAcceptHandler(acceptLink);
-
   return clone;
 }
-
-function attachAcceptHandler(link) {
-  link.addEventListener('click', async function(e) {
-    e.preventDefault();
-    const uuid = this.dataset.uuid;
-    const isAccepted = this.dataset.accepted === 'true';
-
-    try {
-      const response = await fetch(`/v1/messages/${uuid}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accepted: !isAccepted })
-      });
-
-      if (response.ok) {
-        const newAccepted = !isAccepted;
-        this.dataset.accepted = newAccepted;
-        this.textContent = newAccepted ? 'accepted' : 'accept answer';
-        this.classList.toggle('accepted', newAccepted);
-
-        const messageEl = this.closest('.message');
-        messageEl.classList.toggle('accepted', newAccepted);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-    }
-  });
-}
-
-document.querySelectorAll('.accept-link').forEach(attachAcceptHandler);
 
 document.querySelector('.regenerate-link').addEventListener('click', async function(e) {
   e.preventDefault();
@@ -204,7 +161,7 @@ document.querySelector('.regenerate-link').addEventListener('click', async funct
     }
   } catch (error) {
     console.error('Error:', error);
-    const placeholåderEl = document.querySelector(`[data-temp-id="${tempId}"]`);
+    const placeholderEl = document.querySelector(`[data-temp-id="${tempId}"]`);
     if (placeholderEl) {
       placeholderEl.remove();
     }
