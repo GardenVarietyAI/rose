@@ -14,9 +14,9 @@ input[type="submit"], button { font-family: monospace; padding: 5px 15px; border
 
 {% block content %}
 <form action="/v1/search" method="get">
-    <input type="text" name="q" value="{{ query }}" autofocus>
-    <input type="submit" value="Search">
-    {% include "partials/ask_button.html" %}
+  <input type="text" name="q" value="{{ query }}" autofocus>
+  <input type="submit" value="Search">
+  {% include "partials/ask_button.html" %}
 </form>
 {% if corrected_query %}
 <p>Showing results for <strong>{{ query }}</strong><br>Search for <a href="/v1/search?q={{ original_query|urlencode }}&exact=true"><span class="original-query">{{ original_query }}</span></a></p>
@@ -34,15 +34,15 @@ input[type="submit"], button { font-family: monospace; padding: 5px 15px; border
 
 {% for hit in hits %}
 <a href="/v1/threads/{{ hit.metadata.get('thread_id') }}#msg-{{ hit.id }}">
-    <div class="result">
-        <div class="score">Score: {{ "%.4f"|format(hit.score) }}</div>
-        <div class="content">{{ hit.excerpt }}</div>
-        <div class="metadata">
-            Thread: {{ hit.metadata.get('thread_id', 'N/A') }} |
-            Role: {{ hit.metadata.get('role', 'N/A') }} |
-            Created: {{ hit.metadata.get('created_at', 'N/A') }}
-        </div>
+  <div class="result">
+    <div class="score">Score: {{ "%.4f"|format(hit.score) }}</div>
+    <div class="content">{{ hit.excerpt }}</div>
+    <div class="metadata">
+      Thread: {{ hit.metadata.get('thread_id', 'N/A') }} |
+      Role: {{ hit.metadata.get('role', 'N/A') }} |
+      Created: {{ hit.metadata.get('created_at', 'N/A') }}
     </div>
+  </div>
 </a>
 {% endfor %}
 {% endblock %}

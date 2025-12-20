@@ -4,12 +4,12 @@
 
 {% block extra_style %}
 .message {
-    margin: 20px 0;
-    padding: 15px;
-    border: 1px solid var(--rose-color-border);
-    scroll-margin-top: 20px;
-    box-shadow: 0 1px 3px var(--rose-color-shadow);
-    border-radius: 3px;
+  margin: 20px 0;
+  padding: 15px;
+  border: 1px solid var(--rose-color-border);
+  scroll-margin-top: 20px;
+  box-shadow: 0 1px 3px var(--rose-color-shadow);
+  border-radius: 3px;
 }
 .message:target { border: none; border-left: 1px dotted var(--rose-color-target-border); background: var(--rose-color-target-bg); border-radius: 0 3px 3px 0; box-shadow: none; }
 .message:target .message-role { color: var(--rose-color-target-border); }
@@ -27,17 +27,17 @@
 .regenerate-link:hover { color: var(--rose-color-text-strong); }
 .message.placeholder { opacity: 0.6; }
 .spinner {
-    width: 0;
-    height: 0;
-    border-left: 8px solid var(--rose-color-transparent);
-    border-right: 8px solid var(--rose-color-transparent);
-    border-bottom: 14px solid var(--rose-color-text-subtle);
-    animation: spin 1s linear infinite;
-    margin: 0 auto;
+  width: 0;
+  height: 0;
+  border-left: 8px solid var(--rose-color-transparent);
+  border-right: 8px solid var(--rose-color-transparent);
+  border-bottom: 14px solid var(--rose-color-text-subtle);
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
 }
 @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 {% endblock %}
 
@@ -46,59 +46,59 @@
 
 {% if prompt %}
 <div class="message" id="msg-{{ prompt.uuid }}">
-    <div class="message-header">
-        <span class="message-role">{{ prompt.role }}</span>
-    </div>
-    <div class="message-content">{{ prompt.content }}</div>
-    <div class="message-meta">
-        {{ prompt.created_at }}
-    </div>
+  <div class="message-header">
+    <span class="message-role">{{ prompt.role }}</span>
+  </div>
+  <div class="message-content">{{ prompt.content }}</div>
+  <div class="message-meta">
+    {{ prompt.created_at }}
+  </div>
 </div>
 {% endif %}
 
 <div id="responses">
 {% for response in responses %}
 <div class="message {% if response.accepted_at %}accepted{% endif %}" id="msg-{{ response.uuid }}" data-uuid="{{ response.uuid }}">
-    <div class="message-header">
-        <span class="message-role">{{ response.role }}</span>
-        {% if response.model %}<span class="message-model"> | {{ response.model }}</span>{% endif %}
-        | <a class="accept-link {% if response.accepted_at %}accepted{% endif %}"
-             data-uuid="{{ response.uuid }}"
-             data-accepted="{% if response.accepted_at %}true{% else %}false{% endif %}">
-            {% if response.accepted_at %}accepted{% else %}accept answer{% endif %}
-        </a>
-    </div>
-    <div class="message-content">{{ response.content }}</div>
-    <div class="message-meta">
-        {{ response.created_at }}
-    </div>
+  <div class="message-header">
+    <span class="message-role">{{ response.role }}</span>
+    {% if response.model %}<span class="message-model"> | {{ response.model }}</span>{% endif %}
+    | <a class="accept-link {% if response.accepted_at %}accepted{% endif %}"
+          data-uuid="{{ response.uuid }}"
+          data-accepted="{% if response.accepted_at %}true{% else %}false{% endif %}">
+        {% if response.accepted_at %}accepted{% else %}accept answer{% endif %}
+    </a>
+  </div>
+  <div class="message-content">{{ response.content }}</div>
+  <div class="message-meta">
+    {{ response.created_at }}
+  </div>
 </div>
 {% endfor %}
 </div>
 
 <template id="placeholder-template">
-    <div class="message placeholder" data-temp-id="">
-        <div class="message-header">
-            <span class="message-role">assistant</span>
-            <span class="message-model"></span>
-        </div>
-        <div class="message-content">
-            <div class="spinner"></div>
-        </div>
-        <div class="message-meta"></div>
+  <div class="message placeholder" data-temp-id="">
+    <div class="message-header">
+      <span class="message-role">assistant</span>
+      <span class="message-model"></span>
     </div>
+    <div class="message-content">
+      <div class="spinner"></div>
+    </div>
+    <div class="message-meta"></div>
+  </div>
 </template>
 
 <template id="response-template">
-    <div class="message" data-uuid="">
-        <div class="message-header">
-            <span class="message-role">assistant</span>
-            <span class="message-model"></span>
-            | <a class="accept-link" data-uuid="" data-accepted="false">accept answer</a>
-        </div>
-        <div class="message-content"></div>
-        <div class="message-meta"></div>
+  <div class="message" data-uuid="">
+    <div class="message-header">
+      <span class="message-role">assistant</span>
+      <span class="message-model"></span>
+      | <a class="accept-link" data-uuid="" data-accepted="false">accept answer</a>
     </div>
+    <div class="message-content"></div>
+    <div class="message-meta"></div>
+  </div>
 </template>
 
 <script>
@@ -107,108 +107,108 @@ const placeholderTemplate = document.getElementById('placeholder-template');
 const responseTemplate = document.getElementById('response-template');
 
 function createPlaceholder(tempId) {
-    const clone = placeholderTemplate.content.cloneNode(true);
-    const message = clone.querySelector('.message');
-    message.dataset.tempId = tempId;
-    return clone;
+  const clone = placeholderTemplate.content.cloneNode(true);
+  const message = clone.querySelector('.message');
+  message.dataset.tempId = tempId;
+  return clone;
 }
 
 function createResponse(data) {
-    const clone = responseTemplate.content.cloneNode(true);
-    const message = clone.querySelector('.message');
-    const uuid = data.message_uuid;
-    if (!uuid) {
-        throw new Error("Chat response missing message uuid");
-    }
+  const clone = responseTemplate.content.cloneNode(true);
+  const message = clone.querySelector('.message');
+  const uuid = data.message_uuid;
+  if (!uuid) {
+      throw new Error("Chat response missing message uuid");
+  }
 
-    message.dataset.uuid = uuid;
-    message.id = `msg-${uuid}`;
+  message.dataset.uuid = uuid;
+  message.id = `msg-${uuid}`;
 
-    const modelSpan = message.querySelector('.message-model');
-    if (data.model) {
-        modelSpan.textContent = ` | ${data.model}`;
-    }
+  const modelSpan = message.querySelector('.message-model');
+  if (data.model) {
+      modelSpan.textContent = ` | ${data.model}`;
+  }
 
-    const acceptLink = message.querySelector('.accept-link');
-    acceptLink.dataset.uuid = uuid;
+  const acceptLink = message.querySelector('.accept-link');
+  acceptLink.dataset.uuid = uuid;
 
-    const content = message.querySelector('.message-content');
-    content.textContent = data.choices[0].message.content;
+  const content = message.querySelector('.message-content');
+  content.textContent = data.choices[0].message.content;
 
-    const meta = message.querySelector('.message-meta');
-    meta.textContent = new Date().toLocaleString();
+  const meta = message.querySelector('.message-meta');
+  meta.textContent = new Date().toLocaleString();
 
-    attachAcceptHandler(acceptLink);
+  attachAcceptHandler(acceptLink);
 
-    return clone;
+  return clone;
 }
 
 function attachAcceptHandler(link) {
-    link.addEventListener('click', async function(e) {
-        e.preventDefault();
-        const uuid = this.dataset.uuid;
-        const isAccepted = this.dataset.accepted === 'true';
+  link.addEventListener('click', async function(e) {
+    e.preventDefault();
+    const uuid = this.dataset.uuid;
+    const isAccepted = this.dataset.accepted === 'true';
 
-        try {
-            const response = await fetch(`/v1/messages/${uuid}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ accepted: !isAccepted })
-            });
+    try {
+      const response = await fetch(`/v1/messages/${uuid}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accepted: !isAccepted })
+      });
 
-            if (response.ok) {
-                const newAccepted = !isAccepted;
-                this.dataset.accepted = newAccepted;
-                this.textContent = newAccepted ? 'accepted' : 'accept answer';
-                this.classList.toggle('accepted', newAccepted);
+      if (response.ok) {
+        const newAccepted = !isAccepted;
+        this.dataset.accepted = newAccepted;
+        this.textContent = newAccepted ? 'accepted' : 'accept answer';
+        this.classList.toggle('accepted', newAccepted);
 
-                const messageEl = this.closest('.message');
-                messageEl.classList.toggle('accepted', newAccepted);
-            }
-        } catch (error) {
-            console.error('Error:', error);
-        }
-    });
+        const messageEl = this.closest('.message');
+        messageEl.classList.toggle('accepted', newAccepted);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  });
 }
 
 document.querySelectorAll('.accept-link').forEach(attachAcceptHandler);
 
 document.querySelector('.regenerate-link').addEventListener('click', async function(e) {
-    e.preventDefault();
-    const threadId = this.dataset.threadId;
-    const promptContent = this.dataset.promptContent;
-    const model = this.dataset.model;
+  e.preventDefault();
+  const threadId = this.dataset.threadId;
+  const promptContent = this.dataset.promptContent;
+  const model = this.dataset.model;
 
-    const tempId = Math.random().toString(36).slice(2, 10);
-    const placeholder = createPlaceholder(tempId);
-    responsesContainer.prepend(placeholder);
+  const tempId = Math.random().toString(36).slice(2, 10);
+  const placeholder = createPlaceholder(tempId);
+  responsesContainer.prepend(placeholder);
 
-    try {
-        const response = await fetch('/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                thread_id: threadId,
-                model: model,
-                messages: [{ role: 'user', content: promptContent }]
-            })
-        });
+  try {
+    const response = await fetch('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        thread_id: threadId,
+        model: model,
+        messages: [{ role: 'user', content: promptContent }]
+      })
+    });
 
-        if (response.ok) {
-            const data = await response.json();
-            const responseEl = createResponse(data);
-            const placeholderEl = document.querySelector(`[data-temp-id="${tempId}"]`);
-            if (placeholderEl) {
-                placeholderEl.replaceWith(responseEl);
-            }
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        const placeholderEl = document.querySelector(`[data-temp-id="${tempId}"]`);
-        if (placeholderEl) {
-            placeholderEl.remove();
-        }
+    if (response.ok) {
+      const data = await response.json();
+      const responseEl = createResponse(data);
+      const placeholderEl = document.querySelector(`[data-temp-id="${tempId}"]`);
+      if (placeholderEl) {
+        placeholderEl.replaceWith(responseEl);
+      }
     }
+  } catch (error) {
+    console.error('Error:', error);
+    const placeholåderEl = document.querySelector(`[data-temp-id="${tempId}"]`);
+    if (placeholderEl) {
+      placeholderEl.remove();
+    }
+  }
 });
 </script>
 {% endblock %}
