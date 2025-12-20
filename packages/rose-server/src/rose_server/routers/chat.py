@@ -100,19 +100,12 @@ async def create_chat_completion(
         "frequency_penalty": body.frequency_penalty,
         "stop": body.stop,
         "seed": body.seed,
+        "response_format": body.response_format,
+        "tools": body.tools,
+        "tool_choice": body.tool_choice,
     }
 
     kwargs = {k: v for k, v in kwargs.items() if v is not None}
-
-    if body.response_format is not None:
-        kwargs["response_format"] = body.response_format
-
-    if body.tools is not None:
-        kwargs["tools"] = body.tools
-
-    if body.tool_choice is not None:
-        kwargs["tool_choice"] = body.tool_choice
-
     messages = cast(List[ChatCompletionMessageParam], body.messages)
 
     try:
@@ -147,19 +140,18 @@ async def create_chat_completion(
     if response.usage:
         assistant_meta["usage"] = response.usage.model_dump()
 
-    session.add(
-        Message(
-            thread_id=thread_id,
-            role="assistant",
-            content=cleaned_content,
-            reasoning=reasoning,
-            model=model,
-            meta=assistant_meta,
-        )
+    assistant_message = Message(
+        thread_id=thread_id,
+        role="assistant",
+        content=cleaned_content,
+        reasoning=reasoning,
+        model=model,
+        meta=assistant_meta,
     )
+    session.add(assistant_message)
 
-    if not body.thread_id and len(body.messages) == 1:
-        if body.messages[0]["role"] == "user" and prompt is not None:
+    if prompt is not None and not body.thread_id:
+        if len(body.messages) == 1 and body.messages[0]["role"] == "user":
             session.add(
                 SearchEvent(
                     event_type="ask",
@@ -170,6 +162,9 @@ async def create_chat_completion(
                 )
             )
 
-    response_dict: Dict[str, Any] = response.model_dump()
-    response_dict["thread_id"] = thread_id
+    response_dict: Dict[str, Any] = {
+        **response.model_dump(),
+        "message_uuid": assistant_message.uuid,
+        "thread_id": thread_id,
+    }
     return response_dict
