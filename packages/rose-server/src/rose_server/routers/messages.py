@@ -1,9 +1,11 @@
 import logging
 import time
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from rose_server.dependencies import get_db_session
 from rose_server.models.messages import Message
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, update
 
 logger = logging.getLogger(__name__)
@@ -22,22 +24,21 @@ class UpdateMessageResponse(BaseModel):
 
 @router.patch("/messages/{message_uuid}", response_model=UpdateMessageResponse)
 async def update_message(
-    request: Request,
     message_uuid: str,
     body: UpdateMessageRequest,
+    session: AsyncSession = Depends(get_db_session),
 ) -> UpdateMessageResponse:
-    async with request.app.state.get_db_session() as session:
-        accepted_at_value = int(time.time()) if body.accepted else None
-        statement = (
-            update(Message)
-            .where(col(Message.uuid) == message_uuid)
-            .where(col(Message.role) == "assistant")
-            .values(accepted_at=accepted_at_value)
-        )
-        result = await session.execute(statement)
+    accepted_at = int(time.time()) if body.accepted else None
+    statement = (
+        update(Message)
+        .where(col(Message.uuid) == message_uuid)
+        .where(col(Message.role) == "assistant")
+        .values(accepted_at=accepted_at)
+    )
+    result = await session.execute(statement)
 
-        if result.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Message not found")
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Message not found")
 
     return UpdateMessageResponse(
         status="updated",

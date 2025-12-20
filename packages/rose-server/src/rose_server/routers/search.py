@@ -2,18 +2,27 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from rake_nltk import Rake
+from rose_server.dependencies import (
+    get_db_session,
+    get_readonly_db_session,
+    get_spell_checker,
+    get_templates,
+)
 from rose_server.models.search_events import SearchEvent
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+from symspellpy import SymSpell
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["search"])
 
 
 def normalize_query(query: str) -> str:
-    """Normalize query by removing punctuation for spell checking."""
+    """Remove punctuation for spell checking."""
     chars_to_remove = "?!.,;:-+()[]{}*^"
     translator = str.maketrans(chars_to_remove, " " * len(chars_to_remove))
     normalized = query.translate(translator)
@@ -46,6 +55,10 @@ async def search_messages(
     q: str = Query("", description="Search query"),
     limit: int = Query(10, ge=1, le=100, description="Maximum number of results"),
     exact: bool = Query(False, description="Skip spell correction"),
+    read_session: AsyncSession = Depends(get_readonly_db_session),
+    write_session: AsyncSession = Depends(get_db_session),
+    spell_checker: Optional[SymSpell] = Depends(get_spell_checker),
+    templates: Jinja2Templates = Depends(get_templates),
 ) -> Any:
     hits = []
     corrected_query = None
@@ -54,8 +67,8 @@ async def search_messages(
     if q:
         normalized_q = normalize_query(q)
 
-        if not exact and request.app.state.spell_checker:
-            suggestions = request.app.state.spell_checker.lookup_compound(normalized_q, max_edit_distance=2)
+        if not exact and spell_checker:
+            suggestions = spell_checker.lookup_compound(normalized_q, max_edit_distance=2)
             if suggestions and suggestions[0].term.lower() != normalized_q.lower():
                 corrected_query = suggestions[0].term
                 q = corrected_query
@@ -79,9 +92,8 @@ async def search_messages(
             LIMIT :limit
         """)
 
-        async with request.app.state.get_db_session(read_only=True) as session:
-            result = await session.execute(query, {"query": fts_query, "limit": limit})
-            rows = result.fetchall()
+        result = await read_session.execute(query, {"query": fts_query, "limit": limit})
+        rows = result.fetchall()
 
         for row in rows:
             metadata: Dict[str, Any] = {
@@ -108,17 +120,16 @@ async def search_messages(
         keywords = rake.get_ranked_phrases()
         if keywords:
             verified_keywords = []
-            async with request.app.state.get_db_session(read_only=True) as session:
-                for keyword in keywords[:5]:
-                    sanitized_keyword = sanitize_fts5_query(keyword)
-                    check_query = text("SELECT COUNT(*) as count FROM messages_fts WHERE messages_fts MATCH :query")
-                    result = await session.execute(check_query, {"query": sanitized_keyword})
-                    count = result.scalar()
+            for keyword in keywords[:5]:
+                sanitized_keyword = sanitize_fts5_query(keyword)
+                check_query = text("SELECT COUNT(*) as count FROM messages_fts WHERE messages_fts MATCH :query")
+                result = await read_session.execute(check_query, {"query": sanitized_keyword})
+                count = result.scalar()
 
-                    if count and count > 0:
-                        verified_keywords.append(keyword)
-                        if len(verified_keywords) >= 3:
-                            break
+                if count and count > 0:
+                    verified_keywords.append(keyword)
+                    if len(verified_keywords) >= 3:
+                        break
 
             fallback_keywords = verified_keywords if verified_keywords else None
 
@@ -130,15 +141,14 @@ async def search_messages(
         else:
             search_mode = "fts"
 
-        async with request.app.state.get_db_session() as session:
-            search_event = SearchEvent(
-                event_type="search",
-                search_mode=search_mode,
-                query=fts_query,
-                original_query=original_query if original_query != fts_query else None,
-                result_count=len(hits),
-            )
-            session.add(search_event)
+        search_event = SearchEvent(
+            event_type="search",
+            search_mode=search_mode,
+            query=fts_query,
+            original_query=original_query if original_query != fts_query else None,
+            result_count=len(hits),
+        )
+        write_session.add(search_event)
 
     response_data = SearchResponse(
         index="messages",
@@ -148,7 +158,7 @@ async def search_messages(
 
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
-        return request.app.state.templates.TemplateResponse(
+        return templates.TemplateResponse(
             "search.html",
             {
                 "request": request,

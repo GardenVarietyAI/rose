@@ -1,10 +1,73 @@
-from typing import AsyncGenerator, Generator
+from typing import Any, AsyncGenerator, Generator
 
 import pytest
 from fastapi.testclient import TestClient
 from rose_server import database
+from rose_server.dependencies import (
+    get_db_session,
+    get_openai_client,
+    get_readonly_db_session,
+    get_spell_checker,
+)
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
+
+
+class DummyUsage:
+    def model_dump(self) -> dict[str, int]:
+        return {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
+
+class DummyChoiceMessage:
+    def __init__(self, content: str) -> None:
+        self.content = content
+
+
+class DummyChoice:
+    def __init__(self, content: str) -> None:
+        self.message = DummyChoiceMessage(content)
+        self.finish_reason = "stop"
+
+
+class DummyResponse:
+    def __init__(self, content: str) -> None:
+        self.id = "dummy-completion-id"
+        self.choices = [DummyChoice(content)]
+        self.usage = DummyUsage()
+
+    def model_dump(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "choices": [
+                {
+                    "message": {"content": self.choices[0].message.content},
+                    "finish_reason": self.choices[0].finish_reason,
+                }
+            ],
+            "usage": self.usage.model_dump(),
+        }
+
+
+class DummyChatCompletions:
+    async def create(self, *args: Any, **kwargs: Any) -> DummyResponse:
+        messages = kwargs.get("messages", [])
+        content = ""
+        if messages and isinstance(messages, list):
+            last = messages[-1]
+            if isinstance(last, dict):
+                content = str(last.get("content", ""))
+        return DummyResponse(content)
+
+
+class DummyChat:
+    def __init__(self) -> None:
+        self.completions = DummyChatCompletions()
+
+
+class DummyOpenAI:
+    def __init__(self) -> None:
+        self.chat = DummyChat()
+
 
 test_engine = create_async_engine(
     "sqlite+aiosqlite:///:memory:",
@@ -15,6 +78,24 @@ test_engine = create_async_engine(
 )
 
 test_async_session_factory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+
+
+async def override_db_session() -> AsyncGenerator[AsyncSession, None]:
+    async with database.get_session(test_async_session_factory) as session:
+        yield session
+
+
+async def override_readonly_db_session() -> AsyncGenerator[AsyncSession, None]:
+    async with database.get_session(test_async_session_factory, read_only=True) as session:
+        yield session
+
+
+def override_openai_client() -> DummyOpenAI:
+    return DummyOpenAI()
+
+
+def override_spell_checker() -> None:
+    return None
 
 
 @pytest.fixture
@@ -38,10 +119,10 @@ def client(test_db: None) -> Generator[TestClient, None, None]:
 
     app.router.lifespan_context = _DefaultLifespan(app.router)
 
-    app.state.engine = test_engine
-    app.state.db_session_maker = test_async_session_factory
-    app.state.get_db_session = lambda read_only=False: database.get_session(test_async_session_factory, read_only)
-    app.state.chat_model = None
+    app.dependency_overrides[get_db_session] = override_db_session
+    app.dependency_overrides[get_readonly_db_session] = override_readonly_db_session
+    app.dependency_overrides[get_openai_client] = override_openai_client
+    app.dependency_overrides[get_spell_checker] = override_spell_checker
 
     with TestClient(app) as test_client:
         yield test_client
