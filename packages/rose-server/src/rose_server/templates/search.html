@@ -16,7 +16,7 @@ input[type="submit"], button { font-family: monospace; padding: 5px 15px; border
 <form action="/v1/search" method="get">
     <input type="text" name="q" value="{{ query }}" autofocus>
     <input type="submit" value="Search">
-    <button type="button" id="ask-btn">Ask</button>
+    {% include "partials/ask_button.html" %}
 </form>
 {% if corrected_query %}
 <p>Showing results for <strong>{{ query }}</strong><br>Search for <a href="/v1/search?q={{ original_query|urlencode }}&exact=true"><span class="original-query">{{ original_query }}</span></a></p>
@@ -45,38 +45,4 @@ input[type="submit"], button { font-family: monospace; padding: 5px 15px; border
     </div>
 </a>
 {% endfor %}
-
-<script>
-document.getElementById('ask-btn').addEventListener('click', async function() {
-    const query = document.querySelector('input[name="q"]').value;
-    if (!query) return;
-
-    this.disabled = true;
-
-    let dots = 0;
-    const interval = setInterval(() => {
-        dots = (dots % 3) + 1;
-        this.textContent = 'Asking' + '.'.repeat(dots);
-    }, 400);
-
-    try {
-        const response = await fetch('/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                messages: [{ role: 'user', content: query }]
-            })
-        });
-
-        const data = await response.json();
-        window.location.href = '/v1/threads/' + data.thread_id;
-    } catch (error) {
-        alert('Error: ' + error.message);
-    } finally {
-        clearInterval(interval);
-        this.disabled = false;
-        this.textContent = 'Ask';
-    }
-});
-</script>
 {% endblock %}
