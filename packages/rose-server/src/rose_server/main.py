@@ -1,14 +1,15 @@
+import argparse
 import logging
-
-import typer
-import uvicorn
+from typing import Optional, Sequence
 
 
 def serve(
-    host: str = typer.Option("127.0.0.1", "--host", "-h", help="Server host"),
-    port: int = typer.Option(8004, "--port", "-p", help="Server port"),
-    log_level: str = typer.Option("INFO", "--log-level", "-l", help="Logging level", case_sensitive=False),
+    host: str,
+    port: int,
+    log_level: str,
 ) -> None:
+    import uvicorn
+
     log_level = log_level.upper()
     logging.basicConfig(
         level=getattr(logging, log_level, logging.INFO),
@@ -27,8 +28,14 @@ def serve(
     )
 
 
-def main() -> None:
-    typer.run(serve)
+def main(argv: Optional[Sequence[str]] = None) -> None:
+    parser = argparse.ArgumentParser(prog="rose-server")
+    parser.add_argument("--host", "-H", default="127.0.0.1", help="Server host")
+    parser.add_argument("--port", "-p", type=int, default=8004, help="Server port")
+    parser.add_argument("--log-level", "-l", default="INFO", help="Logging level")
+
+    args = parser.parse_args(argv)
+    serve(host=args.host, port=args.port, log_level=args.log_level)
 
 
 if __name__ == "__main__":
