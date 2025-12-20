@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI) -> Any:
     if settings.llama_api_key:
         headers["Authorization"] = f"Bearer {settings.llama_api_key}"
 
-    app.state.llama_client = httpx.AsyncClient(base_url=settings.llama_base_url, headers=headers, timeout=60.0)
+    app.state.llama_client = httpx.AsyncClient(base_url=settings.llama_base_url, headers=headers, timeout=300.0)
     logger.info(f"LLAMA_BASE_URL: {settings.llama_base_url}")
 
     if settings.nltk_data not in nltk.data.path:
