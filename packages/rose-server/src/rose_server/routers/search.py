@@ -3,16 +3,16 @@ import re
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.templating import Jinja2Templates
+from htpy.starlette import HtpyResponse
 from pydantic import BaseModel
 from rake_nltk import Rake
 from rose_server.dependencies import (
     get_db_session,
     get_readonly_db_session,
     get_spell_checker,
-    get_templates,
 )
 from rose_server.models.search_events import SearchEvent
+from rose_server.views.pages.search import render_search
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from symspellpy import SymSpell
@@ -58,7 +58,6 @@ async def search_messages(
     read_session: AsyncSession = Depends(get_readonly_db_session),
     write_session: AsyncSession = Depends(get_db_session),
     spell_checker: Optional[SymSpell] = Depends(get_spell_checker),
-    templates: Jinja2Templates = Depends(get_templates),
 ) -> Any:
     hits = []
     corrected_query = None
@@ -158,16 +157,14 @@ async def search_messages(
 
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
-        return templates.TemplateResponse(
-            "search.html",
-            {
-                "request": request,
-                "query": q,
-                "hits": hits,
-                "corrected_query": corrected_query,
-                "original_query": original_query,
-                "fallback_keywords": fallback_keywords,
-            },
+        return HtpyResponse(
+            render_search(
+                query=q,
+                hits=hits,
+                corrected_query=corrected_query,
+                original_query=original_query,
+                fallback_keywords=fallback_keywords,
+            )
         )
 
     return response_data

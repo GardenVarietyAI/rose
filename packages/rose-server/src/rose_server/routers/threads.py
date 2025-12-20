@@ -2,10 +2,11 @@ import logging
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.templating import Jinja2Templates
+from htpy.starlette import HtpyResponse
 from pydantic import BaseModel
-from rose_server.dependencies import get_readonly_db_session, get_templates
+from rose_server.dependencies import get_readonly_db_session
 from rose_server.models.messages import Message
+from rose_server.views.pages.thread import render_thread
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
@@ -24,7 +25,6 @@ async def get_thread(
     request: Request,
     thread_id: str,
     session: AsyncSession = Depends(get_readonly_db_session),
-    templates: Jinja2Templates = Depends(get_templates),
 ) -> Any:
     prompt_stmt = (
         select(Message)
@@ -59,14 +59,12 @@ async def get_thread(
 
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
-        return templates.TemplateResponse(
-            "thread.html",
-            {
-                "request": request,
-                "thread_id": thread_id,
-                "prompt": prompt,
-                "responses": responses,
-            },
+        return HtpyResponse(
+            render_thread(
+                thread_id=thread_id,
+                prompt=prompt,
+                responses=responses,
+            )
         )
 
     return response_data

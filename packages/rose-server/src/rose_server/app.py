@@ -7,13 +7,15 @@ from typing import Any
 import nltk
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import Response
+from fastapi.staticfiles import StaticFiles
 from openai import AsyncOpenAI
 from symspellpy import SymSpell
 from yoyo import get_backend, read_migrations
 
 from rose_server.database import create_session_maker, get_session
 from rose_server.router import router
+from rose_server.views.pages.opensearch import render_opensearch_xml
 
 logger = logging.getLogger("rose_server")
 
@@ -25,12 +27,11 @@ OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "http://localhost:8080/v1")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "sk-nopenai")
 NLTK_DATA = os.getenv("NLTK_DATA", "./vendor/nltk_data")
 SPELLCHECK_DICTIONARY = "frequency_dictionary_en_82_765.txt"
+STATIC_PATH = files("rose_server").joinpath("static")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> Any:
-    app.state.templates = Jinja2Templates(directory=str(files("rose_server").joinpath("templates")))
-
     try:
         app.state.engine, app.state.db_session_maker = create_session_maker(DB_NAME)
         app.state.get_db_session = lambda read_only=False: get_session(app.state.db_session_maker, read_only)
@@ -71,6 +72,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    app.mount("/static", StaticFiles(directory=str(STATIC_PATH)), name="static")
     app.include_router(router)
 
     @app.get("/health")
@@ -80,11 +82,10 @@ def create_app() -> FastAPI:
     @app.get("/opensearch.xml")
     async def opensearch_descriptor(request: Request) -> Any:
         base_url = str(request.base_url).rstrip("/")
-        return request.app.state.templates.TemplateResponse(
-            "opensearch.xml",
-            {"request": request, "base_url": base_url},
+        return Response(
+            content=render_opensearch_xml(base_url=base_url),
             media_type="application/opensearchdescription+xml",
-        ).body.decode()
+        )
 
     return app
 
