@@ -63,4 +63,7 @@ def render_thread(*, thread_id: str, prompt: Any, responses: list[Any]) -> Node:
         ]
     )
 
-    return render_page(title_text=f"Thread: {thread_id}", content=div(x_data="threadPage")[content])
+    return render_page(
+        title_text=f"Thread: {thread_id}",
+        content=div(x_data="threadPage", data_thread_id=thread_id)[content],
+    )

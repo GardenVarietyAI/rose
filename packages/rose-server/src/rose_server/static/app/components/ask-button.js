@@ -15,7 +15,7 @@ export const askButton = () => ({
     this.disabled = true;
 
     try {
-      const response = await fetch("/v1/chat/completions", {
+      const response = await fetch("/v1/threads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: [{ role: "user", content: query }] }),
