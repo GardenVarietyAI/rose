@@ -1,6 +1,6 @@
 from typing import Any
 
-from htpy import Node, a, div, p, script, span, strong, template
+from htpy import Node, a, div, p, span, strong, template
 from rose_server.views.components.response_message import response_message
 from rose_server.views.layout import render_page
 
@@ -62,7 +62,5 @@ def render_thread(*, thread_id: str, prompt: Any, responses: list[Any]) -> Node:
             ]
         ]
     )
-
-    content.append(script(src="/static/app/pages/thread.js", defer=True))
 
     return render_page(title_text=f"Thread: {thread_id}", content=div(x_data="threadPage")[content])
