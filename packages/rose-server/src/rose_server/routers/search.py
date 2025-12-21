@@ -20,6 +20,9 @@ from symspellpy import SymSpell
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["search"])
 
+KEYWORD_AUGMENTATION_THRESHOLD = 3
+KEYWORD_AUGMENTATION_MAX_KEYWORDS = 3
+
 
 def normalize_query(query: str) -> str:
     """Remove punctuation for spell checking."""
@@ -49,6 +52,109 @@ class SearchResponse(BaseModel):
     hits: List[SearchHit]
 
 
+def _build_fts_query() -> Any:
+    return text("""
+        SELECT
+            m.uuid,
+            -bm25(messages_fts) as score,
+            snippet(messages_fts, -1, '', '', '...', 64) as excerpt,
+            m.content,
+            m.thread_id,
+            m.role,
+            m.model,
+            m.created_at
+        FROM messages_fts
+        JOIN messages m ON messages_fts.rowid = m.id
+        WHERE messages_fts MATCH :query
+        ORDER BY bm25(messages_fts)
+        LIMIT :limit
+    """)
+
+
+async def _fetch_hits(read_session: AsyncSession, fts_query: str, limit: int) -> list[SearchHit]:
+    query = _build_fts_query()
+    result = await read_session.execute(query, {"query": fts_query, "limit": limit})
+    rows = result.fetchall()
+
+    hits: list[SearchHit] = []
+    for row in rows:
+        metadata: Dict[str, Any] = {
+            "thread_id": row.thread_id,
+            "role": row.role,
+            "model": row.model,
+            "created_at": row.created_at,
+        }
+        hits.append(
+            SearchHit(
+                id=row.uuid,
+                score=row.score,
+                text=row.content,
+                excerpt=row.excerpt,
+                metadata=metadata,
+            )
+        )
+
+    return hits
+
+
+def _extract_keywords(query: str) -> list[str]:
+    rake = Rake()
+    rake.extract_keywords_from_text(query)
+    keywords = rake.get_ranked_phrases()
+    if not keywords:
+        return []
+    return keywords[:5]
+
+
+async def _augment_with_keywords(
+    read_session: AsyncSession,
+    query: str,
+    *,
+    remaining: int,
+    seen_ids: set[str],
+) -> tuple[list[SearchHit], bool]:
+    if remaining <= 0:
+        return ([], False)
+
+    keywords = _extract_keywords(query)
+    if not keywords:
+        return ([], False)
+
+    augmented_hits: list[SearchHit] = []
+    used_keywords = False
+    keywords_used = 0
+
+    for keyword in keywords:
+        if remaining <= 0:
+            break
+
+        sanitized_keyword = sanitize_fts5_query(keyword)
+        if not sanitized_keyword:
+            continue
+
+        added_from_keyword = 0
+        keyword_hits = await _fetch_hits(read_session, sanitized_keyword, remaining)
+        if keyword_hits:
+            used_keywords = True
+
+        for hit in keyword_hits:
+            if hit.id in seen_ids:
+                continue
+            seen_ids.add(hit.id)
+            augmented_hits.append(hit)
+            remaining -= 1
+            added_from_keyword += 1
+            if remaining <= 0:
+                break
+
+        if added_from_keyword > 0:
+            keywords_used += 1
+            if keywords_used >= KEYWORD_AUGMENTATION_MAX_KEYWORDS:
+                break
+
+    return (augmented_hits, used_keywords)
+
+
 @router.get("/search")
 async def search_messages(
     request: Request,
@@ -62,6 +168,7 @@ async def search_messages(
     hits = []
     corrected_query = None
     original_query = q
+    used_keywords = False
 
     if q:
         normalized_q = normalize_query(q)
@@ -73,70 +180,25 @@ async def search_messages(
                 q = corrected_query
 
         fts_query = sanitize_fts5_query(q)
+        hits = await _fetch_hits(read_session, fts_query, limit)
 
-        query = text("""
-            SELECT
-                m.uuid,
-                -bm25(messages_fts) as score,
-                snippet(messages_fts, -1, '', '', '...', 64) as excerpt,
-                m.content,
-                m.thread_id,
-                m.role,
-                m.model,
-                m.created_at
-            FROM messages_fts
-            JOIN messages m ON messages_fts.rowid = m.id
-            WHERE messages_fts MATCH :query
-            ORDER BY bm25(messages_fts)
-            LIMIT :limit
-        """)
-
-        result = await read_session.execute(query, {"query": fts_query, "limit": limit})
-        rows = result.fetchall()
-
-        for row in rows:
-            metadata: Dict[str, Any] = {
-                "thread_id": row.thread_id,
-                "role": row.role,
-                "model": row.model,
-                "created_at": row.created_at,
-            }
-
-            hits.append(
-                SearchHit(
-                    id=row.uuid,
-                    score=row.score,
-                    text=row.content,
-                    excerpt=row.excerpt,
-                    metadata=metadata,
-                )
+        if len(hits) < KEYWORD_AUGMENTATION_THRESHOLD:
+            remaining = max(0, limit - len(hits))
+            seen_ids = {hit.id for hit in hits}
+            augmented_hits, used_keywords = await _augment_with_keywords(
+                read_session,
+                q,
+                remaining=remaining,
+                seen_ids=seen_ids,
             )
+            hits.extend(augmented_hits)
 
-    fallback_keywords: List[str] | None = None
-    if q and len(hits) == 0:
-        rake = Rake()
-        rake.extract_keywords_from_text(q)
-        keywords = rake.get_ranked_phrases()
-        if keywords:
-            verified_keywords = []
-            for keyword in keywords[:5]:
-                sanitized_keyword = sanitize_fts5_query(keyword)
-                check_query = text("SELECT COUNT(*) as count FROM messages_fts WHERE messages_fts MATCH :query")
-                result = await read_session.execute(check_query, {"query": sanitized_keyword})
-                count = result.scalar()
-
-                if count and count > 0:
-                    verified_keywords.append(keyword)
-                    if len(verified_keywords) >= 3:
-                        break
-
-            fallback_keywords = verified_keywords if verified_keywords else None
-
-    if q:
-        if corrected_query:
+        if corrected_query and used_keywords:
+            search_mode = "fts_corrected_augmented"
+        elif corrected_query:
             search_mode = "fts_corrected"
-        elif fallback_keywords:
-            search_mode = "fts_rake"
+        elif used_keywords:
+            search_mode = "fts_augmented"
         else:
             search_mode = "fts"
 
@@ -163,7 +225,6 @@ async def search_messages(
                 hits=hits,
                 corrected_query=corrected_query,
                 original_query=original_query,
-                fallback_keywords=fallback_keywords,
             )
         )
 
