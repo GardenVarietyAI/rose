@@ -100,7 +100,7 @@ async def _fetch_hits(read_session: AsyncSession, fts_query: str, limit: int) ->
 def _extract_keywords(query: str) -> list[str]:
     rake = Rake()
     rake.extract_keywords_from_text(query)
-    keywords = rake.get_ranked_phrases()
+    keywords: list[str] = rake.get_ranked_phrases()
     if not keywords:
         return []
     return keywords[:5]
