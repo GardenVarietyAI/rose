@@ -16,9 +16,11 @@ from sqlmodel import SQLModel
 
 class DummyLlamaClient:
     async def get(self, url: str, *args: Any, **kwargs: Any) -> httpx.Response:
+        request = httpx.Request("GET", f"http://llama.local/{url}")
         if url == "models":
             return httpx.Response(
                 200,
+                request=request,
                 json={
                     "object": "list",
                     "data": [
@@ -31,11 +33,12 @@ class DummyLlamaClient:
                     ],
                 },
             )
-        return httpx.Response(404, json={"error": {"message": "not found"}})
+        return httpx.Response(404, request=request, json={"error": {"message": "not found"}})
 
     async def post(self, url: str, *args: Any, **kwargs: Any) -> httpx.Response:
+        request = httpx.Request("POST", f"http://llama.local/{url}")
         if url != "chat/completions":
-            return httpx.Response(404, json={"error": {"message": "not found"}})
+            return httpx.Response(404, request=request, json={"error": {"message": "not found"}})
 
         payload = kwargs.get("json") or {}
         messages = payload.get("messages") or []
@@ -45,6 +48,7 @@ class DummyLlamaClient:
 
         return httpx.Response(
             200,
+            request=request,
             json={
                 "id": "dummy-completion-id",
                 "object": "chat.completion",
