@@ -37,6 +37,19 @@ uv run rose-server
 docker compose up -d
 ```
 
+#### Standalone Docker (point at an existing LLM server)
+
+```bash
+docker build -t rose-server .
+
+docker run --rm -p 8004:8004 \
+  -e SETTINGS_ENV_FILE=/dev/null \
+  -e OPENAI_BASE_URL=http://host.docker.internal:8080/v1 \
+  -e OPENAI_API_KEY=your-key-or-empty \
+  -e LLAMA_MODEL_PATH=/models/your-model.gguf \
+  rose-server
+```
+
 Server runs on http://localhost:8004.
 
 ## API Endpoints

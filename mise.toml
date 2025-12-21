@@ -5,6 +5,7 @@ uv = "0.8.3"
 [tasks]
 dev = "uv run rose-server"
 esbuild = "docker compose --profile tools run --rm esbuild packages/rose-server/src/rose_server/static/app/bundle.entry.js --minify --bundle --platform=browser --format=iife --outfile=packages/rose-server/src/rose_server/static/app/bundle.js"
+cuda = "docker compose -f docker-compose.yml -f docker-compose.cuda.yml up -d"
 
 [settings]
 lockfile = true
