@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, Query, Request
 from htpy.starlette import HtpyResponse
@@ -57,7 +57,7 @@ async def search_messages(
     exact: bool = Query(False, description="Skip spell correction"),
     read_session: AsyncSession = Depends(get_readonly_db_session),
     write_session: AsyncSession = Depends(get_db_session),
-    spell_checker: Optional[SymSpell] = Depends(get_spell_checker),
+    spell_checker: SymSpell | None = Depends(get_spell_checker),
 ) -> Any:
     hits = []
     corrected_query = None
@@ -112,7 +112,7 @@ async def search_messages(
                 )
             )
 
-    fallback_keywords: Optional[List[str]] = None
+    fallback_keywords: List[str] | None = None
     if q and len(hits) == 0:
         rake = Rake()
         rake.extract_keywords_from_text(q)

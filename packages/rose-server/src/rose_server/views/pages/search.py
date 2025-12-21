@@ -1,4 +1,4 @@
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable
 from urllib.parse import quote
 
 from htpy import (
@@ -20,9 +20,9 @@ def render_search(
     *,
     query: str,
     hits: Iterable[Any],
-    corrected_query: Optional[str],
+    corrected_query: str | None,
     original_query: str,
-    fallback_keywords: Optional[list[str]],
+    fallback_keywords: list[str] | None,
 ) -> Node:
     content: list[Node] = []
     content.append(

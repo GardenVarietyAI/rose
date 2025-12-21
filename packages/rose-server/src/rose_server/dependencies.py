@@ -1,5 +1,5 @@
 from collections.abc import AsyncIterator
-from typing import Optional, Protocol, cast
+from typing import Protocol, cast
 
 import httpx
 from fastapi import Request
@@ -37,5 +37,5 @@ def get_settings(request: Request) -> Settings:
     return getattr(state, "settings", Settings())
 
 
-def get_spell_checker(request: Request) -> Optional[SymSpell]:
+def get_spell_checker(request: Request) -> SymSpell | None:
     return getattr(request.app.state, "spell_checker", None)

@@ -1,6 +1,6 @@
 import argparse
 import logging
-from typing import Optional, Sequence
+from typing import Sequence
 
 
 def serve(
@@ -28,7 +28,7 @@ def serve(
     )
 
 
-def main(argv: Optional[Sequence[str]] = None) -> None:
+def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="rose-server")
     parser.add_argument("--host", "-H", default="127.0.0.1", help="Server host")
     parser.add_argument("--port", "-p", type=int, default=8004, help="Server port")

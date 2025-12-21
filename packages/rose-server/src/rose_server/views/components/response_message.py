@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 from htpy import BaseElement, a, div, span
 
@@ -9,7 +8,7 @@ def response_message(
     uuid: str,
     dom_id: str | None,
     role: str,
-    model: Optional[str],
+    model: str | None,
     content: str,
     created_at: datetime | str | int,
     accepted: bool,

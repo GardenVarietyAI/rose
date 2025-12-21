@@ -3,7 +3,7 @@ import logging
 import pathlib
 import re
 import uuid
-from typing import Any, Dict, Optional, Union, cast
+from typing import Any, Dict, Union, cast
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["chat"])
 
 
-def normalize_model_name(model: str) -> tuple[str, Optional[str]]:
+def normalize_model_name(model: str) -> tuple[str, str | None]:
     """Pull model name from llama-server path."""
     model = model.strip()
     if not model:
@@ -38,7 +38,7 @@ async def _thread_exists(session: AsyncSession, thread_id: str) -> bool:
     return result.scalar_one_or_none() is not None
 
 
-def extract_reasoning(text: str) -> Optional[str]:
+def extract_reasoning(text: str) -> str | None:
     """Extract <think>...</think> content and return reasoning."""
     match = re.search(r"<think>(.*?)</think>", text, re.DOTALL)
     if match:
@@ -46,26 +46,26 @@ def extract_reasoning(text: str) -> Optional[str]:
     return None
 
 
-def strip_reasoning_tags(text: str) -> Optional[str]:
+def strip_reasoning_tags(text: str) -> str | None:
     """Remove <think>...</think> tags from text."""
     result = re.sub(r"<think>.*?</think>\s*", "", text, flags=re.DOTALL).strip()
     return result if result else None
 
 
 class ChatRequest(BaseModel):
-    thread_id: Optional[str] = None
-    model: Optional[str] = None
+    thread_id: str | None = None
+    model: str | None = None
     messages: list[dict[str, Any]]
-    temperature: Optional[float] = None
-    top_p: Optional[float] = None
-    max_tokens: Optional[int] = None
-    presence_penalty: Optional[float] = None
-    frequency_penalty: Optional[float] = None
-    stop: Optional[Union[str, list[str]]] = None
-    seed: Optional[int] = None
-    response_format: Optional[dict[str, Any]] = None
-    tools: Optional[list[dict[str, Any]]] = None
-    tool_choice: Optional[Union[str, dict[str, Any]]] = None
+    temperature: float | None = None
+    top_p: float | None = None
+    max_tokens: int | None = None
+    presence_penalty: float | None = None
+    frequency_penalty: float | None = None
+    stop: Union[str, list[str]] | None = None
+    seed: int | None = None
+    response_format: dict[str, Any] | None = None
+    tools: list[dict[str, Any]] | None = None
+    tool_choice: Union[str, dict[str, Any]] | None = None
     stream: bool = False
 
     @field_validator("messages")
@@ -89,7 +89,7 @@ class CompletionChoice(BaseModel):
     finish_reason: Any = None
 
 
-def serialize_message_content(content: Any) -> Optional[str]:
+def serialize_message_content(content: Any) -> str | None:
     if content is None:
         return None
     if isinstance(content, str):
