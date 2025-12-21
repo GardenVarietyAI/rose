@@ -69,9 +69,9 @@ def render_search(
                     div(class_="score")[f"Score: {float(score):.4f}" if score != "" else "Score:"],
                     div(class_="content")[excerpt],
                     div(class_="metadata")[
-                        f"Thread: {metadata.get('thread_id', 'N/A')} | ",
-                        f"Role: {metadata.get('role', 'N/A')} | ",
-                        f"Created: {metadata.get('created_at', 'N/A')}",
+                        f"Thread: {metadata.get('thread_id', '')} | ",
+                        f"Role: {metadata.get('role', '')} | ",
+                        f"Created: {metadata.get('created_at', '')}",
                     ],
                 ]
             ]
