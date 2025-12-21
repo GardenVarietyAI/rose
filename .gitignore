@@ -35,5 +35,6 @@ env/
 # Config
 yoyo.ini
 CLAUDE.md
+AGENTS.md
 .env
 .env.docker
