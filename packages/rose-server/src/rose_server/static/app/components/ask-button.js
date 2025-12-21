@@ -1,23 +1,6 @@
 export const askButton = () => ({
   disabled: false,
   label: "Ask",
-  interval: null,
-  dots: 0,
-
-  stopSpinner() {
-    if (this.interval) clearInterval(this.interval);
-    this.interval = null;
-    this.dots = 0;
-    this.label = "Ask";
-  },
-
-  startSpinner() {
-    this.stopSpinner();
-    this.interval = setInterval(() => {
-      this.dots = (this.dots % 3) + 1;
-      this.label = "Asking" + ".".repeat(this.dots);
-    }, 400);
-  },
 
   getQuery() {
     const form = this.$el.closest("form");
@@ -30,7 +13,6 @@ export const askButton = () => ({
     if (!query || this.disabled) return;
 
     this.disabled = true;
-    this.startSpinner();
 
     try {
       const response = await fetch("/v1/chat/completions", {
@@ -45,7 +27,6 @@ export const askButton = () => ({
     } catch (error) {
       alert("Error: " + (error?.message || String(error)));
     } finally {
-      this.stopSpinner();
       this.disabled = false;
     }
   },
