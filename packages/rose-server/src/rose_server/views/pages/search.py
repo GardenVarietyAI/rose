@@ -11,6 +11,7 @@ from htpy import (
     p,
     span,
     strong,
+    textarea,
 )
 from rose_server.views.components.ask_button import ask_button
 from rose_server.views.layout import render_page
@@ -23,12 +24,50 @@ def render_search(
     corrected_query: str | None,
     original_query: str,
 ) -> Node:
+    hits_list = list(hits)
     content: list[Node] = []
     content.append(
-        form(action="/v1/search", method="get")[
-            input_(type="text", name="q", value=query, autofocus=True),
-            input_(type="submit", value="Search"),
-            ask_button(),
+        form(
+            {
+                "x-ref": "form",
+                "data-initial-query": query,
+            },
+            action="/v1/search",
+            method="get",
+            class_="search-form",
+            x_data="searchForm",
+        )[
+            input_(
+                {
+                    "x-ref": "single",
+                    "x-show": "!isMultiline",
+                    "x-model": "value",
+                    ":disabled": "isMultiline",
+                    "@paste": "handlePaste($event)",
+                },
+                type="text",
+                name="q",
+                autofocus=True,
+            ),
+            textarea(
+                {
+                    "x-ref": "multi",
+                    "x-show": "isMultiline",
+                    "x-model": "value",
+                    ":disabled": "!isMultiline",
+                    "@input": "autogrow($event.target)",
+                    "@keydown.enter.prevent": "submit()",
+                },
+                name="q",
+                rows="1",
+            )[query],
+            div(class_="search-controls-row")[
+                span(class_="search-results-count")[f"Results: {len(hits_list)}"],
+                div(class_="search-actions")[
+                    input_(type="submit", value="Search"),
+                    ask_button(),
+                ],
+            ],
         ]
     )
 
@@ -44,9 +83,6 @@ def render_search(
                 ],
             ]
         )
-
-    hits_list = list(hits)
-    content.append(p[f"Results: {len(hits_list)}"])
 
     for hit in hits_list:
         metadata = getattr(hit, "metadata", {}) or {}

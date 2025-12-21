@@ -4,7 +4,7 @@ export const askButton = () => ({
 
   getQuery() {
     const form = this.$el.closest("form");
-    const queryInput = form?.querySelector('input[name="q"]');
+    const queryInput = form?.querySelector('[name="q"]:not([disabled])');
     return queryInput?.value?.trim() || "";
   },
 

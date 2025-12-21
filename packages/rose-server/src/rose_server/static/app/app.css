@@ -69,6 +69,37 @@ input[type="text"] {
   border-radius: 3px;
 }
 
+textarea {
+  font-family: monospace;
+  padding: 8px;
+  border-radius: 3px;
+  resize: none;
+}
+
+.search-form input[type="text"] {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.search-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  overflow-y: hidden;
+}
+
+.search-controls-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.search-actions {
+  display: flex;
+  gap: 10px;
+}
+
 input[type="submit"],
 button {
   font-family: monospace;
