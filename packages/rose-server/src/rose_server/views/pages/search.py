@@ -22,7 +22,6 @@ def render_search(
     hits: Iterable[Any],
     corrected_query: str | None,
     original_query: str,
-    fallback_keywords: list[str] | None,
 ) -> Node:
     content: list[Node] = []
     content.append(
@@ -36,7 +35,7 @@ def render_search(
     if corrected_query:
         content.append(
             p[
-                "Showing results for ",
+                "Searching for ",
                 strong[query],
                 br(),
                 "Search for ",
@@ -47,15 +46,7 @@ def render_search(
         )
 
     hits_list = list(hits)
-    if fallback_keywords and len(hits_list) == 0:
-        links: list[Node] = []
-        for i, keyword in enumerate(fallback_keywords):
-            links.append(a(href=f"/v1/search?q={quote(keyword)}")[span(class_="original-query")[keyword]])
-            if i != len(fallback_keywords) - 1:
-                links.append(", ")
-        content.append(p["No matches. Try searching for: ", *links])
-    else:
-        content.append(p[f"Results: {len(hits_list)}"])
+    content.append(p[f"Results: {len(hits_list)}"])
 
     for hit in hits_list:
         metadata = getattr(hit, "metadata", {}) or {}
