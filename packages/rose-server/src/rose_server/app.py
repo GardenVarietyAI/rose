@@ -22,8 +22,7 @@ logger = logging.getLogger("rose_server")
 DB_NAME = "rose_20251218.db"
 DB_MIGRATIONS = "db/migrations"
 
-
-SPELLCHECK_DICTIONARY = "frequency_dictionary_en_82_765.txt"
+SPELLCHECK_PATH = files("symspellpy").joinpath("frequency_dictionary_en_82_765.txt")
 STATIC_PATH = files("rose_server").joinpath("static")
 
 
@@ -54,7 +53,7 @@ async def lifespan(app: FastAPI) -> Any:
         nltk.data.path.insert(0, settings.nltk_data)
 
     sym_spell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
-    sym_spell.load_dictionary(str(files("symspellpy").joinpath(SPELLCHECK_DICTIONARY)), term_index=0, count_index=1)
+    sym_spell.load_dictionary(str(SPELLCHECK_PATH), term_index=0, count_index=1)
     app.state.spell_checker = sym_spell
 
     yield
