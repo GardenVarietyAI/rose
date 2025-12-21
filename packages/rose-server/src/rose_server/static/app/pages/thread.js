@@ -1,4 +1,4 @@
-const threadPage = () => ({
+export const threadPage = () => ({
   pending: false,
 
   createPlaceholder(tempId) {
@@ -64,8 +64,4 @@ const threadPage = () => ({
       this.pending = false;
     }
   },
-});
-
-document.addEventListener("alpine:init", () => {
-  Alpine.data("threadPage", threadPage);
 });

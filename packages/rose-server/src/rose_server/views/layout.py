@@ -14,9 +14,7 @@ def render_page(*, title_text: str, content: Node) -> Node:
         body[
             h1[a(href="/v1/search")["ROSE"]],
             main(class_="container")[content],
-            script(src="/static/app/app.js", defer=True),
-            script(src="/static/app/components/ask-button.js", defer=True),
-            script(src="/static/app/components/response-message.js", defer=True),
             script(src="/static/vendor/alpine/alpine.min.js", defer=True),
+            script(src="/static/app/bundle.js", defer=True),
         ],
     ]

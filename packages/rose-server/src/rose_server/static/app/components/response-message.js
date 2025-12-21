@@ -1,4 +1,4 @@
-const responseMessage = () => ({
+export const responseMessage = () => ({
   uuid: null,
   accepted: false,
 
@@ -20,8 +20,4 @@ const responseMessage = () => ({
       console.error("Error:", error);
     }
   },
-});
-
-document.addEventListener("alpine:init", () => {
-  Alpine.data("responseMessage", responseMessage);
 });

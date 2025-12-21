@@ -36,3 +36,12 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+  esbuild:
+    build:
+      context: .
+      dockerfile: esbuild/Dockerfile
+    profiles: ["tools"]
+    working_dir: /app
+    volumes:
+      - .:/app
