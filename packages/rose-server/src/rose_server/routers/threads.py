@@ -1,18 +1,18 @@
 import asyncio
 import json
 import logging
-import pathlib
 import uuid
 from typing import Any, Literal
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from htpy.starlette import HtpyResponse
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 from rose_server.dependencies import get_db_session, get_llama_client, get_readonly_db_session, get_settings
 from rose_server.models.messages import Message
 from rose_server.models.search_events import SearchEvent
 from rose_server.services import jobs
+from rose_server.services.llama import normalize_model_name, serialize_message_content
 from rose_server.settings import Settings
 from rose_server.views.pages.thread_activity import render_thread_activity
 from rose_server.views.pages.thread_messages import render_thread_messages
@@ -52,82 +52,6 @@ class CreateThreadResponse(BaseModel):
     job_uuid: str
 
 
-class CompletionMessage(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    content: Any
-
-
-class CompletionChoice(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    message: CompletionMessage
-    finish_reason: Any = None
-
-
-class CompletionResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    id: str | None = None
-    choices: list[CompletionChoice] = Field(default_factory=list)
-    model: str | None = None
-    usage: dict[str, Any] | None = None
-
-
-def _normalize_model_name(model: str | None) -> str:
-    if not model or model == "default":
-        return "default"
-    if ("/" in model or "\\" in model) and model.lower().endswith(".gguf"):
-        name = pathlib.PurePath(model).name
-        return name or model
-    return model
-
-
-def _serialize_message_content(content: Any) -> str | None:
-    if content is None:
-        return None
-    if isinstance(content, str):
-        return content
-    try:
-        return json.dumps(content)
-    except (TypeError, ValueError):
-        return str(content)
-
-
-async def _request_chat_completion(
-    llama_client: httpx.AsyncClient,
-    payload: dict[str, Any],
-) -> CompletionResponse | None:
-    try:
-        completion_response = await llama_client.post("chat/completions", json=payload)
-        completion_response.raise_for_status()
-    except httpx.HTTPStatusError as e:
-        upstream_response = e.response
-        logger.warning("LLM server error (%s): %s", upstream_response.status_code, upstream_response.text)
-        return None
-    except httpx.RequestError:
-        logger.exception("LLM server unavailable")
-        return None
-
-    try:
-        response_json = completion_response.json()
-    except ValueError:
-        logger.warning("LLM server returned invalid JSON: %s", completion_response.text)
-        return None
-
-    try:
-        completion = CompletionResponse.model_validate(response_json)
-    except ValidationError:
-        logger.warning("Invalid completion response format: %r", response_json)
-        return None
-
-    if not completion.choices:
-        logger.warning("Completion missing choices: %r", response_json)
-        return None
-
-    return completion
-
-
 async def _generate_assistant_response(
     *,
     thread_id: str,
@@ -138,47 +62,15 @@ async def _generate_assistant_response(
     llama_client: httpx.AsyncClient,
     bind: Any,
 ) -> None:
-    async with AsyncSession(bind=bind, expire_on_commit=False) as session:
-        job_message = await jobs.mark_running(session, job_uuid)
-        if job_message is None:
-            logger.warning("Job message missing for uuid=%s", job_uuid)
-            return
-
-        await session.commit()
-
-        payload: dict[str, Any] = {"messages": messages, "stream": False}
-        if requested_model and requested_model != "default":
-            payload["model"] = requested_model
-
-        completion = await _request_chat_completion(llama_client, payload)
-        if completion is None:
-            await jobs.mark_failed(session, job_uuid, error="LLM completion failed")
-            await session.commit()
-            return
-
-        choice = completion.choices[0]
-        assistant_content = _serialize_message_content(choice.message.content)
-        if assistant_content is None:
-            logger.warning("Completion missing assistant content: %r", choice)
-            await jobs.mark_failed(session, job_uuid, error="Completion missing assistant content")
-            await session.commit()
-            return
-
-        assistant_message = Message(
-            thread_id=thread_id,
-            role="assistant",
-            content=assistant_content,
-            model=model_used,
-            meta={
-                "completion_id": completion.id,
-                "finish_reason": choice.finish_reason,
-            },
-        )
-        session.add(assistant_message)
-        await session.flush()
-
-        await jobs.mark_succeeded(session, job_uuid, assistant_message_uuid=assistant_message.uuid)
-        await session.commit()
+    await jobs.run_generate_assistant_job(
+        thread_id=thread_id,
+        job_uuid=job_uuid,
+        model_used=model_used,
+        requested_model=requested_model,
+        messages=messages,
+        llama_client=llama_client,
+        bind=bind,
+    )
 
 
 @router.post("/threads", response_model=CreateThreadResponse)
@@ -194,10 +86,10 @@ async def create_thread_message(
 
     thread_id = str(uuid.uuid4())
 
-    requested_model = body.model.strip() if body.model else None
-    model_used = _normalize_model_name(settings.llama_model_path or requested_model)
+    requested_model = body.model.strip() if body.model else "default"
+    model_used, _model_path = normalize_model_name(settings.llama_model_path or requested_model)
 
-    content = _serialize_message_content(body.messages[0].get("content"))
+    content = serialize_message_content(body.messages[0].get("content"))
     if content is None or not str(content).strip():
         raise HTTPException(status_code=400, detail="Message content cannot be empty")
 
@@ -205,14 +97,12 @@ async def create_thread_message(
     session.add(message)
     session.add(SearchEvent(event_type="ask", search_mode="llm", query=content, result_count=0, thread_id=thread_id))
 
-    job_message = jobs.create_generate_assistant_job(
+    job_message = await jobs.create_generate_assistant_job(
+        session,
         thread_id=thread_id,
         user_message_uuid=message.uuid,
         model=model_used,
     )
-    session.add(job_message)
-
-    await session.commit()
 
     background_tasks.add_task(
         _generate_assistant_response,
@@ -322,8 +212,22 @@ async def thread_events(
     request: Request,
     thread_id: str,
     role: Literal["assistant", "user", "system"] = Query("assistant"),
+    after_uuid: str | None = Query(None),
 ) -> EventSourceResponse:
     async def gen() -> Any:
+        after_id: int | None = None
+        if after_uuid:
+            async with request.app.state.get_db_session(read_only=True) as session:
+                after_stmt = (
+                    select(Message.id)
+                    .where(col(Message.thread_id) == thread_id)
+                    .where(col(Message.role) == role)
+                    .where(col(Message.uuid) == after_uuid)
+                    .limit(1)
+                )
+                after_result = await session.execute(after_stmt)
+                after_id = after_result.scalar_one_or_none()
+
         while True:
             if await request.is_disconnected():
                 return
@@ -336,6 +240,15 @@ async def thread_events(
                     .order_by(col(Message.created_at).desc(), col(Message.id).desc())
                     .limit(1)
                 )
+                if after_id is not None:
+                    stmt = (
+                        select(Message)
+                        .where(col(Message.thread_id) == thread_id)
+                        .where(col(Message.role) == role)
+                        .where(col(Message.id) > after_id)
+                        .order_by(col(Message.id))
+                        .limit(1)
+                    )
                 result = await session.execute(stmt)
                 message = result.scalar_one_or_none()
                 if message:
