@@ -33,11 +33,19 @@ export const threadPage = () => ({
     this.systemEventSource = null;
   },
 
-  startEventStreams(threadId, tempId) {
+  startEventStreams(threadId, tempId, { afterAssistantUuid = null, afterSystemUuid = null } = {}) {
     if (this.assistantEventSource || this.systemEventSource) return;
 
-    this.assistantEventSource = new EventSource(`/v1/threads/${threadId}/events?role=assistant`);
-    this.systemEventSource = new EventSource(`/v1/threads/${threadId}/events?role=system`);
+    const assistantUrl = new URL(`/v1/threads/${threadId}/events`, window.location.origin);
+    assistantUrl.searchParams.set("role", "assistant");
+    if (afterAssistantUuid) assistantUrl.searchParams.set("after_uuid", afterAssistantUuid);
+
+    const systemUrl = new URL(`/v1/threads/${threadId}/events`, window.location.origin);
+    systemUrl.searchParams.set("role", "system");
+    if (afterSystemUuid) systemUrl.searchParams.set("after_uuid", afterSystemUuid);
+
+    this.assistantEventSource = new EventSource(assistantUrl);
+    this.systemEventSource = new EventSource(systemUrl);
 
     this.assistantEventSource.addEventListener("assistant", async (event) => {
       try {
@@ -102,9 +110,8 @@ export const threadPage = () => ({
 
     const link = event?.currentTarget;
     const threadId = link?.dataset?.threadId;
-    const promptContent = link?.dataset?.promptContent;
     const model = link?.dataset?.model;
-    if (!threadId || !promptContent) return;
+    if (!threadId) return;
 
     this.pending = true;
 
@@ -113,32 +120,21 @@ export const threadPage = () => ({
     this.$refs.responses.prepend(placeholder);
 
     try {
-      const completionResponse = await fetch("/v1/chat/completions", {
+      const latestAssistant = this.$refs.responses.querySelector(".message[data-uuid]");
+      const afterAssistantUuid = latestAssistant?.dataset?.uuid || null;
+
+      const createMessageResponse = await fetch("/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           thread_id: threadId,
           model: model,
-          messages: [{ role: "user", content: promptContent }],
+          generate_assistant: true,
         }),
       });
-      if (!completionResponse.ok) throw new Error(`Completion HTTP ${completionResponse.status}`);
+      if (!createMessageResponse.ok) throw new Error(`Create message HTTP ${createMessageResponse.status}`);
 
-      const data = await completionResponse.json();
-      const uuid = data.message_uuid;
-      if (!uuid) throw new Error("Chat response missing message uuid");
-
-      const fragmentResponse = await fetch(`/v1/messages/${uuid}/fragment`, {
-        headers: { Accept: "text/html" },
-      });
-      if (!fragmentResponse.ok) throw new Error(`Fragment HTTP ${fragmentResponse.status}`);
-
-      const fragmentHtml = await fragmentResponse.text();
-      const fragmentEl = this.parseHtmlElement(fragmentHtml);
-      if (!fragmentEl) throw new Error("Empty fragment");
-
-      const placeholderEl = this.$refs.responses.querySelector(`[data-temp-id="${tempId}"]`);
-      if (placeholderEl) placeholderEl.replaceWith(fragmentEl);
+      this.startEventStreams(threadId, tempId, { afterAssistantUuid });
     } catch (error) {
       console.error("Error:", error);
       const placeholderEl = this.$refs.responses.querySelector(`[data-temp-id="${tempId}"]`);
