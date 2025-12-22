@@ -10,20 +10,41 @@ from sqlmodel import Field, SQLModel
 
 class Message(SQLModel, table=True):
     __tablename__ = "messages"
-    __table_args__ = (Index("ix_messages_completion_id", "completion_id"),)
+    __table_args__ = (
+        Index("ix_messages_completion_id", "completion_id"),
+        Index("ix_messages_lens_id", "lens_id"),
+        Index("ix_messages_at_name", "at_name"),
+        Index("ix_messages_object", "object"),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     uuid: str = Field(default_factory=lambda: str(uuid_module.uuid4()), index=True, unique=True)
-    thread_id: str = Field(index=True)
+    thread_id: str | None = Field(default=None, index=True)
     role: str
     content: str | None = Field(default=None)
     reasoning: str | None = Field(default=None)
-    model: str
-    meta: Dict[str, Any] | None = Field(default=None, sa_column=Column(JSON, nullable=True))
+    model: str | None = Field(default=None)
+    meta: Dict[str, Any] | None = Field(default=None, sa_column=Column(JSON(none_as_null=True), nullable=True))
     created_at: int = Field(default_factory=lambda: int(time.time()))
     accepted_at: int | None = Field(default=None, index=True)
+    deleted_at: int | None = Field(default=None, index=True)
 
     completion_id: str | None = Field(
         default=None,
         sa_column=Column(String, Computed("json_extract(meta, '$.completion_id')"), index=False),
+    )
+
+    lens_id: str | None = Field(
+        default=None,
+        sa_column=Column(String, Computed("json_extract(meta, '$.lens_id')"), index=False),
+    )
+
+    at_name: str | None = Field(
+        default=None,
+        sa_column=Column(String, Computed("json_extract(meta, '$.at_name')"), index=False),
+    )
+
+    object: str | None = Field(
+        default=None,
+        sa_column=Column(String, Computed("json_extract(meta, '$.object')"), index=False),
     )

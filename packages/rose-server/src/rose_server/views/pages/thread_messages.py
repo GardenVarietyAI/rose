@@ -1,4 +1,4 @@
-from htpy import Node, div, span, template
+from htpy import Node, a, div, option, p, select, span, strong, template
 from rose_server.models.messages import Message
 from rose_server.views.components.response_message import response_message
 from rose_server.views.pages.thread import render_thread_page
@@ -6,7 +6,33 @@ from rose_server.views.pages.thread import render_thread_page
 _PROMPT_SNIP_CHARS = 500
 
 
-def render_thread_messages(*, thread_id: str, prompt: Message | None, responses: list[Message]) -> Node:
+def render_thread_messages(
+    *,
+    thread_id: str,
+    prompt: Message | None,
+    responses: list[Message],
+    lenses: list[tuple[str, str]],
+    selected_lens_id: str | None = None,
+) -> Node:
+    header = p[
+        strong["Lens: "],
+        select({"x-ref": "lensSelect"}, class_="lens-select")[
+            option(value="")["Default"],
+            *[
+                option({"value": lens_id, **({"selected": ""} if selected_lens_id == lens_id else {})})[label]
+                for lens_id, label in lenses
+            ],
+        ],
+        " | ",
+        a(
+            {"@click.prevent": "regenerate($event)"},
+            href="#",
+            class_="regenerate-link",
+            data_thread_id=thread_id,
+            data_model=(prompt.model or "") if prompt else "",
+        )["Ask Again"],
+    ]
+
     content: list[Node] = []
     if prompt:
         content.append(
@@ -44,15 +70,16 @@ def render_thread_messages(*, thread_id: str, prompt: Message | None, responses:
                     span(class_="message-role")["assistant"],
                     span(class_="message-model")[""],
                 ],
-                div(class_="message-content")[div(class_="spinner")[""]],
-                div(class_="message-meta")[""],
+                div(class_="message-body")[
+                    div(class_="message-content")[div(class_="spinner")[""]],
+                    div(class_="message-meta")[""],
+                ],
             ]
         ]
     )
 
     return render_thread_page(
         thread_id=thread_id,
-        prompt=prompt,
         active_tab="answers",
-        content=div()[*content],
+        content=div()[header, *content],
     )

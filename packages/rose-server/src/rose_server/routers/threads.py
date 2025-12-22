@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from rose_server.dependencies import get_db_session, get_llama_client, get_readonly_db_session, get_settings
 from rose_server.models.messages import Message
 from rose_server.models.search_events import SearchEvent
+from rose_server.routers.lenses import get_lens_message, list_lens_options
 from rose_server.services import jobs
 from rose_server.services.llama import normalize_model_name, serialize_message_content
 from rose_server.settings import Settings
@@ -37,6 +38,7 @@ class CreateThreadRequest(BaseModel):
     thread_id: str | None = None
     model: str | None = None
     messages: list[dict[str, Any]]
+    lens_id: str | None = None
 
     @field_validator("messages")
     @classmethod
@@ -59,6 +61,7 @@ async def _generate_assistant_response(
     model_used: str,
     requested_model: str | None,
     messages: list[dict[str, Any]],
+    lens_id: str | None,
     llama_client: httpx.AsyncClient,
     bind: Any,
 ) -> None:
@@ -68,6 +71,7 @@ async def _generate_assistant_response(
         model_used=model_used,
         requested_model=requested_model,
         messages=messages,
+        lens_id=lens_id,
         llama_client=llama_client,
         bind=bind,
     )
@@ -97,11 +101,31 @@ async def create_thread_message(
     session.add(message)
     session.add(SearchEvent(event_type="ask", search_mode="llm", query=content, result_count=0, thread_id=thread_id))
 
+    lens_id = body.lens_id.strip() if body.lens_id else None
+    lens_message = await get_lens_message(session, lens_id) if lens_id else None
+    if lens_id and lens_message is None:
+        raise HTTPException(status_code=400, detail="Unknown lens")
+    if lens_message is None:
+        lens_prompt = None
+    else:
+        meta = lens_message.meta
+        if meta is None:
+            raise HTTPException(status_code=400, detail="Lens missing meta")
+        lens_prompt = lens_message.content
+        if lens_prompt is None:
+            raise HTTPException(status_code=400, detail="Lens missing content")
+
+    generation_messages: list[dict[str, Any]] = []
+    if lens_prompt is not None:
+        generation_messages.append({"role": "system", "content": lens_prompt})
+    generation_messages.append({"role": "user", "content": content})
+
     job_message = await jobs.create_generate_assistant_job(
         session,
         thread_id=thread_id,
         user_message_uuid=message.uuid,
         model=model_used,
+        lens_id=lens_id,
     )
 
     background_tasks.add_task(
@@ -110,7 +134,8 @@ async def create_thread_message(
         job_uuid=job_message.uuid,
         model_used=model_used,
         requested_model=requested_model,
-        messages=body.messages,
+        messages=generation_messages,
+        lens_id=lens_id,
         llama_client=llama_client,
         bind=session.bind,
     )
@@ -124,17 +149,16 @@ async def get_thread(
     thread_id: str,
     session: AsyncSession = Depends(get_readonly_db_session),
 ) -> Any:
-    prompt_stmt = (
+    prompt_result = await session.execute(
         select(Message)
         .where(col(Message.thread_id) == thread_id)
         .where(col(Message.role) == "user")
         .order_by(col(Message.created_at))
         .limit(1)
     )
-    prompt_result = await session.execute(prompt_stmt)
     prompt = prompt_result.scalar_one_or_none()
 
-    responses_stmt = (
+    responses_result = await session.execute(
         select(Message)
         .where(col(Message.thread_id) == thread_id)
         .where(col(Message.role) == "assistant")
@@ -143,7 +167,6 @@ async def get_thread(
             col(Message.created_at).desc(),
         )
     )
-    responses_result = await session.execute(responses_stmt)
     responses = list(responses_result.scalars().all())
 
     if not prompt and not responses:
@@ -156,11 +179,25 @@ async def get_thread(
     )
 
     if "text/html" in request.headers.get("accept", ""):
+        lenses = await list_lens_options(session)
+        selected_lens_id: str | None = request.query_params.get("lens_id")
+        if not selected_lens_id:
+            selected_result = await session.execute(
+                select(Message.lens_id)
+                .where(col(Message.thread_id) == thread_id)
+                .where(col(Message.lens_id).is_not(None))
+                .order_by(col(Message.created_at).desc(), col(Message.id).desc())
+                .limit(1)
+            )
+            selected_lens_id = selected_result.scalar_one_or_none()
+
         return HtpyResponse(
             render_thread_messages(
                 thread_id=thread_id,
                 prompt=prompt,
                 responses=responses,
+                lenses=lenses,
+                selected_lens_id=selected_lens_id,
             )
         )
 
@@ -173,23 +210,21 @@ async def get_thread_activity(
     thread_id: str,
     session: AsyncSession = Depends(get_readonly_db_session),
 ) -> Any:
-    prompt_stmt = (
+    prompt_result = await session.execute(
         select(Message)
         .where(col(Message.thread_id) == thread_id)
         .where(col(Message.role) == "user")
         .order_by(col(Message.created_at))
         .limit(1)
     )
-    prompt_result = await session.execute(prompt_stmt)
     prompt = prompt_result.scalar_one_or_none()
 
-    system_stmt = (
+    system_result = await session.execute(
         select(Message)
         .where(col(Message.thread_id) == thread_id)
         .where(col(Message.role) == "system")
         .order_by(col(Message.created_at), col(Message.id))
     )
-    system_result = await session.execute(system_stmt)
     system_messages = list(system_result.scalars().all())
 
     if not prompt and not system_messages:
@@ -218,14 +253,13 @@ async def thread_events(
         after_id: int | None = None
         if after_uuid:
             async with request.app.state.get_db_session(read_only=True) as session:
-                after_stmt = (
+                after_result = await session.execute(
                     select(Message.id)
                     .where(col(Message.thread_id) == thread_id)
                     .where(col(Message.role) == role)
                     .where(col(Message.uuid) == after_uuid)
                     .limit(1)
                 )
-                after_result = await session.execute(after_stmt)
                 after_id = after_result.scalar_one_or_none()
 
         while True:
@@ -258,8 +292,9 @@ async def thread_events(
                     yield ServerSentEvent(event=role, data=json.dumps(payload))
                     return
 
-                exists_stmt = select(Message).where(col(Message.thread_id) == thread_id).limit(1)
-                exists_result = await session.execute(exists_stmt)
+                exists_result = await session.execute(
+                    select(Message).where(col(Message.thread_id) == thread_id).limit(1)
+                )
                 if exists_result.scalar_one_or_none() is None:
                     yield ServerSentEvent(event="error", data=json.dumps({"detail": "Thread not found"}))
                     return

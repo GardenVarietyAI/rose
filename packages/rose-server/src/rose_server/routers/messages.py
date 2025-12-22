@@ -8,6 +8,7 @@ from htpy.starlette import HtpyResponse
 from pydantic import BaseModel
 from rose_server.dependencies import get_db_session, get_llama_client, get_settings
 from rose_server.models.messages import Message
+from rose_server.routers.lenses import get_lens_message
 from rose_server.services import jobs
 from rose_server.services.llama import normalize_model_name, serialize_message_content
 from rose_server.settings import Settings
@@ -36,6 +37,7 @@ class CreateMessageRequest(BaseModel):
     model: str | None = None
     meta: dict[str, Any] | None = None
     generate_assistant: bool = False
+    lens_id: str | None = None
 
 
 class CreateMessageResponse(BaseModel):
@@ -78,14 +80,29 @@ async def create_message(
         )
         prompt_result = await session.execute(prompt_stmt)
         prompt = prompt_result.scalar_one_or_none()
-        if prompt is None or not (prompt.content or "").strip():
+        if prompt is None:
             raise HTTPException(status_code=404, detail="Thread not found")
+
+        generation_messages: list[dict[str, Any]] = []
+        if body.lens_id:
+            lens_message = await get_lens_message(session, body.lens_id)
+            if lens_message is None:
+                raise HTTPException(status_code=400, detail="Unknown lens")
+            lens_prompt = lens_message.content
+            if lens_prompt is None:
+                raise HTTPException(status_code=400, detail="Lens missing content")
+            meta = lens_message.meta
+            if meta is None:
+                raise HTTPException(status_code=400, detail="Lens missing meta")
+            generation_messages.append({"role": "system", "content": lens_prompt})
+        generation_messages.append({"role": "user", "content": prompt.content})
 
         job_message = await jobs.create_generate_assistant_job(
             session,
             thread_id=thread_id,
             user_message_uuid=prompt.uuid,
             model=model_used,
+            lens_id=body.lens_id,
         )
         background_tasks.add_task(
             jobs.run_generate_assistant_job,
@@ -93,7 +110,8 @@ async def create_message(
             job_uuid=job_message.uuid,
             model_used=model_used,
             requested_model=requested_model,
-            messages=[{"role": "user", "content": prompt.content or ""}],
+            messages=generation_messages,
+            lens_id=body.lens_id,
             llama_client=llama_client,
             bind=session.bind,
         )

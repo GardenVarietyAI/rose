@@ -5,10 +5,13 @@ from htpy import (
     Node,
     a,
     br,
+    button,
     div,
     form,
     input as input_,
+    option,
     p,
+    select,
     span,
     strong,
     textarea,
@@ -23,6 +26,8 @@ def render_search(
     hits: Iterable[Any],
     corrected_query: str | None,
     original_query: str,
+    lenses: list[tuple[str, str]],
+    selected_lens_id: str | None = None,
 ) -> Node:
     hits_list = list(hits)
     content: list[Node] = []
@@ -67,8 +72,34 @@ def render_search(
             div(class_="search-controls-row")[
                 span(class_="search-results-count")[f"Results: {len(hits_list)}"],
                 div(class_="search-actions")[
+                    button(
+                        {
+                            "@click.prevent": "settingsOpen = !settingsOpen",
+                            "x-text": "settingsOpen ? 'Settings' : 'Settings'",
+                        },
+                        type="button",
+                        class_="settings-button",
+                    )["Settings"],
                     input_(type="submit", value="Search"),
                     ask_button(),
+                ],
+            ],
+            div(
+                {"x-show": "settingsOpen", "x-cloak": ""},
+                class_="settings-panel",
+            )[
+                select(
+                    {"x-ref": "lensSelect", "name": "lens_id"},
+                    class_="settings-select",
+                )[
+                    option({"value": "", **({"selected": ""} if not selected_lens_id else {})})["No lens"],
+                    *[
+                        option({"value": lens_id, **({"selected": ""} if lens_id == selected_lens_id else {})})[label]
+                        for lens_id, label in lenses
+                    ],
+                ],
+                div(class_="settings-actions")[
+                    button({"@click.prevent": "clearLenses()"}, type="button", class_="settings-clear-button")["Clear"]
                 ],
             ],
         ]

@@ -2,6 +2,7 @@ export const searchForm = () => ({
   value: "",
   isMultiline: false,
   multilineThreshold: 80,
+  settingsOpen: false,
 
   init() {
     this.value = this.$el?.dataset?.initialQuery || "";
@@ -52,8 +53,12 @@ export const searchForm = () => ({
   },
 
   submit() {
-    const form = this.$refs?.form;
-    if (!form) return;
-    form.requestSubmit();
+    return this.$refs?.form?.requestSubmit();
+  },
+
+  clearLenses() {
+    const select = this.$refs?.lensSelect;
+    if (!select) return;
+    select.value = "";
   },
 });

@@ -104,6 +104,46 @@ textarea {
   gap: 10px;
 }
 
+.settings-button {
+  background: white;
+  color: lightslategray;
+  border: 1px dotted lightslategray;
+  cursor: pointer;
+}
+
+.settings-panel {
+  margin-top: 10px;
+  border-radius: 3px;
+}
+
+.settings-select {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: monospace;
+  padding: 8px;
+  border-radius: 3px;
+  box-shadow: 0 1px 3px var(--rose-color-shadow);
+}
+
+.settings-actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.settings-clear-button {
+  background: white;
+  color: lightslategray;
+  border: 1px dotted lightslategray;
+  cursor: pointer;
+}
+
+.lens-form input[type="text"],
+.lens-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .tabs {
   display: flex;
   gap: 12px;

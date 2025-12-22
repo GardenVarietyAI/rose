@@ -12,6 +12,7 @@ from rose_server.dependencies import (
     get_spell_checker,
 )
 from rose_server.models.search_events import SearchEvent
+from rose_server.routers.lenses import list_lens_options
 from rose_server.views.pages.search import render_search
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,8 +53,7 @@ class SearchResponse(BaseModel):
     hits: List[SearchHit]
 
 
-def _build_fts_query() -> Any:
-    return text("""
+_FTS_QUERY_SQL = """
         SELECT
             m.uuid,
             -bm25(messages_fts) as score,
@@ -65,15 +65,22 @@ def _build_fts_query() -> Any:
             m.created_at
         FROM messages_fts
         JOIN messages m ON messages_fts.rowid = m.id
-        WHERE messages_fts MATCH :query
+        WHERE {where}
         ORDER BY bm25(messages_fts)
         LIMIT :limit
-    """)
+    """
 
 
-async def _fetch_hits(read_session: AsyncSession, fts_query: str, limit: int) -> list[SearchHit]:
-    query = _build_fts_query()
-    result = await read_session.execute(query, {"query": fts_query, "limit": limit})
+async def _fetch_hits(read_session: AsyncSession, fts_query: str, limit: int, lens_id: str | None) -> list[SearchHit]:
+    where_parts = ["messages_fts MATCH :query"]
+    params: dict[str, Any] = {"query": fts_query, "limit": limit}
+    if lens_id:
+        where_parts.append("m.lens_id = :lens_id")
+        params["lens_id"] = lens_id
+
+    sql = _FTS_QUERY_SQL.format(where=" AND ".join(where_parts))
+    query = text(sql)
+    result = await read_session.execute(query, params)
     rows = result.fetchall()
 
     hits: list[SearchHit] = []
@@ -112,6 +119,7 @@ async def _augment_with_keywords(
     *,
     remaining: int,
     seen_ids: set[str],
+    lens_id: str | None,
 ) -> tuple[list[SearchHit], bool]:
     if remaining <= 0:
         return ([], False)
@@ -133,7 +141,7 @@ async def _augment_with_keywords(
             continue
 
         added_from_keyword = 0
-        keyword_hits = await _fetch_hits(read_session, sanitized_keyword, remaining)
+        keyword_hits = await _fetch_hits(read_session, sanitized_keyword, remaining, lens_id)
         if keyword_hits:
             used_keywords = True
 
@@ -161,6 +169,7 @@ async def search_messages(
     q: str = Query("", description="Search query"),
     limit: int = Query(10, ge=1, le=100, description="Maximum number of results"),
     exact: bool = Query(False, description="Skip spell correction"),
+    lens_id: str | None = Query(None, description="Filter by lens id"),
     read_session: AsyncSession = Depends(get_readonly_db_session),
     write_session: AsyncSession = Depends(get_db_session),
     spell_checker: SymSpell | None = Depends(get_spell_checker),
@@ -180,7 +189,7 @@ async def search_messages(
                 q = corrected_query
 
         fts_query = sanitize_fts5_query(q)
-        hits = await _fetch_hits(read_session, fts_query, limit)
+        hits = await _fetch_hits(read_session, fts_query, limit, lens_id)
 
         if len(hits) < KEYWORD_AUGMENTATION_THRESHOLD:
             remaining = max(0, limit - len(hits))
@@ -190,6 +199,7 @@ async def search_messages(
                 q,
                 remaining=remaining,
                 seen_ids=seen_ids,
+                lens_id=lens_id,
             )
             hits.extend(augmented_hits)
 
@@ -219,12 +229,15 @@ async def search_messages(
 
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
+        lenses = await list_lens_options(read_session)
         return HtpyResponse(
             render_search(
                 query=q,
                 hits=hits,
                 corrected_query=corrected_query,
                 original_query=original_query,
+                lenses=lenses,
+                selected_lens_id=lens_id,
             )
         )
 
