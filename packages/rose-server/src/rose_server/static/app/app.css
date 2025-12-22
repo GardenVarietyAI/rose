@@ -13,6 +13,10 @@
   --rose-color-transparent: transparent;
 }
 
+[x-cloak] {
+  display: none !important;
+}
+
 body {
   font-family: monospace;
   max-width: 800px;

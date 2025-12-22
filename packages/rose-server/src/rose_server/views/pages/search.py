@@ -41,9 +41,11 @@ def render_search(
                 {
                     "x-ref": "single",
                     "x-show": "!isMultiline",
+                    "x-cloak": "",
                     "x-model": "value",
                     ":disabled": "isMultiline",
                     "@paste": "handlePaste($event)",
+                    "@keydown.enter.prevent": "submit()",
                 },
                 type="text",
                 name="q",
@@ -53,6 +55,7 @@ def render_search(
                 {
                     "x-ref": "multi",
                     "x-show": "isMultiline",
+                    "x-cloak": "",
                     "x-model": "value",
                     ":disabled": "!isMultiline",
                     "@input": "autogrow($event.target)",
