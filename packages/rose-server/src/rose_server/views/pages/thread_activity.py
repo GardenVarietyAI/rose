@@ -7,6 +7,7 @@ from htpy import (
     span,
 )
 from rose_server.models.messages import Message
+from rose_server.views.components.message_card import message_card
 from rose_server.views.components.time import render_time
 from rose_server.views.pages.thread import render_thread_page
 
@@ -36,20 +37,23 @@ def render_thread_activity(
 
         summary = " | ".join(summary_parts)
         items.append(
-            div(class_="message")[
-                div(class_="message-header")[
+            message_card(
+                uuid=message.uuid,
+                dom_id=None,
+                header_children=[
                     span(class_="message-role")[message.role],
                     span(class_="message-model")[f" | {message.model}" if message.model else ""],
                 ],
-                div(class_="message-content")[message.content or ""],
-                div(class_="message-meta")[summary if summary else render_time(message.created_at)],
-                pre(class_="message-meta")[meta_text] if meta_text else "",
-            ]
+                body_children=[
+                    div(class_="message-content")[message.content or ""],
+                    div(class_="message-meta")[summary if summary else render_time(message.created_at)],
+                    pre(class_="message-meta")[meta_text] if meta_text else "",
+                ],
+            )
         )
 
     return render_thread_page(
         thread_id=thread_id,
-        prompt=prompt,
         active_tab="activity",
         content=div()[*items],
     )

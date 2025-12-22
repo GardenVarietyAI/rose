@@ -130,6 +130,7 @@ export const threadPage = () => ({
           thread_id: threadId,
           model: model,
           generate_assistant: true,
+          lens_id: this.$refs?.lensSelect?.value || undefined,
         }),
       });
       if (!createMessageResponse.ok) throw new Error(`Create message HTTP ${createMessageResponse.status}`);

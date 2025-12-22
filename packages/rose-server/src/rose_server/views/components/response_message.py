@@ -1,6 +1,7 @@
 from datetime import datetime
 
-from htpy import BaseElement, a, div, span
+from htpy import BaseElement, Node, a, div, span
+from rose_server.views.components.message_card import message_card
 from rose_server.views.components.time import render_time
 
 
@@ -37,13 +38,9 @@ def response_message(
     model_text = f" | {model}" if model else ""
     snipped_content, is_snipped = _snip_content(content, snip_chars) if snip_chars else (content, False)
 
-    attrs: dict[str, str] = {
-        ":class": "{ accepted }",
-    }
-    if dom_id:
-        attrs["id"] = dom_id
+    attrs: dict[str, str] = {":class": "{ accepted }"}
 
-    header_children: list[BaseElement | str] = [
+    header_children: list[Node] = [
         span(class_="message-role")[role],
         span(class_="message-model")[model_text],
     ]
@@ -53,10 +50,7 @@ def response_message(
             [
                 " | ",
                 a(
-                    {
-                        ":class": "{ accepted }",
-                        "@click.prevent": "toggleAccepted()",
-                    },
+                    {":class": "{ accepted }", "@click.prevent": "toggleAccepted()"},
                     href="#",
                     class_="accept-link",
                     x_text="accepted ? 'accepted' : 'accept answer'",
@@ -81,45 +75,30 @@ def response_message(
     content_node: BaseElement
     if is_snipped:
         content_node = div(class_="message-content")[
-            div(
-                {
-                    "x-show": "!expanded",
-                    "x-cloak": "",
-                }
-            )[
-                snipped_content,
-                "… ",
-                a({"@click.prevent": "expanded = true"}, href="#")["Read more…"],
+            div({"x-show": "!expanded", "x-cloak": ""})[
+                snipped_content, "… ", a({"@click.prevent": "expanded = true"}, href="#")["Read more…"]
             ],
-            div(
-                {
-                    "x-show": "expanded",
-                    "x-cloak": "",
-                }
-            )[
-                content,
-                " ",
-                a({"@click.prevent": "expanded = false"}, href="#")["Show less"],
+            div({"x-show": "expanded", "x-cloak": ""})[
+                content, " ", a({"@click.prevent": "expanded = false"}, href="#")["Show less"]
             ],
         ]
     else:
         content_node = div(class_="message-content")[content]
 
-    return div(
-        attrs,
-        class_=("message accepted" if accepted else "message"),
-        data_uuid=uuid,
-        x_data="responseMessage",
-    )[
-        div(class_="message-header")[*header_children],
-        div(
-            {
-                "class": "message-body",
-                "x-show": "!collapsed",
-                "x-cloak": "",
-            }
-        )[
+    return message_card(
+        uuid=uuid,
+        dom_id=dom_id,
+        accepted=accepted,
+        root_attrs=attrs,
+        header_children=header_children,
+        body_attrs={
+            "class": "message-body",
+            "x-show": "!collapsed",
+            "x-cloak": "",
+        },
+        body_children=[
             content_node,
             div(class_="message-meta")[render_time(created_at)],
         ],
-    ]
+        x_data="responseMessage",
+    )

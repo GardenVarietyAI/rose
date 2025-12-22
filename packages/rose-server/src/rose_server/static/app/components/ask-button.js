@@ -2,28 +2,27 @@ export const askButton = () => ({
   disabled: false,
   label: "Ask",
 
-  getQuery() {
-    const form = this.$el.closest("form");
-    const queryInput = form?.querySelector('[name="q"]:not([disabled])');
-    return queryInput?.value?.trim() || "";
-  },
-
   async ask() {
-    const query = this.getQuery();
+    const query = this.$el.closest("form")?.querySelector('[name="q"]:not([disabled])')?.value?.trim() || "";
     if (!query || this.disabled) return;
 
     this.disabled = true;
 
     try {
+      const lensId = this.$el.closest("form")?.querySelector('select[name="lens_id"]')?.value?.trim();
       const response = await fetch("/v1/threads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [{ role: "user", content: query }] }),
+        body: JSON.stringify({
+          messages: [{ role: "user", content: query }],
+          lens_id: lensId || undefined,
+        }),
       });
 
       const data = await response.json();
       if (!data?.thread_id) throw new Error("Missing thread_id");
-      window.location.href = "/v1/threads/" + data.thread_id;
+      const lensSuffix = lensId ? `?lens_id=${encodeURIComponent(lensId)}` : "";
+      window.location.href = "/v1/threads/" + data.thread_id + lensSuffix;
     } catch (error) {
       alert("Error: " + (error?.message || String(error)));
     } finally {
