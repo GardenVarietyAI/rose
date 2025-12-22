@@ -14,7 +14,8 @@ from rose_server.models.messages import Message
 from rose_server.models.search_events import SearchEvent
 from rose_server.services import jobs
 from rose_server.settings import Settings
-from rose_server.views.pages.thread import render_thread
+from rose_server.views.pages.thread_activity import render_thread_activity
+from rose_server.views.pages.thread_messages import render_thread_messages
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 from sse_starlette.event import ServerSentEvent
@@ -176,7 +177,7 @@ async def _generate_assistant_response(
         session.add(assistant_message)
         await session.flush()
 
-        await jobs.mark_succeeded(session, job_uuid, assistant_uuid=assistant_message.uuid)
+        await jobs.mark_succeeded(session, job_uuid, assistant_message_uuid=assistant_message.uuid)
         await session.commit()
 
 
@@ -206,7 +207,7 @@ async def create_thread_message(
 
     job_message = jobs.create_generate_assistant_job(
         thread_id=thread_id,
-        for_message_uuid=message.uuid,
+        user_message_uuid=message.uuid,
         model=model_used,
     )
     session.add(job_message)
@@ -266,7 +267,7 @@ async def get_thread(
 
     if "text/html" in request.headers.get("accept", ""):
         return HtpyResponse(
-            render_thread(
+            render_thread_messages(
                 thread_id=thread_id,
                 prompt=prompt,
                 responses=responses,
@@ -274,6 +275,46 @@ async def get_thread(
         )
 
     return response_data
+
+
+@router.get("/threads/{thread_id}/activity", response_model=None)
+async def get_thread_activity(
+    request: Request,
+    thread_id: str,
+    session: AsyncSession = Depends(get_readonly_db_session),
+) -> Any:
+    prompt_stmt = (
+        select(Message)
+        .where(col(Message.thread_id) == thread_id)
+        .where(col(Message.role) == "user")
+        .order_by(col(Message.created_at))
+        .limit(1)
+    )
+    prompt_result = await session.execute(prompt_stmt)
+    prompt = prompt_result.scalar_one_or_none()
+
+    system_stmt = (
+        select(Message)
+        .where(col(Message.thread_id) == thread_id)
+        .where(col(Message.role) == "system")
+        .order_by(col(Message.created_at), col(Message.id))
+    )
+    system_result = await session.execute(system_stmt)
+    system_messages = list(system_result.scalars().all())
+
+    if not prompt and not system_messages:
+        raise HTTPException(status_code=404, detail="Thread not found")
+
+    if "text/html" in request.headers.get("accept", ""):
+        return HtpyResponse(
+            render_thread_activity(
+                thread_id=thread_id,
+                prompt=prompt,
+                system_messages=system_messages,
+            )
+        )
+
+    return {"thread_id": thread_id, "system_messages": system_messages}
 
 
 @router.get("/threads/{thread_id}/events", response_model=None)

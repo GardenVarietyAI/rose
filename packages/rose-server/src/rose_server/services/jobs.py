@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
 JOB_OBJECT = "job"
-JOB_TYPE_GENERATE_ASSISTANT = "generate_assistant"
+JOB_NAME_GENERATE_ASSISTANT = "generate_assistant"
 
 JOB_STATUS_QUEUED = "queued"
 JOB_STATUS_RUNNING = "running"
@@ -13,7 +13,7 @@ JOB_STATUS_SUCCEEDED = "succeeded"
 JOB_STATUS_FAILED = "failed"
 
 
-def create_generate_assistant_job(*, thread_id: str, for_message_uuid: str, model: str) -> Message:
+def create_generate_assistant_job(*, thread_id: str, user_message_uuid: str, model: str) -> Message:
     return Message(
         thread_id=thread_id,
         role="system",
@@ -21,9 +21,9 @@ def create_generate_assistant_job(*, thread_id: str, for_message_uuid: str, mode
         model=model,
         meta={
             "object": JOB_OBJECT,
-            "type": JOB_TYPE_GENERATE_ASSISTANT,
+            "job_name": JOB_NAME_GENERATE_ASSISTANT,
             "status": JOB_STATUS_QUEUED,
-            "for_message_uuid": for_message_uuid,
+            "user_message_uuid": user_message_uuid,
             "attempt": 0,
         },
     )
@@ -43,11 +43,11 @@ async def mark_running(session: AsyncSession, job_uuid: str) -> Message | None:
     return message
 
 
-async def mark_succeeded(session: AsyncSession, job_uuid: str, *, assistant_uuid: str) -> Message | None:
+async def mark_succeeded(session: AsyncSession, job_uuid: str, *, assistant_message_uuid: str) -> Message | None:
     message = await get(session, job_uuid)
     if message is None:
         return None
-    _update_meta(message, status=JOB_STATUS_SUCCEEDED, assistant_uuid=assistant_uuid)
+    _update_meta(message, status=JOB_STATUS_SUCCEEDED, assistant_message_uuid=assistant_message_uuid)
     return message
 
 

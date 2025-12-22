@@ -100,6 +100,29 @@ textarea {
   gap: 10px;
 }
 
+.tabs {
+  display: flex;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.tab {
+  color: var(--rose-color-text-subtle);
+  text-decoration: none;
+  padding: 4px 0;
+}
+
+.tab-active {
+  color: var(--rose-color-text-strong);
+  border-bottom: 2px solid var(--rose-color-accent);
+}
+
+.tab-badge {
+  margin-left: 8px;
+  color: var(--rose-color-accent);
+  font-weight: bold;
+}
+
 input[type="submit"],
 button {
   font-family: monospace;
