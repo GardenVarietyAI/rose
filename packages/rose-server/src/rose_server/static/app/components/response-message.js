@@ -1,6 +1,8 @@
 export const responseMessage = () => ({
   uuid: null,
   accepted: false,
+  collapsed: false,
+  expanded: false,
 
   init() {
     this.uuid = this.$el.dataset.uuid;

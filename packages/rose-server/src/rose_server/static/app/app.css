@@ -172,7 +172,10 @@ button {
 .message-header {
   color: var(--rose-color-text-subtle);
   font-size: 0.9em;
-  margin-bottom: 10px;
+}
+
+.message-body {
+  margin: 10px 0;
 }
 
 .message-role {
