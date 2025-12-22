@@ -1,69 +1,38 @@
-from typing import Any
-
-from htpy import Node, a, div, p, span, strong, template
-from rose_server.views.components.response_message import response_message
+from htpy import Node, a, div, p, strong
+from rose_server.models.messages import Message
+from rose_server.views.components.tabs import Tab, render_tabs
 from rose_server.views.layout import render_page
 
 
-def render_thread(*, thread_id: str, prompt: Any, responses: list[Any]) -> Node:
-    content = []
+def render_thread_page(
+    *,
+    thread_id: str,
+    prompt: Message | None,
+    active_tab: str,
+    content: Node,
+) -> Node:
+    tabs = [
+        Tab(label="Answers", href=f"/v1/threads/{thread_id}", active=(active_tab == "answers")),
+        Tab(label="Activity", href=f"/v1/threads/{thread_id}/activity", active=(active_tab == "activity")),
+    ]
 
-    content.append(
-        p[
-            "Thread ID: ",
-            strong[thread_id],
-            " | ",
-            a(
-                {
-                    "@click.prevent": "regenerate($event)",
-                },
-                href="#",
-                class_="regenerate-link",
-                data_thread_id=thread_id,
-                data_prompt_content=getattr(prompt, "content", "") if prompt else "",
-                data_model=getattr(prompt, "model", "") if prompt else "",
-            )["ask again"],
-        ]
-    )
-
-    if prompt:
-        content.append(
-            div(class_="message", id=f"msg-{getattr(prompt, 'uuid', '')}")[
-                div(class_="message-header")[span(class_="message-role")[getattr(prompt, "role", "")]],
-                div(class_="message-content")[getattr(prompt, "content", "")],
-                div(class_="message-meta")[str(getattr(prompt, "created_at", ""))],
-            ]
-        )
-
-    response_nodes = []
-    for resp in responses:
-        response_nodes.append(
-            response_message(
-                uuid=getattr(resp, "uuid", ""),
-                dom_id=f"msg-{getattr(resp, 'uuid', '')}",
-                role=getattr(resp, "role", ""),
-                model=getattr(resp, "model", "") or "",
-                content=getattr(resp, "content", ""),
-                created_at=getattr(resp, "created_at", ""),
-                accepted=bool(getattr(resp, "accepted_at", None)),
-            )
-        )
-    content.append(div(id="responses", x_ref="responses")[*response_nodes])
-
-    content.append(
-        template(id="placeholder-template", x_ref="placeholderTemplate")[
-            div(class_="message placeholder", data_temp_id="")[
-                div(class_="message-header")[
-                    span(class_="message-role")["assistant"],
-                    span(class_="message-model")[""],
-                ],
-                div(class_="message-content")[div(class_="spinner")[""]],
-                div(class_="message-meta")[""],
-            ]
-        ]
-    )
+    header = p[
+        "Thread ID: ",
+        strong[thread_id],
+        " | ",
+        a(
+            {
+                "@click.prevent": "regenerate($event)",
+            },
+            href="#",
+            class_="regenerate-link",
+            data_thread_id=thread_id,
+            data_prompt_content=(prompt.content or "") if prompt else "",
+            data_model=(prompt.model or "") if prompt else "",
+        )["ask again"],
+    ]
 
     return render_page(
         title_text=f"Thread: {thread_id}",
-        content=div(x_data="threadPage", data_thread_id=thread_id)[content],
+        content=div(x_data="threadPage", data_thread_id=thread_id)[header, render_tabs(tabs=tabs), content],
     )
