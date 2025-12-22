@@ -19,7 +19,7 @@ from rose_server.views.pages.opensearch import render_opensearch_xml
 
 logger = logging.getLogger("rose_server")
 
-DB_NAME = "rose_20251218.db"
+DB_NAME = "rose_20251221.db"
 DB_MIGRATIONS = "db/migrations"
 
 SPELLCHECK_PATH = files("symspellpy").joinpath("frequency_dictionary_en_82_765.txt")
