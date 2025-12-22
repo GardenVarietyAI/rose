@@ -14,14 +14,15 @@ class Message(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     uuid: str = Field(default_factory=lambda: str(uuid_module.uuid4()), index=True, unique=True)
-    thread_id: str = Field(index=True)
+    thread_id: str | None = Field(default=None, index=True)
     role: str
     content: str | None = Field(default=None)
     reasoning: str | None = Field(default=None)
-    model: str
-    meta: Dict[str, Any] | None = Field(default=None, sa_column=Column(JSON, nullable=True))
+    model: str | None = Field(default=None)
+    meta: Dict[str, Any] | None = Field(default=None, sa_column=Column(JSON(none_as_null=True), nullable=True))
     created_at: int = Field(default_factory=lambda: int(time.time()))
     accepted_at: int | None = Field(default=None, index=True)
+    deleted_at: int | None = Field(default=None, index=True)
 
     completion_id: str | None = Field(
         default=None,
