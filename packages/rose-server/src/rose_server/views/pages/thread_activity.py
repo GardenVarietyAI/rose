@@ -1,7 +1,13 @@
 import json
 
-from htpy import Node, div, pre, span
+from htpy import (
+    Node,
+    div,
+    pre,
+    span,
+)
 from rose_server.models.messages import Message
+from rose_server.views.components.time import render_time
 from rose_server.views.pages.thread import render_thread_page
 
 
@@ -36,7 +42,7 @@ def render_thread_activity(
                     span(class_="message-model")[f" | {message.model}" if message.model else ""],
                 ],
                 div(class_="message-content")[message.content or ""],
-                div(class_="message-meta")[summary or str(message.created_at)],
+                div(class_="message-meta")[summary if summary else render_time(message.created_at)],
                 pre(class_="message-meta")[meta_text] if meta_text else "",
             ]
         )

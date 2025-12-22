@@ -1,6 +1,7 @@
 from htpy import Node, div, span, template
 from rose_server.models.messages import Message
 from rose_server.views.components.response_message import response_message
+from rose_server.views.components.time import render_time
 from rose_server.views.pages.thread import render_thread_page
 
 
@@ -11,7 +12,7 @@ def render_thread_messages(*, thread_id: str, prompt: Message | None, responses:
             div(class_="message", id=f"msg-{prompt.uuid}")[
                 div(class_="message-header")[span(class_="message-role")[prompt.role]],
                 div(class_="message-content")[prompt.content or ""],
-                div(class_="message-meta")[str(prompt.created_at)],
+                div(class_="message-meta")[render_time(prompt.created_at)],
             ]
         )
 

@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from htpy import BaseElement, a, div, span
+from rose_server.views.components.time import render_time
 
 
 def response_message(
@@ -50,5 +51,5 @@ def response_message(
     )[
         div(class_="message-header")[*header_children],
         div(class_="message-content")[content],
-        div(class_="message-meta")[str(created_at)],
+        div(class_="message-meta")[render_time(created_at)],
     ]
