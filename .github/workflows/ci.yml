@@ -36,13 +36,13 @@ jobs:
         run: echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Sync dev environment (server only)
-        run: uv sync --dev --frozen --package rose-server
+        run: uv sync --dev --frozen
 
       - name: Run tests
         run: uv run pytest -q
 
       - name: Lint
-        run: uv run ruff check packages/
+        run: uv run ruff check src/ tests/ alembic/
 
       - name: Start container
         run: |
