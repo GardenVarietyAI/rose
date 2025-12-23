@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any, AsyncGenerator, Generator
 
 import httpx
@@ -11,7 +12,7 @@ from rose_server.dependencies import (
     get_spell_checker,
 )
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlmodel import SQLModel
+from yoyo import get_backend, read_migrations
 
 
 class DummyLlamaClient:
@@ -61,27 +62,6 @@ class DummyLlamaClient:
         )
 
 
-test_engine = create_async_engine(
-    "sqlite+aiosqlite:///:memory:",
-    echo=False,
-    connect_args={
-        "check_same_thread": False,
-    },
-)
-
-test_async_session_factory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
-
-
-async def override_db_session() -> AsyncGenerator[AsyncSession, None]:
-    async with database.get_session(test_async_session_factory) as session:
-        yield session
-
-
-async def override_readonly_db_session() -> AsyncGenerator[AsyncSession, None]:
-    async with database.get_session(test_async_session_factory, read_only=True) as session:
-        yield session
-
-
 def override_llama_client() -> DummyLlamaClient:
     return DummyLlamaClient()
 
@@ -90,22 +70,35 @@ def override_spell_checker() -> None:
     return None
 
 
-@pytest.fixture
-async def test_db() -> AsyncGenerator[None, None]:
-    """Create test database tables."""
-    async with test_engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
-    yield
-    async with test_engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.drop_all)
+def _apply_migrations(db_path: Path) -> None:
+    backend = get_backend(f"sqlite:///{db_path}")
+    migrations = read_migrations("db/migrations")
+    with backend.lock():
+        backend.apply_migrations(backend.to_apply(migrations))
 
 
 @pytest.fixture
-def client(test_db: None) -> Generator[TestClient, None, None]:
-    """Create test client with in-memory database."""
-
+def client(tmp_path: Path) -> Generator[TestClient, None, None]:
     from rose_server.app import create_app
     from starlette.routing import _DefaultLifespan
+
+    db_path = tmp_path / "test.db"
+    _apply_migrations(db_path)
+
+    engine = create_async_engine(
+        f"sqlite+aiosqlite:///{db_path}",
+        echo=False,
+        connect_args={"check_same_thread": False},
+    )
+    session_maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async def override_db_session() -> AsyncGenerator[AsyncSession, None]:
+        async with database.get_session(session_maker) as session:
+            yield session
+
+    async def override_readonly_db_session() -> AsyncGenerator[AsyncSession, None]:
+        async with database.get_session(session_maker, read_only=True) as session:
+            yield session
 
     app = create_app()
 

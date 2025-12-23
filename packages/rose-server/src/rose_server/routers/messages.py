@@ -3,10 +3,10 @@ import time
 from typing import Any, Literal
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from htpy.starlette import HtpyResponse
 from pydantic import BaseModel
-from rose_server.dependencies import get_db_session, get_llama_client, get_settings
+from rose_server.dependencies import get_db_session, get_llama_client, get_readonly_db_session, get_settings
 from rose_server.models.messages import Message
 from rose_server.routers.lenses import get_lens_message
 from rose_server.services import jobs
@@ -46,6 +46,38 @@ class CreateMessageResponse(BaseModel):
     job_uuid: str | None = None
 
 
+class RevisionMessage(BaseModel):
+    uuid: str
+    thread_id: str | None
+    role: str
+    content: str | None
+    reasoning: str | None
+    model: str | None
+    meta: dict[str, Any] | None
+    created_at: int
+    accepted_at: int | None
+
+
+class ListRevisionsResponse(BaseModel):
+    root_message_id: str
+    latest_message_uuid: str
+    messages: list[RevisionMessage]
+
+
+class CreateRevisionRequest(BaseModel):
+    content: Any
+
+
+class CreateRevisionResponse(BaseModel):
+    root_message_id: str
+    message_uuid: str
+    latest_message_uuid: str
+
+
+def _effective_root_message_id(message: Message) -> str:
+    return message.root_message_id or message.uuid
+
+
 @router.post("/messages", response_model=CreateMessageResponse)
 async def create_message(
     body: CreateMessageRequest,
@@ -75,13 +107,16 @@ async def create_message(
             select(Message)
             .where(col(Message.thread_id) == thread_id)
             .where(col(Message.role) == "user")
-            .order_by(col(Message.created_at))
+            .where(col(Message.deleted_at).is_(None))
+            .order_by(col(Message.created_at).desc(), col(Message.id).desc())
             .limit(1)
         )
         prompt_result = await session.execute(prompt_stmt)
         prompt = prompt_result.scalar_one_or_none()
         if prompt is None:
             raise HTTPException(status_code=404, detail="Thread not found")
+        if prompt.content is None or not prompt.content.strip():
+            raise HTTPException(status_code=400, detail="Prompt content cannot be empty")
 
         generation_messages: list[dict[str, Any]] = []
         if body.lens_id:
@@ -132,6 +167,96 @@ async def create_message(
     session.add(assistant_message)
 
     return CreateMessageResponse(thread_id=thread_id, message_uuid=assistant_message.uuid)
+
+
+@router.get("/messages/{message_uuid}/revisions", response_model=ListRevisionsResponse)
+async def list_message_revisions(
+    message_uuid: str,
+    session: AsyncSession = Depends(get_readonly_db_session),
+) -> ListRevisionsResponse:
+    message_result = await session.execute(
+        select(Message).where(col(Message.uuid) == message_uuid).where(col(Message.deleted_at).is_(None)).limit(1)
+    )
+    message = message_result.scalar_one_or_none()
+    if message is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    root_message_id = _effective_root_message_id(message)
+    revisions_result = await session.execute(
+        select(Message)
+        .where(col(Message.deleted_at).is_(None))
+        .where((col(Message.uuid) == root_message_id) | (col(Message.root_message_id) == root_message_id))
+        .order_by(col(Message.created_at).desc(), col(Message.id).desc())
+    )
+    revisions = list(revisions_result.scalars().all())
+    if not revisions:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    latest_message_uuid = revisions[0].uuid
+    return ListRevisionsResponse(
+        root_message_id=root_message_id,
+        latest_message_uuid=latest_message_uuid,
+        messages=[
+            RevisionMessage(
+                uuid=revision.uuid,
+                thread_id=revision.thread_id,
+                role=revision.role,
+                content=revision.content,
+                reasoning=revision.reasoning,
+                model=revision.model,
+                meta=revision.meta,
+                created_at=revision.created_at,
+                accepted_at=revision.accepted_at,
+            )
+            for revision in revisions
+        ],
+    )
+
+
+@router.post("/messages/{message_uuid}/revisions", response_model=CreateRevisionResponse)
+async def create_message_revision(
+    message_uuid: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+) -> CreateRevisionResponse:
+    message_result = await session.execute(
+        select(Message).where(col(Message.uuid) == message_uuid).where(col(Message.deleted_at).is_(None)).limit(1)
+    )
+    message = message_result.scalar_one_or_none()
+    if message is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    if message.role != "user":
+        raise HTTPException(status_code=400, detail="Only user messages can be revised")
+
+    payload = await request.json()
+    body = CreateRevisionRequest.model_validate(payload)
+    content = serialize_message_content(body.content)
+    if content is None or not content.strip():
+        raise HTTPException(status_code=400, detail="Message content cannot be empty")
+
+    root_message_id = _effective_root_message_id(message)
+    meta: dict[str, Any] = dict(message.meta or {})
+    meta["root_message_id"] = root_message_id
+    meta["parent_message_id"] = message.uuid
+
+    revision = Message(
+        thread_id=message.thread_id,
+        role=message.role,
+        content=content,
+        reasoning=message.reasoning,
+        model=message.model,
+        meta=meta,
+        accepted_at=message.accepted_at,
+    )
+    session.add(revision)
+    await session.flush()
+
+    return CreateRevisionResponse(
+        root_message_id=root_message_id,
+        message_uuid=revision.uuid,
+        latest_message_uuid=revision.uuid,
+    )
 
 
 @router.get("/messages/{message_uuid}/fragment", response_model=None)

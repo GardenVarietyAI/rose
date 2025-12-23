@@ -33,7 +33,7 @@ def message_card(
     body_class = str(attributes.get("class") or "").strip()
     attributes["class"] = "message-body" if not body_class else f"message-body {body_class}"
 
-    return div(attributes, **kwargs)[
+    return div(attrs, **kwargs)[
         div(class_="message-header")[*header_children],
         div(attributes)[*body_children],
     ]

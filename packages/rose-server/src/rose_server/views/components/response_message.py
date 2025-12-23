@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from htpy import BaseElement, Node, a, div, span
+from htpy import BaseElement, Node, a, div, span, template, textarea
 from rose_server.views.components.message_card import message_card
 from rose_server.views.components.time import render_time
 
@@ -58,6 +58,19 @@ def response_message(
             ]
         )
 
+    if role == "user":
+        header_children.extend(
+            [
+                " | ",
+                a({"x-show": "!editing", "@click.prevent": "startEdit()", "x-cloak": ""}, href="#")["edit"],
+                span({"x-show": "editing", "x-cloak": ""})[
+                    a({"@click.prevent": "cancelEdit()"}, href="#")["cancel"],
+                    " | ",
+                    a({"@click.prevent": "saveEdit()"}, href="#")["save"],
+                ],
+            ]
+        )
+
     header_children.extend(
         [
             " | ",
@@ -85,6 +98,24 @@ def response_message(
     else:
         content_node = div(class_="message-content")[content]
 
+    if role == "user":
+        content_node = div()[
+            template(x_ref="sourceContent")[content],
+            div({"x-show": "!editing", "x-cloak": ""})[content_node],
+            div({"x-show": "editing", "x-cloak": ""})[
+                textarea(
+                    {
+                        "x-ref": "editor",
+                        "x-model": "draft",
+                        "@keydown.ctrl.enter.prevent": "saveEdit()",
+                        "@keydown.meta.enter.prevent": "saveEdit()",
+                    },
+                    class_="message-editor",
+                    rows="6",
+                )
+            ],
+        ]
+
     return message_card(
         uuid=uuid,
         dom_id=dom_id,
@@ -92,7 +123,6 @@ def response_message(
         root_attrs=attrs,
         header_children=header_children,
         body_attrs={
-            "class": "message-body",
             "x-show": "!collapsed",
             "x-cloak": "",
         },

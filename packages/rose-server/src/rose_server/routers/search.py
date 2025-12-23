@@ -72,7 +72,7 @@ _FTS_QUERY_SQL = """
 
 
 async def _fetch_hits(read_session: AsyncSession, fts_query: str, limit: int, lens_id: str | None) -> list[SearchHit]:
-    where_parts = ["messages_fts MATCH :query"]
+    where_parts = ["messages_fts MATCH :query", "m.deleted_at IS NULL"]
     params: dict[str, Any] = {"query": fts_query, "limit": limit}
     if lens_id:
         where_parts.append("m.lens_id = :lens_id")
