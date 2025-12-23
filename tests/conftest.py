@@ -1,18 +1,15 @@
-from pathlib import Path
 from typing import Any, AsyncGenerator, Generator
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-from rose_server import database
-from rose_server.dependencies import (
-    get_db_session,
-    get_llama_client,
-    get_readonly_db_session,
-    get_spell_checker,
-)
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from yoyo import get_backend, read_migrations
+from sqlalchemy.pool import StaticPool
+
+from alembic import command
+from alembic.config import Config
+from rose_server import database
+from rose_server.dependencies import get_db_session, get_llama_client, get_readonly_db_session, get_spell_checker
 
 
 class DummyLlamaClient:
@@ -70,26 +67,25 @@ def override_spell_checker() -> None:
     return None
 
 
-def _apply_migrations(db_path: Path) -> None:
-    backend = get_backend(f"sqlite:///{db_path}")
-    migrations = read_migrations("db/migrations")
-    with backend.lock():
-        backend.apply_migrations(backend.to_apply(migrations))
-
-
 @pytest.fixture
-def client(tmp_path: Path) -> Generator[TestClient, None, None]:
-    from rose_server.app import create_app
+def client() -> Generator[TestClient, None, None]:
+    import uuid
+
+    from sqlalchemy import create_engine
     from starlette.routing import _DefaultLifespan
 
-    db_path = tmp_path / "test.db"
-    _apply_migrations(db_path)
+    from rose_server.app import create_app
 
-    engine = create_async_engine(
-        f"sqlite+aiosqlite:///{db_path}",
-        echo=False,
-        connect_args={"check_same_thread": False},
-    )
+    db_name = f"rose_test_{uuid.uuid4().hex}"
+    shared_memory_uri = f"file:{db_name}?mode=memory&cache=shared&uri=true"
+    sync_engine = create_engine(f"sqlite+pysqlite:///{shared_memory_uri}", poolclass=StaticPool)
+
+    alembic_cfg = Config("alembic.ini")
+    with sync_engine.begin() as connection:
+        alembic_cfg.attributes["connection"] = connection
+        command.upgrade(alembic_cfg, "head")
+
+    engine = create_async_engine(f"sqlite+aiosqlite:///{shared_memory_uri}", echo=False, poolclass=StaticPool)
     session_maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async def override_db_session() -> AsyncGenerator[AsyncSession, None]:

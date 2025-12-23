@@ -28,8 +28,8 @@ dependencies = [
     "greenlet>=3.2.2",
     "symspellpy>=6.9.0",
     "rake-nltk>=1.0.6",
-    "yoyo-migrations>=9.0.0",
     "htpy==25.12.0",
+    "alembic>=1.17.2",
 ]
 
 [project.scripts]

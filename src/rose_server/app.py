@@ -10,8 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from symspellpy import SymSpell
-from yoyo import get_backend, read_migrations
 
+from alembic import command
+from alembic.config import Config
 from rose_server.database import create_session_maker, get_session
 from rose_server.router import router
 from rose_server.settings import Settings
@@ -19,8 +20,7 @@ from rose_server.views.pages.opensearch import render_opensearch_xml
 
 logger = logging.getLogger("rose_server")
 
-DB_NAME = "rose_20251221.db"
-DB_MIGRATIONS = "db/migrations"
+DB_NAME = "rose_20251223.db"
 
 SPELLCHECK_PATH = files("symspellpy").joinpath("frequency_dictionary_en_82_765.txt")
 STATIC_PATH = files("rose_server").joinpath("static")
@@ -31,10 +31,9 @@ async def lifespan(app: FastAPI) -> Any:
     try:
         app.state.engine, app.state.db_session_maker = create_session_maker(DB_NAME)
         app.state.get_db_session = lambda read_only=False: get_session(app.state.db_session_maker, read_only)
-        backend = get_backend(f"sqlite:///{DB_NAME}")
-        migrations = read_migrations(DB_MIGRATIONS)
-        with backend.lock():
-            backend.apply_migrations(backend.to_apply(migrations))
+
+        alembic_cfg = Config("alembic.ini")
+        command.upgrade(alembic_cfg, "head")
     except Exception as e:
         logger.warning(f"Failed to create database session: {e}")
         raise
