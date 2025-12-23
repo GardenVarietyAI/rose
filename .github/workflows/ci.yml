@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 jobs:
   test:
@@ -40,6 +40,8 @@ jobs:
 
       - name: Run tests
         run: uv run pytest -q
+        env:
+          NLTK_DATA: vendor/nltk_data
 
       - name: Lint
         run: uv run ruff check src/ tests/ alembic/
