@@ -8,6 +8,12 @@ import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from htpy.starlette import HtpyResponse
 from pydantic import BaseModel, ConfigDict, field_validator
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col, select
+from sse_starlette.event import ServerSentEvent
+from sse_starlette.sse import EventSourceResponse
+
 from rose_server.dependencies import get_db_session, get_llama_client, get_readonly_db_session, get_settings
 from rose_server.models.messages import Message
 from rose_server.models.search_events import SearchEvent
@@ -17,11 +23,6 @@ from rose_server.services.llama import normalize_model_name, serialize_message_c
 from rose_server.settings import Settings
 from rose_server.views.pages.thread_activity import render_thread_activity
 from rose_server.views.pages.thread_messages import render_thread_messages
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import col, select
-from sse_starlette.event import ServerSentEvent
-from sse_starlette.sse import EventSourceResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["threads"])

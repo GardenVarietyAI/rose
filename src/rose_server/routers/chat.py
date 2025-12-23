@@ -4,6 +4,7 @@ from typing import Any, Union
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
+
 from rose_server.dependencies import get_llama_client
 from rose_server.services.llama import (
     LlamaStatusError,

@@ -1,6 +1,9 @@
 from typing import Any
 
 import httpx
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col, select
+
 from rose_server.models.messages import Message
 from rose_server.services.llama import (
     LlamaError,
@@ -8,8 +11,6 @@ from rose_server.services.llama import (
     request_chat_completion_json,
     serialize_message_content,
 )
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import col, select
 
 JOB_OBJECT = "job"
 JOB_NAME_GENERATE_ASSISTANT = "generate_assistant"
