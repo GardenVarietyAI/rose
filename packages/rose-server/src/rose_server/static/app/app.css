@@ -91,6 +91,11 @@ textarea {
   overflow-y: hidden;
 }
 
+.message-editor {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .search-controls-row {
   display: flex;
   justify-content: space-between;

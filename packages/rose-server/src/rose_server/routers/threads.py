@@ -17,6 +17,7 @@ from rose_server.services.llama import normalize_model_name, serialize_message_c
 from rose_server.settings import Settings
 from rose_server.views.pages.thread_activity import render_thread_activity
 from rose_server.views.pages.thread_messages import render_thread_messages
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 from sse_starlette.event import ServerSentEvent
@@ -153,19 +154,33 @@ async def get_thread(
         select(Message)
         .where(col(Message.thread_id) == thread_id)
         .where(col(Message.role) == "user")
-        .order_by(col(Message.created_at))
+        .where(col(Message.deleted_at).is_(None))
+        .order_by(col(Message.created_at).desc(), col(Message.id).desc())
         .limit(1)
     )
     prompt = prompt_result.scalar_one_or_none()
 
-    responses_result = await session.execute(
-        select(Message)
-        .where(col(Message.thread_id) == thread_id)
-        .where(col(Message.role) == "assistant")
-        .order_by(
-            col(Message.accepted_at).desc().nulls_last(),
-            col(Message.created_at).desc(),
+    responses_sql = """
+        WITH ranked AS (
+            SELECT
+                id,
+                row_number() OVER (
+                    PARTITION BY COALESCE(root_message_id, uuid)
+                    ORDER BY created_at DESC, id DESC
+                ) AS rn
+            FROM messages
+            WHERE thread_id = :thread_id
+              AND role = 'assistant'
+              AND deleted_at IS NULL
         )
+        SELECT m.*
+        FROM messages m
+        JOIN ranked r ON r.id = m.id
+        WHERE r.rn = 1
+        ORDER BY m.accepted_at DESC NULLS LAST, m.created_at DESC, m.id DESC
+    """
+    responses_result = await session.execute(
+        select(Message).from_statement(text(responses_sql)), {"thread_id": thread_id}
     )
     responses = list(responses_result.scalars().all())
 
@@ -214,7 +229,8 @@ async def get_thread_activity(
         select(Message)
         .where(col(Message.thread_id) == thread_id)
         .where(col(Message.role) == "user")
-        .order_by(col(Message.created_at))
+        .where(col(Message.deleted_at).is_(None))
+        .order_by(col(Message.created_at).desc(), col(Message.id).desc())
         .limit(1)
     )
     prompt = prompt_result.scalar_one_or_none()
@@ -223,6 +239,7 @@ async def get_thread_activity(
         select(Message)
         .where(col(Message.thread_id) == thread_id)
         .where(col(Message.role) == "system")
+        .where(col(Message.deleted_at).is_(None))
         .order_by(col(Message.created_at), col(Message.id))
     )
     system_messages = list(system_result.scalars().all())

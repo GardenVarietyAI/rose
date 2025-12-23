@@ -1,5 +1,3 @@
-"""Message database entity."""
-
 import time
 import uuid as uuid_module
 from typing import Any, Dict
@@ -15,6 +13,8 @@ class Message(SQLModel, table=True):
         Index("ix_messages_lens_id", "lens_id"),
         Index("ix_messages_at_name", "at_name"),
         Index("ix_messages_object", "object"),
+        Index("ix_messages_root_message_id", "root_message_id"),
+        Index("ix_messages_parent_message_id", "parent_message_id"),
     )
 
     id: int | None = Field(default=None, primary_key=True)
@@ -47,4 +47,14 @@ class Message(SQLModel, table=True):
     object: str | None = Field(
         default=None,
         sa_column=Column(String, Computed("json_extract(meta, '$.object')"), index=False),
+    )
+
+    root_message_id: str | None = Field(
+        default=None,
+        sa_column=Column(String, Computed("json_extract(meta, '$.root_message_id')"), index=False),
+    )
+
+    parent_message_id: str | None = Field(
+        default=None,
+        sa_column=Column(String, Computed("json_extract(meta, '$.parent_message_id')"), index=False),
     )
