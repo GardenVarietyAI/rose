@@ -1,4 +1,5 @@
 from htpy import Node, a, div, option, p, select, span, strong, template
+
 from rose_server.models.messages import Message
 from rose_server.views.components.response_message import response_message
 from rose_server.views.pages.thread import render_thread_page

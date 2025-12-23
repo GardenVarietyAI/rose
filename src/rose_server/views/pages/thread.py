@@ -1,4 +1,5 @@
 from htpy import Node, div
+
 from rose_server.views.components.tabs import Tab, render_tabs
 from rose_server.views.layout import render_page
 

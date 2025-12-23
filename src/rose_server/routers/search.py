@@ -6,6 +6,10 @@ from fastapi import APIRouter, Depends, Query, Request
 from htpy.starlette import HtpyResponse
 from pydantic import BaseModel
 from rake_nltk import Rake
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+from symspellpy import SymSpell
+
 from rose_server.dependencies import (
     get_db_session,
     get_readonly_db_session,
@@ -14,9 +18,6 @@ from rose_server.dependencies import (
 from rose_server.models.search_events import SearchEvent
 from rose_server.routers.lenses import list_lens_options
 from rose_server.views.pages.search import render_search
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-from symspellpy import SymSpell
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["search"])

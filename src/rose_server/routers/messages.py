@@ -6,6 +6,9 @@ import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from htpy.starlette import HtpyResponse
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col, select, update
+
 from rose_server.dependencies import get_db_session, get_llama_client, get_readonly_db_session, get_settings
 from rose_server.models.messages import Message
 from rose_server.routers.lenses import get_lens_message
@@ -13,8 +16,6 @@ from rose_server.services import jobs
 from rose_server.services.llama import normalize_model_name, serialize_message_content
 from rose_server.settings import Settings
 from rose_server.views.components.response_message import response_message
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import col, select, update
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["messages"])

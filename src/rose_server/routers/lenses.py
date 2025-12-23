@@ -4,12 +4,13 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from htpy.starlette import HtpyResponse
 from pydantic import BaseModel, StringConstraints, field_validator
-from rose_server.dependencies import get_db_session, get_readonly_db_session
-from rose_server.models.messages import Message
-from rose_server.views.pages.lens import render_lens_form_page, render_lenses_page
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select, update
 from starlette.responses import RedirectResponse
+
+from rose_server.dependencies import get_db_session, get_readonly_db_session
+from rose_server.models.messages import Message
+from rose_server.views.pages.lens import render_lens_form_page, render_lenses_page
 
 router = APIRouter(prefix="/v1", tags=["lenses"])
 

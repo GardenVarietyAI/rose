@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from htpy import BaseElement, Node, a, div, span, template, textarea
+
 from rose_server.views.components.message_card import message_card
 from rose_server.views.components.time import render_time
 

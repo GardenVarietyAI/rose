@@ -1,5 +1,6 @@
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Response
+
 from rose_server.dependencies import get_llama_client
 
 router = APIRouter(prefix="/v1", tags=["models"])
