@@ -33,9 +33,11 @@ env/
 .env
 yoyo.ini
 CLAUDE.md
+CLAUDE.md
 
 # CI/CD
 .github/
 .env
 .env.exmaple
 .env.docker.example
+AGENTS.md

@@ -3,14 +3,16 @@ FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
-    cmake \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY . .
+COPY pyproject.toml uv.lock alembic.ini /app/
+COPY alembic /app/alembic
+COPY src /app/src
+COPY vendor /app/vendor
 
-RUN pip install --no-cache-dir -e ./packages/rose-server && \
+RUN pip install --no-cache-dir -e . && \
     rm -rf /tmp/* /root/.cache
 
 EXPOSE 8004

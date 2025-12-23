@@ -8,7 +8,7 @@ services:
     volumes:
       - ${HF_HOME:-~/.cache/huggingface}:/root/.cache/huggingface
       - ./llama-server/entrypoint.sh:/entrypoint.sh:ro
-    entrypoint: ["/entrypoint-cuda.sh"]
+    entrypoint: ["/entrypoint.sh"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s

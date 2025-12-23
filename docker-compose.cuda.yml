@@ -9,3 +9,4 @@ services:
             - capabilities: ["gpu"]
               count: 1
               driver: nvidia
+    entrypoint: ["/entrypoint-cuda.sh"]

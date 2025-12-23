@@ -33,7 +33,6 @@ env/
 .DS_Store
 
 # Config
-yoyo.ini
 CLAUDE.md
 AGENTS.md
 .env
