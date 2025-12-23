@@ -7,10 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY pyproject.toml uv.lock alembic.ini /app/
-COPY alembic /app/alembic
-COPY src /app/src
-COPY vendor /app/vendor
+COPY . /app/
 
 RUN pip install --no-cache-dir -e . && \
     rm -rf /tmp/* /root/.cache
