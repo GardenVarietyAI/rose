@@ -72,9 +72,7 @@ def override_spell_checker() -> None:
 
 def _apply_migrations(db_path: Path) -> None:
     backend = get_backend(f"sqlite:///{db_path}")
-    repo_root = Path(__file__).resolve().parents[1]
-    migrations_dir = repo_root / "db" / "migrations"
-    migrations = read_migrations(str(migrations_dir))
+    migrations = read_migrations("db/migrations")
     with backend.lock():
         backend.apply_migrations(backend.to_apply(migrations))
 
