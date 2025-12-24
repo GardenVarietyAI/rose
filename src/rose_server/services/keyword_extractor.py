@@ -81,13 +81,14 @@ def extract_keywords(
     scored = _score_phrases(phrases)
 
     top_phrases: list[str] = []
-    seen: set[str] = set()
+    seen_keys: set[str] = set()
     scores_dict: dict[str, float] = {}
 
     for score, phrase in scored:
-        if phrase in seen:
+        key = " ".join(phrase.lower().split())
+        if key in seen_keys:
             continue
-        seen.add(phrase)
+        seen_keys.add(key)
         scores_dict[phrase] = score
         top_phrases.append(phrase)
         if len(top_phrases) >= max_keywords:
