@@ -1,0 +1,45 @@
+body {
+  background: var(--rose-gray-0);
+  color: var(--rose-gray-9);
+  margin: 0;
+  padding: 0;
+}
+
+h1 {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: var(--size-4);
+  padding-bottom: var(--size-2);
+}
+
+a {
+  color: var(--rose-blue-6);
+  text-decoration: none;
+}
+
+h1 a {
+  color: var(--rose-gray-9);
+}
+
+hr {
+  border: 1px solid var(--rose-gray-7);
+  margin: var(--size-4) 0;
+}
+
+input[type="text"] {
+  padding: var(--size-1);
+  width: 400px;
+  border-radius: var(--rose-radius);
+}
+
+textarea {
+  padding: var(--size-2);
+  border-radius: var(--rose-radius);
+  resize: none;
+}
+
+input[type="submit"],
+button {
+  padding: var(--size-1) var(--size-3);
+  border-radius: var(--rose-radius);
+}
