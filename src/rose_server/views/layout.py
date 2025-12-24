@@ -7,8 +7,9 @@ def render_page(*, title_text: str, content: Node) -> Node:
             meta(charset="utf-8"),
             title[title_text],
             meta(name="viewport", content="width=device-width, initial-scale=1"),
-            meta(name="color-scheme", content="light"),
-            link(rel="stylesheet", href="/static/vendor/sanitize/sanitize.css"),
+            meta(name="color-scheme", content="light dark"),
+            link(rel="stylesheet", href="/static/vendor/open-props/normalize.min.css"),
+            link(rel="stylesheet", href="/static/vendor/open-props/open-props.css"),
             link(rel="stylesheet", href="/static/app/app.css"),
         ],
         body[
