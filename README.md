@@ -58,9 +58,3 @@ Server runs on http://localhost:8004.
 - `POST /v1/chat/completions` - Generate a completion
 - `GET /v1/models` - List available models
 - `GET /v1/search` - Search past messages
-
-## NLTK datasets licensing
-
-This repository vendors a small subset of **NLTK data packages** under `vendor/nltk_data/`.
-
-See https://github.com/nltk/nltk_data/blob/gh-pages/DATASET-LICENSES.md for licensing information.

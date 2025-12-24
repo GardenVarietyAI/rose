@@ -4,7 +4,6 @@ from importlib.resources import files
 from typing import Any
 
 import httpx
-import nltk
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
@@ -47,9 +46,6 @@ async def lifespan(app: FastAPI) -> Any:
 
     app.state.llama_client = httpx.AsyncClient(base_url=settings.llama_base_url, headers=headers, timeout=300.0)
     logger.info(f"LLAMA_BASE_URL: {settings.llama_base_url}")
-
-    if settings.nltk_data not in nltk.data.path:
-        nltk.data.path.insert(0, settings.nltk_data)
 
     sym_spell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
     sym_spell.load_dictionary(str(SPELLCHECK_PATH), term_index=0, count_index=1)

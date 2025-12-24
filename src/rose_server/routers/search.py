@@ -5,7 +5,6 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, Query, Request
 from htpy.starlette import HtpyResponse
 from pydantic import BaseModel
-from rake_nltk import Rake
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from symspellpy import SymSpell
@@ -17,41 +16,15 @@ from rose_server.dependencies import (
 )
 from rose_server.models.search_events import SearchEvent
 from rose_server.routers.lenses import list_lens_options
+from rose_server.services.keyword_extractor import extract_keywords
 from rose_server.views.pages.search import render_search
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["search"])
 
-KEYWORD_AUGMENTATION_THRESHOLD = 3
-KEYWORD_AUGMENTATION_MAX_KEYWORDS = 3
-
-
-def normalize_query(query: str) -> str:
-    """Remove punctuation for spell checking."""
-    chars_to_remove = "?!.,;:-+()[]{}*^"
-    translator = str.maketrans(chars_to_remove, " " * len(chars_to_remove))
-    normalized = query.translate(translator)
-    return " ".join(normalized.split())
-
-
-def sanitize_fts5_query(query: str) -> str:
-    """Escape and sanitize query string for FTS5."""
-    sanitized = re.sub(r"[^\w\s]", " ", query)
-    return " ".join(sanitized.split())
-
-
-class SearchHit(BaseModel):
-    id: str
-    score: float
-    text: str
-    excerpt: str
-    metadata: Dict[str, Any]
-
-
-class SearchResponse(BaseModel):
-    index: str
-    query: str
-    hits: List[SearchHit]
+KEYWORDS_THRESHOLD = 3
+MAX_KEYWORDS = 3
+MAX_KEYWORD_CANDIDATES = 5
 
 
 _FTS_QUERY_SQL = """
@@ -70,6 +43,34 @@ _FTS_QUERY_SQL = """
         ORDER BY bm25(messages_fts)
         LIMIT :limit
     """
+
+
+class SearchHit(BaseModel):
+    id: str
+    score: float
+    text: str
+    excerpt: str
+    metadata: Dict[str, Any]
+
+
+class SearchResponse(BaseModel):
+    index: str
+    query: str
+    hits: List[SearchHit]
+
+
+def normalize_query(query: str) -> str:
+    """Remove punctuation for spell checking."""
+    chars_to_remove = "?!.,;:-+()[]{}*^"
+    translator = str.maketrans(chars_to_remove, " " * len(chars_to_remove))
+    normalized = query.translate(translator)
+    return " ".join(normalized.split())
+
+
+def sanitize_fts5_query(query: str) -> str:
+    """Escape and sanitize query string for FTS5."""
+    sanitized = re.sub(r"[^\w\s]", " ", query)
+    return " ".join(sanitized.split())
 
 
 async def _fetch_hits(read_session: AsyncSession, fts_query: str, limit: int, lens_id: str | None) -> list[SearchHit]:
@@ -105,15 +106,6 @@ async def _fetch_hits(read_session: AsyncSession, fts_query: str, limit: int, le
     return hits
 
 
-def _extract_keywords(query: str) -> list[str]:
-    rake = Rake()
-    rake.extract_keywords_from_text(query)
-    keywords: list[str] = rake.get_ranked_phrases()
-    if not keywords:
-        return []
-    return keywords[:5]
-
-
 async def _augment_with_keywords(
     read_session: AsyncSession,
     query: str,
@@ -125,15 +117,15 @@ async def _augment_with_keywords(
     if remaining <= 0:
         return ([], False)
 
-    keywords = _extract_keywords(query)
-    if not keywords:
+    result = extract_keywords(query, max_keywords=MAX_KEYWORD_CANDIDATES)
+    if not result.phrases:
         return ([], False)
 
     augmented_hits: list[SearchHit] = []
     used_keywords = False
     keywords_used = 0
 
-    for keyword in keywords:
+    for keyword in result.phrases:
         if remaining <= 0:
             break
 
@@ -158,7 +150,7 @@ async def _augment_with_keywords(
 
         if added_from_keyword > 0:
             keywords_used += 1
-            if keywords_used >= KEYWORD_AUGMENTATION_MAX_KEYWORDS:
+            if keywords_used >= MAX_KEYWORDS:
                 break
 
     return (augmented_hits, used_keywords)
@@ -192,7 +184,7 @@ async def search_messages(
         fts_query = sanitize_fts5_query(q)
         hits = await _fetch_hits(read_session, fts_query, limit, lens_id)
 
-        if len(hits) < KEYWORD_AUGMENTATION_THRESHOLD:
+        if len(hits) < KEYWORDS_THRESHOLD:
             remaining = max(0, limit - len(hits))
             seen_ids = {hit.id for hit in hits}
             augmented_hits, used_keywords = await _augment_with_keywords(
