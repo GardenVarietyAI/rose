@@ -22,8 +22,9 @@ from rose_server.views.pages.search import render_search
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["search"])
 
-KEYWORD_AUGMENTATION_THRESHOLD = 3
-KEYWORD_AUGMENTATION_MAX_KEYWORDS = 3
+KEYWORDS_THRESHOLD = 3
+MAX_KEYWORDS = 3
+MAX_KEYWORD_CANDIDATES = 5
 
 
 def normalize_query(query: str) -> str:
@@ -146,8 +147,16 @@ def _score_phrases(phrases: list[str]) -> list[tuple[float, str]]:
     return scored
 
 
-def _extract_keywords(query: str, max_keywords: int = 5) -> list[str]:
-    phrases = _iter_keyword_phrases(query, set(EN_STOPWORDS))
+def _extract_keywords(
+    query: str,
+    max_keywords: int = MAX_KEYWORD_CANDIDATES,
+    extra_stopwords: set[str] | None = None,
+) -> list[str]:
+    stopwords = set(EN_STOPWORDS)
+    if extra_stopwords:
+        stopwords.update(extra_stopwords)
+
+    phrases = _iter_keyword_phrases(query, stopwords)
     if not phrases:
         return []
 
@@ -210,7 +219,7 @@ async def _augment_with_keywords(
 
         if added_from_keyword > 0:
             keywords_used += 1
-            if keywords_used >= KEYWORD_AUGMENTATION_MAX_KEYWORDS:
+            if keywords_used >= MAX_KEYWORDS:
                 break
 
     return (augmented_hits, used_keywords)
@@ -244,7 +253,7 @@ async def search_messages(
         fts_query = sanitize_fts5_query(q)
         hits = await _fetch_hits(read_session, fts_query, limit, lens_id)
 
-        if len(hits) < KEYWORD_AUGMENTATION_THRESHOLD:
+        if len(hits) < KEYWORDS_THRESHOLD:
             remaining = max(0, limit - len(hits))
             seen_ids = {hit.id for hit in hits}
             augmented_hits, used_keywords = await _augment_with_keywords(
