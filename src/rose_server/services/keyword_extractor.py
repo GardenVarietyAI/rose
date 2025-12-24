@@ -49,6 +49,14 @@ def _iter_keyword_phrases(tokens: list[str], stopwords_set: Collection[str], whi
     return phrases
 
 
+def _position_boost(i: int, n: int) -> float:
+    """Boost multiplier 1.2 for first, 1.0 for the last."""
+    if n <= 1:
+        return 1.2
+    t = i / (n - 1)
+    return 1.2 - (0.2 * t)
+
+
 def _score_phrases(phrases: list[str]) -> list[tuple[float, str]]:
     """Score by dampened TF, length, and position."""
     tf = Counter(word for phrase in phrases for word in phrase.split())
@@ -59,10 +67,7 @@ def _score_phrases(phrases: list[str]) -> list[tuple[float, str]]:
     for i, phrase in enumerate(phrases):
         words = phrase.split()
         base_score = len(words) * sum(tf_weight[w] for w in words)
-        # Boost first phrase by 1.2x
-        t = 0.0 if n <= 1 else i / (n - 1)
-        position_boost = 1.2 - 0.2 * t
-        score = float(base_score * position_boost)
+        score = base_score * _position_boost(i, n)
         scored.append((score, phrase))
 
     scored.sort(key=lambda item: (-item[0], item[1]))
