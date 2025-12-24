@@ -106,13 +106,17 @@ async def _fetch_hits(read_session: AsyncSession, fts_query: str, limit: int, le
 
 
 def _iter_keyword_phrases(query: str, stopwords_set: set[str]) -> list[str]:
-    tokens = re.findall(r"[a-z0-9]+", query.lower())
+    tokens = re.findall(r"[a-z0-9_\.-]+", query.lower())
     if not tokens:
         return []
 
     phrases: list[str] = []
     phrase_tokens: list[str] = []
     for token in tokens:
+        if ("." in token or "_" in token or "-" in token) and len(token) > 2:
+            phrase_tokens.append(token)
+            continue
+
         if len(token) < 3 or token in stopwords_set:
             if phrase_tokens:
                 phrases.append(" ".join(phrase_tokens))
