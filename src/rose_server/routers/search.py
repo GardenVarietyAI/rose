@@ -1,6 +1,5 @@
 import logging
 import re
-from collections import Counter
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -17,7 +16,7 @@ from rose_server.dependencies import (
 )
 from rose_server.models.search_events import SearchEvent
 from rose_server.routers.lenses import list_lens_options
-from rose_server.services.stopwords import EN_STOPWORDS
+from rose_server.services.keyword_extractor import extract_keywords
 from rose_server.views.pages.search import render_search
 
 logger = logging.getLogger(__name__)
@@ -26,34 +25,6 @@ router = APIRouter(prefix="/v1", tags=["search"])
 KEYWORDS_THRESHOLD = 3
 MAX_KEYWORDS = 3
 MAX_KEYWORD_CANDIDATES = 5
-
-
-def normalize_query(query: str) -> str:
-    """Remove punctuation for spell checking."""
-    chars_to_remove = "?!.,;:-+()[]{}*^"
-    translator = str.maketrans(chars_to_remove, " " * len(chars_to_remove))
-    normalized = query.translate(translator)
-    return " ".join(normalized.split())
-
-
-def sanitize_fts5_query(query: str) -> str:
-    """Escape and sanitize query string for FTS5."""
-    sanitized = re.sub(r"[^\w\s]", " ", query)
-    return " ".join(sanitized.split())
-
-
-class SearchHit(BaseModel):
-    id: str
-    score: float
-    text: str
-    excerpt: str
-    metadata: Dict[str, Any]
-
-
-class SearchResponse(BaseModel):
-    index: str
-    query: str
-    hits: List[SearchHit]
 
 
 _FTS_QUERY_SQL = """
@@ -72,6 +43,34 @@ _FTS_QUERY_SQL = """
         ORDER BY bm25(messages_fts)
         LIMIT :limit
     """
+
+
+class SearchHit(BaseModel):
+    id: str
+    score: float
+    text: str
+    excerpt: str
+    metadata: Dict[str, Any]
+
+
+class SearchResponse(BaseModel):
+    index: str
+    query: str
+    hits: List[SearchHit]
+
+
+def normalize_query(query: str) -> str:
+    """Remove punctuation for spell checking."""
+    chars_to_remove = "?!.,;:-+()[]{}*^"
+    translator = str.maketrans(chars_to_remove, " " * len(chars_to_remove))
+    normalized = query.translate(translator)
+    return " ".join(normalized.split())
+
+
+def sanitize_fts5_query(query: str) -> str:
+    """Escape and sanitize query string for FTS5."""
+    sanitized = re.sub(r"[^\w\s]", " ", query)
+    return " ".join(sanitized.split())
 
 
 async def _fetch_hits(read_session: AsyncSession, fts_query: str, limit: int, lens_id: str | None) -> list[SearchHit]:
@@ -107,72 +106,6 @@ async def _fetch_hits(read_session: AsyncSession, fts_query: str, limit: int, le
     return hits
 
 
-def _iter_keyword_phrases(query: str, stopwords_set: set[str]) -> list[str]:
-    tokens = re.findall(r"[a-z0-9_\.-]+", query.lower())
-    if not tokens:
-        return []
-
-    phrases: list[str] = []
-    phrase_tokens: list[str] = []
-    for token in tokens:
-        if ("." in token or "_" in token or "-" in token) and len(token) > 2:
-            phrase_tokens.append(token)
-            continue
-
-        if len(token) < 3 or token in stopwords_set:
-            if phrase_tokens:
-                phrases.append(" ".join(phrase_tokens))
-                phrase_tokens = []
-            continue
-        phrase_tokens.append(token)
-
-    if phrase_tokens:
-        phrases.append(" ".join(phrase_tokens))
-
-    return phrases
-
-
-def _score_phrases(phrases: list[str]) -> list[tuple[float, str]]:
-    """Score phrases by word frequency and length."""
-    word_counts = Counter(word for phrase in phrases for word in phrase.split())
-
-    scored: list[tuple[float, str]] = []
-    for phrase in phrases:
-        words = phrase.split()
-        score = float(len(words) * sum(word_counts[word] for word in words))
-        scored.append((score, phrase))
-
-    return scored
-
-
-def _extract_keywords(
-    query: str,
-    max_keywords: int = MAX_KEYWORD_CANDIDATES,
-    extra_stopwords: set[str] | None = None,
-) -> list[str]:
-    stopwords = set(EN_STOPWORDS)
-    if extra_stopwords:
-        stopwords.update(extra_stopwords)
-
-    phrases = _iter_keyword_phrases(query, stopwords)
-    if not phrases:
-        return []
-
-    scored: list[tuple[float, str]] = _score_phrases(phrases)
-    scored.sort(key=lambda item: (-item[0], item[1]))
-    keywords: list[str] = []
-    seen: set[str] = set()
-    for _, phrase in scored:
-        if phrase in seen:
-            continue
-        seen.add(phrase)
-        keywords.append(phrase)
-        if len(keywords) >= max_keywords:
-            break
-
-    return keywords
-
-
 async def _augment_with_keywords(
     read_session: AsyncSession,
     query: str,
@@ -184,15 +117,15 @@ async def _augment_with_keywords(
     if remaining <= 0:
         return ([], False)
 
-    keywords = _extract_keywords(query)
-    if not keywords:
+    result = extract_keywords(query, max_keywords=MAX_KEYWORD_CANDIDATES)
+    if not result.phrases:
         return ([], False)
 
     augmented_hits: list[SearchHit] = []
     used_keywords = False
     keywords_used = 0
 
-    for keyword in keywords:
+    for keyword in result.phrases:
         if remaining <= 0:
             break
 

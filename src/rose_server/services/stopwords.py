@@ -111,3 +111,13 @@ EN_STOPWORDS = frozenset(
         "yourselves",
     }
 )
+
+EN_WHITELIST = frozenset(
+    {
+        "db",
+        "js",
+        "ui",
+        "ai",
+        "go",
+    }
+)
