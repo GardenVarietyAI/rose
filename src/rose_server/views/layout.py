@@ -1,4 +1,4 @@
-from htpy import Node, a, body, h1, head, html, link, main, meta, nav, script, style, title
+from htpy import Node, a, aside, body, div, h1, head, header, html, link, main, meta, nav, script, style, title
 
 
 def render_page(*, title_text: str, content: Node) -> Node:
@@ -13,13 +13,19 @@ def render_page(*, title_text: str, content: Node) -> Node:
             link(rel="stylesheet", href="/static/app/app.css"),
         ],
         body[
-            h1[a(href="/v1/search")["ROSE"]],
-            nav(class_="navbar")[
-                a(href="/v1/search")["Search"],
-                # a(href="/v1/threads")["Threads"],
-                a(href="/v1/lenses")["Lenses"],
+            header(class_="mobile-header")[
+                h1[a(href="/v1/search")["ROSE"]],
+                a(href="/v1/nav", class_="menu-link")["Menu"],
             ],
-            main(class_="container")[content],
+            div(class_="app-layout")[
+                nav(class_="nav-sidebar")[
+                    h1[a(href="/v1/search")["ROSE"]],
+                    a(href="/v1/search")["Search"],
+                    a(href="/v1/lenses")["Lenses"],
+                ],
+                main(class_="main-content")[content],
+                aside(class_="aside")[div(class_="aside-placeholder")["Filters & context"],],
+            ],
             script(src="/static/app/bundle.js", defer=True),
             script(src="/static/vendor/alpine/alpine.min.js", defer=True),
         ],

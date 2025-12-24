@@ -13,9 +13,14 @@
   --rose-green-7: var(--green-7);
   --rose-cyan-8: var(--cyan-8);
   --rose-shadow-2: var(--shadow-2);
+  --rose-shadow-card: 0 1px 3px var(--rose-shadow-2);
   --rose-radius: var(--radius-2);
   --rose-font-size-sm: var(--font-size-00);
   --rose-font-size-base: var(--font-size-0);
+  --rose-font-weight-semibold: var(--font-weight-6);
+  --rose-font-weight-bold: var(--font-weight-7);
+  --rose-frame-border: 1px solid var(--rose-gray-3);
+  --rose-divider-border: 1px solid var(--rose-gray-2);
 }
 
 @media (prefers-color-scheme: dark) {

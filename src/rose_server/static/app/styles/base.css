@@ -5,11 +5,68 @@ body {
   padding: 0;
 }
 
-h1 {
-  max-width: 800px;
+.mobile-header {
+  display: none;
+}
+
+.app-layout {
+  display: grid;
+  grid-template-columns: 250px 1fr 300px;
+  grid-template-areas: "nav main aside";
+  gap: var(--size-4);
+  max-width: 1440px;
   margin: 0 auto;
   padding: var(--size-4);
-  padding-bottom: var(--size-2);
+}
+
+.nav-sidebar {
+  grid-area: nav;
+}
+
+.main-content {
+  grid-area: main;
+}
+
+.aside {
+  grid-area: aside;
+}
+
+@media (max-width: 1024px) {
+  .app-layout {
+    grid-template-columns: 200px 1fr;
+    grid-template-areas: "nav main";
+  }
+
+  .aside {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .mobile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--size-2) var(--size-4);
+    border-bottom: 1px solid var(--rose-gray-2);
+  }
+
+  .mobile-header h1 {
+    margin: 0;
+    padding: 0;
+    font-size: var(--font-size-3);
+  }
+
+  .app-layout {
+    grid-template-columns: 1fr;
+    grid-template-areas: "main";
+    padding: var(--size-2);
+  }
+}
+
+h1 {
+  margin: 0;
+  padding: 0;
 }
 
 a {
