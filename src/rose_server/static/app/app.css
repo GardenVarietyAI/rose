@@ -1,3 +1,36 @@
+:root {
+  color-scheme: light dark;
+  --rose-gray-0: var(--gray-0);
+  --rose-gray-1: var(--gray-1);
+  --rose-gray-2: var(--gray-2);
+  --rose-gray-3: var(--gray-3);
+  --rose-gray-5: var(--gray-5);
+  --rose-gray-6: var(--gray-6);
+  --rose-gray-7: var(--gray-7);
+  --rose-gray-9: var(--gray-9);
+  --rose-blue-6: var(--blue-6);
+  --rose-green-1: var(--green-1);
+  --rose-green-7: var(--green-7);
+  --rose-cyan-8: var(--cyan-8);
+  --rose-shadow-2: var(--shadow-2);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --rose-gray-0: var(--gray-12);
+    --rose-gray-1: var(--gray-11);
+    --rose-gray-2: var(--gray-10);
+    --rose-gray-3: var(--gray-8);
+    --rose-gray-5: var(--gray-6);
+    --rose-gray-6: var(--gray-5);
+    --rose-gray-7: var(--gray-6);
+    --rose-gray-9: var(--gray-2);
+    --rose-blue-6: var(--blue-4);
+    --rose-green-1: var(--green-11);
+    --rose-green-7: var(--green-5);
+    --rose-cyan-8: var(--cyan-4);
+  }
+}
 
 [x-cloak] {
   display: none !important;
@@ -8,10 +41,12 @@ body {
   max-width: 800px;
   margin: var(--size-8) auto;
   padding: 0 var(--size-4);
+  background: var(--rose-gray-0);
+  color: var(--rose-gray-9);
 }
 
 a {
-  color: var(--blue-6);
+  color: var(--rose-blue-6);
   text-decoration: none;
 }
 
@@ -20,29 +55,29 @@ h1 {
 }
 
 h1 a {
-  color: var(--gray-9);
+  color: var(--rose-gray-9);
 }
 
 hr {
-  border: 1px solid var(--gray-7);
+  border: 1px solid var(--rose-gray-7);
   margin: var(--size-4) 0;
 }
 
 .result {
   margin: var(--size-4) 0;
   padding: var(--size-3);
-  border: 1px solid var(--gray-3);
-  box-shadow: 0 1px 3px var(--shadow-2);
+  border: 1px solid var(--rose-gray-3);
+  box-shadow: 0 1px 3px var(--rose-shadow-2);
   border-radius: 3px;
 }
 
 .score {
-  color: var(--gray-6);
+  color: var(--rose-gray-6);
   font-size: 0.9em;
 }
 
 .metadata {
-  color: var(--gray-5);
+  color: var(--rose-gray-5);
   font-size: 0.85em;
   margin-top: var(--size-2);
 }
@@ -113,7 +148,7 @@ textarea {
   font-family: monospace;
   padding: var(--size-2);
   border-radius: 3px;
-  box-shadow: 0 1px 3px var(--shadow-2);
+  box-shadow: 0 1px 3px var(--rose-shadow-2);
 }
 
 .settings-actions {
@@ -142,19 +177,19 @@ textarea {
 }
 
 .tab {
-  color: var(--gray-5);
+  color: var(--rose-gray-5);
   text-decoration: none;
   padding: var(--size-1) 0;
 }
 
 .tab-active {
-  color: var(--gray-9);
-  border-bottom: 2px solid var(--green-7);
+  color: var(--rose-gray-9);
+  border-bottom: 2px solid var(--rose-green-7);
 }
 
 .tab-badge {
   margin-left: var(--size-2);
-  color: var(--green-7);
+  color: var(--rose-green-7);
   font-weight: bold;
 }
 
@@ -174,34 +209,34 @@ button {
 .message {
   margin: var(--size-4) 0;
   padding: var(--size-3);
-  border: 1px solid var(--gray-3);
+  border: 1px solid var(--rose-gray-3);
   scroll-margin-top: var(--size-4);
-  box-shadow: 0 1px 3px var(--shadow-2);
+  box-shadow: 0 1px 3px var(--rose-shadow-2);
   border-radius: 3px;
 }
 
 .message:target {
   border: none;
-  border-left: 1px dotted var(--cyan-8);
-  background: var(--green-1);
+  border-left: 1px dotted var(--rose-cyan-8);
+  background: var(--rose-green-1);
   border-radius: 0 3px 3px 0;
   box-shadow: none;
 }
 
 .message:target .message-role {
-  color: var(--cyan-8);
+  color: var(--rose-cyan-8);
 }
 
 .message:target .message-header {
-  color: var(--green-7);
+  color: var(--rose-green-7);
 }
 
 .message:target .message-meta {
-  color: var(--green-7);
+  color: var(--rose-green-7);
 }
 
 .message-header {
-  color: var(--gray-5);
+  color: var(--rose-gray-5);
   font-size: 0.9em;
 }
 
@@ -210,21 +245,21 @@ button {
 }
 
 .message-role {
-  color: var(--gray-9);
+  color: var(--rose-gray-9);
   font-weight: bold;
 }
 
 .message-model {
-  color: var(--gray-5);
+  color: var(--rose-gray-5);
 }
 
 .message-content {
   white-space: pre-wrap;
-  color: var(--gray-9);
+  color: var(--rose-gray-9);
 }
 
 .message-meta {
-  color: var(--gray-6);
+  color: var(--rose-gray-6);
   font-size: 0.85em;
   margin-top: var(--size-2);
 }
@@ -232,35 +267,35 @@ button {
 .section-divider {
   margin: var(--size-7) 0;
   padding: var(--size-2) 0;
-  border-bottom: 1px solid var(--gray-3);
-  color: var(--gray-6);
+  border-bottom: 1px solid var(--rose-gray-3);
+  color: var(--rose-gray-6);
   font-size: 0.9em;
   font-weight: bold;
 }
 
 .accept-link {
-  color: var(--gray-5);
+  color: var(--rose-gray-5);
   text-decoration: none;
   cursor: pointer;
 }
 
 .accept-link:hover {
-  color: var(--gray-9);
+  color: var(--rose-gray-9);
 }
 
 .accept-link.accepted {
-  color: var(--green-7);
+  color: var(--rose-green-7);
   font-weight: bold;
 }
 
 .regenerate-link {
-  color: var(--gray-5);
+  color: var(--rose-gray-5);
   text-decoration: none;
   cursor: pointer;
 }
 
 .regenerate-link:hover {
-  color: var(--gray-9);
+  color: var(--rose-gray-9);
 }
 
 .message.placeholder {
@@ -272,8 +307,8 @@ button {
   width: 24px;
   height: 24px;
   display: block;
-  border: 3px solid var(--gray-3);
-  border-top-color: var(--green-7);
+  border: 3px solid var(--rose-gray-3);
+  border-top-color: var(--rose-green-7);
   animation: spin 0.8s linear infinite;
   margin: 0 auto;
 }
