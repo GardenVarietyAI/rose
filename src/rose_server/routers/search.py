@@ -113,7 +113,7 @@ def _iter_keyword_phrases(query: str, stopwords_set: set[str]) -> list[str]:
     phrases: list[str] = []
     phrase_tokens: list[str] = []
     for token in tokens:
-        if len(token) < 2 or token in stopwords_set:
+        if len(token) < 3 or token in stopwords_set:
             if phrase_tokens:
                 phrases.append(" ".join(phrase_tokens))
                 phrase_tokens = []
@@ -126,11 +126,8 @@ def _iter_keyword_phrases(query: str, stopwords_set: set[str]) -> list[str]:
     return phrases
 
 
-def _extract_keywords(query: str) -> list[str]:
-    phrases = _iter_keyword_phrases(query, set(EN_STOPWORDS))
-    if not phrases:
-        return []
-
+def _score_phrases(phrases: list[str]) -> list[tuple[float, str]]:
+    """Score phrases by word frequency and length."""
     word_counts: dict[str, int] = {}
     for phrase in phrases:
         for word in phrase.split():
@@ -142,6 +139,15 @@ def _extract_keywords(query: str) -> list[str]:
         score = float(len(words) * sum(word_counts.get(word, 0) for word in words))
         scored.append((score, phrase))
 
+    return scored
+
+
+def _extract_keywords(query: str, max_keywords: int = 5) -> list[str]:
+    phrases = _iter_keyword_phrases(query, set(EN_STOPWORDS))
+    if not phrases:
+        return []
+
+    scored: list[tuple[float, str]] = _score_phrases(phrases)
     scored.sort(key=lambda item: (-item[0], item[1]))
     keywords: list[str] = []
     seen: set[str] = set()
@@ -150,7 +156,7 @@ def _extract_keywords(query: str) -> list[str]:
             continue
         seen.add(phrase)
         keywords.append(phrase)
-        if len(keywords) >= 5:
+        if len(keywords) >= max_keywords:
             break
 
     return keywords
