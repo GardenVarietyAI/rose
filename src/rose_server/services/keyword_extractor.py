@@ -1,3 +1,4 @@
+import math
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -48,13 +49,14 @@ def _iter_keyword_phrases(tokens: list[str], stopwords_set: set[str], whitelist:
 
 
 def _score_phrases(phrases: list[str]) -> list[tuple[float, str]]:
-    """Score phrases by word frequency and length."""
-    word_counts = Counter(word for phrase in phrases for word in phrase.split())
+    """Score phrases by dampened TF and phrase length."""
+    tf = Counter(word for phrase in phrases for word in phrase.split())
+    tf_weight = {word: math.log1p(count) for word, count in tf.items()}
 
     scored: list[tuple[float, str]] = []
     for phrase in phrases:
         words = phrase.split()
-        score = float(len(words) * sum(word_counts[word] for word in words))
+        score = float(len(words) * sum(tf_weight[w] for w in words))
         scored.append((score, phrase))
 
     scored.sort(key=lambda item: (-item[0], item[1]))
