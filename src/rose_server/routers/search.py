@@ -5,7 +5,6 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, Query, Request
 from htpy.starlette import HtpyResponse
 from pydantic import BaseModel
-from rake_nltk import Rake
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from symspellpy import SymSpell
@@ -17,6 +16,7 @@ from rose_server.dependencies import (
 )
 from rose_server.models.search_events import SearchEvent
 from rose_server.routers.lenses import list_lens_options
+from rose_server.services.stopwords import EN_STOPWORDS
 from rose_server.views.pages.search import render_search
 
 logger = logging.getLogger(__name__)
@@ -105,13 +105,55 @@ async def _fetch_hits(read_session: AsyncSession, fts_query: str, limit: int, le
     return hits
 
 
-def _extract_keywords(query: str) -> list[str]:
-    rake = Rake()
-    rake.extract_keywords_from_text(query)
-    keywords: list[str] = rake.get_ranked_phrases()
-    if not keywords:
+def _iter_keyword_phrases(query: str, stopwords_set: set[str]) -> list[str]:
+    tokens = re.findall(r"[a-z0-9]+", query.lower())
+    if not tokens:
         return []
-    return keywords[:5]
+
+    phrases: list[str] = []
+    phrase_tokens: list[str] = []
+    for token in tokens:
+        if len(token) < 2 or token in stopwords_set:
+            if phrase_tokens:
+                phrases.append(" ".join(phrase_tokens))
+                phrase_tokens = []
+            continue
+        phrase_tokens.append(token)
+
+    if phrase_tokens:
+        phrases.append(" ".join(phrase_tokens))
+
+    return phrases
+
+
+def _extract_keywords(query: str) -> list[str]:
+    phrases = _iter_keyword_phrases(query, set(EN_STOPWORDS))
+    if not phrases:
+        return []
+
+    word_counts: dict[str, int] = {}
+    for phrase in phrases:
+        for word in phrase.split():
+            word_counts[word] = word_counts.get(word, 0) + 1
+
+    scored: list[tuple[float, str]] = []
+    for phrase in phrases:
+        words = phrase.split()
+        score = float(len(words) * sum(word_counts.get(word, 0) for word in words))
+        scored.append((score, phrase))
+
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    keywords: list[str] = []
+    seen: set[str] = set()
+    for _, phrase in scored:
+        if phrase in seen:
+            continue
+        seen.add(phrase)
+        keywords.append(phrase)
+        if len(keywords) >= 5:
+            break
+
+    return keywords
 
 
 async def _augment_with_keywords(

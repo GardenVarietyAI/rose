@@ -20,4 +20,3 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("LLAMA_API_KEY", "OPENAI_API_KEY"),
     )
     llama_model_path: str = Field(default="", validation_alias="LLAMA_MODEL_PATH")
-    nltk_data: str = Field(default="./vendor/nltk_data", validation_alias="NLTK_DATA")
