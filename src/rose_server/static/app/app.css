@@ -6,8 +6,8 @@
 body {
   font-family: monospace;
   max-width: 800px;
-  margin: 40px auto;
-  padding: 0 20px;
+  margin: var(--size-8) auto;
+  padding: 0 var(--size-4);
 }
 
 a {
@@ -16,7 +16,7 @@ a {
 }
 
 h1 {
-  margin-bottom: 10px;
+  margin-bottom: var(--size-2);
 }
 
 h1 a {
@@ -25,12 +25,12 @@ h1 a {
 
 hr {
   border: 1px solid var(--gray-7);
-  margin: 20px 0;
+  margin: var(--size-4) 0;
 }
 
 .result {
-  margin: 20px 0;
-  padding: 15px;
+  margin: var(--size-4) 0;
+  padding: var(--size-3);
   border: 1px solid var(--gray-3);
   box-shadow: 0 1px 3px var(--shadow-2);
   border-radius: 3px;
@@ -44,24 +44,24 @@ hr {
 .metadata {
   color: var(--gray-5);
   font-size: 0.85em;
-  margin-top: 10px;
+  margin-top: var(--size-2);
 }
 
 .content {
-  margin: 10px 0;
+  margin: var(--size-2) 0;
   white-space: pre-wrap;
 }
 
 input[type="text"] {
   font-family: monospace;
-  padding: 5px;
+  padding: var(--size-1);
   width: 400px;
   border-radius: 3px;
 }
 
 textarea {
   font-family: monospace;
-  padding: 8px;
+  padding: var(--size-2);
   border-radius: 3px;
   resize: none;
 }
@@ -86,13 +86,13 @@ textarea {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
-  margin-top: 10px;
+  gap: var(--size-2);
+  margin-top: var(--size-2);
 }
 
 .search-actions {
   display: flex;
-  gap: 10px;
+  gap: var(--size-2);
 }
 
 .settings-button {
@@ -103,7 +103,7 @@ textarea {
 }
 
 .settings-panel {
-  margin-top: 10px;
+  margin-top: var(--size-2);
   border-radius: 3px;
 }
 
@@ -111,13 +111,13 @@ textarea {
   width: 100%;
   box-sizing: border-box;
   font-family: monospace;
-  padding: 8px;
+  padding: var(--size-2);
   border-radius: 3px;
   box-shadow: 0 1px 3px var(--shadow-2);
 }
 
 .settings-actions {
-  margin-top: 10px;
+  margin-top: var(--size-2);
   display: flex;
   justify-content: flex-end;
 }
@@ -137,14 +137,14 @@ textarea {
 
 .tabs {
   display: flex;
-  gap: 12px;
-  margin: 12px 0;
+  gap: var(--size-3);
+  margin: var(--size-3) 0;
 }
 
 .tab {
   color: var(--gray-5);
   text-decoration: none;
-  padding: 4px 0;
+  padding: var(--size-1) 0;
 }
 
 .tab-active {
@@ -153,7 +153,7 @@ textarea {
 }
 
 .tab-badge {
-  margin-left: 8px;
+  margin-left: var(--size-2);
   color: var(--green-7);
   font-weight: bold;
 }
@@ -161,7 +161,7 @@ textarea {
 input[type="submit"],
 button {
   font-family: monospace;
-  padding: 5px 15px;
+  padding: var(--size-1) var(--size-3);
   border-radius: 3px;
 }
 
@@ -172,10 +172,10 @@ button {
 }
 
 .message {
-  margin: 20px 0;
-  padding: 15px;
+  margin: var(--size-4) 0;
+  padding: var(--size-3);
   border: 1px solid var(--gray-3);
-  scroll-margin-top: 20px;
+  scroll-margin-top: var(--size-4);
   box-shadow: 0 1px 3px var(--shadow-2);
   border-radius: 3px;
 }
@@ -206,7 +206,7 @@ button {
 }
 
 .message-body {
-  margin: 10px 0;
+  margin: var(--size-2) 0;
 }
 
 .message-role {
@@ -226,12 +226,12 @@ button {
 .message-meta {
   color: var(--gray-6);
   font-size: 0.85em;
-  margin-top: 10px;
+  margin-top: var(--size-2);
 }
 
 .section-divider {
-  margin: 30px 0;
-  padding: 10px 0;
+  margin: var(--size-7) 0;
+  padding: var(--size-2) 0;
   border-bottom: 1px solid var(--gray-3);
   color: var(--gray-6);
   font-size: 0.9em;
