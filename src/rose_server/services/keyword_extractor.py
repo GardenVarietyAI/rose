@@ -1,6 +1,7 @@
 import math
 import re
 from collections import Counter
+from collections.abc import Collection
 from dataclasses import dataclass
 
 from rose_server.services.stopwords import EN_STOPWORDS, EN_WHITELIST
@@ -17,7 +18,7 @@ def tokenize(text: str) -> list[str]:
     return re.findall(r"[\w.\-]+", text.lower())
 
 
-def _iter_keyword_phrases(tokens: list[str], stopwords_set: set[str], whitelist: frozenset[str]) -> list[str]:
+def _iter_keyword_phrases(tokens: list[str], stopwords_set: Collection[str], whitelist: frozenset[str]) -> list[str]:
     """Extract keyword phrases from tokens."""
     if not tokens:
         return []
@@ -49,14 +50,19 @@ def _iter_keyword_phrases(tokens: list[str], stopwords_set: set[str], whitelist:
 
 
 def _score_phrases(phrases: list[str]) -> list[tuple[float, str]]:
-    """Score phrases by dampened TF and phrase length."""
+    """Score by dampened TF, length, and position."""
     tf = Counter(word for phrase in phrases for word in phrase.split())
     tf_weight = {word: math.log1p(count) for word, count in tf.items()}
 
     scored: list[tuple[float, str]] = []
-    for phrase in phrases:
+    n = len(phrases)
+    for i, phrase in enumerate(phrases):
         words = phrase.split()
-        score = float(len(words) * sum(tf_weight[w] for w in words))
+        base_score = len(words) * sum(tf_weight[w] for w in words)
+        # Boost first phrase by 1.2x
+        t = 0.0 if n <= 1 else i / (n - 1)
+        position_boost = 1.2 - 0.2 * t
+        score = float(base_score * position_boost)
         scored.append((score, phrase))
 
     scored.sort(key=lambda item: (-item[0], item[1]))
