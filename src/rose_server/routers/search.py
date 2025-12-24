@@ -1,5 +1,6 @@
 import logging
 import re
+from collections import Counter
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -133,15 +134,12 @@ def _iter_keyword_phrases(query: str, stopwords_set: set[str]) -> list[str]:
 
 def _score_phrases(phrases: list[str]) -> list[tuple[float, str]]:
     """Score phrases by word frequency and length."""
-    word_counts: dict[str, int] = {}
-    for phrase in phrases:
-        for word in phrase.split():
-            word_counts[word] = word_counts.get(word, 0) + 1
+    word_counts = Counter(word for phrase in phrases for word in phrase.split())
 
     scored: list[tuple[float, str]] = []
     for phrase in phrases:
         words = phrase.split()
-        score = float(len(words) * sum(word_counts.get(word, 0) for word in words))
+        score = float(len(words) * sum(word_counts[word] for word in words))
         scored.append((score, phrase))
 
     return scored
