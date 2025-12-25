@@ -75,6 +75,7 @@ def render_search(
             )[query],
             div(class_="search-controls-row")[
                 span(class_="search-results-count")[f"Results: {len(hits_list)}"],
+                div({"x-show": "submitting", "x-cloak": ""}, class_="search-status")[div(class_="spinner")[""]],
                 div(class_="search-actions")[
                     button(
                         {
@@ -84,7 +85,7 @@ def render_search(
                         type="button",
                         class_="settings-button",
                     )["Settings"],
-                    input_(type="submit", value="Search"),
+                    input_({":disabled": "submitting"}, type="submit", value="Search"),
                     ask_button(),
                 ],
             ],
