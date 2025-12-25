@@ -9,7 +9,9 @@ export const askButton = () => ({
     this.disabled = true;
 
     try {
-      const lensId = this.$el.closest("form")?.querySelector('select[name="lens_id"]')?.value?.trim();
+      const form = this.$el.closest("form");
+      const lensIdValue = form?.querySelector('select[name="lens_id"]')?.value?.trim();
+      let lensId = lensIdValue || "";
       const response = await fetch("/v1/threads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

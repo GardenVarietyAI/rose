@@ -14,9 +14,10 @@ from htpy import (
     select,
     span,
     strong,
-    textarea,
+    template,
 )
 
+from rose_server.views.app_data import AppData, SearchAppData
 from rose_server.views.components.ask_button import ask_button
 from rose_server.views.layout import render_page
 
@@ -27,8 +28,10 @@ def render_search(
     hits: Iterable[Any],
     corrected_query: str | None,
     original_query: str,
-    lenses: list[tuple[str, str]],
+    lenses: list[tuple[str, str, str]],
     selected_lens_id: str | None = None,
+    limit: int = 10,
+    exact: bool = False,
 ) -> Node:
     hits_list = list(hits)
     content: list[Node] = []
@@ -36,8 +39,6 @@ def render_search(
         form(
             {
                 "x-ref": "form",
-                "data-initial-query": query,
-                "data-initial-lens-id": selected_lens_id or "",
                 "@submit.prevent": "submit()",
             },
             action="/v1/search",
@@ -47,32 +48,37 @@ def render_search(
             x_data="searchForm",
         )[
             input_(
-                {
-                    "x-ref": "single",
-                    "x-show": "!isMultiline",
-                    "x-cloak": "",
-                    "x-model": "value",
-                    ":disabled": "isMultiline",
-                    "@paste": "handlePaste($event)",
-                    "@keydown.enter.prevent": "submit()",
-                },
-                type="text",
+                {"x-ref": "textarea", "x-model": "queryValue"},
+                type="hidden",
                 name="q",
-                autofocus=True,
             ),
-            textarea(
+            div(
                 {
-                    "x-ref": "multi",
-                    "x-show": "isMultiline",
-                    "x-cloak": "",
-                    "x-model": "value",
-                    ":disabled": "!isMultiline",
-                    "@input": "autogrow($event.target)",
-                    "@keydown.enter.prevent": "submit()",
+                    "x-ref": "editor",
+                    "x-on:input": "syncFromEditor()",
+                    "@keydown": "handleEditorKeydown($event)",
+                    "contenteditable": "true",
+                    "role": "textbox",
+                    "tabindex": "0",
+                    "aria-multiline": "true",
+                    "spellcheck": "false",
                 },
-                name="q",
-                rows="1",
-            )[query],
+                class_="search-editor",
+            ),
+            div(
+                {"x-show": "mentionOpen", "x-cloak": ""},
+                class_="mention-panel",
+            )[
+                template({"x-for": "(option, index) in mentionOptions", "x-bind:key": "option.lensId"})[
+                    button(
+                        {
+                            "type": "button",
+                            "@click": "selectMention(option)",
+                            "x-bind:class": "index === mentionIndex ? 'mention-option is-active' : 'mention-option'",
+                        }
+                    )[span({"x-text": "`@${option.atName}`"}, class_="mention-name"),]
+                ]
+            ],
             div(class_="search-controls-row")[
                 span(class_="search-results-count")[f"Results: {len(hits_list)}"],
                 div({"x-show": "submitting", "x-cloak": ""}, class_="search-status")[div(class_="spinner")[""]],
@@ -94,13 +100,23 @@ def render_search(
                 class_="settings-panel",
             )[
                 select(
-                    {"x-ref": "lensSelect", "name": "lens_id", "x-model": "$store.search.lensId"},
+                    {
+                        "x-ref": "lensSelect",
+                        "name": "lens_id",
+                        "x-model": "$store.search.lens_id",
+                        "@change": "syncLensToken()",
+                    },
                     class_="settings-select",
                 )[
                     option({"value": "", **({"selected": ""} if not selected_lens_id else {})})["No lens"],
                     *[
-                        option({"value": lens_id, **({"selected": ""} if lens_id == selected_lens_id else {})})[label]
-                        for lens_id, label in lenses
+                        option(
+                            {
+                                "value": lens_id,
+                                **({"selected": ""} if lens_id == selected_lens_id else {}),
+                            }
+                        )[label]
+                        for lens_id, at_name, label in lenses
                     ],
                 ],
                 div(class_="settings-actions")[
@@ -143,4 +159,16 @@ def render_search(
             ]
         )
 
-    return render_page(title_text=f"Search: {query}", content=div(id="search-root")[*content])
+    return render_page(
+        title_text=f"Search: {query}",
+        app_data=AppData(
+            search=SearchAppData(
+                lens_map={at_name: lens_id for lens_id, at_name, _label in lenses if at_name},
+                query=query,
+                lens_id=selected_lens_id or "",
+                limit=limit,
+                exact=exact,
+            )
+        ),
+        content=div(id="search-root")[*content],
+    )

@@ -107,6 +107,7 @@ async def create_thread_message(
     lens_message = await get_lens_message(session, lens_id) if lens_id else None
     if lens_id and lens_message is None:
         raise HTTPException(status_code=400, detail="Unknown lens")
+    lens_at_name: str | None = None
     if lens_message is None:
         lens_prompt = None
     else:
@@ -116,6 +117,7 @@ async def create_thread_message(
         lens_prompt = lens_message.content
         if lens_prompt is None:
             raise HTTPException(status_code=400, detail="Lens missing content")
+        lens_at_name = lens_message.at_name
 
     generation_messages: list[dict[str, Any]] = []
     if lens_prompt is not None:
@@ -128,6 +130,7 @@ async def create_thread_message(
         user_message_uuid=message.uuid,
         model=model_used,
         lens_id=lens_id,
+        lens_at_name=lens_at_name,
     )
 
     background_tasks.add_task(
