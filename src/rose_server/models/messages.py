@@ -58,3 +58,12 @@ class Message(SQLModel, table=True):
         default=None,
         sa_column=Column(String, Computed("json_extract(meta, '$.parent_message_id')"), index=False),
     )
+
+    @property
+    def display_role(self) -> str:
+        if self.role == "assistant":
+            if self.meta:
+                at_name = str(self.meta.get("lens_at_name", "")).strip()
+                if at_name:
+                    return f"@{at_name}"
+        return self.role

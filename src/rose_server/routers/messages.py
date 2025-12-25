@@ -277,6 +277,7 @@ async def get_message_fragment(
             uuid=message.uuid,
             dom_id=f"msg-{message.uuid}",
             role=message.role,
+            display_role=message.display_role,
             model=message.model,
             content=message.content or "",
             created_at=message.created_at,
