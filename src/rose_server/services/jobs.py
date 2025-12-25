@@ -28,6 +28,7 @@ async def create_generate_assistant_job(
     user_message_uuid: str,
     model: str,
     lens_id: str | None = None,
+    lens_at_name: str | None = None,
 ) -> Message:
     message = Message(
         thread_id=thread_id,
@@ -41,6 +42,7 @@ async def create_generate_assistant_job(
             "user_message_uuid": user_message_uuid,
             "attempt": 0,
             **({"lens_id": lens_id} if lens_id else {}),
+            **({"lens_at_name": lens_at_name} if lens_at_name else {}),
         },
     )
     session.add(message)
@@ -107,6 +109,12 @@ async def run_generate_assistant_job(
         if job_message is None:
             return None
 
+        lens_at_name: str | None = None
+        if job_message.meta is not None:
+            _lens_at_name = job_message.meta.get("lens_at_name", None)
+            if isinstance(_lens_at_name, str):
+                lens_at_name = _lens_at_name.strip()
+
         await session.commit()
 
         payload: dict[str, Any] = {"messages": messages, "stream": False}
@@ -137,6 +145,7 @@ async def run_generate_assistant_job(
                 "completion_id": completion.id,
                 "finish_reason": choice.finish_reason,
                 **({"lens_id": lens_id} if lens_id else {}),
+                **({"lens_at_name": lens_at_name} if lens_at_name else {}),
             },
         )
         session.add(assistant_message)
