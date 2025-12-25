@@ -3,11 +3,19 @@ export const searchForm = () => ({
   isMultiline: false,
   multilineThreshold: 80,
   settingsOpen: false,
+  submitting: false,
 
   init() {
-    this.value = this.$el?.dataset?.initialQuery || "";
+    const initialQuery = this.$el?.dataset?.initialQuery || "";
+    const initialLensId = this.$el?.dataset?.initialLensId || "";
+    this.$store.search.query = initialQuery;
+    this.$store.search.lensId = initialLensId;
+    this.value = initialQuery;
     this.updateMode();
     this.$watch("value", () => this.updateMode());
+    this.$watch("value", (value) => {
+      this.$store.search.query = value;
+    });
   },
 
   updateMode() {
@@ -52,11 +60,66 @@ export const searchForm = () => ({
     target.style.height = `${target.scrollHeight}px`;
   },
 
-  submit() {
-    return this.$refs?.form?.requestSubmit();
+  async submit() {
+    if (this.submitting) return;
+    const form = this.$refs?.form;
+    if (!form || typeof fetch !== "function") {
+      form?.requestSubmit();
+      return;
+    }
+
+    this.submitting = true;
+
+    try {
+      const payload = {
+        q: this.$store.search.query || "",
+        exact: Boolean(this.$store.search.exact),
+        limit: Number(this.$store.search.limit) || 10,
+        lens_id: this.$store.search.lensId || undefined,
+      };
+
+      const response = await fetch(form.action, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/html",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error("Search failed");
+      }
+
+      const html = await response.text();
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      const next = doc.querySelector("#search-root");
+      const current = document.querySelector("#search-root");
+
+      if (next && current) {
+        if (window.Alpine) window.Alpine.destroyTree(current);
+        current.replaceWith(next);
+        if (window.Alpine) window.Alpine.initTree(next);
+      } else {
+        window.location.href = form.action;
+      }
+
+      const params = new URLSearchParams();
+      if (payload.q) params.set("q", payload.q);
+      if (payload.exact) params.set("exact", "true");
+      if (payload.limit && payload.limit !== 10) params.set("limit", String(payload.limit));
+      if (payload.lens_id) params.set("lens_id", payload.lens_id);
+      const url = params.toString() ? `${form.action}?${params.toString()}` : form.action;
+      window.history.replaceState({}, "", url);
+    } catch (error) {
+      form.requestSubmit();
+    } finally {
+      this.submitting = false;
+    }
   },
 
   clearLenses() {
+    this.$store.search.lensId = "";
     const select = this.$refs?.lensSelect;
     if (!select) return;
     select.value = "";

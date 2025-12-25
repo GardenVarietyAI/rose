@@ -37,9 +37,12 @@ def render_search(
             {
                 "x-ref": "form",
                 "data-initial-query": query,
+                "data-initial-lens-id": selected_lens_id or "",
+                "@submit.prevent": "submit()",
             },
             action="/v1/search",
             method="get",
+            autocomplete="off",
             class_="search-form",
             x_data="searchForm",
         )[
@@ -90,7 +93,7 @@ def render_search(
                 class_="settings-panel",
             )[
                 select(
-                    {"x-ref": "lensSelect", "name": "lens_id"},
+                    {"x-ref": "lensSelect", "name": "lens_id", "x-model": "$store.search.lensId"},
                     class_="settings-select",
                 )[
                     option({"value": "", **({"selected": ""} if not selected_lens_id else {})})["No lens"],
@@ -110,7 +113,7 @@ def render_search(
         content.append(
             p[
                 "Searching for ",
-                strong[query],
+                strong[corrected_query],
                 br(),
                 "Search for ",
                 a(href=f"/v1/search?q={quote(original_query)}&exact=true")[
@@ -139,4 +142,4 @@ def render_search(
             ]
         )
 
-    return render_page(title_text=f"Search: {query}", content=content)
+    return render_page(title_text=f"Search: {query}", content=div(id="search-root")[*content])
