@@ -15,6 +15,7 @@ from sse_starlette.event import ServerSentEvent
 from sse_starlette.sse import EventSourceResponse
 
 from rose_server.dependencies import get_db_session, get_llama_client, get_readonly_db_session, get_settings
+from rose_server.models.job_events import JobEvent
 from rose_server.models.messages import Message
 from rose_server.models.search_events import SearchEvent
 from rose_server.routers.lenses import list_lens_options
@@ -26,6 +27,16 @@ from rose_server.views.pages.thread_messages import render_thread_messages
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["threads"])
+
+
+class JobEventResponse(BaseModel):
+    uuid: str
+    event_type: str
+    job_id: str
+    status: str
+    created_at: int
+    attempt: int
+    error: str | None
 
 
 class ThreadResponse(BaseModel):
@@ -82,27 +93,26 @@ async def create_thread_message(
 
     lens_id = body.lens_id.strip() if body.lens_id else None
 
-    job_message, generation_messages, _lens_at_name = await assistant.prepare_and_generate_assistant(
+    job_id, generation_messages, lens_at_name = await assistant.prepare_and_generate_assistant(
         session,
-        thread_id=thread_id,
         user_message=message,
         lens_id=lens_id,
-        model_used=model_used,
     )
 
     background_tasks.add_task(
         jobs.run_generate_assistant_job,
         thread_id=thread_id,
-        job_uuid=job_message.uuid,
+        job_id=job_id,
         model_used=model_used,
         requested_model=requested_model,
         messages=generation_messages,
         lens_id=lens_id,
+        lens_at_name=lens_at_name,
         llama_client=llama_client,
         bind=session.bind,
     )
 
-    return CreateThreadResponse(thread_id=thread_id, message_uuid=message.uuid, job_uuid=job_message.uuid)
+    return CreateThreadResponse(thread_id=thread_id, message_uuid=message.uuid, job_uuid=job_id)
 
 
 @router.get("/threads/{thread_id}", response_model=None)
@@ -186,42 +196,48 @@ async def get_thread_activity(
     thread_id: str,
     session: AsyncSession = Depends(get_readonly_db_session),
 ) -> Any:
-    prompt_result = await session.execute(
-        select(Message)
-        .where(col(Message.thread_id) == thread_id)
-        .where(col(Message.role) == "user")
-        .where(col(Message.deleted_at).is_(None))
-        .order_by(col(Message.created_at).desc(), col(Message.id).desc())
-        .limit(1)
+    job_events_result = await session.execute(
+        select(JobEvent)
+        .where(col(JobEvent.thread_id) == thread_id)
+        .order_by(col(JobEvent.created_at).desc(), col(JobEvent.id).desc())
+        .limit(10)
     )
-    prompt = prompt_result.scalar_one_or_none()
+    job_events = list(job_events_result.scalars().all())
 
-    system_result = await session.execute(
-        select(Message)
-        .where(col(Message.thread_id) == thread_id)
-        .where(col(Message.role) == "system")
-        .where(col(Message.deleted_at).is_(None))
-        .order_by(col(Message.created_at), col(Message.id))
-    )
-    system_messages = list(system_result.scalars().all())
-
-    if not prompt and not system_messages:
-        raise HTTPException(status_code=404, detail="Thread not found")
+    if not job_events:
+        thread_exists_result = await session.execute(
+            select(Message).where(col(Message.thread_id) == thread_id).limit(1)
+        )
+        if thread_exists_result.scalar_one_or_none() is None:
+            raise HTTPException(status_code=404, detail="Thread not found")
 
     if "text/html" in request.headers.get("accept", ""):
         return HtpyResponse(
             render_thread_activity(
                 thread_id=thread_id,
-                prompt=prompt,
-                system_messages=system_messages,
+                job_events=job_events,
             )
         )
 
-    return {"thread_id": thread_id, "system_messages": system_messages}
+    return {
+        "thread_id": thread_id,
+        "job_events": [
+            JobEventResponse(
+                uuid=je.uuid,
+                event_type=je.event_type,
+                job_id=je.job_id,
+                status=je.status,
+                created_at=je.created_at,
+                attempt=je.attempt,
+                error=je.error,
+            )
+            for je in job_events
+        ],
+    }
 
 
-@router.get("/threads/{thread_id}/events", response_model=None)
-async def thread_events(
+@router.get("/threads/{thread_id}/stream", response_model=None)
+async def thread_stream(
     request: Request,
     thread_id: str,
     role: Literal["assistant", "user", "system"] = Query("assistant"),

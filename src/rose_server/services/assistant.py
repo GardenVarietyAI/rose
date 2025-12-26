@@ -13,11 +13,9 @@ from rose_server.services import jobs
 async def prepare_and_generate_assistant(
     session: AsyncSession,
     *,
-    thread_id: str,
     user_message: Message,
     lens_id: str | None,
-    model_used: str,
-) -> tuple[Message, list[dict[str, Any]], str | None]:
+) -> tuple[str, list[dict[str, Any]], str | None]:
     lens_message = await get_lens_message(session, lens_id) if lens_id else None
     if lens_id and lens_message is None:
         raise HTTPException(status_code=400, detail="Unknown lens")
@@ -35,18 +33,18 @@ async def prepare_and_generate_assistant(
             raise HTTPException(status_code=400, detail="Lens missing content")
         lens_at_name = lens.at_name
 
+    if user_message.thread_id is None:
+        raise HTTPException(status_code=400, detail="User message missing thread_id")
+
     generation_messages: list[dict[str, Any]] = []
     if lens_prompt is not None:
         generation_messages.append({"role": "system", "content": lens_prompt})
     generation_messages.append({"role": "user", "content": user_message.content})
 
-    job_message = await jobs.create_generate_assistant_job(
+    job_uuid = await jobs.create_generate_assistant_job(
         session,
-        thread_id=thread_id,
         user_message_uuid=user_message.uuid,
-        model=model_used,
-        lens_id=lens_id,
-        lens_at_name=lens_at_name,
+        thread_id=user_message.thread_id,
     )
 
-    return job_message, generation_messages, lens_at_name
+    return job_uuid, generation_messages, lens_at_name

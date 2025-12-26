@@ -152,7 +152,6 @@ async def create_lens(
         model=None,
     )
     message.meta = LensMeta(
-        lens_id=message.uuid,
         at_name=body.at_name,
         label=body.label,
     ).model_dump()
@@ -179,7 +178,6 @@ async def update_lens(
         raise HTTPException(status_code=400, detail="Lens missing meta")
 
     lens.meta = LensMeta(
-        lens_id=lens_id,
         at_name=body.at_name,
         label=body.label,
     ).model_dump()

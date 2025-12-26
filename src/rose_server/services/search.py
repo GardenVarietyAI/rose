@@ -111,6 +111,7 @@ async def _fetch_hits(
         params["query"] = fts_query
 
     where_parts.append("m.deleted_at IS NULL")
+    where_parts.append("m.object IS NULL")
 
     if lens_id:
         where_parts.append("m.lens_id = :lens_id")

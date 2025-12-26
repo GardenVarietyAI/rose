@@ -93,4 +93,5 @@ def render_thread_messages(
         thread_id=thread_id,
         active_tab="answers",
         content=div()[header, *content],
+        x_data="threadMessagesPage()",
     )

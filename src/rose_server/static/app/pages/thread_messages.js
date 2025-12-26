@@ -1,7 +1,8 @@
-export const threadPage = () => ({
+export const threadMessagesPage = () => ({
   pending: false,
   assistantEventSource: null,
-  systemEventSource: null,
+  jobPollTimeout: null,
+  jobPollAttempt: 0,
 
   createPlaceholder(tempId) {
     const clone = this.$refs.placeholderTemplate.content.cloneNode(true);
@@ -16,36 +17,52 @@ export const threadPage = () => ({
     return template.content.firstElementChild;
   },
 
-  cleanupEventStreams() {
-    if (this.assistantEventSource) this.assistantEventSource.close();
-    if (this.systemEventSource) this.systemEventSource.close();
-    this.assistantEventSource = null;
-    this.systemEventSource = null;
-  },
-
   cleanupAssistantStream() {
     if (this.assistantEventSource) this.assistantEventSource.close();
     this.assistantEventSource = null;
   },
 
-  cleanupSystemStream() {
-    if (this.systemEventSource) this.systemEventSource.close();
-    this.systemEventSource = null;
+  cleanupJobPoll() {
+    if (this.jobPollTimeout) clearTimeout(this.jobPollTimeout);
+    this.jobPollTimeout = null;
+    this.jobPollAttempt = 0;
   },
 
-  startEventStreams(threadId, tempId, { afterAssistantUuid = null, afterSystemUuid = null } = {}) {
-    if (this.assistantEventSource || this.systemEventSource) return;
+  async pollJobStatus(threadId, tempId) {
+    try {
+      const response = await fetch(`/v1/threads/${threadId}/activity`, {
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) return;
 
-    const assistantUrl = new URL(`/v1/threads/${threadId}/events`, window.location.origin);
+      const data = await response.json();
+      const latestEvent = data?.job_events?.[0];
+      if (latestEvent?.status === "failed") {
+        const placeholderEl = this.$refs.responses.querySelector(`[data-temp-id="${tempId}"]`);
+        if (placeholderEl) placeholderEl.remove();
+        this.cleanupJobPoll();
+        return;
+      }
+
+      this.jobPollAttempt += 1;
+      const delay = Math.min(1000 * Math.pow(2, this.jobPollAttempt), 30000);
+      this.jobPollTimeout = setTimeout(() => this.pollJobStatus(threadId, tempId), delay);
+    } catch (error) {
+      console.error("Error polling job status:", error);
+      this.jobPollAttempt += 1;
+      const delay = Math.min(1000 * Math.pow(2, this.jobPollAttempt), 30000);
+      this.jobPollTimeout = setTimeout(() => this.pollJobStatus(threadId, tempId), delay);
+    }
+  },
+
+  startEventStreams(threadId, tempId, { afterAssistantUuid = null } = {}) {
+    if (this.assistantEventSource) return;
+
+    const assistantUrl = new URL(`/v1/threads/${threadId}/stream`, window.location.origin);
     assistantUrl.searchParams.set("role", "assistant");
     if (afterAssistantUuid) assistantUrl.searchParams.set("after_uuid", afterAssistantUuid);
 
-    const systemUrl = new URL(`/v1/threads/${threadId}/events`, window.location.origin);
-    systemUrl.searchParams.set("role", "system");
-    if (afterSystemUuid) systemUrl.searchParams.set("after_uuid", afterSystemUuid);
-
     this.assistantEventSource = new EventSource(assistantUrl);
-    this.systemEventSource = new EventSource(systemUrl);
 
     this.assistantEventSource.addEventListener("assistant", async (event) => {
       try {
@@ -62,36 +79,16 @@ export const threadPage = () => ({
         const fragmentEl = this.parseHtmlElement(fragmentHtml);
         const placeholderEl = this.$refs.responses.querySelector(`[data-temp-id="${tempId}"]`);
         if (placeholderEl && fragmentEl) placeholderEl.replaceWith(fragmentEl);
+        this.cleanupJobPoll();
       } finally {
-        this.cleanupEventStreams();
-      }
-    });
-
-    this.systemEventSource.addEventListener("system", async (event) => {
-      const data = JSON.parse(event?.data || "{}");
-      const uuid = data?.uuid;
-      const meta = data?.meta || {};
-      if (!uuid) return;
-
-      if (meta?.object !== "job" || meta?.status !== "failed") return;
-
-      try {
-        const fragmentResponse = await fetch(`/v1/messages/${uuid}/fragment`, {
-          headers: { Accept: "text/html" },
-        });
-        if (!fragmentResponse.ok) return;
-
-        const fragmentHtml = await fragmentResponse.text();
-        const fragmentEl = this.parseHtmlElement(fragmentHtml);
-        const placeholderEl = this.$refs.responses.querySelector(`[data-temp-id="${tempId}"]`);
-        if (placeholderEl && fragmentEl) placeholderEl.replaceWith(fragmentEl);
-      } finally {
-        this.cleanupEventStreams();
+        this.cleanupAssistantStream();
       }
     });
 
     this.assistantEventSource.addEventListener("error", () => this.cleanupAssistantStream());
-    this.systemEventSource.addEventListener("error", () => this.cleanupSystemStream());
+
+    this.jobPollAttempt = 0;
+    this.pollJobStatus(threadId, tempId);
   },
 
   init() {
