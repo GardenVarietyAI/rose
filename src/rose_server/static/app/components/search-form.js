@@ -1,6 +1,7 @@
-import { placeCaretEnd } from "../utils/caret.js";
 import { isDelimiterKey } from "../utils/keyboard.js";
-import { normalizeText, sanitizeText } from "../utils/text.js";
+import { normalizeText } from "../utils/text.js";
+import { createEditorController } from "../utils/editor-controller.js";
+import { createMentionEngine } from "../utils/mention-engine.js";
 import { findLastToken, removeToken, serialize, TOKEN_TYPES, tokenize } from "../utils/tokenizer.js";
 
 const REGEX_REGEX_ESCAPE = /[.*+?^${}()|[\]\\]/g;
@@ -17,6 +18,8 @@ export const searchForm = () => ({
   resolveOnNextInput: false,
   idToAtName: {},
   errorMessage: "",
+  editor: null,
+  mentions: null,
 
   showError(message) {
     this.errorMessage = message;
@@ -34,6 +37,8 @@ export const searchForm = () => ({
 
     this.queryValue = normalizedQuery;
     this.buildLensState(lensMap);
+    this.editor = createEditorController(this.$refs?.editor);
+    this.mentions = createMentionEngine();
 
     this.$watch("queryValue", (value) => {
       this.$store.search.query = value;
@@ -42,9 +47,8 @@ export const searchForm = () => ({
       const select = this.$refs?.lensSelect;
       if (select) select.value = lensId;
       this.syncEditor({ force: true });
-      const editor = this.$refs?.editor;
-      if (editor && document.activeElement === editor) {
-        placeCaretEnd(editor);
+      if (this.editor && document.activeElement === this.$refs?.editor) {
+        this.editor.placeCaretAtEnd();
       }
     });
     this.$nextTick(() => {
@@ -57,44 +61,33 @@ export const searchForm = () => ({
 
   syncEditor({ force = false } = {}) {
     const editor = this.$refs?.editor;
-    if (editor && (force || document.activeElement !== editor)) {
-      this.renderEditor({ editor });
+    if (editor && this.editor && (force || document.activeElement !== editor)) {
+      this.editor.render({ queryText: this.queryValue, selectedLens: this.getSelectedLens() });
     }
     const textarea = this.$refs?.textarea;
     if (textarea) textarea.value = this.queryValue;
   },
 
   syncFromEditor() {
-    const editor = this.$refs?.editor;
-    if (!editor) {
-      throw new Error("Editor ref not found");
+    if (!this.editor) {
+      throw new Error("Editor controller not initialized");
     }
-    const nextValue = this.serializeEditor(editor);
+    const nextValue = this.editor.serialize({ normalizeWhitespace: true });
     if (nextValue !== this.queryValue) {
       this.queryValue = nextValue;
       const textarea = this.$refs?.textarea;
       if (textarea) textarea.value = nextValue;
     }
-    const mentionText = this.getMentionText({ editor });
-    this.updateMentionState({ text: mentionText });
+    const mentionText = this.editor.getTextBeforeCaret({ selectedLens: this.getSelectedLens() });
+    const mentionState = this.mentions.update(mentionText, this.lensOptions);
+    this.mentionOpen = mentionState.open;
+    this.mentionQuery = mentionState.query;
+    this.mentionOptions = mentionState.options;
+    this.mentionIndex = mentionState.index;
     if (this.resolveOnNextInput) {
       this.resolveOnNextInput = false;
       this.resolveCompletedMention();
     }
-  },
-
-  serializeEditor(editor) {
-    const parts = [];
-    for (const node of editor.childNodes) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        const text = normalizeText(node.textContent);
-        if (text) parts.push(text);
-      } else if (node.nodeType === Node.ELEMENT_NODE && node.dataset?.token !== "lens") {
-        const text = normalizeText(node.textContent);
-        if (text) parts.push(text);
-      }
-    }
-    return parts.join(" ");
   },
 
   buildSubmitQuery() {
@@ -140,123 +133,49 @@ export const searchForm = () => ({
     return normalizeText(text.replace(new RegExp(`@${escaped}`, "gi"), ""));
   },
 
-
-  renderEditor({ editor } = {}) {
-    if (!editor) return;
-    const selected = this.getSelectedLens();
-    const lensId = selected?.lensId || "";
-    const atName = selected?.atName || "";
-    const fragment = document.createDocumentFragment();
-
-    if (lensId && atName) {
-      const token = document.createElement("span");
-      token.setAttribute("x-data", `lensToken('${lensId}', '${atName}')`);
-      token.setAttribute("x-on:click", "removeLens()");
-      fragment.appendChild(token);
-      fragment.appendChild(document.createTextNode(" "));
-    }
-
-    fragment.appendChild(document.createTextNode(sanitizeText(this.queryValue)));
-
-    editor.textContent = "";
-    editor.appendChild(fragment);
-  },
-
-  getMentionText({ editor } = {}) {
-    if (!editor) return this.queryValue;
-    const selection = window.getSelection();
-    let text = editor.textContent || "";
-    if (selection && selection.rangeCount) {
-      const range = selection.getRangeAt(0).cloneRange();
-      range.selectNodeContents(editor);
-      range.setEnd(selection.focusNode, selection.focusOffset);
-      text = range.toString();
-    }
-    const selected = this.getSelectedLens();
-    const atName = selected?.atName ? selected.atName.toLowerCase() : "";
-    if (!atName) return text;
-    const prefix = `@${atName} `;
-    return text.startsWith(prefix) ? text.slice(prefix.length) : text;
-  },
-
-  resetMentionState() {
-    this.mentionOpen = false;
-    this.mentionQuery = "";
-    this.mentionIndex = 0;
-    this.mentionOptions = this.lensOptions;
-  },
-
-  updateMentionState({ text } = {}) {
-    const content = text || "";
-    const tokens = tokenize(content);
-
-    if (tokens.length === 0) {
-      this.resetMentionState();
-      return;
-    }
-
-    const lastToken = tokens[tokens.length - 1];
-
-    if (lastToken.type !== TOKEN_TYPES.MENTION) {
-      this.resetMentionState();
-      return;
-    }
-
-    const query = lastToken.value.toLowerCase();
-    const options = this.lensOptions.filter((option) =>
-      option.atName.startsWith(query)
-    );
-
-    this.mentionOpen = options.length > 0;
-    this.mentionQuery = query;
-    this.mentionOptions = options;
-    this.mentionIndex = 0;
-  },
-
   resolveCompletedMention({ lensMap } = {}) {
     const map = lensMap || this.getLensMap();
-    const tokens = tokenize(this.queryValue);
-    const lastMention = findLastToken(tokens, TOKEN_TYPES.MENTION);
-
+    if (!this.editor) return;
+    const selected = this.getSelectedLens();
+    const textBeforeCaret = this.editor.getTextBeforeCaret({ selectedLens: selected });
+    const beforeTokens = tokenize(textBeforeCaret);
+    const lastMention = findLastToken(beforeTokens, TOKEN_TYPES.MENTION);
     if (!lastMention) return;
 
     const lensId = map[lastMention.token.value.toLowerCase()];
     if (!lensId) return;
 
+    const cleanedBefore = serialize(removeToken(beforeTokens, lastMention.index)).trim();
+
     this.setSelectedLensId(lensId);
-    this.queryValue = serialize(removeToken(tokens, lastMention.index)).trim();
-    this.mentionOpen = false;
-    this.mentionQuery = "";
+    this.queryValue = cleanedBefore;
+    this.mentions?.reset();
     this.syncEditor({ force: true });
-    const editor = this.$refs?.editor;
-    if (editor) {
-      placeCaretEnd(editor);
-    }
+    this.editor?.placeCaretAtEnd();
   },
 
-  selectMention(option) {
-    if (!option) return;
-    const editor = this.$refs?.editor;
-    if (!editor) return;
+  selectMention() {
+    if (!this.mentions || !this.editor) return;
 
-    const mentionText = this.getMentionText({ editor });
-    const normalized = normalizeText(mentionText);
-    const tokens = tokenize(normalized);
+    const selection = this.mentions.select();
+    if (!selection) return;
+
+    const selected = this.getSelectedLens();
+    const textBeforeCaret = this.editor.getTextBeforeCaret({ selectedLens: selected });
+    const tokens = tokenize(textBeforeCaret);
     const lastMention = findLastToken(tokens, TOKEN_TYPES.MENTION);
 
-    let filteredTokens = tokens;
-    if (lastMention && lastMention.token.value.toLowerCase() === this.mentionQuery.toLowerCase()) {
-      filteredTokens = removeToken(tokens, lastMention.index);
+    let cleanedBefore = textBeforeCaret;
+    if (lastMention && lastMention.token.raw === selection.matchedToken) {
+      const filteredTokens = removeToken(tokens, lastMention.index);
+      cleanedBefore = serialize(filteredTokens).trim();
     }
 
-    const cleanedText = serialize(filteredTokens).trim();
-
-    this.setSelectedLensId(option.lensId);
-    this.queryValue = cleanedText ? `${cleanedText} ` : "";
-    this.mentionOpen = false;
-    this.mentionQuery = "";
+    this.setSelectedLensId(selection.option.lensId);
+    this.queryValue = cleanedBefore ? `${cleanedBefore} ` : "";
+    this.mentions.reset();
     this.syncEditor({ force: true });
-    placeCaretEnd(editor);
+    this.editor.placeCaretAtEnd();
   },
 
   handleEditorKeydown(event) {
@@ -271,17 +190,29 @@ export const searchForm = () => ({
       return;
     }
 
-    const mentionKeyHandlers = {
-      ArrowDown: () => this.mentionIndex = Math.min(this.mentionIndex + 1, this.mentionOptions.length - 1),
-      ArrowUp: () => this.mentionIndex = Math.max(this.mentionIndex - 1, 0),
-      Enter: () => this.selectMention(this.mentionOptions[this.mentionIndex]),
-      " ": () => this.selectMention(this.mentionOptions[this.mentionIndex]),
-      Escape: () => this.mentionOpen = false,
-    };
-
-    if (mentionKeyHandlers[event.key]) {
+    if (!this.mentions) return;
+    if (event.key === "ArrowDown") {
       event.preventDefault();
-      mentionKeyHandlers[event.key]();
+      this.mentionIndex = this.mentions.navigate("down");
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      this.mentionIndex = this.mentions.navigate("up");
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      this.selectMention();
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      this.mentionOpen = false;
+      this.mentionQuery = "";
+      this.mentionOptions = this.lensOptions;
+      this.mentionIndex = 0;
+      this.mentions?.reset();
     }
   },
 

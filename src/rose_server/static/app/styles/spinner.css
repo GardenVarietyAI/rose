@@ -1,0 +1,10 @@
+.spinner {
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: block;
+  border: 3px solid var(--rose-gray-3);
+  border-top-color: var(--rose-green-7);
+  animation: var(--animation-spin);
+  margin: 0 auto;
+}
