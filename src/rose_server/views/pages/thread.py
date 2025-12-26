@@ -9,13 +9,18 @@ def render_thread_page(
     thread_id: str,
     active_tab: str,
     content: Node,
+    x_data: str | None,
 ) -> Node:
     tabs = [
         Tab(label="Answers", href=f"/v1/threads/{thread_id}", active=(active_tab == "answers")),
         Tab(label="Activity", href=f"/v1/threads/{thread_id}/activity", active=(active_tab == "activity")),
     ]
 
+    kwargs = {"data_thread_id": thread_id}
+    if x_data:
+        kwargs["x_data"] = x_data
+
     return render_page(
         title_text=f"Thread: {thread_id}",
-        content=div(x_data="threadPage()", data_thread_id=thread_id)[render_tabs(tabs=tabs), content],
+        content=div(**kwargs)[render_tabs(tabs=tabs), content],
     )

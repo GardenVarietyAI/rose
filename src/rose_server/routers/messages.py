@@ -149,27 +149,26 @@ async def create_message(
 
         lens_id = body.lens_id.strip() if body.lens_id else None
 
-        job_message, generation_messages, _lens_at_name = await assistant.prepare_and_generate_assistant(
+        job_id, generation_messages, lens_at_name = await assistant.prepare_and_generate_assistant(
             session,
-            thread_id=thread_id,
             user_message=prompt,
             lens_id=lens_id,
-            model_used=model_used,
         )
 
         background_tasks.add_task(
             jobs.run_generate_assistant_job,
             thread_id=thread_id,
-            job_uuid=job_message.uuid,
+            job_id=job_id,
             model_used=model_used,
             requested_model=requested_model,
             messages=generation_messages,
             lens_id=lens_id,
+            lens_at_name=lens_at_name,
             llama_client=llama_client,
             bind=session.bind,
         )
 
-        return CreateMessageResponse(thread_id=thread_id, message_uuid=job_message.uuid, job_uuid=job_message.uuid)
+        return CreateMessageResponse(thread_id=thread_id, message_uuid=prompt.uuid, job_uuid=job_id)
 
     content = serialize_message_content(body.content)
     if content is None or not content.strip():
