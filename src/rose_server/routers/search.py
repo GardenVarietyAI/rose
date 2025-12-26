@@ -1,11 +1,8 @@
-import logging
-import re
-from typing import Any, Dict, List
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
 from htpy.starlette import HtpyResponse
 from pydantic import BaseModel
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from symspellpy import SymSpell
 
@@ -15,34 +12,11 @@ from rose_server.dependencies import (
     get_spell_checker,
 )
 from rose_server.models.search_events import SearchEvent
-from rose_server.routers.lenses import list_lens_options
-from rose_server.services.keyword_extractor import extract_keywords
+from rose_server.routers.lenses import get_lens_message, list_lens_picker_options
+from rose_server.services.search import run_search
 from rose_server.views.pages.search import render_search
 
-logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["search"])
-
-KEYWORDS_THRESHOLD = 3
-MAX_KEYWORDS = 3
-MAX_KEYWORD_CANDIDATES = 5
-
-
-_FTS_QUERY_SQL = """
-        SELECT
-            m.uuid,
-            -bm25(messages_fts) as score,
-            snippet(messages_fts, -1, '', '', '...', 64) as excerpt,
-            m.content,
-            m.thread_id,
-            m.role,
-            m.model,
-            m.created_at
-        FROM messages_fts
-        JOIN messages m ON messages_fts.rowid = m.id
-        WHERE {where}
-        ORDER BY bm25(messages_fts)
-        LIMIT :limit
-    """
 
 
 class SearchHit(BaseModel):
@@ -50,110 +24,59 @@ class SearchHit(BaseModel):
     score: float
     text: str
     excerpt: str
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 class SearchResponse(BaseModel):
     index: str
     query: str
-    hits: List[SearchHit]
+    hits: list[SearchHit]
 
 
-def normalize_query(query: str) -> str:
-    """Remove punctuation for spell checking."""
-    chars_to_remove = "?!.,;:-+()[]{}*^"
-    translator = str.maketrans(chars_to_remove, " " * len(chars_to_remove))
-    normalized = query.translate(translator)
-    return " ".join(normalized.split())
+class SearchRequest(BaseModel):
+    q: str = ""
+    limit: int = 10
+    exact: bool = False
+    lens_id: str | None = None
 
 
-def sanitize_fts5_query(query: str) -> str:
-    """Escape and sanitize query string for FTS5."""
-    sanitized = re.sub(r"[^\w\s]", " ", query)
-    return " ".join(sanitized.split())
+def _convert_hits(hits: list[Any]) -> list[SearchHit]:
+    return [SearchHit.model_validate(hit, from_attributes=True) for hit in hits]
 
 
-async def _fetch_hits(read_session: AsyncSession, fts_query: str, limit: int, lens_id: str | None) -> list[SearchHit]:
-    where_parts = ["messages_fts MATCH :query", "m.deleted_at IS NULL"]
-    params: dict[str, Any] = {"query": fts_query, "limit": limit}
-    if lens_id:
-        where_parts.append("m.lens_id = :lens_id")
-        params["lens_id"] = lens_id
+def _record_search_event(result: Any, write_session: AsyncSession) -> None:
+    if not result.search_mode or not result.fts_query:
+        return
 
-    sql = _FTS_QUERY_SQL.format(where=" AND ".join(where_parts))
-    query = text(sql)
-    result = await read_session.execute(query, params)
-    rows = result.fetchall()
-
-    hits: list[SearchHit] = []
-    for row in rows:
-        metadata: Dict[str, Any] = {
-            "thread_id": row.thread_id,
-            "role": row.role,
-            "model": row.model,
-            "created_at": row.created_at,
-        }
-        hits.append(
-            SearchHit(
-                id=row.uuid,
-                score=row.score,
-                text=row.content,
-                excerpt=row.excerpt,
-                metadata=metadata,
-            )
-        )
-
-    return hits
+    original_query = result.original_query if result.original_query != result.fts_query else None
+    search_event = SearchEvent(
+        event_type="search",
+        search_mode=result.search_mode,
+        query=result.fts_query,
+        original_query=original_query,
+        result_count=len(result.hits),
+    )
+    write_session.add(search_event)
 
 
-async def _augment_with_keywords(
-    read_session: AsyncSession,
-    query: str,
+async def _build_display_query(
     *,
-    remaining: int,
-    seen_ids: set[str],
-    lens_id: str | None,
-) -> tuple[list[SearchHit], bool]:
-    if remaining <= 0:
-        return ([], False)
+    read_session: AsyncSession,
+    result: Any,
+) -> str:
+    display_query = result.clean_query or result.query
+    lens_id = result.lens_id
+    if not lens_id:
+        return display_query
 
-    result = extract_keywords(query, max_keywords=MAX_KEYWORD_CANDIDATES)
-    if not result.phrases:
-        return ([], False)
+    lens_message = await get_lens_message(read_session, lens_id)
+    if lens_message is None or not lens_message.at_name:
+        return display_query
 
-    augmented_hits: list[SearchHit] = []
-    used_keywords = False
-    keywords_used = 0
-
-    for keyword in result.phrases:
-        if remaining <= 0:
-            break
-
-        sanitized_keyword = sanitize_fts5_query(keyword)
-        if not sanitized_keyword:
-            continue
-
-        added_from_keyword = 0
-        keyword_hits = await _fetch_hits(read_session, sanitized_keyword, remaining, lens_id)
-        if keyword_hits:
-            used_keywords = True
-
-        for hit in keyword_hits:
-            if hit.id in seen_ids:
-                continue
-            seen_ids.add(hit.id)
-            augmented_hits.append(hit)
-            remaining -= 1
-            added_from_keyword += 1
-            if remaining <= 0:
-                break
-
-        if added_from_keyword > 0:
-            keywords_used += 1
-            if keywords_used >= MAX_KEYWORDS:
-                break
-
-    return (augmented_hits, used_keywords)
+    prefix = f"@{lens_message.at_name}"
+    if not display_query:
+        return prefix
+    return f"{prefix} {display_query}"
 
 
 @router.get("/search")
@@ -167,70 +90,84 @@ async def search_messages(
     write_session: AsyncSession = Depends(get_db_session),
     spell_checker: SymSpell | None = Depends(get_spell_checker),
 ) -> Any:
-    hits = []
-    corrected_query = None
-    original_query = q
-    used_keywords = False
+    result = await run_search(
+        read_session=read_session,
+        q=q,
+        limit=limit,
+        exact=exact,
+        lens_id=lens_id,
+        spell_checker=spell_checker,
+    )
 
-    if q:
-        normalized_q = normalize_query(q)
-
-        if not exact and spell_checker:
-            suggestions = spell_checker.lookup_compound(normalized_q, max_edit_distance=2)
-            if suggestions and suggestions[0].term.lower() != normalized_q.lower():
-                corrected_query = suggestions[0].term
-                q = corrected_query
-
-        fts_query = sanitize_fts5_query(q)
-        hits = await _fetch_hits(read_session, fts_query, limit, lens_id)
-
-        if len(hits) < KEYWORDS_THRESHOLD:
-            remaining = max(0, limit - len(hits))
-            seen_ids = {hit.id for hit in hits}
-            augmented_hits, used_keywords = await _augment_with_keywords(
-                read_session,
-                q,
-                remaining=remaining,
-                seen_ids=seen_ids,
-                lens_id=lens_id,
-            )
-            hits.extend(augmented_hits)
-
-        if corrected_query and used_keywords:
-            search_mode = "fts_corrected_augmented"
-        elif corrected_query:
-            search_mode = "fts_corrected"
-        elif used_keywords:
-            search_mode = "fts_augmented"
-        else:
-            search_mode = "fts"
-
-        search_event = SearchEvent(
-            event_type="search",
-            search_mode=search_mode,
-            query=fts_query,
-            original_query=original_query if original_query != fts_query else None,
-            result_count=len(hits),
-        )
-        write_session.add(search_event)
+    _record_search_event(result, write_session)
 
     response_data = SearchResponse(
         index="messages",
-        query=q,
-        hits=hits,
+        query=result.query,
+        hits=_convert_hits(result.hits),
     )
 
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
-        lenses = await list_lens_options(read_session)
+        lenses = await list_lens_picker_options(read_session)
+        hits = _convert_hits(result.hits)
+        display_query = await _build_display_query(read_session=read_session, result=result)
         return HtpyResponse(
             render_search(
-                query=q,
+                query=display_query,
                 hits=hits,
-                corrected_query=corrected_query,
-                original_query=original_query,
+                corrected_query=result.corrected_query,
+                original_query=result.clean_query,
                 lenses=lenses,
-                selected_lens_id=lens_id,
+                selected_lens_id=result.lens_id,
+                limit=limit,
+                exact=exact,
+            )
+        )
+
+    return response_data
+
+
+@router.post("/search")
+async def search_messages_post(
+    request: Request,
+    body: SearchRequest,
+    read_session: AsyncSession = Depends(get_readonly_db_session),
+    write_session: AsyncSession = Depends(get_db_session),
+    spell_checker: SymSpell | None = Depends(get_spell_checker),
+) -> Any:
+    result = await run_search(
+        read_session=read_session,
+        q=body.q,
+        limit=body.limit,
+        exact=body.exact,
+        lens_id=body.lens_id,
+        spell_checker=spell_checker,
+    )
+
+    _record_search_event(result, write_session)
+
+    response_data = SearchResponse(
+        index="messages",
+        query=result.query,
+        hits=_convert_hits(result.hits),
+    )
+
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept:
+        lenses = await list_lens_picker_options(read_session)
+        hits = _convert_hits(result.hits)
+        display_query = await _build_display_query(read_session=read_session, result=result)
+        return HtpyResponse(
+            render_search(
+                query=display_query,
+                hits=hits,
+                corrected_query=result.corrected_query,
+                original_query=result.clean_query,
+                lenses=lenses,
+                selected_lens_id=result.lens_id,
+                limit=body.limit,
+                exact=body.exact,
             )
         )
 

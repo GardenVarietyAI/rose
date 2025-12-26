@@ -56,6 +56,7 @@ def render_thread_messages(
                 uuid=resp.uuid,
                 dom_id=f"msg-{resp.uuid}",
                 role=resp.role,
+                display_role=resp.display_role,
                 model=resp.model or "",
                 content=resp.content or "",
                 created_at=resp.created_at,

@@ -61,12 +61,46 @@ async def list_lens_options(session: AsyncSession) -> list[tuple[str, str]]:
     return options
 
 
+async def list_lens_autocomplete_options(session: AsyncSession) -> list[tuple[str, str]]:
+    lenses = await list_lenses_messages(session)
+    options: list[tuple[str, str]] = []
+    for lens in lenses:
+        meta = lens.meta
+        if meta is None:
+            raise HTTPException(status_code=500, detail="Lens missing meta")
+        options.append((str(meta["at_name"]), str(meta["label"])))
+    return options
+
+
+async def list_lens_picker_options(session: AsyncSession) -> list[tuple[str, str, str]]:
+    lenses = await list_lenses_messages(session)
+    options: list[tuple[str, str, str]] = []
+    for lens in lenses:
+        meta = lens.meta
+        if meta is None:
+            raise HTTPException(status_code=500, detail="Lens missing meta")
+        options.append((lens.uuid, str(meta["at_name"]), str(meta["label"])))
+    return options
+
+
 async def get_lens_message(session: AsyncSession, lens_id: str) -> Message | None:
     result = await session.execute(
         select(Message)
         .where(col(Message.uuid) == lens_id)
         .where(col(Message.object) == LENS_OBJECT)
         .where(col(Message.deleted_at).is_(None))
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_lens_message_by_at_name(session: AsyncSession, at_name: str) -> Message | None:
+    result = await session.execute(
+        select(Message)
+        .where(col(Message.object) == LENS_OBJECT)
+        .where(col(Message.at_name) == at_name)
+        .where(col(Message.deleted_at).is_(None))
+        .order_by(col(Message.created_at).desc(), col(Message.id).desc())
         .limit(1)
     )
     return result.scalar_one_or_none()

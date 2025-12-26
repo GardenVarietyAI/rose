@@ -30,6 +30,7 @@ def response_message(
     uuid: str,
     dom_id: str | None,
     role: str,
+    display_role: str | None = None,
     model: str | None,
     content: str,
     created_at: datetime | str | int,
@@ -42,7 +43,7 @@ def response_message(
     attrs: dict[str, str] = {":class": "{ accepted }"}
 
     header_children: list[Node] = [
-        span(class_="message-role")[role],
+        span(class_="message-role")[display_role or role],
         span(class_="message-model")[model_text],
     ]
     if role == "assistant":
