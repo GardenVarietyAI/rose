@@ -13,18 +13,27 @@ from rose_server.dependencies import (
 )
 from rose_server.models.search_events import SearchEvent
 from rose_server.routers.lenses import get_lens_message, list_lens_picker_options
-from rose_server.services.search import run_search
+from rose_server.services.search import SearchResult, run_search
 from rose_server.views.pages.search import render_search, render_search_root
 
 router = APIRouter(prefix="/v1", tags=["search"])
 
 
 class SearchHit(BaseModel):
-    id: str
+    thread_id: str
     score: float
-    text: str
-    excerpt: str
-    metadata: dict[str, Any]
+    user_message_id: str
+    user_message_text: str
+    user_message_excerpt: str | None
+    user_message_created_at: int
+    assistant_message_id: str
+    assistant_message_text: str
+    assistant_message_excerpt: str
+    assistant_message_created_at: int
+    assistant_message_model: str | None
+    accepted: bool
+    matched_role: str
+    matched_message_id: str
 
 
 class SearchResponse(BaseModel):
@@ -44,7 +53,7 @@ def _convert_hits(hits: list[Any]) -> list[SearchHit]:
     return [SearchHit.model_validate(hit, from_attributes=True) for hit in hits]
 
 
-def _record_search_event(result: Any, write_session: AsyncSession) -> None:
+def _record_search_event(result: SearchResult, write_session: AsyncSession) -> None:
     if not result.search_mode or not result.fts_query:
         return
 
@@ -62,7 +71,7 @@ def _record_search_event(result: Any, write_session: AsyncSession) -> None:
 async def _build_display_query(
     *,
     read_session: AsyncSession,
-    result: Any,
+    result: SearchResult,
 ) -> str:
     display_query = result.clean_query or result.query
     lens_id = result.lens_id
@@ -101,21 +110,21 @@ async def search_messages(
 
     _record_search_event(result, write_session)
 
+    converted_hits = _convert_hits(result.hits)
     response_data = SearchResponse(
         index="messages",
         query=result.query,
-        hits=_convert_hits(result.hits),
+        hits=converted_hits,
     )
 
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
         lenses = await list_lens_picker_options(read_session)
-        hits = _convert_hits(result.hits)
         display_query = await _build_display_query(read_session=read_session, result=result)
         return HtpyResponse(
             render_search(
                 query=display_query,
-                hits=hits,
+                hits=converted_hits,
                 corrected_query=result.corrected_query,
                 original_query=result.clean_query,
                 lenses=lenses,
@@ -147,21 +156,21 @@ async def search_messages_post(
 
     _record_search_event(result, write_session)
 
+    converted_hits = _convert_hits(result.hits)
     response_data = SearchResponse(
         index="messages",
         query=result.query,
-        hits=_convert_hits(result.hits),
+        hits=converted_hits,
     )
 
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
         lenses = await list_lens_picker_options(read_session)
-        hits = _convert_hits(result.hits)
         display_query = await _build_display_query(read_session=read_session, result=result)
         return HtpyResponse(
             render_search(
                 query=display_query,
-                hits=hits,
+                hits=converted_hits,
                 corrected_query=result.corrected_query,
                 original_query=result.clean_query,
                 lenses=lenses,
@@ -193,17 +202,17 @@ async def search_fragment(
     _record_search_event(result, write_session)
 
     lenses = await list_lens_picker_options(read_session)
-    hits = _convert_hits(result.hits)
+    converted_hits = _convert_hits(result.hits)
     display_query = await _build_display_query(read_session=read_session, result=result)
 
     return HtpyResponse(
         render_search_root(
             query=display_query,
-            hits=hits,
+            hits=converted_hits,
             corrected_query=result.corrected_query,
             original_query=result.clean_query,
             lenses=lenses,
             selected_lens_id=result.lens_id,
-            hits_count=len(hits),
+            hits_count=len(converted_hits),
         )
     )

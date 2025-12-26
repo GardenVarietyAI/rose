@@ -15,33 +15,117 @@ KEYWORDS_THRESHOLD = 3
 MAX_KEYWORDS = 3
 MAX_KEYWORD_CANDIDATES = 5
 
-DEFAULT_LENS_OBJECT = "lens"
-
 _FTS_QUERY_SQL = """
+        WITH base_hits AS (
+            SELECT
+                m.uuid,
+                m.thread_id,
+                m.role,
+                m.content,
+                m.created_at,
+                m.accepted_at,
+                m.model,
+                -bm25(messages_fts) as score,
+                snippet(messages_fts, -1, '', '', '...', 64) as excerpt
+            FROM messages_fts
+            JOIN messages m ON messages_fts.rowid = m.id
+            WHERE {where}
+        ),
+        best_per_thread AS (
+            SELECT * FROM (
+                SELECT
+                    *,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY thread_id
+                        ORDER BY score DESC
+                    ) as rn
+                FROM base_hits
+            ) WHERE rn = 1
+        ),
+        user_selected AS (
+            SELECT
+                m.thread_id,
+                m.uuid,
+                m.content,
+                m.created_at,
+                uh.excerpt,
+                ROW_NUMBER() OVER (
+                    PARTITION BY m.thread_id
+                    ORDER BY m.created_at DESC, m.id DESC
+                ) as rn
+            FROM messages m
+            LEFT JOIN (SELECT uuid, excerpt FROM base_hits WHERE role = 'user') uh ON uh.uuid = m.uuid
+            WHERE m.thread_id IN (SELECT thread_id FROM best_per_thread)
+              AND m.role = 'user'
+              AND m.deleted_at IS NULL
+        ),
+        assistant_selected AS (
+            SELECT
+                m.thread_id,
+                m.uuid,
+                m.content,
+                m.created_at,
+                m.accepted_at,
+                m.model,
+                ah.score,
+                ah.excerpt,
+                ROW_NUMBER() OVER (
+                    PARTITION BY m.thread_id
+                    ORDER BY
+                        CASE WHEN m.accepted_at IS NOT NULL THEN 0 ELSE 1 END,
+                        CASE
+                            WHEN m.accepted_at IS NOT NULL THEN 0
+                            ELSE CASE WHEN ah.score IS NULL THEN 1 ELSE 0 END
+                        END,
+                        ah.score DESC,
+                        m.created_at DESC
+                ) as rn
+            FROM messages m
+            LEFT JOIN (SELECT uuid, score, excerpt FROM base_hits WHERE role = 'assistant') ah ON ah.uuid = m.uuid
+            WHERE m.thread_id IN (SELECT thread_id FROM best_per_thread)
+              AND m.role = 'assistant'
+              AND m.deleted_at IS NULL
+        )
         SELECT
-            m.uuid,
-            -bm25(messages_fts) as score,
-            snippet(messages_fts, -1, '', '', '...', 64) as excerpt,
-            m.content,
-            m.thread_id,
-            m.role,
-            m.model,
-            m.created_at
-        FROM messages_fts
-        JOIN messages m ON messages_fts.rowid = m.id
-        WHERE {where}
-        ORDER BY bm25(messages_fts)
+            u.thread_id,
+            u.uuid as user_uuid,
+            u.content as user_content,
+            u.excerpt as user_excerpt,
+            u.created_at as user_created_at,
+            a.uuid as assistant_uuid,
+            a.content as assistant_content,
+            COALESCE(a.excerpt, a.content) as assistant_excerpt,
+            a.created_at as assistant_created_at,
+            a.model as assistant_model,
+            a.accepted_at,
+            bph.score,
+            bph.role as matched_role,
+            bph.uuid as matched_message_id
+        FROM user_selected u
+        JOIN assistant_selected a ON a.thread_id = u.thread_id
+        JOIN best_per_thread bph ON bph.thread_id = u.thread_id
+        WHERE u.rn = 1 AND a.rn = 1
+        ORDER BY bph.score DESC
         LIMIT :limit
     """
 
 
 @dataclass(frozen=True, slots=True)
 class SearchHit:
-    id: str
+    thread_id: str
     score: float
-    text: str
-    excerpt: str
-    metadata: dict[str, Any]
+    user_message_id: str
+    user_message_text: str
+    user_message_excerpt: str | None
+    user_message_created_at: int
+    assistant_message_id: str
+    assistant_message_text: str
+    assistant_message_excerpt: str
+    assistant_message_created_at: int
+    assistant_message_model: str | None
+    accepted: bool
+    matched_role: str
+    matched_message_id: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,7 +157,6 @@ def sanitize_fts5_query(query: str) -> str:
 async def _resolve_lens_id_from_mentions(
     session: AsyncSession,
     *,
-    lens_object: str,
     at_names: list[str],
 ) -> str | None:
     if not at_names:
@@ -83,7 +166,7 @@ async def _resolve_lens_id_from_mentions(
     result = await session.execute(
         select(Message)
         .where(
-            col(Message.object) == lens_object,
+            col(Message.object) == "lens",
             col(Message.at_name) == last_at_name,
             col(Message.deleted_at).is_(None),
         )
@@ -94,6 +177,25 @@ async def _resolve_lens_id_from_mentions(
     if lens_msg is None:
         return None
     return lens_msg.uuid
+
+
+def _build_search_hit(row: Any) -> SearchHit:
+    return SearchHit(
+        thread_id=row.thread_id,
+        score=row.score,
+        user_message_id=row.user_uuid,
+        user_message_text=row.user_content or "",
+        user_message_excerpt=row.user_excerpt,
+        user_message_created_at=row.user_created_at,
+        assistant_message_id=row.assistant_uuid,
+        assistant_message_text=row.assistant_content or "",
+        assistant_message_excerpt=row.assistant_excerpt or "",
+        assistant_message_created_at=row.assistant_created_at,
+        assistant_message_model=row.assistant_model,
+        accepted=row.accepted_at is not None,
+        matched_role=row.matched_role,
+        matched_message_id=row.matched_message_id,
+    )
 
 
 async def _fetch_hits(
@@ -121,23 +223,7 @@ async def _fetch_hits(
     result = await session.execute(text(sql), params)
     rows = result.fetchall()
 
-    hits: list[SearchHit] = []
-    for row in rows:
-        hits.append(
-            SearchHit(
-                id=row.uuid,
-                score=row.score,
-                text=row.content,
-                excerpt=row.excerpt,
-                metadata={
-                    "thread_id": row.thread_id,
-                    "role": row.role,
-                    "model": row.model,
-                    "created_at": row.created_at,
-                },
-            )
-        )
-    return hits
+    return [_build_search_hit(row) for row in rows]
 
 
 async def _augment_with_keywords(
@@ -145,7 +231,7 @@ async def _augment_with_keywords(
     *,
     query: str,
     remaining: int,
-    seen_ids: set[str],
+    seen_thread_ids: set[str],
     lens_id: str | None,
 ) -> tuple[list[SearchHit], bool]:
     if remaining <= 0:
@@ -173,9 +259,9 @@ async def _augment_with_keywords(
             used_keywords = True
 
         for hit in keyword_hits:
-            if hit.id in seen_ids:
+            if hit.thread_id in seen_thread_ids:
                 continue
-            seen_ids.add(hit.id)
+            seen_thread_ids.add(hit.thread_id)
             augmented_hits.append(hit)
             remaining -= 1
             added_from_keyword += 1
@@ -208,7 +294,6 @@ async def run_search(
     exact: bool,
     lens_id: str | None,
     spell_checker: SymSpell | None,
-    lens_object: str = DEFAULT_LENS_OBJECT,
 ) -> SearchResult:
     original_query = q
     corrected_query: str | None = None
@@ -247,7 +332,7 @@ async def run_search(
     _, clean_query, at_names = parse_query(original_query)
     requested_lens_at_name = at_names[-1] if at_names else None
     if at_names and not lens_id:
-        resolved = await _resolve_lens_id_from_mentions(read_session, lens_object=lens_object, at_names=at_names)
+        resolved = await _resolve_lens_id_from_mentions(read_session, at_names=at_names)
         if resolved:
             lens_id = resolved
 
@@ -307,12 +392,12 @@ async def run_search(
 
     if len(hits) < KEYWORDS_THRESHOLD:
         remaining = max(0, limit - len(hits))
-        seen_ids = {hit.id for hit in hits}
+        seen_thread_ids = {hit.thread_id for hit in hits}
         augmented_hits, used_keywords = await _augment_with_keywords(
             read_session,
             query=effective_query,
             remaining=remaining,
-            seen_ids=seen_ids,
+            seen_thread_ids=seen_thread_ids,
             lens_id=lens_id,
         )
         hits.extend(augmented_hits)
