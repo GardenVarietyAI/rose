@@ -103,8 +103,15 @@ async def _fetch_hits(
     limit: int,
     lens_id: str | None,
 ) -> list[SearchHit]:
-    where_parts = ["messages_fts MATCH :query", "m.deleted_at IS NULL"]
-    params: dict[str, Any] = {"query": fts_query, "limit": limit}
+    where_parts = []
+    params: dict[str, Any] = {"limit": limit}
+
+    if fts_query:
+        where_parts.append("messages_fts MATCH :query")
+        params["query"] = fts_query
+
+    where_parts.append("m.deleted_at IS NULL")
+
     if lens_id:
         where_parts.append("m.lens_id = :lens_id")
         params["lens_id"] = lens_id
@@ -209,6 +216,20 @@ async def run_search(
     requested_lens_at_name: str | None = None
 
     if not original_query:
+        if lens_id:
+            hits = await _fetch_hits(read_session, fts_query="", limit=limit, lens_id=lens_id)
+            return SearchResult(
+                original_query=original_query,
+                clean_query="",
+                query="",
+                fts_query="",
+                corrected_query=None,
+                used_keywords=False,
+                search_mode="filter",
+                lens_id=lens_id,
+                requested_lens_at_name=None,
+                hits=hits,
+            )
         return SearchResult(
             original_query=original_query,
             clean_query="",
@@ -230,6 +251,20 @@ async def run_search(
             lens_id = resolved
 
     if not clean_query:
+        if lens_id:
+            hits = await _fetch_hits(read_session, fts_query="", limit=limit, lens_id=lens_id)
+            return SearchResult(
+                original_query=original_query,
+                clean_query="",
+                query="",
+                fts_query="",
+                corrected_query=None,
+                used_keywords=False,
+                search_mode="filter",
+                lens_id=lens_id,
+                requested_lens_at_name=requested_lens_at_name,
+                hits=hits,
+            )
         return SearchResult(
             original_query=original_query,
             clean_query="",

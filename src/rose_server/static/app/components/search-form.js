@@ -1,10 +1,4 @@
-import { isDelimiterKey } from "../utils/keyboard.js";
-import { normalizeText } from "../utils/text.js";
-import { createEditorController } from "../utils/editor-controller.js";
-import { createMentionEngine } from "../utils/mention-engine.js";
-import { findLastToken, removeToken, serialize, TOKEN_TYPES, tokenize } from "../utils/tokenizer.js";
-
-const REGEX_REGEX_ESCAPE = /[.*+?^${}()|[\]\\]/g;
+import { createBufferController } from "../utils/buffer-controller.js";
 
 export const searchForm = () => ({
   queryValue: "",
@@ -15,11 +9,9 @@ export const searchForm = () => ({
   mentionQuery: "",
   mentionOptions: [],
   lensOptions: [],
-  resolveOnNextInput: false,
   idToAtName: {},
   errorMessage: "",
-  editor: null,
-  mentions: null,
+  controller: null,
 
   showError(message) {
     this.errorMessage = message;
@@ -27,79 +19,84 @@ export const searchForm = () => ({
   },
 
   init() {
-    const lensMap = this.getLensMap();
     const initialQuery = this.$store.search.query || "";
-    const initialLensId = this.$store.search.lens_id || "";
-    const initialAtName = Object.entries(lensMap).find(([, id]) => id === initialLensId)?.[0] || "";
-    const normalizedQuery = initialAtName
-      ? this.stripAtNameFromQuery(initialQuery, initialAtName)
-      : initialQuery;
+    const lensMap = this.$store.search.lens_map || {};
 
-    this.queryValue = normalizedQuery;
+    this.queryValue = initialQuery.replace(/^@\S+\s*/, "");
     this.buildLensState(lensMap);
-    this.editor = createEditorController(this.$refs?.editor);
-    this.mentions = createMentionEngine();
+    this.controller = createBufferController(this.$refs?.editor);
 
     this.$watch("queryValue", (value) => {
       this.$store.search.query = value;
     });
-    this.$watch("$store.search.lens_id", (lensId) => {
+    this.$watch("$store.search.lens_id", (lensId, oldLensId) => {
       const select = this.$refs?.lensSelect;
       if (select) select.value = lensId;
-      this.syncEditor({ force: true });
-      if (this.editor && document.activeElement === this.$refs?.editor) {
-        this.editor.placeCaretAtEnd();
+
+      if (oldLensId !== undefined) {
+        this.controller.removeLens(oldLensId);
+      }
+
+      this.syncFromStore();
+
+      if (oldLensId !== undefined) {
+        if (this.controller && document.activeElement === this.$refs?.editor) {
+          this.controller.placeCaretAtEnd();
+        }
+        if (!lensId) {
+          this.submit();
+        }
       }
     });
     this.$nextTick(() => {
-      this.syncEditor({ force: true });
+      this.syncFromStore();
       if (!initialQuery) {
         this.$refs?.editor?.focus();
       }
     });
   },
 
-  syncEditor({ force = false } = {}) {
-    const editor = this.$refs?.editor;
-    if (editor && this.editor && (force || document.activeElement !== editor)) {
-      this.editor.render({ queryText: this.queryValue, selectedLens: this.getSelectedLens() });
-    }
+  syncFromStore() {
+    if (!this.controller) return;
+    this.controller.loadFromQuery(this.queryValue, this.getSelectedLens());
     const textarea = this.$refs?.textarea;
     if (textarea) textarea.value = this.queryValue;
   },
 
-  syncFromEditor() {
-    if (!this.editor) {
-      throw new Error("Editor controller not initialized");
+  syncToStore() {
+    if (!this.controller) {
+      throw new Error("Buffer controller not initialized");
     }
-    const nextValue = this.editor.serialize({ normalizeWhitespace: true });
+    this.controller.syncBufferOnly();
+    const nextValue = this.controller.serialize();
     if (nextValue !== this.queryValue) {
       this.queryValue = nextValue;
       const textarea = this.$refs?.textarea;
       if (textarea) textarea.value = nextValue;
     }
-    const mentionText = this.editor.getTextBeforeCaret({ selectedLens: this.getSelectedLens() });
-    const mentionState = this.mentions.update(mentionText, this.lensOptions);
-    this.mentionOpen = mentionState.open;
-    this.mentionQuery = mentionState.query;
-    this.mentionOptions = mentionState.options;
-    this.mentionIndex = mentionState.index;
-    if (this.resolveOnNextInput) {
-      this.resolveOnNextInput = false;
-      this.resolveCompletedMention();
+    this.updateMentionState();
+  },
+
+  updateMentionState() {
+    if (!this.controller) return;
+    const mention = this.controller.detectMention();
+    if (!mention) {
+      this.mentionOpen = false;
+      this.mentionQuery = "";
+      this.mentionOptions = this.lensOptions;
+      this.mentionIndex = 0;
+      return;
     }
-  },
 
-  buildSubmitQuery() {
-    const selected = this.getSelectedLens();
-    const atName = selected?.atName?.toLowerCase() || "";
-    const base = this.queryValue.trim();
-    if (!atName) return base;
-    return base ? `@${atName} ${base}` : `@${atName}`;
-  },
-
-  getLensMap() {
-    return this.$store.search.lens_map || {};
+    const query = mention.query;
+    const options = this.lensOptions.filter((option) =>
+      option.atName.startsWith(query)
+    );
+    const wasOpen = this.mentionOpen && this.mentionQuery === query;
+    this.mentionOpen = options.length > 0;
+    this.mentionQuery = query;
+    this.mentionOptions = options;
+    this.mentionIndex = wasOpen ? Math.min(this.mentionIndex, Math.max(options.length - 1, 0)) : 0;
   },
 
   buildLensState(lensMap) {
@@ -121,68 +118,29 @@ export const searchForm = () => ({
     return { lensId, atName };
   },
 
-  setSelectedLensId(lensId) {
-    this.$store.search.lens_id = lensId;
-    const select = this.$refs?.lensSelect;
-    if (select) select.value = lensId;
-  },
-
-  stripAtNameFromQuery(text, atName) {
-    if (!text || !atName) return text;
-    const escaped = atName.replace(REGEX_REGEX_ESCAPE, "\\$&");
-    return normalizeText(text.replace(new RegExp(`@${escaped}`, "gi"), ""));
-  },
-
-  resolveCompletedMention({ lensMap } = {}) {
-    const map = lensMap || this.getLensMap();
-    if (!this.editor) return;
-    const selected = this.getSelectedLens();
-    const textBeforeCaret = this.editor.getTextBeforeCaret({ selectedLens: selected });
-    const beforeTokens = tokenize(textBeforeCaret);
-    const lastMention = findLastToken(beforeTokens, TOKEN_TYPES.MENTION);
-    if (!lastMention) return;
-
-    const lensId = map[lastMention.token.value.toLowerCase()];
-    if (!lensId) return;
-
-    const cleanedBefore = serialize(removeToken(beforeTokens, lastMention.index)).trim();
-
-    this.setSelectedLensId(lensId);
-    this.queryValue = cleanedBefore;
-    this.mentions?.reset();
-    this.syncEditor({ force: true });
-    this.editor?.placeCaretAtEnd();
-  },
-
   selectMention() {
-    if (!this.mentions || !this.editor) return;
+    if (!this.controller || !this.mentionOpen || !this.mentionOptions.length) return;
 
-    const selection = this.mentions.select();
-    if (!selection) return;
+    const mention = this.controller.detectMention();
+    if (!mention) return;
 
-    const selected = this.getSelectedLens();
-    const textBeforeCaret = this.editor.getTextBeforeCaret({ selectedLens: selected });
-    const tokens = tokenize(textBeforeCaret);
-    const lastMention = findLastToken(tokens, TOKEN_TYPES.MENTION);
+    const selected = this.mentionOptions[this.mentionIndex];
+    if (!selected) return;
 
-    let cleanedBefore = textBeforeCaret;
-    if (lastMention && lastMention.token.raw === selection.matchedToken) {
-      const filteredTokens = removeToken(tokens, lastMention.index);
-      cleanedBefore = serialize(filteredTokens).trim();
-    }
+    this.controller.insertLensToken(mention, selected.lensId, selected.atName);
 
-    this.setSelectedLensId(selection.option.lensId);
-    this.queryValue = cleanedBefore ? `${cleanedBefore} ` : "";
-    this.mentions.reset();
-    this.syncEditor({ force: true });
-    this.editor.placeCaretAtEnd();
+    this.$store.search.lens_id = selected.lensId;
+    this.queryValue = this.controller.serialize();
+    this.mentionOpen = false;
+    this.mentionQuery = "";
+    this.mentionOptions = this.lensOptions;
+    this.mentionIndex = 0;
+
+    this.submit();
   },
 
   handleEditorKeydown(event) {
     if (!this.mentionOpen) {
-      if (isDelimiterKey(event.key)) {
-        this.resolveOnNextInput = true;
-      }
       if (event.key === "Enter") {
         event.preventDefault();
         this.submit();
@@ -190,15 +148,15 @@ export const searchForm = () => ({
       return;
     }
 
-    if (!this.mentions) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      this.mentionIndex = this.mentions.navigate("down");
+      const maxIndex = Math.max(this.mentionOptions.length - 1, 0);
+      this.mentionIndex = Math.min(this.mentionIndex + 1, maxIndex);
       return;
     }
     if (event.key === "ArrowUp") {
       event.preventDefault();
-      this.mentionIndex = this.mentions.navigate("up");
+      this.mentionIndex = Math.max(this.mentionIndex - 1, 0);
       return;
     }
     if (event.key === "Enter" || event.key === " ") {
@@ -212,7 +170,6 @@ export const searchForm = () => ({
       this.mentionQuery = "";
       this.mentionOptions = this.lensOptions;
       this.mentionIndex = 0;
-      this.mentions?.reset();
     }
   },
 
@@ -228,7 +185,7 @@ export const searchForm = () => ({
     try {
       const select = this.$refs?.lensSelect;
       const selectedLensId = select?.value?.trim() || this.$store.search.lens_id || "";
-      const submitQuery = this.buildSubmitQuery();
+      const submitQuery = this.queryValue.trim();
 
       const limit = Number(this.$store.search.limit);
       if (!limit || limit < 1) {
@@ -282,9 +239,5 @@ export const searchForm = () => ({
     } finally {
       this.submitting = false;
     }
-  },
-
-  clearLenses() {
-    this.$store.search.clearLens();
   },
 });

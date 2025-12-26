@@ -38,7 +38,7 @@ def render_search_form(
         div(
             {
                 "x-ref": "editor",
-                "x-on:input": "syncFromEditor()",
+                "x-on:input": "syncToStore()",
                 "@keydown": "handleEditorKeydown($event)",
                 "contenteditable": "true",
                 "role": "textbox",
@@ -74,7 +74,6 @@ def render_search_form(
                     "x-ref": "lensSelect",
                     "name": "lens_id",
                     "x-model": "$store.search.lens_id",
-                    "@change": "syncLensToken()",
                 },
                 class_="settings-select",
             )[
@@ -90,7 +89,11 @@ def render_search_form(
                 ],
             ],
             div(class_="settings-actions")[
-                button({"@click.prevent": "clearLenses()"}, type="button", class_="settings-clear-button")["Clear"]
+                button(
+                    {"@click.prevent": "$store.search.clearLens()"},
+                    type="button",
+                    class_="settings-clear-button",
+                )["Clear"]
             ],
         ],
     ]
