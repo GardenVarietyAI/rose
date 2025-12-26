@@ -11,10 +11,8 @@ from sqlmodel import col, select, update
 
 from rose_server.dependencies import get_db_session, get_llama_client, get_readonly_db_session, get_settings
 from rose_server.models.messages import Message
-from rose_server.routers.lenses import get_lens_message, get_lens_message_by_at_name
-from rose_server.services import jobs
-from rose_server.services.llama import normalize_model_name, serialize_message_content
-from rose_server.services.query_parser import parse_query
+from rose_server.services import assistant, jobs
+from rose_server.services.llama import resolve_model, serialize_message_content
 from rose_server.settings import Settings
 from rose_server.views.components.response_message import response_message
 
@@ -118,7 +116,7 @@ async def create_message(
     session: AsyncSession = Depends(get_db_session),
 ) -> CreateMessageResponse:
     requested_model = body.model.strip() if body.model else None
-    model_used, _model_path = normalize_model_name(settings.llama_model_path or requested_model or "default")
+    model_used, _model_path = resolve_model(settings.llama_model_path, requested_model or "default")
 
     if body.generate_assistant and body.content is not None:
         raise HTTPException(status_code=400, detail="Cannot provide content when generate_assistant=true")
@@ -149,41 +147,16 @@ async def create_message(
         if prompt.content is None or not prompt.content.strip():
             raise HTTPException(status_code=400, detail="Prompt content cannot be empty")
 
-        _, generation_content, at_names = parse_query(prompt.content)
-        if not generation_content.strip():
-            raise HTTPException(status_code=400, detail="Prompt content cannot be empty")
+        lens_id = body.lens_id.strip() if body.lens_id else None
 
-        generation_messages: list[dict[str, Any]] = []
-        lens_id = body.lens_id
-        lens_at_name: str | None = None
-        if not lens_id and at_names:
-            last_at_name = at_names[-1]
-            lens_message = await get_lens_message_by_at_name(session, last_at_name)
-            if lens_message is not None:
-                lens_id = lens_message.uuid
-
-        if lens_id:
-            lens_message = await get_lens_message(session, lens_id)
-            if lens_message is None:
-                raise HTTPException(status_code=400, detail="Unknown lens")
-            lens_prompt = lens_message.content
-            if lens_prompt is None:
-                raise HTTPException(status_code=400, detail="Lens missing content")
-            meta = lens_message.meta
-            if meta is None:
-                raise HTTPException(status_code=400, detail="Lens missing meta")
-            lens_at_name = lens_message.at_name
-            generation_messages.append({"role": "system", "content": lens_prompt})
-        generation_messages.append({"role": "user", "content": generation_content})
-
-        job_message = await jobs.create_generate_assistant_job(
+        job_message, generation_messages, _lens_at_name = await assistant.prepare_and_generate_assistant(
             session,
             thread_id=thread_id,
-            user_message_uuid=prompt.uuid,
-            model=model_used,
+            user_message=prompt,
             lens_id=lens_id,
-            lens_at_name=lens_at_name,
+            model_used=model_used,
         )
+
         background_tasks.add_task(
             jobs.run_generate_assistant_job,
             thread_id=thread_id,
