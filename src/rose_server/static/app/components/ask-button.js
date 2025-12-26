@@ -12,11 +12,11 @@ export const askButton = () => ({
       const form = this.$el.closest("form");
       const lensIdValue = form?.querySelector('select[name="lens_id"]')?.value?.trim();
       let lensId = lensIdValue || "";
-      const response = await fetch("/v1/threads", {
+      const response = await fetch("/v1/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: [{ role: "user", content: query }],
+          content: query,
           lens_id: lensId || undefined,
         }),
       });

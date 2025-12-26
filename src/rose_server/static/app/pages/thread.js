@@ -111,7 +111,8 @@ export const threadPage = () => ({
     const link = event?.currentTarget;
     const threadId = link?.dataset?.threadId;
     const model = link?.dataset?.model;
-    if (!threadId) return;
+    const promptContent = link?.dataset?.promptContent;
+    if (!threadId || !promptContent) return;
 
     this.pending = true;
 
@@ -123,17 +124,17 @@ export const threadPage = () => ({
       const latestAssistant = this.$refs.responses.querySelector(".message[data-uuid]");
       const afterAssistantUuid = latestAssistant?.dataset?.uuid || null;
 
-      const createMessageResponse = await fetch("/v1/messages", {
+      const askResponse = await fetch("/v1/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          content: promptContent,
           thread_id: threadId,
-          model: model,
-          generate_assistant: true,
           lens_id: this.$refs?.lensSelect?.value || undefined,
+          model: model,
         }),
       });
-      if (!createMessageResponse.ok) throw new Error(`Create message HTTP ${createMessageResponse.status}`);
+      if (!askResponse.ok) throw new Error(`Ask HTTP ${askResponse.status}`);
 
       this.startEventStreams(threadId, tempId, { afterAssistantUuid });
     } catch (error) {

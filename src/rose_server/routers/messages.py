@@ -3,7 +3,7 @@ import time
 from typing import Any, Literal
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from htpy.starlette import HtpyResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -78,6 +78,35 @@ class CreateRevisionResponse(BaseModel):
 
 def _effective_root_message_id(message: Message) -> str:
     return message.root_message_id or message.uuid
+
+
+class ListMessagesResponse(BaseModel):
+    messages: list[Message]
+
+
+@router.get("/messages", response_model=ListMessagesResponse)
+async def list_messages(
+    thread_id: str | None = Query(None),
+    role: str | None = Query(None),
+    object: str | None = Query(None),
+    limit: int = Query(100, ge=1, le=1000),
+    session: AsyncSession = Depends(get_readonly_db_session),
+) -> ListMessagesResponse:
+    stmt = select(Message).where(col(Message.deleted_at).is_(None))
+
+    if thread_id:
+        stmt = stmt.where(col(Message.thread_id) == thread_id)
+    if role:
+        stmt = stmt.where(col(Message.role) == role)
+    if object:
+        stmt = stmt.where(col(Message.object) == object)
+
+    stmt = stmt.order_by(col(Message.created_at).desc(), col(Message.id).desc()).limit(limit)
+
+    result = await session.execute(stmt)
+    messages = list(result.scalars().all())
+
+    return ListMessagesResponse(messages=messages)
 
 
 @router.post("/messages", response_model=CreateMessageResponse)

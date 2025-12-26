@@ -15,7 +15,7 @@ def render_thread_messages(
     lenses: list[tuple[str, str]],
     selected_lens_id: str | None = None,
 ) -> Node:
-    header = p[
+    header_parts: list[Node] = [
         strong["Lens: "],
         select({"x-ref": "lensSelect"}, class_="lens-select")[
             option(value="")["Default"],
@@ -24,15 +24,24 @@ def render_thread_messages(
                 for lens_id, label in lenses
             ],
         ],
-        " | ",
-        a(
-            {"@click.prevent": "regenerate($event)"},
-            href="#",
-            class_="regenerate-link",
-            data_thread_id=thread_id,
-            data_model=(prompt.model or "") if prompt else "",
-        )["Ask Again"],
     ]
+
+    if prompt:
+        header_parts.extend(
+            [
+                " | ",
+                a(
+                    {"@click.prevent": "regenerate($event)"},
+                    href="#",
+                    class_="regenerate-link",
+                    data_thread_id=thread_id,
+                    data_model=prompt.model or "",
+                    data_prompt_content=prompt.content or "",
+                )["Ask Again"],
+            ]
+        )
+
+    header = p[*header_parts]
 
     content: list[Node] = []
     if prompt:
