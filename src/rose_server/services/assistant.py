@@ -1,8 +1,10 @@
 from typing import Any
 
 from fastapi import HTTPException
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from rose_server.models.message_types import LensMessage
 from rose_server.models.messages import Message
 from rose_server.routers.lenses import get_lens_message
 from rose_server.services import jobs
@@ -24,13 +26,14 @@ async def prepare_and_generate_assistant(
     lens_prompt: str | None = None
 
     if lens_message is not None:
-        meta = lens_message.meta
-        if meta is None:
-            raise HTTPException(status_code=400, detail="Lens missing meta")
-        lens_prompt = lens_message.content
+        try:
+            lens = LensMessage(message=lens_message)
+        except ValidationError as e:
+            raise HTTPException(status_code=400, detail="Lens missing meta") from e
+        lens_prompt = lens.message.content
         if lens_prompt is None:
             raise HTTPException(status_code=400, detail="Lens missing content")
-        lens_at_name = lens_message.at_name
+        lens_at_name = lens.at_name
 
     generation_messages: list[dict[str, Any]] = []
     if lens_prompt is not None:
