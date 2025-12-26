@@ -43,9 +43,6 @@ export const searchForm = () => ({
         if (this.controller && document.activeElement === this.$refs?.editor) {
           this.controller.placeCaretAtEnd();
         }
-        if (!lensId) {
-          this.submit();
-        }
       }
     });
     this.$nextTick(() => {
@@ -136,7 +133,6 @@ export const searchForm = () => ({
     this.mentionOptions = this.lensOptions;
     this.mentionIndex = 0;
 
-    this.submit();
   },
 
   handleEditorKeydown(event) {
@@ -199,11 +195,10 @@ export const searchForm = () => ({
         lens_id: selectedLensId || undefined,
       };
 
-      const response = await fetch(form.action, {
+      const response = await fetch("/v1/search/fragment", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Accept: "text/html",
         },
         body: JSON.stringify(payload),
       });
@@ -213,18 +208,13 @@ export const searchForm = () => ({
       }
 
       const html = await response.text();
-      const doc = new DOMParser().parseFromString(html, "text/html");
-      const next = doc.querySelector("#search-root");
       const current = document.querySelector("#search-root");
 
-      if (!next) {
-        throw new Error("Response missing #search-root element");
-      }
       if (!current) {
         throw new Error("Page missing #search-root element");
       }
 
-      current.replaceWith(next);
+      current.outerHTML = html;
 
       const params = new URLSearchParams();
       if (payload.q) params.set("q", payload.q);

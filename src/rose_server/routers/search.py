@@ -14,7 +14,7 @@ from rose_server.dependencies import (
 from rose_server.models.search_events import SearchEvent
 from rose_server.routers.lenses import get_lens_message, list_lens_picker_options
 from rose_server.services.search import run_search
-from rose_server.views.pages.search import render_search
+from rose_server.views.pages.search import render_search, render_search_root
 
 router = APIRouter(prefix="/v1", tags=["search"])
 
@@ -172,3 +172,38 @@ async def search_messages_post(
         )
 
     return response_data
+
+
+@router.post("/search/fragment")
+async def search_fragment(
+    body: SearchRequest,
+    read_session: AsyncSession = Depends(get_readonly_db_session),
+    write_session: AsyncSession = Depends(get_db_session),
+    spell_checker: SymSpell | None = Depends(get_spell_checker),
+) -> HtpyResponse:
+    result = await run_search(
+        read_session=read_session,
+        q=body.q,
+        limit=body.limit,
+        exact=body.exact,
+        lens_id=body.lens_id,
+        spell_checker=spell_checker,
+    )
+
+    _record_search_event(result, write_session)
+
+    lenses = await list_lens_picker_options(read_session)
+    hits = _convert_hits(result.hits)
+    display_query = await _build_display_query(read_session=read_session, result=result)
+
+    return HtpyResponse(
+        render_search_root(
+            query=display_query,
+            hits=hits,
+            corrected_query=result.corrected_query,
+            original_query=result.clean_query,
+            lenses=lenses,
+            selected_lens_id=result.lens_id,
+            hits_count=len(hits),
+        )
+    )

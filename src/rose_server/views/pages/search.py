@@ -9,7 +9,7 @@ from rose_server.views.components.search_result import render_search_result
 from rose_server.views.layout import render_page
 
 
-def render_search(
+def render_search_root(
     *,
     query: str,
     hits: Iterable[Any],
@@ -17,12 +17,10 @@ def render_search(
     original_query: str,
     lenses: list[tuple[str, str, str]],
     selected_lens_id: str | None = None,
-    limit: int = 10,
-    exact: bool = False,
+    hits_count: int,
 ) -> Node:
-    hits_list = list(hits)
     content: list[Node] = []
-    content.append(render_search_form(lenses=lenses, selected_lens_id=selected_lens_id, hits_count=len(hits_list)))
+    content.append(render_search_form(lenses=lenses, selected_lens_id=selected_lens_id, hits_count=hits_count))
 
     if corrected_query:
         content.append(
@@ -37,9 +35,24 @@ def render_search(
             ]
         )
 
-    for hit in hits_list:
+    for hit in hits:
         content.append(render_search_result(hit=hit))
 
+    return div(id="search-root")[*content]
+
+
+def render_search(
+    *,
+    query: str,
+    hits: Iterable[Any],
+    corrected_query: str | None,
+    original_query: str,
+    lenses: list[tuple[str, str, str]],
+    selected_lens_id: str | None = None,
+    limit: int = 10,
+    exact: bool = False,
+) -> Node:
+    hits_list = list(hits)
     return render_page(
         title_text=f"Search: {query}",
         app_data=AppData(
@@ -51,5 +64,13 @@ def render_search(
                 exact=exact,
             )
         ),
-        content=div(id="search-root")[*content],
+        content=render_search_root(
+            query=query,
+            hits=hits_list,
+            corrected_query=corrected_query,
+            original_query=original_query,
+            lenses=lenses,
+            selected_lens_id=selected_lens_id,
+            hits_count=len(hits_list),
+        ),
     )
