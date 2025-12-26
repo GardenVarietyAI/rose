@@ -1,0 +1,75 @@
+.search-form input[type="text"] {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.search-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  overflow-y: hidden;
+}
+
+.search-editor {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: var(--size-8);
+  padding: var(--size-2);
+  border-radius: var(--rose-radius);
+  border: 1px solid var(--rose-gray-3);
+  background: var(--rose-gray-0);
+  color: var(--rose-gray-9);
+  white-space: pre-wrap;
+  cursor: text;
+}
+
+.search-controls-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--size-2);
+  margin-top: var(--size-2);
+}
+
+.search-results-count {
+}
+
+.search-status {
+}
+
+.search-actions {
+  display: flex;
+  gap: var(--size-2);
+}
+
+.settings-button {
+  background: var(--rose-gray-0);
+  color: var(--rose-gray-6);
+  border: 1px dotted var(--rose-gray-6);
+  cursor: pointer;
+}
+
+.settings-panel {
+  margin-top: var(--size-2);
+  border-radius: var(--rose-radius);
+}
+
+.settings-select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--size-2);
+  border-radius: var(--rose-radius);
+  box-shadow: var(--rose-shadow-card);
+}
+
+.settings-actions {
+  margin-top: var(--size-2);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.settings-clear-button {
+  background: var(--rose-gray-0);
+  color: var(--rose-gray-6);
+  border: 1px dotted var(--rose-gray-6);
+  cursor: pointer;
+}

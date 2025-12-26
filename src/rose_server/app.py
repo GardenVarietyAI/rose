@@ -1,13 +1,15 @@
 import logging
+import traceback
 from contextlib import asynccontextmanager
 from importlib.resources import files
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from pydantic import ValidationError
 from symspellpy import SymSpell
 
 from alembic import command
@@ -70,6 +72,39 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, e: HTTPException) -> JSONResponse:
+        logger.error(f"HTTP {e.status_code}: {e.detail} - {request.method} {request.url}")
+        return JSONResponse(
+            status_code=e.status_code,
+            content={"detail": e.detail},
+        )
+
+    @app.exception_handler(ValidationError)
+    async def validation_exception_handler(request: Request, e: ValidationError) -> JSONResponse:
+        logger.error(f"Validation error on {request.method} {request.url}: {e}")
+        return JSONResponse(
+            status_code=422,
+            content={"detail": "Validation error", "errors": e.errors()},
+        )
+
+    @app.exception_handler(ValueError)
+    async def value_error_handler(request: Request, e: ValueError) -> JSONResponse:
+        logger.error(f"ValueError on {request.method} {request.url}: {e}")
+        return JSONResponse(
+            status_code=400,
+            content={"detail": str(e)},
+        )
+
+    @app.exception_handler(Exception)
+    async def general_exception_handler(request: Request, e: Exception) -> JSONResponse:
+        logger.error(f"Unhandled exception on {request.method} {request.url}:")
+        logger.error(traceback.format_exc())
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error", "error": str(e)},
+        )
 
     app.mount("/static", StaticFiles(directory=str(STATIC_PATH)), name="static")
     app.include_router(router)

@@ -1,0 +1,34 @@
+.mention-panel {
+  margin-top: var(--size-2);
+  border-radius: var(--rose-radius);
+  border: 1px solid var(--rose-gray-3);
+  background: var(--rose-gray-0);
+  box-shadow: var(--rose-shadow-card);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.mention-option {
+  display: flex;
+  align-items: baseline;
+  gap: var(--size-2);
+  width: 100%;
+  text-align: left;
+  padding: var(--size-2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--rose-gray-9);
+}
+
+.mention-option.is-active {
+  background: var(--rose-gray-1);
+}
+
+.mention-name {
+  font-weight: var(--rose-font-weight-semibold);
+}
+
+.mention-label {
+  color: var(--rose-gray-6);
+}

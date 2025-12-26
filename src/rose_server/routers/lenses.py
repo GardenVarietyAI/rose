@@ -3,12 +3,13 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from htpy.starlette import HtpyResponse
-from pydantic import BaseModel, StringConstraints, field_validator
+from pydantic import BaseModel, StringConstraints, ValidationError, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select, update
 from starlette.responses import RedirectResponse
 
 from rose_server.dependencies import get_db_session, get_readonly_db_session
+from rose_server.models.message_types import LensMessage, LensMeta
 from rose_server.models.messages import Message
 from rose_server.views.pages.lens import render_lens_form_page, render_lenses_page
 
@@ -54,10 +55,11 @@ async def list_lens_options(session: AsyncSession) -> list[tuple[str, str]]:
     lenses = await list_lenses_messages(session)
     options: list[tuple[str, str]] = []
     for lens in lenses:
-        meta = lens.meta
-        if meta is None:
-            raise HTTPException(status_code=500, detail="Lens missing meta")
-        options.append((lens.uuid, str(meta["label"])))
+        try:
+            lens_message = LensMessage(message=lens)
+        except ValidationError as e:
+            raise HTTPException(status_code=500, detail="Invalid lens message") from e
+        options.append((lens_message.lens_id, lens_message.label))
     return options
 
 
@@ -65,10 +67,11 @@ async def list_lens_autocomplete_options(session: AsyncSession) -> list[tuple[st
     lenses = await list_lenses_messages(session)
     options: list[tuple[str, str]] = []
     for lens in lenses:
-        meta = lens.meta
-        if meta is None:
-            raise HTTPException(status_code=500, detail="Lens missing meta")
-        options.append((str(meta["at_name"]), str(meta["label"])))
+        try:
+            lens_message = LensMessage(message=lens)
+        except ValidationError as e:
+            raise HTTPException(status_code=500, detail="Invalid lens message") from e
+        options.append((lens_message.at_name, lens_message.label))
     return options
 
 
@@ -76,10 +79,11 @@ async def list_lens_picker_options(session: AsyncSession) -> list[tuple[str, str
     lenses = await list_lenses_messages(session)
     options: list[tuple[str, str, str]] = []
     for lens in lenses:
-        meta = lens.meta
-        if meta is None:
-            raise HTTPException(status_code=500, detail="Lens missing meta")
-        options.append((lens.uuid, str(meta["at_name"]), str(meta["label"])))
+        try:
+            lens_message = LensMessage(message=lens)
+        except ValidationError as e:
+            raise HTTPException(status_code=500, detail="Invalid lens message") from e
+        options.append((lens_message.lens_id, lens_message.at_name, lens_message.label))
     return options
 
 
@@ -147,12 +151,11 @@ async def create_lens(
         content=body.system_prompt,
         model=None,
     )
-    message.meta = {
-        "object": LENS_OBJECT,
-        "lens_id": message.uuid,
-        "label": body.label,
-        "at_name": body.at_name,
-    }
+    message.meta = LensMeta(
+        lens_id=message.uuid,
+        at_name=body.at_name,
+        label=body.label,
+    ).model_dump()
     session.add(message)
 
     if "text/html" in request.headers.get("accept", ""):
@@ -175,16 +178,11 @@ async def update_lens(
     if lens.meta is None:
         raise HTTPException(status_code=400, detail="Lens missing meta")
 
-    meta = dict(lens.meta)
-    meta.update(
-        {
-            "object": LENS_OBJECT,
-            "lens_id": lens_id,
-            "label": body.label,
-            "at_name": body.at_name,
-        }
-    )
-    lens.meta = meta
+    lens.meta = LensMeta(
+        lens_id=lens_id,
+        at_name=body.at_name,
+        label=body.label,
+    ).model_dump()
     lens.content = body.system_prompt
 
     if "text/html" in request.headers.get("accept", ""):

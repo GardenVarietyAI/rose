@@ -17,5 +17,5 @@ def render_thread_page(
 
     return render_page(
         title_text=f"Thread: {thread_id}",
-        content=div(x_data="threadPage", data_thread_id=thread_id)[render_tabs(tabs=tabs), content],
+        content=div(x_data="threadPage()", data_thread_id=thread_id)[render_tabs(tabs=tabs), content],
     )

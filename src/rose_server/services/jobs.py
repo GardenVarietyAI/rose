@@ -4,6 +4,7 @@ import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
+from rose_server.models.message_types import JobMeta
 from rose_server.models.messages import Message
 from rose_server.services.llama import (
     LlamaError,
@@ -12,7 +13,6 @@ from rose_server.services.llama import (
     serialize_message_content,
 )
 
-JOB_OBJECT = "job"
 JOB_NAME_GENERATE_ASSISTANT = "generate_assistant"
 
 JOB_STATUS_QUEUED = "queued"
@@ -35,15 +35,14 @@ async def create_generate_assistant_job(
         role="system",
         content="Generating response",
         model=model,
-        meta={
-            "object": JOB_OBJECT,
-            "job_name": JOB_NAME_GENERATE_ASSISTANT,
-            "status": JOB_STATUS_QUEUED,
-            "user_message_uuid": user_message_uuid,
-            "attempt": 0,
-            **({"lens_id": lens_id} if lens_id else {}),
-            **({"lens_at_name": lens_at_name} if lens_at_name else {}),
-        },
+        meta=JobMeta(
+            job_name=JOB_NAME_GENERATE_ASSISTANT,
+            status=JOB_STATUS_QUEUED,
+            user_message_uuid=user_message_uuid,
+            attempt=0,
+            lens_id=lens_id,
+            lens_at_name=lens_at_name,
+        ).model_dump(exclude_none=True),
     )
     session.add(message)
     await session.flush()

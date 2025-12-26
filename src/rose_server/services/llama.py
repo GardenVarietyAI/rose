@@ -67,6 +67,11 @@ def normalize_model_name(model: str) -> tuple[str, str | None]:
     return (model, None)
 
 
+def resolve_model(llama_model_path: str | None, requested_model: str | None = None) -> tuple[str, str | None]:
+    model = requested_model.strip() if requested_model else "default"
+    return normalize_model_name(llama_model_path or model)
+
+
 def serialize_message_content(content: Any) -> str | None:
     if content is None:
         return None

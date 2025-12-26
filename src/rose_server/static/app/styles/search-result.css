@@ -1,0 +1,29 @@
+.result {
+  margin: var(--size-4) 0;
+  padding: var(--size-3);
+  border: var(--rose-frame-border);
+  box-shadow: var(--rose-shadow-card);
+  border-radius: var(--rose-radius);
+}
+
+.result .score {
+  color: var(--rose-gray-6);
+  font-size: var(--rose-font-size-base);
+}
+
+.result .content {
+  margin: var(--size-2) 0;
+  white-space: pre-wrap;
+}
+
+.result .metadata {
+  color: var(--rose-gray-5);
+  font-size: var(--rose-font-size-sm);
+  margin-top: var(--size-2);
+}
+
+.original-query {
+  font-weight: var(--rose-font-weight-semibold);
+  font-style: italic;
+  text-decoration: underline;
+}
