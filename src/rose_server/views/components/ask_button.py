@@ -9,6 +9,6 @@ def ask_button() -> BaseElement:
         },
         type="button",
         class_="ask-btn",
-        x_data="askButton",
+        x_data="askButton()",
         x_text="label",
     )["Ask"]

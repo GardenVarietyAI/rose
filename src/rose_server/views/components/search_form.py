@@ -28,7 +28,7 @@ def render_search_form(
         method="get",
         autocomplete="off",
         class_="search-form",
-        x_data="searchForm",
+        x_data="searchForm()",
     )[
         input_(
             {"x-ref": "textarea", "x-model": "queryValue"},

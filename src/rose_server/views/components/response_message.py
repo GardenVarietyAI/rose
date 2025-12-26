@@ -132,5 +132,5 @@ def response_message(
             content_node,
             div(class_="message-meta")[render_time(created_at)],
         ],
-        x_data="responseMessage",
+        x_data="responseMessage()",
     )
