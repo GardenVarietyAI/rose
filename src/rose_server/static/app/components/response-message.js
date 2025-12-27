@@ -14,10 +14,17 @@ export const responseMessage = () => ({
     this.accepted = this.$el.classList.contains("accepted");
     const sourceTemplate = this.$refs?.sourceContent;
     this.editable = Boolean(sourceTemplate);
+
+    const contentEl = this.$el.querySelector(".message-content");
+    if (contentEl && !this.editable) {
+      const rawContent = contentEl.textContent?.trim() || "";
+      contentEl.innerHTML = this.$markdown(rawContent);
+    }
+
     if (!this.editable) return;
 
     const sourceContent = sourceTemplate.content?.textContent;
-    this.original = (sourceContent ?? this.$el.querySelector(".message-content")?.innerText ?? "").trimEnd();
+    this.original = (sourceContent ?? contentEl?.innerText ?? "").trimEnd();
     this.draft = this.original;
   },
 
