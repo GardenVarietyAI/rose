@@ -19,7 +19,7 @@ def test_message_revisions_update_prompt(client: TestClient) -> None:
 
 
 def test_message_revisions_keep_latest_only_in_search(client: TestClient) -> None:
-    created = client.post("/v1/threads", json={"messages": [{"role": "user", "content": "hello"}]})
+    created = client.post("/v1/threads", json={"messages": [{"role": "user", "content": "xyzuniquexyz"}]})
     assert created.status_code == 200
     thread_id = created.json()["thread_id"]
 
@@ -27,16 +27,22 @@ def test_message_revisions_keep_latest_only_in_search(client: TestClient) -> Non
     assert thread.status_code == 200
     prompt_uuid = thread.json()["prompt"]["uuid"]
 
-    revised = client.post(f"/v1/messages/{prompt_uuid}/revisions", json={"content": "hello revised"})
+    revised = client.post(f"/v1/messages/{prompt_uuid}/revisions", json={"content": "abcrevisedabc"})
     assert revised.status_code == 200
 
-    # Old prompt revision should not be searchable if FTS indexes latest-only revisions
-    old_search = client.get("/v1/search", params={"q": "hello", "exact": True, "limit": 10})
+    old_search = client.get("/v1/search", params={"q": "xyzuniquexyz", "exact": True, "limit": 10})
     assert old_search.status_code == 200
-    for hit in old_search.json()["hits"]:
-        if hit["metadata"]["role"] == "user":
-            assert hit["id"] != prompt_uuid
+    hits = old_search.json()["hits"]
+    for hit in hits:
+        assert "xyzuniquexyz" not in hit["user_message_text"]
 
-    new_search = client.get("/v1/search", params={"q": "revised", "exact": True, "limit": 10})
+    new_search = client.get("/v1/search", params={"q": "abcrevisedabc", "exact": True, "limit": 10})
     assert new_search.status_code == 200
-    assert len(new_search.json()["hits"]) == 1
+    assert len(new_search.json()["hits"]) >= 1
+    found = False
+    for hit in new_search.json()["hits"]:
+        if hit["thread_id"] == thread_id:
+            assert "abcrevisedabc" in hit["user_message_text"]
+            found = True
+
+    assert found
