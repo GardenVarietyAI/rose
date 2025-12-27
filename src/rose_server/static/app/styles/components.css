@@ -403,3 +403,102 @@
   animation: var(--animation-spin);
   margin: 0 auto;
 }
+
+.import-banner {
+  position: fixed;
+  top: var(--size-3);
+  right: var(--size-3);
+  max-width: 400px;
+  padding: var(--size-3);
+  border-radius: var(--radius-2);
+  box-shadow: var(--rose-shadow-card);
+  display: flex;
+  align-items: center;
+  gap: var(--size-3);
+  z-index: 1000;
+}
+
+.import-banner-success {
+  background: var(--green-1);
+  border: 1px solid var(--green-6);
+  color: var(--green-9);
+}
+
+.import-banner-error {
+  background: var(--red-1);
+  border: 1px solid var(--red-6);
+  color: var(--red-9);
+}
+
+.import-banner p {
+  margin: 0;
+  flex: 1;
+}
+
+.banner-close {
+  background: transparent;
+  border: none;
+  font-size: var(--font-size-4);
+  cursor: pointer;
+  padding: 0;
+  width: var(--size-4);
+  height: var(--size-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.parse-report-warning {
+  color: var(--orange-9);
+  font-size: var(--font-size-1);
+  margin-top: var(--size-2);
+}
+
+.import-format-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2);
+  margin-bottom: var(--size-3);
+}
+
+.import-format-selector label {
+  font-size: var(--font-size-1);
+  color: var(--rose-gray-7);
+}
+
+.import-format-selector select {
+  padding: var(--size-2);
+  border: 1px solid var(--rose-gray-3);
+  border-radius: var(--rose-radius);
+  background: var(--rose-gray-0);
+  color: var(--rose-gray-9);
+  font-size: var(--font-size-1);
+}
+
+@media (prefers-color-scheme: dark) {
+  .import-banner-success {
+    background: var(--green-9);
+    border-color: var(--green-7);
+    color: var(--green-1);
+  }
+
+  .import-banner-error {
+    background: var(--red-9);
+    border-color: var(--red-7);
+    color: var(--red-1);
+  }
+
+  .parse-report-warning {
+    color: var(--orange-4);
+  }
+
+  .import-format-selector label {
+    color: var(--rose-gray-3);
+  }
+
+  .import-format-selector select {
+    background: var(--rose-gray-9);
+    color: var(--rose-gray-1);
+    border-color: var(--rose-gray-7);
+  }
+}
