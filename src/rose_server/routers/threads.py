@@ -67,6 +67,188 @@ class CreateThreadResponse(BaseModel):
     job_uuid: str
 
 
+class ThreadListItem(BaseModel):
+    thread_id: str
+    first_message_content: str | None
+    first_message_role: str
+    created_at: int
+    last_activity_at: int
+    has_assistant_response: bool
+    import_source: str | None
+
+
+class ThreadListResponse(BaseModel):
+    threads: list[ThreadListItem]
+    total: int
+    page: int
+    limit: int
+
+
+@router.get("/threads", response_model=None)
+async def list_threads(
+    request: Request,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    sort: str = Query("last_activity", pattern="^(last_activity|created_at)$"),
+    date_from: int | None = Query(None),
+    date_to: int | None = Query(None),
+    has_assistant: str | None = Query(None),
+    import_source: str | None = Query(None),
+    session: AsyncSession = Depends(get_readonly_db_session),
+) -> Any:
+    normalized_has_assistant: bool | None
+    if has_assistant is None or has_assistant == "":
+        normalized_has_assistant = None
+    elif has_assistant == "true":
+        normalized_has_assistant = True
+    elif has_assistant == "false":
+        normalized_has_assistant = False
+    else:
+        raise HTTPException(status_code=400, detail="has_assistant must be 'true', 'false', or empty")
+
+    normalized_import_source = import_source if import_source else None
+
+    offset = (page - 1) * limit
+
+    # Determine sort column and table alias
+    if sort == "last_activity":
+        sort_col = "ts.last_activity_at"
+    else:
+        sort_col = "tfm.created_at"
+
+    # Get distinct thread_ids with first message and metadata
+    threads_sql = """
+    WITH thread_first_messages AS (
+        SELECT
+            thread_id,
+            content as first_message_content,
+            role as first_message_role,
+            created_at,
+            json_extract(meta, '$.imported_source') as import_source,
+            ROW_NUMBER() OVER (PARTITION BY thread_id ORDER BY created_at ASC, id ASC) as rn
+        FROM messages
+        WHERE deleted_at IS NULL
+            AND thread_id IS NOT NULL
+    ),
+    thread_stats AS (
+        SELECT
+            thread_id,
+            MAX(created_at) as last_activity_at,
+            MAX(CASE WHEN role = 'assistant' THEN 1 ELSE 0 END) as has_assistant_response
+        FROM messages
+        WHERE deleted_at IS NULL
+            AND thread_id IS NOT NULL
+        GROUP BY thread_id
+    )
+    SELECT
+        tfm.thread_id,
+        tfm.first_message_content,
+        tfm.first_message_role,
+        tfm.created_at,
+        ts.last_activity_at,
+        ts.has_assistant_response,
+        tfm.import_source
+    FROM thread_first_messages tfm
+    JOIN thread_stats ts ON tfm.thread_id = ts.thread_id
+    WHERE tfm.rn = 1
+    """
+
+    where_clauses = []
+    params = {}
+
+    if date_from is not None:
+        where_clauses.append("tfm.created_at >= :date_from")
+        params["date_from"] = date_from
+
+    if date_to is not None:
+        where_clauses.append("tfm.created_at <= :date_to")
+        params["date_to"] = date_to
+
+    if normalized_has_assistant is not None:
+        where_clauses.append("ts.has_assistant_response = :has_assistant")
+        params["has_assistant"] = 1 if normalized_has_assistant else 0
+
+    if normalized_import_source is not None:
+        where_clauses.append("tfm.import_source = :import_source")
+        params["import_source"] = normalized_import_source
+
+    if where_clauses:
+        threads_sql += " AND " + " AND ".join(where_clauses)
+
+    threads_sql += f" ORDER BY {sort_col} DESC LIMIT :limit OFFSET :offset"
+    params["limit"] = limit
+    params["offset"] = offset
+
+    result = await session.execute(text(threads_sql), params)
+    rows = result.fetchall()
+
+    threads = [
+        ThreadListItem(
+            thread_id=row[0],
+            first_message_content=row[1],
+            first_message_role=row[2],
+            created_at=row[3],
+            last_activity_at=row[4],
+            has_assistant_response=bool(row[5]),
+            import_source=row[6],
+        )
+        for row in rows
+    ]
+
+    # Get total count
+    count_sql = """
+    WITH thread_first_messages AS (
+        SELECT
+            thread_id,
+            created_at,
+            json_extract(meta, '$.imported_source') as import_source,
+            ROW_NUMBER() OVER (PARTITION BY thread_id ORDER BY created_at ASC, id ASC) as rn
+        FROM messages
+        WHERE deleted_at IS NULL
+            AND thread_id IS NOT NULL
+    ),
+    thread_stats AS (
+        SELECT
+            thread_id,
+            MAX(CASE WHEN role = 'assistant' THEN 1 ELSE 0 END) as has_assistant_response
+        FROM messages
+        WHERE deleted_at IS NULL
+            AND thread_id IS NOT NULL
+        GROUP BY thread_id
+    )
+    SELECT COUNT(*)
+    FROM thread_first_messages tfm
+    JOIN thread_stats ts ON tfm.thread_id = ts.thread_id
+    WHERE tfm.rn = 1
+    """
+
+    if where_clauses:
+        count_sql += " AND " + " AND ".join(where_clauses)
+
+    count_params = {k: v for k, v in params.items() if k not in ["limit", "offset"]}
+    count_result = await session.execute(text(count_sql), count_params)
+    total = count_result.scalar_one()
+
+    if "text/html" in request.headers.get("accept", ""):
+        from rose_server.views.pages.threads_list import render_threads_list
+
+        lenses = await list_lens_options(session)
+        return HtpyResponse(
+            render_threads_list(
+                threads=threads,
+                total=total,
+                page=page,
+                limit=limit,
+                sort=sort,
+                lenses=lenses,
+                has_assistant=has_assistant,
+                import_source=import_source,
+            )
+        )
+
+    return ThreadListResponse(threads=threads, total=total, page=page, limit=limit)
+
+
 @router.post("/threads", response_model=CreateThreadResponse)
 async def create_thread_message(
     body: CreateThreadRequest,
@@ -302,3 +484,28 @@ async def thread_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.delete("/threads/{thread_id}")
+async def delete_thread(
+    thread_id: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    import time
+
+    deleted_at = int(time.time())
+
+    result = await session.execute(
+        select(Message).where(col(Message.thread_id) == thread_id).where(col(Message.deleted_at).is_(None))
+    )
+    messages = list(result.scalars().all())
+
+    if not messages:
+        raise HTTPException(status_code=404, detail="Thread not found")
+
+    for message in messages:
+        message.deleted_at = deleted_at
+
+    await session.commit()
+
+    return {"deleted": len(messages), "thread_id": thread_id}

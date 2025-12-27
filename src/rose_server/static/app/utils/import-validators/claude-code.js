@@ -156,5 +156,6 @@ function parseClaudeCodeJSONL(text) {
 export const claudeCodeValidator = {
   name: "Claude Code JSONL",
   fileExtension: ".jsonl",
+  importSource: "claude_code_jsonl",
   parse: parseClaudeCodeJSONL
 };

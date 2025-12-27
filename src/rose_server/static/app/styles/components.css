@@ -502,3 +502,228 @@
     border-color: var(--rose-gray-7);
   }
 }
+
+/* Threads List Page */
+.threads-list-page {
+  padding: var(--size-4);
+}
+
+.threads-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--size-4);
+  gap: var(--size-4);
+}
+
+.threads-stats {
+  font-size: var(--font-size-3);
+  color: var(--rose-gray-11);
+}
+
+.threads-stats span {
+  font-weight: var(--font-weight-6);
+  color: var(--rose-gray-12);
+}
+
+.threads-filters .filters-form {
+  display: flex;
+  gap: var(--size-3);
+  align-items: flex-end;
+}
+
+.threads-filters .filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-1);
+}
+
+.threads-filters label {
+  font-size: var(--font-size-1);
+  color: var(--rose-gray-11);
+}
+
+.threads-filters select {
+  padding: var(--size-2);
+  border: 1px solid var(--rose-gray-6);
+  border-radius: var(--radius-2);
+  background: var(--rose-gray-1);
+  color: var(--rose-gray-12);
+}
+
+.threads-filters button {
+  padding: var(--size-2) var(--size-3);
+  background: var(--rose-gray-12);
+  color: var(--rose-gray-1);
+  border: none;
+  border-radius: var(--radius-2);
+  cursor: pointer;
+}
+
+.threads-table-wrapper {
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--rose-radius);
+  border: 1px solid var(--rose-gray-2);
+  margin-bottom: var(--size-4);
+}
+
+.threads-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.threads-table th {
+  background: var(--rose-gray-2);
+  padding: var(--size-3);
+  text-align: left;
+  font-weight: var(--font-weight-6);
+  border-bottom: 1px solid var(--rose-gray-6);
+}
+
+.threads-table td {
+  padding: var(--size-3);
+  border-bottom: 1px solid var(--rose-gray-3);
+}
+
+.threads-table tbody tr:hover {
+  background: var(--rose-gray-1);
+}
+
+.threads-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.threads-table td:first-child {
+  max-width: 500px;
+}
+
+.threads-table td:nth-child(2),
+.threads-table td:nth-child(3) {
+  white-space: nowrap;
+  font-size: var(--font-size-1);
+  color: var(--rose-gray-11);
+}
+
+.status-badge {
+  display: inline-block;
+  padding: var(--size-1) var(--size-2);
+  border-radius: var(--radius-2);
+  font-size: var(--font-size-0);
+  font-weight: var(--font-weight-5);
+  margin-right: var(--size-1);
+}
+
+.status-responded {
+  background: var(--green-3);
+  color: var(--green-11);
+}
+
+.status-pending {
+  background: var(--orange-3);
+  color: var(--orange-11);
+}
+
+.status-imported {
+  background: var(--blue-3);
+  color: var(--blue-11);
+}
+
+.delete-thread-btn {
+  padding: var(--size-1) var(--size-2);
+  background: var(--red-9);
+  color: var(--red-1);
+  border: none;
+  border-radius: var(--radius-2);
+  cursor: pointer;
+  font-size: var(--font-size-1);
+}
+
+.delete-thread-btn:hover:not(:disabled) {
+  background: var(--red-10);
+}
+
+.delete-thread-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--size-4);
+}
+
+.pagination-btn {
+  padding: var(--size-2) var(--size-3);
+  border: 1px solid var(--rose-gray-6);
+  border-radius: var(--radius-2);
+  text-decoration: none;
+  color: var(--rose-gray-12);
+  background: var(--rose-gray-1);
+}
+
+.pagination-btn:hover:not(.disabled) {
+  background: var(--rose-gray-2);
+}
+
+.pagination-btn.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.pagination-info {
+  font-size: var(--font-size-2);
+  color: var(--rose-gray-11);
+}
+
+@media (prefers-color-scheme: dark) {
+  .threads-filters select {
+    background: var(--rose-gray-2);
+    color: var(--rose-gray-12);
+    border-color: var(--rose-gray-7);
+  }
+
+  .threads-filters button {
+    background: var(--rose-gray-11);
+    color: var(--rose-gray-1);
+  }
+
+  .threads-table tbody tr:hover {
+    background: var(--rose-gray-2);
+  }
+
+  .status-responded {
+    background: var(--green-9);
+    color: var(--green-3);
+  }
+
+  .status-pending {
+    background: var(--orange-9);
+    color: var(--orange-3);
+  }
+
+  .status-imported {
+    background: var(--blue-9);
+    color: var(--blue-3);
+  }
+
+  .delete-thread-btn {
+    background: var(--red-10);
+    color: var(--red-1);
+  }
+
+  .delete-thread-btn:hover:not(:disabled) {
+    background: var(--red-11);
+  }
+
+  .pagination-btn {
+    background: var(--rose-gray-2);
+    border-color: var(--rose-gray-7);
+  }
+
+  .pagination-btn:hover:not(.disabled) {
+    background: var(--rose-gray-3);
+  }
+}

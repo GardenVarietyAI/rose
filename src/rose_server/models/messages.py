@@ -15,6 +15,7 @@ class Message(SQLModel, table=True):
         Index("ix_messages_object", "object"),
         Index("ix_messages_root_message_id", "root_message_id"),
         Index("ix_messages_parent_message_id", "parent_message_id"),
+        Index("ix_messages_imported_source", "imported_source"),
     )
 
     id: int | None = Field(default=None, primary_key=True)
@@ -32,6 +33,11 @@ class Message(SQLModel, table=True):
     completion_id: str | None = Field(
         default=None,
         sa_column=Column(String, Computed("json_extract(meta, '$.completion_id')"), index=False),
+    )
+
+    imported_source: str | None = Field(
+        default=None,
+        sa_column=Column(String, Computed("json_extract(meta, '$.imported_source')"), index=False),
     )
 
     lens_id: str | None = Field(

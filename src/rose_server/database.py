@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 def create_session_maker(db_name: str) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
     engine = create_async_engine(
         f"sqlite+aiosqlite:///{db_name}",
-        echo=False,
+        echo=True,
         pool_size=10,
         max_overflow=20,
         pool_timeout=30,

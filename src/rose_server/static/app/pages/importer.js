@@ -162,7 +162,10 @@ export const importPage = () => ({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ messages }),
+        body: JSON.stringify({
+          import_source: this.currentValidator.importSource,
+          messages,
+        }),
       });
 
       if (!response.ok) {
