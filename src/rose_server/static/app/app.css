@@ -9,4 +9,5 @@
 @import "./styles/search-form.css" layer(components);
 @import "./styles/search-result.css" layer(components);
 @import "./styles/spinner.css" layer(components);
+@import "./styles/syntax-highlight.css" layer(components);
 @import "./styles/utilities.css" layer(utilities);

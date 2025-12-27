@@ -1,0 +1,43 @@
+.hl-kw {
+  color: var(--red-7);
+  font-weight: 500;
+}
+
+.hl-str {
+  color: var(--blue-8);
+}
+
+.hl-cmt {
+  color: var(--gray-6);
+  font-style: italic;
+}
+
+.hl-num {
+  color: var(--cyan-7);
+}
+
+.hl-bi {
+  color: var(--purple-7);
+}
+
+@media (prefers-color-scheme: dark) {
+  .hl-kw {
+    color: var(--red-4);
+  }
+
+  .hl-str {
+    color: var(--blue-4);
+  }
+
+  .hl-cmt {
+    color: var(--gray-5);
+  }
+
+  .hl-num {
+    color: var(--cyan-4);
+  }
+
+  .hl-bi {
+    color: var(--purple-4);
+  }
+}

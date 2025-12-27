@@ -1,3 +1,5 @@
+import { highlightCode } from "./highlight.js";
+
 function escapeHtml(s) {
   if (typeof s !== "string") {
     throw new TypeError("escapeHtml expects a string");
@@ -149,7 +151,8 @@ function markdownToHtml(md) {
     }
     const code = codeFenceBuffer.join("\n");
     const cls = codeFenceLang ? ` class="language-${escapeHtml(codeFenceLang)}"` : "";
-    html += `<pre><code${cls}>${escapeHtml(code)}</code></pre>\n`;
+    const highlighted = highlightCode(code, codeFenceLang);
+    html += `<pre><code${cls}>${highlighted}</code></pre>\n`;
     codeFenceLang = "";
     codeFenceBuffer = [];
     inCodeFence = false;
