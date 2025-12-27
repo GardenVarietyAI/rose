@@ -3,6 +3,7 @@ import { responseMessage } from "./components/response-message.js";
 import { searchForm } from "./components/search-form.js";
 import { lensToken } from "./components/tokens/lens-token.js";
 import { threadMessagesPage } from "./pages/thread_messages.js";
+import { markdownToHtml } from "./utils/markdown.js";
 
 document.addEventListener("alpine:init", () => {
   if (!window.TRANSPORT?.search) {
@@ -17,6 +18,7 @@ document.addEventListener("alpine:init", () => {
     },
   });
 
+  Alpine.magic("markdown", () => markdownToHtml);
   Alpine.data("askButton", askButton);
   Alpine.data("responseMessage", responseMessage);
   Alpine.data("searchForm", searchForm);
