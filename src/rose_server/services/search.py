@@ -16,98 +16,110 @@ MAX_KEYWORDS = 3
 MAX_KEYWORD_CANDIDATES = 5
 
 _FTS_QUERY_SQL = """
-        WITH base_hits AS (
-            SELECT
-                m.uuid,
-                m.thread_id,
-                m.role,
-                m.content,
-                m.created_at,
-                m.accepted_at,
-                m.model,
-                -bm25(messages_fts) as score,
-                snippet(messages_fts, -1, '', '', '...', 64) as excerpt
-            FROM messages_fts
-            JOIN messages m ON messages_fts.rowid = m.id
-            WHERE {where}
-        ),
-        best_per_thread AS (
-            SELECT * FROM (
-                SELECT
-                    *,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY thread_id
-                        ORDER BY score DESC
-                    ) as rn
-                FROM base_hits
-            ) WHERE rn = 1
-        ),
-        user_selected AS (
-            SELECT
-                m.thread_id,
-                m.uuid,
-                m.content,
-                m.created_at,
-                uh.excerpt,
-                ROW_NUMBER() OVER (
-                    PARTITION BY m.thread_id
-                    ORDER BY m.created_at DESC, m.id DESC
-                ) as rn
-            FROM messages m
-            LEFT JOIN (SELECT uuid, excerpt FROM base_hits WHERE role = 'user') uh ON uh.uuid = m.uuid
-            WHERE m.thread_id IN (SELECT thread_id FROM best_per_thread)
-              AND m.role = 'user'
-              AND m.deleted_at IS NULL
-        ),
-        assistant_selected AS (
-            SELECT
-                m.thread_id,
-                m.uuid,
-                m.content,
-                m.created_at,
-                m.accepted_at,
-                m.model,
-                ah.score,
-                ah.excerpt,
-                ROW_NUMBER() OVER (
-                    PARTITION BY m.thread_id
-                    ORDER BY
-                        CASE WHEN m.accepted_at IS NOT NULL THEN 0 ELSE 1 END,
-                        CASE
-                            WHEN m.accepted_at IS NOT NULL THEN 0
-                            ELSE CASE WHEN ah.score IS NULL THEN 1 ELSE 0 END
-                        END,
-                        ah.score DESC,
-                        m.created_at DESC
-                ) as rn
-            FROM messages m
-            LEFT JOIN (SELECT uuid, score, excerpt FROM base_hits WHERE role = 'assistant') ah ON ah.uuid = m.uuid
-            WHERE m.thread_id IN (SELECT thread_id FROM best_per_thread)
-              AND m.role = 'assistant'
-              AND m.deleted_at IS NULL
-        )
+WITH base_hits AS (
+    SELECT
+        m.uuid,
+        m.thread_id,
+        m.role,
+        m.content,
+        m.created_at,
+        m.accepted_at,
+        m.model,
+        -bm25(messages_fts) AS score,
+        snippet(messages_fts, -1, '', '', '...', 64) AS excerpt
+    FROM messages_fts
+    JOIN messages AS m ON messages_fts.rowid = m.id
+    WHERE {where}
+      AND m.deleted_at IS NULL
+),
+best_per_thread AS (
+    SELECT *
+    FROM (
         SELECT
-            u.thread_id,
-            u.uuid as user_uuid,
-            u.content as user_content,
-            u.excerpt as user_excerpt,
-            u.created_at as user_created_at,
-            a.uuid as assistant_uuid,
-            a.content as assistant_content,
-            COALESCE(a.excerpt, a.content) as assistant_excerpt,
-            a.created_at as assistant_created_at,
-            a.model as assistant_model,
-            a.accepted_at,
-            bph.score,
-            bph.role as matched_role,
-            bph.uuid as matched_message_id
-        FROM user_selected u
-        JOIN assistant_selected a ON a.thread_id = u.thread_id
-        JOIN best_per_thread bph ON bph.thread_id = u.thread_id
-        WHERE u.rn = 1 AND a.rn = 1
-        ORDER BY bph.score DESC
-        LIMIT :limit
-    """
+            bh.*,
+            ROW_NUMBER() OVER (
+                PARTITION BY bh.thread_id
+                ORDER BY bh.score DESC, bh.created_at DESC, bh.uuid DESC
+            ) AS rn
+        FROM base_hits AS bh
+    )
+    WHERE rn = 1
+),
+user_selected AS (
+    SELECT *
+    FROM (
+        SELECT
+            m.thread_id,
+            m.uuid,
+            m.content,
+            m.created_at,
+            uh.excerpt,
+            ROW_NUMBER() OVER (
+                PARTITION BY m.thread_id
+                ORDER BY m.created_at DESC, m.id DESC
+            ) AS rn
+        FROM messages AS m
+        JOIN best_per_thread AS t ON t.thread_id = m.thread_id
+        LEFT JOIN base_hits AS uh
+          ON uh.uuid = m.uuid
+         AND uh.role = 'user'
+        WHERE m.role = 'user'
+          AND m.deleted_at IS NULL
+    )
+    WHERE rn = 1
+),
+assistant_selected AS (
+    SELECT *
+    FROM (
+        SELECT
+            m.thread_id,
+            m.uuid,
+            m.content,
+            m.created_at,
+            m.accepted_at,
+            m.model,
+            ah.score,
+            ah.excerpt,
+            ROW_NUMBER() OVER (
+                PARTITION BY m.thread_id
+                ORDER BY
+                    (m.accepted_at IS NULL) ASC,
+                    (ah.score IS NULL) ASC,
+                    ah.score DESC,
+                    m.created_at DESC,
+                    m.id DESC
+            ) AS rn
+        FROM messages AS m
+        JOIN best_per_thread AS t ON t.thread_id = m.thread_id
+        LEFT JOIN base_hits AS ah
+          ON ah.uuid = m.uuid
+         AND ah.role = 'assistant'
+        WHERE m.role = 'assistant'
+          AND m.deleted_at IS NULL
+    )
+    WHERE rn = 1
+)
+SELECT
+    u.thread_id,
+    u.uuid AS user_uuid,
+    u.content AS user_content,
+    u.excerpt AS user_excerpt,
+    u.created_at AS user_created_at,
+    a.uuid AS assistant_uuid,
+    a.content AS assistant_content,
+    COALESCE(a.excerpt, a.content) AS assistant_excerpt,
+    a.created_at AS assistant_created_at,
+    a.model AS assistant_model,
+    a.accepted_at,
+    t.score AS score,
+    t.role AS matched_role,
+    t.uuid AS matched_message_id
+FROM best_per_thread AS t
+JOIN user_selected AS u ON u.thread_id = t.thread_id
+JOIN assistant_selected AS a ON a.thread_id = t.thread_id
+ORDER BY t.score DESC
+LIMIT :limit
+"""
 
 
 @dataclass(frozen=True, slots=True)
