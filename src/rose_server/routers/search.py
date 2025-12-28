@@ -2,7 +2,6 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
 from htpy.starlette import HtpyResponse
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from symspellpy import SymSpell
 
@@ -13,34 +12,11 @@ from rose_server.dependencies import (
 )
 from rose_server.models.search_events import SearchEvent
 from rose_server.routers.lenses import get_lens_message, list_lens_picker_options
-from rose_server.schemas.search import SearchRequest
+from rose_server.schemas.search import SearchHit, SearchRequest, SearchResponse
 from rose_server.services.search import SearchResult, run_search
 from rose_server.views.pages.search import render_search, render_search_root
 
 router = APIRouter(prefix="/v1", tags=["search"])
-
-
-class SearchHit(BaseModel):
-    thread_id: str
-    score: float
-    user_message_id: str
-    user_message_text: str
-    user_message_excerpt: str | None
-    user_message_created_at: int
-    assistant_message_id: str
-    assistant_message_text: str
-    assistant_message_excerpt: str
-    assistant_message_created_at: int
-    assistant_message_model: str | None
-    accepted: bool
-    matched_role: str
-    matched_message_id: str
-
-
-class SearchResponse(BaseModel):
-    index: str
-    query: str
-    hits: list[SearchHit]
 
 
 def _convert_hits(hits: list[Any]) -> list[SearchHit]:

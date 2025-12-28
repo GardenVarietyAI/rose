@@ -15,3 +15,11 @@ class AskRequest(BaseModel):
         if not value or not value.strip():
             raise ValueError("Content cannot be empty")
         return value
+
+
+class AskResponse(BaseModel):
+    thread_id: str
+    user_message_id: str
+    job_id: str
+    assistant_message_id: str | None = None
+    status: str

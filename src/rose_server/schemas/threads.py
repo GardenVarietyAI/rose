@@ -2,6 +2,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from rose_server.models.messages import Message
+
 
 class CreateThreadRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -17,6 +19,28 @@ class CreateThreadRequest(BaseModel):
         if not value:
             raise ValueError("Messages must contain at least one entry")
         return value
+
+
+class CreateThreadResponse(BaseModel):
+    thread_id: str
+    message_uuid: str
+    job_uuid: str
+
+
+class JobEventResponse(BaseModel):
+    uuid: str
+    event_type: str
+    job_id: str
+    status: str
+    created_at: int
+    attempt: int
+    error: str | None
+
+
+class ThreadResponse(BaseModel):
+    thread_id: str
+    prompt: Message | None
+    responses: list[Message]
 
 
 class ThreadListItem(BaseModel):

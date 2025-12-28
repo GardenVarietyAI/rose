@@ -5,13 +5,22 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from htpy.starlette import HtpyResponse
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select, update
 
 from rose_server.dependencies import get_db_session, get_llama_client, get_readonly_db_session, get_settings
 from rose_server.models.messages import Message
-from rose_server.schemas.messages import CreateMessageRequest, CreateRevisionRequest, UpdateMessageRequest
+from rose_server.schemas.messages import (
+    CreateMessageRequest,
+    CreateMessageResponse,
+    CreateRevisionRequest,
+    CreateRevisionResponse,
+    ListMessagesResponse,
+    ListRevisionsResponse,
+    RevisionMessage,
+    UpdateMessageRequest,
+    UpdateMessageResponse,
+)
 from rose_server.services import assistant, jobs
 from rose_server.services.llama import resolve_model, serialize_message_content
 from rose_server.settings import Settings
@@ -21,48 +30,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["messages"])
 
 
-class UpdateMessageResponse(BaseModel):
-    status: str
-    message_uuid: str
-    accepted: bool
-
-
-class CreateMessageResponse(BaseModel):
-    thread_id: str
-    message_uuid: str
-    job_uuid: str | None = None
-
-
-class RevisionMessage(BaseModel):
-    uuid: str
-    thread_id: str | None
-    role: str
-    content: str | None
-    reasoning: str | None
-    model: str | None
-    meta: dict[str, Any] | None
-    created_at: int
-    accepted_at: int | None
-
-
-class ListRevisionsResponse(BaseModel):
-    root_message_id: str
-    latest_message_uuid: str
-    messages: list[RevisionMessage]
-
-
-class CreateRevisionResponse(BaseModel):
-    root_message_id: str
-    message_uuid: str
-    latest_message_uuid: str
-
-
 def _effective_root_message_id(message: Message) -> str:
     return message.root_message_id or message.uuid
-
-
-class ListMessagesResponse(BaseModel):
-    messages: list[Message]
 
 
 @router.get("/messages", response_model=ListMessagesResponse)

@@ -7,7 +7,6 @@ from typing import Any, Literal
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from htpy.starlette import HtpyResponse
-from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
@@ -19,7 +18,14 @@ from rose_server.models.job_events import JobEvent
 from rose_server.models.messages import Message
 from rose_server.models.search_events import SearchEvent
 from rose_server.routers.lenses import list_lens_options
-from rose_server.schemas.threads import CreateThreadRequest, ThreadListItem, ThreadListResponse
+from rose_server.schemas.threads import (
+    CreateThreadRequest,
+    CreateThreadResponse,
+    JobEventResponse,
+    ThreadListItem,
+    ThreadListResponse,
+    ThreadResponse,
+)
 from rose_server.services import assistant, jobs
 from rose_server.services.llama import resolve_model, serialize_message_content
 from rose_server.settings import Settings
@@ -29,28 +35,6 @@ from rose_server.views.pages.threads_list import render_threads_list
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["threads"])
-
-
-class JobEventResponse(BaseModel):
-    uuid: str
-    event_type: str
-    job_id: str
-    status: str
-    created_at: int
-    attempt: int
-    error: str | None
-
-
-class ThreadResponse(BaseModel):
-    thread_id: str
-    prompt: Message | None
-    responses: list[Message]
-
-
-class CreateThreadResponse(BaseModel):
-    thread_id: str
-    message_uuid: str
-    job_uuid: str
 
 
 @router.get("/threads", response_model=None)
