@@ -1,40 +1,51 @@
 import * as v from '../../../vendor/valibot/valibot.min.js';
 
+const ROLE_SCHEMA = v.union([v.literal("user"), v.literal("assistant")]);
+
+const MessageContentBlockSchema = v.object({
+  type: v.optional(v.string()),
+  text: v.optional(v.string()),
+});
+
+const MessageContentSchema = v.optional(v.union([v.string(), v.array(MessageContentBlockSchema)]));
+
 const MessageSchema = v.object({
-  role: v.string(),
-  content: v.optional(v.union([
-    v.string(),
-    v.array(v.object({
-      type: v.optional(v.string()),
-      text: v.optional(v.string())
-    }))
-  ])),
-  model: v.optional(v.string())
+  role: ROLE_SCHEMA,
+  content: MessageContentSchema,
+  model: v.optional(v.string()),
 });
 
 const ClaudeCodeRecordSchema = v.object({
   uuid: v.string(),
-  type: v.union([v.literal("user"), v.literal("assistant")]),
+  type: ROLE_SCHEMA,
   timestamp: v.pipe(v.string(), v.isoTimestamp()),
   sessionId: v.optional(v.string()),
   message: MessageSchema
 });
 
-function validateRecord(record, lineNum) {
-  const result = v.safeParse(ClaudeCodeRecordSchema, record);
+function formatValibotIssues(issues, lineNum) {
+  return issues.map((issue) => {
+    const path = issue.path?.map((p) => p.key).join('.') || 'record';
+    return `Line ${lineNum}: ${path} - ${issue.message}`;
+  });
+}
 
-  if (!result.success) {
-    return result.issues.map(issue => {
-      const path = issue.path?.map(p => p.key).join('.') || 'record';
-      return `Line ${lineNum}: ${path} - ${issue.message}`;
-    });
+function normalizeMessageContent(content) {
+  if (typeof content === "string") {
+    return content;
   }
 
-  return [];
+  if (Array.isArray(content)) {
+    return content
+      .map((block) => (block.type === "text" && typeof block.text === "string" ? block.text : ""))
+      .join("\n");
+  }
+
+  return "";
 }
 
 function parseClaudeCodeJSONL(text) {
-  const lines = text.trim().split("\n");
+  const lines = text.split(/\r?\n/);
   const sessionMessages = new Map();
   const MAX_ERROR_EXAMPLES = 50;
   const parseReport = {
@@ -43,11 +54,7 @@ function parseClaudeCodeJSONL(text) {
     skipped: 0,
     errors: {
       invalidJSON: [],
-      invalidType: 0,
-      missingMessage: 0,
-      missingRole: 0,
       emptyContent: 0,
-      invalidTimestamp: [],
       validationErrors: []
     }
   };
@@ -68,54 +75,52 @@ function parseClaudeCodeJSONL(text) {
       return;
     }
 
-    const validationErrors = validateRecord(record, lineNum);
-    if (validationErrors.length > 0) {
+    const parsed = v.safeParse(ClaudeCodeRecordSchema, record);
+    if (!parsed.success) {
       const remaining = MAX_ERROR_EXAMPLES - parseReport.errors.validationErrors.length;
       if (remaining > 0) {
-        parseReport.errors.validationErrors.push(...validationErrors.slice(0, remaining));
+        parseReport.errors.validationErrors.push(
+          ...formatValibotIssues(parsed.issues, lineNum).slice(0, remaining)
+        );
       }
       parseReport.skipped++;
       return;
     }
 
-    if (record.type !== "user" && record.type !== "assistant") {
-      parseReport.errors.invalidType++;
+    const normalized = parsed.output;
+
+    if (normalized.message.role !== normalized.type) {
+      if (parseReport.errors.validationErrors.length < MAX_ERROR_EXAMPLES) {
+        parseReport.errors.validationErrors.push(
+          `Line ${lineNum}: message.role does not match record.type`
+        );
+      }
       parseReport.skipped++;
       return;
     }
 
-    const msg = record.message;
-    if (!msg || !msg.role) {
-      parseReport.errors.missingRole++;
-      parseReport.skipped++;
-      return;
-    }
-
-    const content = Array.isArray(msg.content)
-      ? msg.content.map((c) => (c.type === "text" ? c.text : "")).join("\n")
-      : msg.content;
-
-    if (!content || !content.trim()) {
+    const content = normalizeMessageContent(normalized.message.content).trim();
+    if (!content) {
       parseReport.errors.emptyContent++;
       parseReport.skipped++;
       return;
     }
 
-    const sessionId = record.sessionId || `generated_${record.uuid}`;
+    const sessionId = normalized.sessionId || `generated_${normalized.uuid}`;
 
     if (!sessionMessages.has(sessionId)) {
       sessionMessages.set(sessionId, []);
     }
 
-    const timestamp = new Date(record.timestamp);
+    const timestamp = new Date(normalized.timestamp);
 
     sessionMessages.get(sessionId).push({
-      uuid: record.uuid,
-      role: msg.role,
-      content: content.trim(),
-      model: msg.model || null,
+      uuid: normalized.uuid,
+      role: normalized.message.role,
+      content,
+      model: normalized.message.model || null,
       created_at: Math.floor(timestamp.getTime() / 1000),
-      timestamp: record.timestamp,
+      timestamp: normalized.timestamp,
       sessionId: sessionId,
     });
 
@@ -144,7 +149,7 @@ function parseClaudeCodeJSONL(text) {
 
   const threadObjects = threads.map((thread, idx) => ({
     id: idx,
-    threadId: `import_${thread[0].sessionId}_${thread[0].uuid}`,
+    threadId: thread[0].uuid,
     userMessage: thread[0],
     assistantMessages: thread.slice(1),
     selected: false,

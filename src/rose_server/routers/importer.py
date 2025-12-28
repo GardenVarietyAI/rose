@@ -1,13 +1,16 @@
-import time
+import json
+import uuid
+from itertools import batched
 from typing import Any
 
 from fastapi import APIRouter, Depends
 from htpy.starlette import HtpyResponse
 from pydantic import BaseModel, ConfigDict, field_validator
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rose_server.dependencies import get_db_session
-from rose_server.models.messages import Message
+from rose_server.models.import_events import ImportEvent
 from rose_server.views.pages.importer import render_import
 
 router = APIRouter(prefix="/v1", tags=["import"])
@@ -19,12 +22,12 @@ async def import_page() -> Any:
 
 
 class ImportMessage(BaseModel):
-    uuid: str
     thread_id: str
     role: str
     content: str | None
     model: str | None
     created_at: int
+    import_external_id: str
     meta: dict[str, Any] | None
 
     model_config = ConfigDict(extra="ignore")
@@ -53,38 +56,71 @@ class ImportRequest(BaseModel):
     @field_validator("import_source")
     @classmethod
     def validate_import_source(cls, value: str) -> str:
-        normalized = value.strip()
-        if not normalized:
+        if not value:
             raise ValueError("import_source cannot be empty")
-        if len(normalized) > 64:
-            raise ValueError("import_source too long")
-        if not normalized.replace("_", "").replace("-", "").isalnum():
-            raise ValueError("import_source must be alphanumeric, underscore, or hyphen")
-        return normalized
+        return value
 
 
 @router.post("/import/messages")
 async def import_messages(request: ImportRequest, session: AsyncSession = Depends(get_db_session)) -> dict[str, Any]:
-    imported_at = int(time.time())
-    messages = []
+    import_event = ImportEvent(
+        import_source=request.import_source,
+        imported_count=0,
+        skipped_duplicates=0,
+        total_records=len(request.messages),
+    )
+
+    values = []
+    thread_id_mapping: dict[str, str] = {}
 
     for external in request.messages:
-        # Merge client-provided meta with server-added import fields.
         meta = external.meta.copy() if external.meta else {}
-        meta["imported_id"] = external.uuid
-        meta["imported_source"] = request.import_source
-        meta["imported_at"] = imported_at
+        meta["import_source"] = request.import_source
+        meta["import_at"] = import_event.created_at
 
-        messages.append(
-            Message(
-                thread_id=external.thread_id,
-                role=external.role,
-                content=external.content,
-                model=external.model,
-                created_at=external.created_at,
-                meta=meta,
-            )
+        if external.thread_id not in thread_id_mapping:
+            thread_id_mapping[external.thread_id] = str(uuid.uuid4())
+
+        values.append(
+            {
+                "uuid": str(uuid.uuid4()),
+                "thread_id": thread_id_mapping[external.thread_id],
+                "role": external.role,
+                "content": external.content,
+                "model": external.model,
+                "created_at": external.created_at,
+                "import_batch_id": import_event.batch_id,
+                "import_external_id": external.import_external_id,
+                "meta": json.dumps(meta),
+            }
         )
 
-    session.add_all(messages)
-    return {"imported": len(messages)}
+    stmt = text("""
+        INSERT OR IGNORE INTO messages (
+            uuid, thread_id, role, content, model, created_at,
+            import_batch_id, import_external_id, meta
+        ) VALUES (
+            :uuid, :thread_id, :role, :content, :model, :created_at,
+            :import_batch_id, :import_external_id, :meta
+        )
+    """)
+
+    for chunk in batched(values, 100):
+        await session.execute(stmt, list(chunk))
+
+    count_result = await session.execute(
+        text("SELECT COUNT(*) FROM messages WHERE import_batch_id = :batch_id"),
+        {"batch_id": import_event.batch_id},
+    )
+    imported_count = count_result.scalar_one()
+    skipped_duplicates = import_event.total_records - imported_count
+
+    import_event.imported_count = imported_count
+    import_event.skipped_duplicates = skipped_duplicates
+
+    session.add(import_event)
+
+    return {
+        "imported": imported_count,
+        "skipped_duplicates": skipped_duplicates,
+    }
