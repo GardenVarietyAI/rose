@@ -45,32 +45,46 @@ class ImportMessage(BaseModel):
 
 
 class ImportRequest(BaseModel):
+    import_source: str
     messages: list[ImportMessage]
+
+    model_config = ConfigDict(extra="ignore")
+
+    @field_validator("import_source")
+    @classmethod
+    def validate_import_source(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("import_source cannot be empty")
+        if len(normalized) > 64:
+            raise ValueError("import_source too long")
+        if not normalized.replace("_", "").replace("-", "").isalnum():
+            raise ValueError("import_source must be alphanumeric, underscore, or hyphen")
+        return normalized
 
 
 @router.post("/import/messages")
-async def import_messages(
-    request: ImportRequest,
-    session: AsyncSession = Depends(get_db_session),
-) -> dict[str, Any]:
-    imported_count = 0
+async def import_messages(request: ImportRequest, session: AsyncSession = Depends(get_db_session)) -> dict[str, Any]:
+    imported_at = int(time.time())
+    messages = []
 
-    for msg in request.messages:
-        meta = msg.meta.copy() if msg.meta else {}
-        meta["imported_id"] = msg.uuid
-        meta["imported_source"] = "claude_code_jsonl"
-        meta["imported_at"] = int(time.time())
+    for external in request.messages:
+        # Merge client-provided meta with server-added import fields.
+        meta = external.meta.copy() if external.meta else {}
+        meta["imported_id"] = external.uuid
+        meta["imported_source"] = request.import_source
+        meta["imported_at"] = imported_at
 
-        message = Message(
-            thread_id=msg.thread_id,
-            role=msg.role,
-            content=msg.content,
-            model=msg.model,
-            created_at=msg.created_at,
-            meta=meta,
+        messages.append(
+            Message(
+                thread_id=external.thread_id,
+                role=external.role,
+                content=external.content,
+                model=external.model,
+                created_at=external.created_at,
+                meta=meta,
+            )
         )
-        session.add(message)
-        imported_count += 1
 
-    await session.commit()
-    return {"imported": imported_count}
+    session.add_all(messages)
+    return {"imported": len(messages)}
