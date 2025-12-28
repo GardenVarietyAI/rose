@@ -1,12 +1,22 @@
-export const threadsListPage = () => ({
-  deleting: null,
+export const threadsListPage = () => ({});
 
-  async deleteThread(threadId) {
-    if (!confirm("Delete this thread? This will soft-delete all messages in the thread.")) {
-      return;
-    }
+export const deleteConfirmPopover = (threadId) => ({
+  open() {
+    this.$store.threads.setCurrentThread(threadId);
+    this.$refs.popover.showPopover();
+  },
 
-    this.deleting = threadId;
+  close() {
+    this.$refs.popover.hidePopover();
+    this.$store.threads.clearCurrentThread();
+  },
+
+  get isDeleting() {
+    return this.$store.threads.isDeleting(threadId);
+  },
+
+  async confirmDelete() {
+    this.$store.threads.setDeleting(true);
 
     try {
       const response = await fetch(`/v1/threads/${threadId}`, {
@@ -22,7 +32,7 @@ export const threadsListPage = () => ({
     } catch (error) {
       console.error("Delete error:", error);
       alert(`Failed to delete thread: ${error.message}`);
-      this.deleting = null;
+      this.$store.threads.setDeleting(false);
     }
   },
 });

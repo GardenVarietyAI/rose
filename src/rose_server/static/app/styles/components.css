@@ -678,6 +678,86 @@
   color: var(--rose-gray-11);
 }
 
+.delete-confirm-popover {
+  border: 1px solid var(--rose-gray-6);
+  border-radius: var(--radius-2);
+  padding: 0;
+  background: var(--rose-gray-0);
+  box-shadow: var(--shadow-6);
+  max-width: 400px;
+}
+
+.delete-confirm-popover::backdrop {
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(2px);
+}
+
+.delete-confirm-content {
+  padding: var(--size-4);
+}
+
+.delete-confirm-title {
+  margin: 0 0 var(--size-3) 0;
+  font-size: var(--font-size-3);
+  font-weight: var(--font-weight-6);
+  color: var(--rose-gray-12);
+}
+
+.delete-confirm-preview {
+  margin: 0 0 var(--size-3) 0;
+  padding: var(--size-2);
+  background: var(--rose-gray-1);
+  border-radius: var(--radius-2);
+  font-size: var(--font-size-1);
+  color: var(--rose-gray-11);
+  border-left: 3px solid var(--rose-gray-6);
+}
+
+.delete-confirm-warning {
+  margin: 0 0 var(--size-4) 0;
+  font-size: var(--font-size-1);
+  color: var(--orange-9);
+}
+
+.delete-confirm-actions {
+  display: flex;
+  gap: var(--size-2);
+  justify-content: flex-end;
+}
+
+.btn-cancel {
+  padding: var(--size-2) var(--size-3);
+  background: var(--rose-gray-2);
+  color: var(--rose-gray-12);
+  border: 1px solid var(--rose-gray-6);
+  border-radius: var(--radius-2);
+  cursor: pointer;
+  font-size: var(--font-size-1);
+}
+
+.btn-cancel:hover {
+  background: var(--rose-gray-3);
+}
+
+.btn-confirm-delete {
+  padding: var(--size-2) var(--size-3);
+  background: var(--red-9);
+  color: var(--red-1);
+  border: none;
+  border-radius: var(--radius-2);
+  cursor: pointer;
+  font-size: var(--font-size-1);
+}
+
+.btn-confirm-delete:hover:not(:disabled) {
+  background: var(--red-10);
+}
+
+.btn-confirm-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @media (prefers-color-scheme: dark) {
   .threads-filters select {
     background: var(--rose-gray-2);
@@ -725,5 +805,37 @@
 
   .pagination-btn:hover:not(.disabled) {
     background: var(--rose-gray-3);
+  }
+
+  .delete-confirm-popover {
+    background: var(--rose-gray-1);
+    border-color: var(--rose-gray-7);
+  }
+
+  .delete-confirm-preview {
+    background: var(--rose-gray-2);
+    border-left-color: var(--rose-gray-7);
+  }
+
+  .delete-confirm-warning {
+    color: var(--orange-4);
+  }
+
+  .btn-cancel {
+    background: var(--rose-gray-3);
+    color: var(--rose-gray-11);
+    border-color: var(--rose-gray-7);
+  }
+
+  .btn-cancel:hover {
+    background: var(--rose-gray-4);
+  }
+
+  .btn-confirm-delete {
+    background: var(--red-10);
+  }
+
+  .btn-confirm-delete:hover:not(:disabled) {
+    background: var(--red-11);
   }
 }

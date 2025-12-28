@@ -130,17 +130,50 @@ def render_threads_list(
                                 ),
                             ],
                             td[
-                                button(
-                                    {
-                                        "class": "delete-thread-btn",
-                                        "@click": f"deleteThread('{thread.thread_id}')",
-                                        ":disabled": f"deleting === '{thread.thread_id}'",
-                                        "type": "button",
-                                    }
-                                )[
-                                    span(x_show=f"deleting !== '{thread.thread_id}'")["Delete"],
-                                    span(x_show=f"deleting === '{thread.thread_id}'", x_cloak="")["Deleting..."],
-                                ]
+                                div(x_data=f"deleteConfirmPopover('{thread.thread_id}')")[
+                                    button(
+                                        {
+                                            "class": "delete-thread-btn",
+                                            "@click": "open()",
+                                            "type": "button",
+                                        }
+                                    )["Delete"],
+                                    div(
+                                        {
+                                            "x-ref": "popover",
+                                            "popover": "auto",
+                                            "class": "delete-confirm-popover",
+                                        }
+                                    )[
+                                        div(class_="delete-confirm-content")[
+                                            p(class_="delete-confirm-title")["Delete this thread?"],
+                                            p(class_="delete-confirm-preview")[_snip(thread.first_message_content, 80)],
+                                            p(class_="delete-confirm-warning")[
+                                                "This will soft-delete all messages in the thread."
+                                            ],
+                                            div(class_="delete-confirm-actions")[
+                                                button(
+                                                    {
+                                                        "class": "btn-cancel",
+                                                        "@click": "close()",
+                                                        "type": "button",
+                                                    }
+                                                )["Cancel"],
+                                                button(
+                                                    {
+                                                        "class": "btn-confirm-delete",
+                                                        "@click": "confirmDelete()",
+                                                        ":disabled": "isDeleting",
+                                                        "type": "button",
+                                                    }
+                                                )[
+                                                    span(x_show="!isDeleting")["Delete"],
+                                                    span(x_show="isDeleting", x_cloak="")["Deleting..."],
+                                                ],
+                                            ],
+                                        ],
+                                    ],
+                                ],
                             ],
                         ]
                         for thread in threads

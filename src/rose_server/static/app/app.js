@@ -4,7 +4,7 @@ import { searchForm } from "./components/search-form.js";
 import { lensToken } from "./components/tokens/lens-token.js";
 import { importPage } from "./pages/importer.js";
 import { threadMessagesPage } from "./pages/thread_messages.js";
-import { threadsListPage } from "./pages/threads-list.js";
+import { deleteConfirmPopover, threadsListPage } from "./pages/threads-list.js";
 import { markdownToHtml } from "./utils/markdown.js";
 
 document.addEventListener("alpine:init", () => {
@@ -20,6 +20,26 @@ document.addEventListener("alpine:init", () => {
     },
   });
 
+  Alpine.store("threads", {
+    ...window.TRANSPORT.threads,
+
+    setCurrentThread(threadId) {
+      this.currentThreadId = threadId;
+    },
+
+    clearCurrentThread() {
+      this.currentThreadId = null;
+    },
+
+    setDeleting(value) {
+      this.deleting = value;
+    },
+
+    isDeleting(threadId) {
+      return this.deleting && this.currentThreadId === threadId;
+    },
+  });
+
   Alpine.magic("markdown", () => markdownToHtml);
   Alpine.data("askButton", askButton);
   Alpine.data("responseMessage", responseMessage);
@@ -28,4 +48,5 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("importPage", importPage);
   Alpine.data("threadMessagesPage", threadMessagesPage);
   Alpine.data("threadsListPage", threadsListPage);
+  Alpine.data("deleteConfirmPopover", deleteConfirmPopover);
 });

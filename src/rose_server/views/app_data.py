@@ -9,5 +9,11 @@ class SearchAppData(BaseModel):
     exact: bool = False
 
 
+class ThreadsAppData(BaseModel):
+    currentThreadId: str | None = None
+    deleting: bool = False
+
+
 class AppData(BaseModel):
     search: SearchAppData = Field(default_factory=SearchAppData)
+    threads: ThreadsAppData = Field(default_factory=ThreadsAppData)
