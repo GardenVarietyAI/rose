@@ -7,7 +7,7 @@ from typing import Any, Literal
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from htpy.starlette import HtpyResponse
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
@@ -19,7 +19,7 @@ from rose_server.models.job_events import JobEvent
 from rose_server.models.messages import Message
 from rose_server.models.search_events import SearchEvent
 from rose_server.routers.lenses import list_lens_options
-from rose_server.schemas.threads import ThreadListItem, ThreadListResponse
+from rose_server.schemas.threads import CreateThreadRequest, ThreadListItem, ThreadListResponse
 from rose_server.services import assistant, jobs
 from rose_server.services.llama import resolve_model, serialize_message_content
 from rose_server.settings import Settings
@@ -45,22 +45,6 @@ class ThreadResponse(BaseModel):
     thread_id: str
     prompt: Message | None
     responses: list[Message]
-
-
-class CreateThreadRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    thread_id: str | None = None
-    model: str | None = None
-    messages: list[dict[str, Any]]
-    lens_id: str | None = None
-
-    @field_validator("messages")
-    @classmethod
-    def validate_messages(cls, value: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        if not value:
-            raise ValueError("Messages must contain at least one entry")
-        return value
 
 
 class CreateThreadResponse(BaseModel):

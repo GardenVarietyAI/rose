@@ -1,4 +1,22 @@
-from pydantic import BaseModel
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, field_validator
+
+
+class CreateThreadRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    thread_id: str | None = None
+    model: str | None = None
+    messages: list[dict[str, Any]]
+    lens_id: str | None = None
+
+    @field_validator("messages")
+    @classmethod
+    def validate_messages(cls, value: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if not value:
+            raise ValueError("Messages must contain at least one entry")
+        return value
 
 
 class ThreadListItem(BaseModel):

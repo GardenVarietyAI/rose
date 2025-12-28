@@ -13,6 +13,7 @@ from rose_server.dependencies import (
 )
 from rose_server.models.search_events import SearchEvent
 from rose_server.routers.lenses import get_lens_message, list_lens_picker_options
+from rose_server.schemas.search import SearchRequest
 from rose_server.services.search import SearchResult, run_search
 from rose_server.views.pages.search import render_search, render_search_root
 
@@ -40,13 +41,6 @@ class SearchResponse(BaseModel):
     index: str
     query: str
     hits: list[SearchHit]
-
-
-class SearchRequest(BaseModel):
-    q: str = ""
-    limit: int = 10
-    exact: bool = False
-    lens_id: str | None = None
 
 
 def _convert_hits(hits: list[Any]) -> list[SearchHit]:

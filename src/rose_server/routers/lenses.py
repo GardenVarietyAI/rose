@@ -1,9 +1,9 @@
 import time
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from htpy.starlette import HtpyResponse
-from pydantic import BaseModel, StringConstraints, ValidationError, field_validator
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select, update
 from starlette.responses import RedirectResponse
@@ -11,34 +11,12 @@ from starlette.responses import RedirectResponse
 from rose_server.dependencies import get_db_session, get_readonly_db_session
 from rose_server.models.message_types import LensMessage, LensMeta
 from rose_server.models.messages import Message
+from rose_server.schemas.lenses import CreateLensRequest
 from rose_server.views.pages.lens import render_lens_form_page, render_lenses_page
 
 router = APIRouter(prefix="/v1", tags=["lenses"])
 
 LENS_OBJECT = "lens"
-
-
-class CreateLensRequest(BaseModel):
-    at_name: Annotated[
-        str,
-        StringConstraints(strip_whitespace=True, min_length=1, pattern=r"^[A-Za-z0-9]+$"),
-    ]
-    label: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
-    system_prompt: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
-
-    @field_validator("at_name")
-    @classmethod
-    def validate_at_name(cls, value: str) -> str:
-        return value.lower()
-
-    @classmethod
-    def as_form(
-        cls,
-        at_name: str = Form(...),
-        label: str = Form(...),
-        system_prompt: str = Form(...),
-    ) -> "CreateLensRequest":
-        return cls(at_name=at_name, label=label, system_prompt=system_prompt)
 
 
 async def list_lenses_messages(session: AsyncSession) -> list[Message]:

@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Any, Literal
+from typing import Any
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
@@ -11,6 +11,7 @@ from sqlmodel import col, select, update
 
 from rose_server.dependencies import get_db_session, get_llama_client, get_readonly_db_session, get_settings
 from rose_server.models.messages import Message
+from rose_server.schemas.messages import CreateMessageRequest, CreateRevisionRequest, UpdateMessageRequest
 from rose_server.services import assistant, jobs
 from rose_server.services.llama import resolve_model, serialize_message_content
 from rose_server.settings import Settings
@@ -20,24 +21,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["messages"])
 
 
-class UpdateMessageRequest(BaseModel):
-    accepted: bool
-
-
 class UpdateMessageResponse(BaseModel):
     status: str
     message_uuid: str
     accepted: bool
-
-
-class CreateMessageRequest(BaseModel):
-    thread_id: str
-    role: Literal["assistant"] = "assistant"
-    content: Any | None = None
-    model: str | None = None
-    meta: dict[str, Any] | None = None
-    generate_assistant: bool = False
-    lens_id: str | None = None
 
 
 class CreateMessageResponse(BaseModel):
@@ -62,10 +49,6 @@ class ListRevisionsResponse(BaseModel):
     root_message_id: str
     latest_message_uuid: str
     messages: list[RevisionMessage]
-
-
-class CreateRevisionRequest(BaseModel):
-    content: Any
 
 
 class CreateRevisionResponse(BaseModel):

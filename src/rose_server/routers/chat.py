@@ -1,11 +1,11 @@
 import logging
-from typing import Any, Union
+from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, field_validator
 
 from rose_server.dependencies import get_llama_client
+from rose_server.schemas.chat import ChatRequest
 from rose_server.services.llama import (
     LlamaStatusError,
     LlamaUnavailableError,
@@ -14,30 +14,6 @@ from rose_server.services.llama import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["chat"])
-
-
-class ChatRequest(BaseModel):
-    thread_id: str | None = None
-    model: str | None = None
-    messages: list[dict[str, Any]]
-    temperature: float | None = None
-    top_p: float | None = None
-    max_tokens: int | None = None
-    presence_penalty: float | None = None
-    frequency_penalty: float | None = None
-    stop: Union[str, list[str]] | None = None
-    seed: int | None = None
-    response_format: dict[str, Any] | None = None
-    tools: list[dict[str, Any]] | None = None
-    tool_choice: Union[str, dict[str, Any]] | None = None
-    stream: bool = False
-
-    @field_validator("messages")
-    @classmethod
-    def validate_messages(cls, value: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        if not value:
-            raise ValueError("messages must contain at least one entry")
-        return value
 
 
 @router.post("/chat/completions", response_model=None)

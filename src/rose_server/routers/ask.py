@@ -3,35 +3,20 @@ import uuid
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
 from rose_server.dependencies import get_db_session, get_llama_client, get_settings
 from rose_server.models.messages import Message
 from rose_server.models.search_events import SearchEvent
+from rose_server.schemas.ask import AskRequest
 from rose_server.services import assistant, jobs
 from rose_server.services.llama import resolve_model, serialize_message_content
 from rose_server.settings import Settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["ask"])
-
-
-class AskRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    content: str
-    thread_id: str | None = None
-    lens_id: str | None = None
-    model: str | None = None
-
-    @field_validator("content")
-    @classmethod
-    def validate_content(cls, value: str) -> str:
-        if not value or not value.strip():
-            raise ValueError("Content cannot be empty")
-        return value
 
 
 class AskResponse(BaseModel):

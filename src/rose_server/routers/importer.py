@@ -5,12 +5,12 @@ from typing import Any
 
 from fastapi import APIRouter, Depends
 from htpy.starlette import HtpyResponse
-from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rose_server.dependencies import get_db_session
 from rose_server.models.import_events import ImportEvent
+from rose_server.schemas.importer import ImportRequest
 from rose_server.views.pages.importer import render_import
 
 router = APIRouter(prefix="/v1", tags=["import"])
@@ -19,46 +19,6 @@ router = APIRouter(prefix="/v1", tags=["import"])
 @router.get("/import")
 async def import_page() -> Any:
     return HtpyResponse(render_import())
-
-
-class ImportMessage(BaseModel):
-    thread_id: str
-    role: str
-    content: str | None
-    model: str | None
-    created_at: int
-    import_external_id: str
-    meta: dict[str, Any] | None
-
-    model_config = ConfigDict(extra="ignore")
-
-    @field_validator("role")
-    @classmethod
-    def validate_role(cls, v: str) -> str:
-        if v not in ("user", "assistant"):
-            raise ValueError(f"role must be 'user' or 'assistant', got '{v}'")
-        return v
-
-    @field_validator("created_at")
-    @classmethod
-    def validate_timestamp(cls, v: int) -> int:
-        if v < 0:
-            raise ValueError(f"created_at must be non-negative, got {v}")
-        return v
-
-
-class ImportRequest(BaseModel):
-    import_source: str
-    messages: list[ImportMessage]
-
-    model_config = ConfigDict(extra="ignore")
-
-    @field_validator("import_source")
-    @classmethod
-    def validate_import_source(cls, value: str) -> str:
-        if not value:
-            raise ValueError("import_source cannot be empty")
-        return value
 
 
 @router.post("/import/messages")
