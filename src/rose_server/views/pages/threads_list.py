@@ -20,7 +20,7 @@ from htpy import (
     tr,
 )
 
-from rose_server.routers.threads import ThreadListItem
+from rose_server.schemas.threads import ThreadListItem
 from rose_server.views.app_data import AppData
 from rose_server.views.layout import render_page
 
@@ -50,7 +50,6 @@ def render_threads_list(
     page: int,
     limit: int,
     sort: str,
-    lenses: list[tuple[str, str, str]],
     has_assistant: str | None = None,
     import_source: str | None = None,
 ) -> Node:

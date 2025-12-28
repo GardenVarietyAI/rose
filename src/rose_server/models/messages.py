@@ -15,7 +15,7 @@ class Message(SQLModel, table=True):
         Index("ix_messages_object", "object"),
         Index("ix_messages_root_message_id", "root_message_id"),
         Index("ix_messages_parent_message_id", "parent_message_id"),
-        Index("ix_messages_imported_source", "imported_source"),
+        Index("ix_messages_import_source", "import_source"),
     )
 
     id: int | None = Field(default=None, primary_key=True)
@@ -29,15 +29,17 @@ class Message(SQLModel, table=True):
     created_at: int = Field(default_factory=lambda: int(time.time()))
     accepted_at: int | None = Field(default=None, index=True)
     deleted_at: int | None = Field(default=None, index=True)
+    import_batch_id: str | None = Field(default=None, index=True)
+    import_external_id: str | None = Field(default=None)
 
     completion_id: str | None = Field(
         default=None,
         sa_column=Column(String, Computed("json_extract(meta, '$.completion_id')"), index=False),
     )
 
-    imported_source: str | None = Field(
+    import_source: str | None = Field(
         default=None,
-        sa_column=Column(String, Computed("json_extract(meta, '$.imported_source')"), index=False),
+        sa_column=Column(String, Computed("json_extract(meta, '$.import_source')"), index=False),
     )
 
     lens_id: str | None = Field(

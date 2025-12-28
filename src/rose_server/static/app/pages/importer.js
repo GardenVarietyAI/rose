@@ -73,9 +73,7 @@ export const importPage = () => ({
     if (r.skipped > 0) {
       const reasons = [];
       if (r.errors.invalidJSON.length > 0) reasons.push(`${r.errors.invalidJSON.length} invalid JSON`);
-      if (r.errors.invalidType > 0) reasons.push(`${r.errors.invalidType} invalid type`);
       if (r.errors.emptyContent > 0) reasons.push(`${r.errors.emptyContent} empty content`);
-      if (r.errors.invalidTimestamp.length > 0) reasons.push(`${r.errors.invalidTimestamp.length} invalid timestamp`);
       if (r.errors.validationErrors.length > 0) reasons.push(`${r.errors.validationErrors.length} validation errors`);
 
       parts.push(`${r.skipped} skipped: ${reasons.join(", ")}`);
@@ -129,29 +127,31 @@ export const importPage = () => ({
       const messages = [];
       for (const thread of this.threads.filter((t) => t.selected)) {
         messages.push({
-          uuid: thread.userMessage.uuid,
           thread_id: thread.threadId,
           role: thread.userMessage.role,
           content: thread.userMessage.content,
           model: thread.userMessage.model,
           created_at: thread.userMessage.created_at,
+          import_external_id: thread.userMessage.uuid,
           meta: {
-            session_id: thread.userMessage.sessionId,
-            original_timestamp: thread.userMessage.timestamp,
+            imported_external_id: thread.userMessage.uuid,
+            imported_external_session_id: thread.userMessage.sessionId,
+            imported_external_created_at: thread.userMessage.timestamp,
           },
         });
 
         for (const assistantMsg of thread.assistantMessages) {
           messages.push({
-            uuid: assistantMsg.uuid,
             thread_id: thread.threadId,
             role: assistantMsg.role,
             content: assistantMsg.content,
             model: assistantMsg.model,
             created_at: assistantMsg.created_at,
+            import_external_id: assistantMsg.uuid,
             meta: {
-              session_id: assistantMsg.sessionId,
-              original_timestamp: assistantMsg.timestamp,
+              imported_external_id: assistantMsg.uuid,
+              imported_external_session_id: assistantMsg.sessionId,
+              imported_external_created_at: assistantMsg.timestamp,
             },
           });
         }
@@ -169,14 +169,18 @@ export const importPage = () => ({
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `HTTP ${response.status}`);
+        throw new Error("Could not import records.");
       }
 
       const result = await response.json();
       this.preview = false;
       this.complete = true;
-      this.showBanner("success", `Successfully imported ${result.imported} messages`);
+
+      const successMsg = result.skipped_duplicates > 0
+        ? `Imported ${result.imported} messages (skipped ${result.skipped_duplicates} duplicates)`
+        : `Successfully imported ${result.imported} messages`;
+
+      this.showBanner("success", successMsg);
     } catch (error) {
       console.error("Import error:", error);
       this.showBanner("error", `Failed to import: ${error.message}`);
