@@ -19,11 +19,13 @@ from rose_server.models.job_events import JobEvent
 from rose_server.models.messages import Message
 from rose_server.models.search_events import SearchEvent
 from rose_server.routers.lenses import list_lens_options
+from rose_server.schemas.threads import ThreadListItem, ThreadListResponse
 from rose_server.services import assistant, jobs
 from rose_server.services.llama import resolve_model, serialize_message_content
 from rose_server.settings import Settings
 from rose_server.views.pages.thread_activity import render_thread_activity
 from rose_server.views.pages.thread_messages import render_thread_messages
+from rose_server.views.pages.threads_list import render_threads_list
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["threads"])
@@ -67,23 +69,6 @@ class CreateThreadResponse(BaseModel):
     job_uuid: str
 
 
-class ThreadListItem(BaseModel):
-    thread_id: str
-    first_message_content: str | None
-    first_message_role: str
-    created_at: int
-    last_activity_at: int
-    has_assistant_response: bool
-    import_source: str | None
-
-
-class ThreadListResponse(BaseModel):
-    threads: list[ThreadListItem]
-    total: int
-    page: int
-    limit: int
-
-
 @router.get("/threads", response_model=None)
 async def list_threads(
     request: Request,
@@ -96,17 +81,11 @@ async def list_threads(
     import_source: str | None = Query(None),
     session: AsyncSession = Depends(get_readonly_db_session),
 ) -> Any:
-    normalized_has_assistant: bool | None
-    if has_assistant is None or has_assistant == "":
-        normalized_has_assistant = None
-    elif has_assistant == "true":
-        normalized_has_assistant = True
-    elif has_assistant == "false":
-        normalized_has_assistant = False
-    else:
-        raise HTTPException(status_code=400, detail="has_assistant must be 'true', 'false', or empty")
+    normalized_has_assistant = {"true": True, "false": False}.get(has_assistant) if has_assistant else None
+    if has_assistant and normalized_has_assistant is None:
+        raise HTTPException(status_code=400, detail="has_assistant must be 'true' or 'false'")
 
-    normalized_import_source = import_source if import_source else None
+    normalized_import_source = import_source or None
 
     offset = (page - 1) * limit
 
@@ -124,7 +103,7 @@ async def list_threads(
             content as first_message_content,
             role as first_message_role,
             created_at,
-            json_extract(meta, '$.imported_source') as import_source,
+            import_source,
             ROW_NUMBER() OVER (PARTITION BY thread_id ORDER BY created_at ASC, id ASC) as rn
         FROM messages
         WHERE deleted_at IS NULL
@@ -153,8 +132,8 @@ async def list_threads(
     WHERE tfm.rn = 1
     """
 
-    where_clauses = []
-    params = {}
+    where_clauses: list[str] = []
+    params: dict[str, Any] = {}
 
     if date_from is not None:
         where_clauses.append("tfm.created_at >= :date_from")
@@ -180,17 +159,17 @@ async def list_threads(
     params["offset"] = offset
 
     result = await session.execute(text(threads_sql), params)
-    rows = result.fetchall()
+    rows = result.mappings().all()
 
     threads = [
         ThreadListItem(
-            thread_id=row[0],
-            first_message_content=row[1],
-            first_message_role=row[2],
-            created_at=row[3],
-            last_activity_at=row[4],
-            has_assistant_response=bool(row[5]),
-            import_source=row[6],
+            thread_id=row["thread_id"],
+            first_message_content=row["first_message_content"],
+            first_message_role=row["first_message_role"],
+            created_at=row["created_at"],
+            last_activity_at=row["last_activity_at"],
+            has_assistant_response=bool(row["has_assistant_response"]),
+            import_source=row["import_source"],
         )
         for row in rows
     ]
@@ -201,7 +180,7 @@ async def list_threads(
         SELECT
             thread_id,
             created_at,
-            json_extract(meta, '$.imported_source') as import_source,
+            import_source,
             ROW_NUMBER() OVER (PARTITION BY thread_id ORDER BY created_at ASC, id ASC) as rn
         FROM messages
         WHERE deleted_at IS NULL
@@ -230,9 +209,6 @@ async def list_threads(
     total = count_result.scalar_one()
 
     if "text/html" in request.headers.get("accept", ""):
-        from rose_server.views.pages.threads_list import render_threads_list
-
-        lenses = await list_lens_options(session)
         return HtpyResponse(
             render_threads_list(
                 threads=threads,
@@ -240,7 +216,6 @@ async def list_threads(
                 page=page,
                 limit=limit,
                 sort=sort,
-                lenses=lenses,
                 has_assistant=has_assistant,
                 import_source=import_source,
             )
