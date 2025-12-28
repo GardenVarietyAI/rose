@@ -237,6 +237,8 @@ async def create_thread_message(
         bind=session.bind,
     )
 
+    await session.commit()
+
     return CreateThreadResponse(thread_id=thread_id, message_uuid=message.uuid, job_uuid=job_id)
 
 

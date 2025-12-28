@@ -75,6 +75,8 @@ async def ask(
         bind=session.bind,
     )
 
+    await session.commit()
+
     return AskResponse(
         thread_id=thread_id,
         user_message_id=user_message.uuid,
