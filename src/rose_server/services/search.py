@@ -173,22 +173,13 @@ async def _resolve_lens_id_from_mentions(
 ) -> str | None:
     if not at_names:
         return None
+    from rose_server.routers.lenses import get_lens_message_by_at_name
 
-    last_at_name = at_names[-1]
-    result = await session.execute(
-        select(Message)
-        .where(
-            col(Message.object) == "lens",
-            col(Message.at_name) == last_at_name,
-            col(Message.deleted_at).is_(None),
-        )
-        .order_by(col(Message.created_at).desc(), col(Message.id).desc())
-        .limit(1)
-    )
-    lens_msg = result.scalar_one_or_none()
+    lens_msg = await get_lens_message_by_at_name(session, at_names[-1])
     if lens_msg is None:
         return None
-    return lens_msg.uuid
+    root_id = lens_msg.meta.get("root_message_id") if lens_msg.meta else lens_msg.uuid
+    return root_id
 
 
 def _build_search_hit(row: Any) -> SearchHit:
