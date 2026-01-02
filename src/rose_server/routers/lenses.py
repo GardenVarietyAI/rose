@@ -12,21 +12,16 @@ from rose_server.dependencies import get_db_session, get_readonly_db_session
 from rose_server.models.message_types import LensMessage, LensMeta
 from rose_server.models.messages import Message
 from rose_server.schemas.lenses import CreateLensRequest
+from rose_server.services.lenses import (
+    get_latest_lens_revision,
+    get_lens_message,
+    list_lenses_messages,
+    resolve_lens_uuid_to_root,
+    validate_at_name_unique,
+)
 from rose_server.views.pages.lens import render_lens_form_page, render_lenses_page
 
 router = APIRouter(prefix="/v1", tags=["lenses"])
-
-LENS_OBJECT = "lens"
-
-
-async def list_lenses_messages(session: AsyncSession) -> list[Message]:
-    result = await session.execute(
-        select(Message)
-        .where(col(Message.object) == LENS_OBJECT)
-        .where(col(Message.deleted_at).is_(None))
-        .order_by(col(Message.created_at).desc(), col(Message.id).desc())
-    )
-    return list(result.scalars().all())
 
 
 async def list_lens_options(session: AsyncSession) -> list[tuple[str, str]]:
@@ -65,29 +60,6 @@ async def list_lens_picker_options(session: AsyncSession) -> list[tuple[str, str
     return options
 
 
-async def get_lens_message(session: AsyncSession, lens_id: str) -> Message | None:
-    result = await session.execute(
-        select(Message)
-        .where(col(Message.uuid) == lens_id)
-        .where(col(Message.object) == LENS_OBJECT)
-        .where(col(Message.deleted_at).is_(None))
-        .limit(1)
-    )
-    return result.scalar_one_or_none()
-
-
-async def get_lens_message_by_at_name(session: AsyncSession, at_name: str) -> Message | None:
-    result = await session.execute(
-        select(Message)
-        .where(col(Message.object) == LENS_OBJECT)
-        .where(col(Message.at_name) == at_name)
-        .where(col(Message.deleted_at).is_(None))
-        .order_by(col(Message.created_at).desc(), col(Message.id).desc())
-        .limit(1)
-    )
-    return result.scalar_one_or_none()
-
-
 @router.get("/lenses", response_model=None)
 async def list_lenses(
     request: Request,
@@ -123,6 +95,9 @@ async def create_lens(
     body: CreateLensRequest = Depends(CreateLensRequest.as_form),
     session: AsyncSession = Depends(get_db_session),
 ) -> Any:
+    if not await validate_at_name_unique(session, body.at_name):
+        raise HTTPException(status_code=400, detail=f"Lens with at_name '{body.at_name}' already exists")
+
     message = Message(
         thread_id=None,
         role="system",
@@ -132,6 +107,8 @@ async def create_lens(
     message.meta = LensMeta(
         at_name=body.at_name,
         label=body.label,
+        root_message_id=message.uuid,
+        parent_message_id=None,
     ).model_dump()
     session.add(message)
 
@@ -148,31 +125,66 @@ async def update_lens(
     body: CreateLensRequest = Depends(CreateLensRequest.as_form),
     session: AsyncSession = Depends(get_db_session),
 ) -> Any:
-    lens = await get_lens_message(session, lens_id)
-    if lens is None:
+    root_id = await resolve_lens_uuid_to_root(session, lens_id)
+    if root_id is None:
         raise HTTPException(status_code=404, detail="Lens not found")
 
-    if lens.meta is None:
+    current_lens = await get_latest_lens_revision(session, root_id)
+    if current_lens is None:
+        raise HTTPException(status_code=404, detail="Lens not found")
+
+    if current_lens.meta is None:
         raise HTTPException(status_code=400, detail="Lens missing meta")
 
-    lens.meta = LensMeta(
+    if not await validate_at_name_unique(session, body.at_name, exclude_root_id=root_id):
+        raise HTTPException(status_code=400, detail=f"Lens with at_name '{body.at_name}' already exists")
+
+    new_revision = Message(
+        thread_id=None,
+        role="system",
+        content=body.system_prompt,
+        model=None,
+    )
+    new_revision.meta = LensMeta(
         at_name=body.at_name,
         label=body.label,
+        root_message_id=root_id,
+        parent_message_id=current_lens.uuid,
     ).model_dump()
-    lens.content = body.system_prompt
+    session.add(new_revision)
 
     if "text/html" in request.headers.get("accept", ""):
-        return RedirectResponse(url=f"/v1/lenses/{lens_id}/edit", status_code=303)
+        return RedirectResponse(url=f"/v1/lenses/{root_id}/edit", status_code=303)
 
-    return lens
+    return new_revision
+
+
+@router.get("/lenses/{lens_id}/revisions", response_model=None)
+async def get_lens_revisions(
+    lens_id: str,
+    session: AsyncSession = Depends(get_readonly_db_session),
+) -> list[Message]:
+    root_id = await resolve_lens_uuid_to_root(session, lens_id)
+    if root_id is None:
+        raise HTTPException(status_code=404, detail="Lens not found")
+
+    result = await session.execute(
+        select(Message)
+        .where(col(Message.object) == "lens", col(Message.root_message_id) == root_id)
+        .order_by(col(Message.created_at).desc(), col(Message.id).desc())
+    )
+    return list(result.scalars().all())
 
 
 @router.post("/lenses/{lens_id}/delete", response_model=None)
 async def delete_lens(lens_id: str, session: AsyncSession = Depends(get_db_session)) -> RedirectResponse:
+    root_id = await resolve_lens_uuid_to_root(session, lens_id)
+    if root_id is None:
+        raise HTTPException(status_code=404, detail="Lens not found")
+
     await session.execute(
         update(Message)
-        .where(col(Message.uuid) == lens_id)
-        .where(col(Message.object) == LENS_OBJECT)
+        .where(col(Message.object) == "lens", col(Message.root_message_id) == root_id)
         .values(deleted_at=int(time.time()))
     )
     return RedirectResponse(url="/v1/lenses", status_code=303)
