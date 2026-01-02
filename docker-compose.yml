@@ -8,9 +8,9 @@ services:
     volumes:
       - ${HF_HOME:-~/.cache/huggingface}:/root/.cache/huggingface
       - ./llama-server/entrypoint.sh:/entrypoint.sh:ro
-    entrypoint: ["/entrypoint.sh"]
+    entrypoint: [ "/entrypoint.sh" ]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -22,7 +22,7 @@ services:
     ports:
       - "8004:8004"
     volumes:
-      - .:/app
+      - .:/app:rw
     depends_on:
       llama-server:
         condition: service_healthy
@@ -30,7 +30,7 @@ services:
       - SETTINGS_ENV_FILE=.env.docker
       - OPENAI_BASE_URL=http://llama-server:8080/v1
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8004/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -39,7 +39,7 @@ services:
     build:
       context: .
       dockerfile: esbuild/Dockerfile
-    profiles: ["tools"]
+    profiles: [ "tools" ]
     working_dir: /app
     volumes:
       - .:/app

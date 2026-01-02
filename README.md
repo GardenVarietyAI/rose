@@ -51,6 +51,13 @@ docker run --rm -p 8004:8004 \
   rose-server
 ```
 
+#### Run with mise tasks
+
+```bash
+mise run llama:server -- --model $LLAMA_MODEL_PATH --port 8080 --host 127.0.0.1
+mise run dev
+```
+
 Server runs on http://localhost:8004.
 
 ## API Endpoints

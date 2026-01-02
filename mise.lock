@@ -1,3 +1,23 @@
+[tools.ccache]
+version = "4.12.2"
+backend = "ubi:ccache/ccache"
+
+[tools.ccache.platforms.macos-arm64-ccache]
+checksum = "blake3:485843cd43dba7a03f677bae4106a44fa43eecea1a3b98df624839f36290f9e4"
+
+[tools.cmake]
+version = "4.2.1"
+backend = "asdf:cmake"
+
+[tools.ninja]
+version = "1.13.2"
+backend = "aqua:ninja-build/ninja"
+
+[tools.ninja.platforms.macos-arm64]
+checksum = "blake3:8afdef849b534a3110519a8726a8887f6ec62424c6b820ce787952c2e16f1bd7"
+size = 314051
+url = "https://github.com/ninja-build/ninja/releases/download/v1.13.2/ninja-mac.zip"
+
 [tools.python]
 version = "3.12.11"
 backend = "core:python"

@@ -37,3 +37,4 @@ CLAUDE.md
 AGENTS.md
 .env
 .env.docker
+/vendor/llama.cpp

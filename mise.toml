@@ -1,11 +1,22 @@
+[settings]
+lockfile = true
+
+[env]
+_.file = ".env"
+
 [tools]
 python = "3.12"
 uv = "0.8.3"
+cmake = "latest"
+ninja = "latest"
+ccache = "latest"
 
 [tasks]
 dev = "uv run rose-server"
 esbuild = "docker compose --profile tools run --rm esbuild src/rose_server/static/app/bundle.entry.js --minify --bundle --platform=browser --outfile=src/rose_server/static/app/bundle.js"
 cuda = "docker compose -f docker-compose.yml -f docker-compose.cuda.yml up -d"
 
-[settings]
-lockfile = true
+llama-clone = "test -d vendor/llama.cpp/.git || git clone https://github.com/ggml-org/llama.cpp vendor/llama.cpp"
+llama-configure = "cmake -S vendor/llama.cpp -B vendor/llama.cpp/build -G Ninja -D CMAKE_BUILD_TYPE=Release"
+llama-build = "cmake --build vendor/llama.cpp/build --config Release"
+llama-server = "./vendor/llama.cpp/build/bin/llama-server --model $LLAMA_MODEL_PATH --port 8080 --host 127.0.0.1"
