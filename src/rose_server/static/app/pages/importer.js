@@ -1,8 +1,4 @@
-import { claudeCodeValidator } from "../utils/import-validators/claude-code.js";
-
-const VALIDATORS = {
-  "claude-code": claudeCodeValidator,
-};
+const VALIDATORS = {};
 
 export const importPage = () => ({
   preview: false,
@@ -10,7 +6,7 @@ export const importPage = () => ({
   complete: false,
   threads: [],
   parseReport: null,
-  selectedFormat: "claude-code",
+  selectedFormat: null,
   banner: {
     visible: false,
     type: "",

@@ -43,7 +43,9 @@ def render_import() -> Node:
                         "x-model": "selectedFormat",
                         "@change": "handleFormatChange()",
                     }
-                )[option(value="claude-code")["Claude Code JSONL"]],
+                )[
+                    option(value="", selected=True)["Select a format..."]
+                ],
             ],
             input_(
                 {
