@@ -11,6 +11,8 @@ class LensMeta(BaseModel):
     object: Literal["lens"] = "lens"
     at_name: str
     label: str
+    root_message_id: str | None = None
+    parent_message_id: str | None = None
 
 
 class LensMessage(BaseModel):
@@ -32,6 +34,8 @@ class LensMessage(BaseModel):
 
     @property
     def lens_id(self) -> str:
+        if self.message.meta and self.message.meta.get("root_message_id"):
+            return str(self.message.meta["root_message_id"])
         return self.message.uuid
 
     @property
