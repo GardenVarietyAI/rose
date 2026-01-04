@@ -4,13 +4,9 @@ from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import col, select
 from symspellpy import SymSpell
 
-from rose_server.models.messages import Message
 from rose_server.services.keyword_extractor import extract_keywords
-from rose_server.services.lenses import get_lens_message_by_at_name
-from rose_server.services.query_parser import parse_query
 
 KEYWORDS_THRESHOLD = 3
 MAX_KEYWORDS = 3
@@ -144,14 +140,12 @@ class SearchHit:
 @dataclass(frozen=True, slots=True)
 class SearchResult:
     original_query: str
-    clean_query: str
     query: str
     fts_query: str
     corrected_query: str | None
     used_keywords: bool
     search_mode: str | None
     lens_id: str | None
-    requested_lens_at_name: str | None
     hits: list[SearchHit]
 
 
@@ -165,20 +159,6 @@ def normalize_query(query: str) -> str:
 def sanitize_fts5_query(query: str) -> str:
     sanitized = re.sub(r"[^\w\s]", " ", query)
     return " ".join(sanitized.split())
-
-
-async def _resolve_lens_id_from_mentions(
-    session: AsyncSession,
-    *,
-    at_names: list[str],
-) -> str | None:
-    if not at_names:
-        return None
-    lens_msg = await get_lens_message_by_at_name(session, at_names[-1])
-    if lens_msg is None:
-        return None
-    root_id = lens_msg.meta.get("root_message_id") if lens_msg.meta else lens_msg.uuid
-    return root_id
 
 
 def _build_search_hit(row: Any) -> SearchHit:
@@ -301,68 +281,53 @@ async def run_search(
     corrected_query: str | None = None
     used_keywords = False
     search_mode: str | None = None
-    requested_lens_at_name: str | None = None
 
     if not original_query:
         if lens_id:
             hits = await _fetch_hits(read_session, fts_query="", limit=limit, lens_id=lens_id)
             return SearchResult(
                 original_query=original_query,
-                clean_query="",
                 query="",
                 fts_query="",
                 corrected_query=None,
                 used_keywords=False,
                 search_mode="filter",
                 lens_id=lens_id,
-                requested_lens_at_name=None,
                 hits=hits,
             )
         return SearchResult(
             original_query=original_query,
-            clean_query="",
             query="",
             fts_query="",
             corrected_query=None,
             used_keywords=False,
             search_mode=None,
             lens_id=lens_id,
-            requested_lens_at_name=None,
             hits=[],
         )
 
-    _, clean_query, at_names = parse_query(original_query)
-    requested_lens_at_name = at_names[-1] if at_names else None
-    if at_names and not lens_id:
-        resolved = await _resolve_lens_id_from_mentions(read_session, at_names=at_names)
-        if resolved:
-            lens_id = resolved
-
+    clean_query = original_query.strip()
     if not clean_query:
         if lens_id:
             hits = await _fetch_hits(read_session, fts_query="", limit=limit, lens_id=lens_id)
             return SearchResult(
                 original_query=original_query,
-                clean_query="",
                 query="",
                 fts_query="",
                 corrected_query=None,
                 used_keywords=False,
                 search_mode="filter",
                 lens_id=lens_id,
-                requested_lens_at_name=requested_lens_at_name,
                 hits=hits,
             )
         return SearchResult(
             original_query=original_query,
-            clean_query="",
             query="",
             fts_query="",
             corrected_query=None,
             used_keywords=False,
             search_mode=None,
             lens_id=lens_id,
-            requested_lens_at_name=requested_lens_at_name,
             hits=[],
         )
 
@@ -379,14 +344,12 @@ async def run_search(
     if not fts_query:
         return SearchResult(
             original_query=original_query,
-            clean_query=clean_query,
             query=effective_query,
             fts_query="",
             corrected_query=corrected_query,
             used_keywords=False,
             search_mode=None,
             lens_id=lens_id,
-            requested_lens_at_name=requested_lens_at_name,
             hits=[],
         )
 
@@ -408,13 +371,11 @@ async def run_search(
 
     return SearchResult(
         original_query=original_query,
-        clean_query=clean_query,
         query=effective_query,
         fts_query=fts_query,
         corrected_query=corrected_query,
         used_keywords=used_keywords,
         search_mode=search_mode,
         lens_id=lens_id,
-        requested_lens_at_name=requested_lens_at_name,
         hits=hits,
     )
