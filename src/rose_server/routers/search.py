@@ -11,7 +11,7 @@ from rose_server.dependencies import (
     get_spell_checker,
 )
 from rose_server.models.search_events import SearchEvent
-from rose_server.routers.lenses import get_lens_message, list_lens_picker_options
+from rose_server.routers.lenses import list_lens_picker_options
 from rose_server.schemas.search import SearchHit, SearchRequest, SearchResponse
 from rose_server.services.search import SearchResult, run_search
 from rose_server.views.pages.search import render_search, render_search_root
@@ -36,26 +36,6 @@ def _record_search_event(result: SearchResult, write_session: AsyncSession) -> N
         result_count=len(result.hits),
     )
     write_session.add(search_event)
-
-
-async def _build_display_query(
-    *,
-    read_session: AsyncSession,
-    result: SearchResult,
-) -> str:
-    display_query = result.clean_query or result.query
-    lens_id = result.lens_id
-    if not lens_id:
-        return display_query
-
-    lens_message = await get_lens_message(read_session, lens_id)
-    if lens_message is None or not lens_message.at_name:
-        return display_query
-
-    prefix = f"@{lens_message.at_name}"
-    if not display_query:
-        return prefix
-    return f"{prefix} {display_query}"
 
 
 @router.get("/search")
@@ -90,13 +70,12 @@ async def search_messages(
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
         lenses = await list_lens_picker_options(read_session)
-        display_query = await _build_display_query(read_session=read_session, result=result)
         return HtpyResponse(
             render_search(
-                query=display_query,
+                query=result.query,
                 hits=converted_hits,
                 corrected_query=result.corrected_query,
-                original_query=result.clean_query,
+                original_query=result.original_query,
                 lenses=lenses,
                 selected_lens_id=result.lens_id,
                 limit=limit,
@@ -136,13 +115,12 @@ async def search_messages_post(
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
         lenses = await list_lens_picker_options(read_session)
-        display_query = await _build_display_query(read_session=read_session, result=result)
         return HtpyResponse(
             render_search(
-                query=display_query,
+                query=result.query,
                 hits=converted_hits,
                 corrected_query=result.corrected_query,
-                original_query=result.clean_query,
+                original_query=result.original_query,
                 lenses=lenses,
                 selected_lens_id=result.lens_id,
                 limit=body.limit,
@@ -173,14 +151,13 @@ async def search_fragment(
 
     lenses = await list_lens_picker_options(read_session)
     converted_hits = _convert_hits(result.hits)
-    display_query = await _build_display_query(read_session=read_session, result=result)
 
     return HtpyResponse(
         render_search_root(
-            query=display_query,
+            query=result.query,
             hits=converted_hits,
             corrected_query=result.corrected_query,
-            original_query=result.clean_query,
+            original_query=result.original_query,
             lenses=lenses,
             selected_lens_id=result.lens_id,
             hits_count=len(converted_hits),
