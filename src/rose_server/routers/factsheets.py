@@ -9,7 +9,7 @@ from sqlmodel import col, select, update
 from starlette.responses import RedirectResponse
 
 from rose_server.dependencies import get_db_session, get_readonly_db_session
-from rose_server.models.message_types import FactsheetMessage, FactsheetMeta
+from rose_server.models.message_types import FactsheetMeta
 from rose_server.models.messages import Message
 from rose_server.schemas.factsheets import CreateFactsheetRequest
 from rose_server.services.factsheets import (
@@ -22,18 +22,6 @@ from rose_server.services.factsheets import (
 from rose_server.views.pages.factsheet import render_factsheet_form_page, render_factsheets_page
 
 router = APIRouter(prefix="/v1", tags=["factsheets"])
-
-
-async def list_factsheet_picker_options(session: AsyncSession) -> list[tuple[str, str, str]]:
-    factsheets = await list_factsheets_messages(session)
-    options: list[tuple[str, str, str]] = []
-    for factsheet in factsheets:
-        try:
-            factsheet_message = FactsheetMessage(message=factsheet)
-        except ValidationError as e:
-            raise HTTPException(status_code=500, detail="Invalid fact sheet") from e
-        options.append((factsheet_message.factsheet_id, factsheet_message.tag, factsheet_message.title))
-    return options
 
 
 @router.get("/factsheets", response_model=None)

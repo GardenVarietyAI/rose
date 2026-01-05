@@ -1,7 +1,9 @@
+from pydantic import ValidationError
 from sqlalchemy import Subquery, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
+from rose_server.models.message_types import LensMessage
 from rose_server.models.messages import Message
 
 LENS_OBJECT = "lens"
@@ -99,3 +101,15 @@ async def get_lens_message(session: AsyncSession, lens_id: str) -> Message | Non
     if root_id is None:
         return None
     return await get_latest_lens_revision(session, root_id)
+
+
+async def list_lens_picker_options(session: AsyncSession) -> list[tuple[str, str, str]]:
+    lenses = await list_lenses_messages(session)
+    options: list[tuple[str, str, str]] = []
+    for lens_message in lenses:
+        try:
+            lens = LensMessage(message=lens_message)
+        except ValidationError as e:
+            raise ValueError("Invalid lens message") from e
+        options.append((lens.lens_id, lens.at_name, lens.label))
+    return options

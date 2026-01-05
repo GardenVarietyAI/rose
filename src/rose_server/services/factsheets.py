@@ -1,7 +1,9 @@
+from pydantic import ValidationError
 from sqlalchemy import Subquery, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
+from rose_server.models.message_types import FactsheetMessage
 from rose_server.models.messages import Message
 
 FACTSHEET_OBJECT = "factsheet"
@@ -112,3 +114,15 @@ async def get_factsheet_message(session: AsyncSession, factsheet_id: str) -> Mes
     if root_id is None:
         return None
     return await get_latest_factsheet_revision(session, root_id)
+
+
+async def list_factsheet_picker_options(session: AsyncSession) -> list[tuple[str, str, str]]:
+    factsheets = await list_factsheets_messages(session)
+    options: list[tuple[str, str, str]] = []
+    for factsheet_message in factsheets:
+        try:
+            factsheet = FactsheetMessage(message=factsheet_message)
+        except ValidationError as e:
+            raise ValueError("Invalid factsheet message") from e
+        options.append((factsheet.factsheet_id, factsheet.tag, factsheet.title))
+    return options

@@ -6,9 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from rose_server.models.message_types import FactsheetMessage, LensMessage
 from rose_server.models.messages import Message
-from rose_server.routers.lenses import get_lens_message
 from rose_server.services import jobs
 from rose_server.services.factsheets import get_factsheet_message
+from rose_server.services.lenses import get_lens_message
 
 
 async def prepare_and_generate_assistant(

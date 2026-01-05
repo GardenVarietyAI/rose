@@ -14,9 +14,9 @@ from rose_server.dependencies import (
     get_spell_checker,
 )
 from rose_server.models.search_events import SearchEvent
-from rose_server.routers.factsheets import list_factsheet_picker_options
-from rose_server.routers.lenses import list_lens_picker_options
 from rose_server.schemas.search import SearchHit, SearchRequest, SearchResponse
+from rose_server.services.factsheets import list_factsheet_picker_options
+from rose_server.services.lenses import list_lens_picker_options
 from rose_server.services.search import SearchResult, run_search
 from rose_server.views.pages.search import render_search, render_search_root
 
@@ -69,6 +69,29 @@ def _record_search_event(result: SearchResult, write_session: AsyncSession) -> N
     write_session.add(search_event)
 
 
+async def _run_search_and_record(
+    *,
+    read_session: AsyncSession,
+    write_session: AsyncSession,
+    body: SearchRequest,
+    spell_checker: SymSpell | None,
+) -> tuple[SearchResult, list[SearchHit]]:
+    lens_id = _first_non_empty(body.lens_ids)
+
+    result = await run_search(
+        read_session=read_session,
+        q=body.content,
+        limit=body.limit,
+        exact=body.exact,
+        lens_id=lens_id,
+        spell_checker=spell_checker,
+    )
+
+    _record_search_event(result, write_session)
+    converted_hits = _convert_hits(result.hits)
+    return result, converted_hits
+
+
 @router.get("/search")
 async def search_messages(
     request: Request,
@@ -80,7 +103,7 @@ async def search_messages(
     write_session: AsyncSession = Depends(get_db_session),
     spell_checker: SymSpell | None = Depends(get_spell_checker),
 ) -> Any:
-    lens_id: str | None = None
+    lens_ids: list[str] = []
     factsheet_ids: list[str] = []
     if sq:
         try:
@@ -88,35 +111,31 @@ async def search_messages(
             structured = StructuredSearchQuery.model_validate(parsed)
         except ValidationError as e:
             raise HTTPException(status_code=400, detail="Invalid sq") from e
-        lens_id = _first_non_empty(structured.lens_ids)
+
+        lens_ids = [lens_id for lens_id in structured.lens_ids if lens_id]
         factsheet_ids = [factsheet_id for factsheet_id in structured.factsheet_ids if factsheet_id]
+
         if structured.limit is not None:
             limit = structured.limit
         if structured.exact is not None:
             exact = structured.exact
 
-    result = await run_search(
+    body = SearchRequest(content=q, lens_ids=lens_ids, factsheet_ids=factsheet_ids, limit=limit, exact=exact)
+    result, converted_hits = await _run_search_and_record(
         read_session=read_session,
-        q=q,
-        limit=limit,
-        exact=exact,
-        lens_id=lens_id,
+        write_session=write_session,
+        body=body,
         spell_checker=spell_checker,
     )
+    response_data = SearchResponse(index="messages", query=result.query, hits=converted_hits)
 
-    _record_search_event(result, write_session)
+    if "text/html" in request.headers.get("accept", ""):
+        try:
+            lenses = await list_lens_picker_options(read_session)
+            factsheets = await list_factsheet_picker_options(read_session)
+        except ValueError as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
-    converted_hits = _convert_hits(result.hits)
-    response_data = SearchResponse(
-        index="messages",
-        query=result.query,
-        hits=converted_hits,
-    )
-
-    accept = request.headers.get("accept", "")
-    if "text/html" in accept:
-        lenses = await list_lens_picker_options(read_session)
-        factsheets = await list_factsheet_picker_options(read_session)
         return HtpyResponse(
             render_search(
                 query=result.query,
@@ -143,30 +162,21 @@ async def search_messages_post(
     write_session: AsyncSession = Depends(get_db_session),
     spell_checker: SymSpell | None = Depends(get_spell_checker),
 ) -> Any:
-    lens_id = _first_non_empty(body.lens_ids)
-
-    result = await run_search(
+    result, converted_hits = await _run_search_and_record(
         read_session=read_session,
-        q=body.content,
-        limit=body.limit,
-        exact=body.exact,
-        lens_id=lens_id,
+        write_session=write_session,
+        body=body,
         spell_checker=spell_checker,
     )
+    response_data = SearchResponse(index="messages", query=result.query, hits=converted_hits)
 
-    _record_search_event(result, write_session)
+    if "text/html" in request.headers.get("accept", ""):
+        try:
+            lenses = await list_lens_picker_options(read_session)
+            factsheets = await list_factsheet_picker_options(read_session)
+        except ValueError as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
-    converted_hits = _convert_hits(result.hits)
-    response_data = SearchResponse(
-        index="messages",
-        query=result.query,
-        hits=converted_hits,
-    )
-
-    accept = request.headers.get("accept", "")
-    if "text/html" in accept:
-        lenses = await list_lens_picker_options(read_session)
-        factsheets = await list_factsheet_picker_options(read_session)
         return HtpyResponse(
             render_search(
                 query=result.query,
@@ -192,22 +202,17 @@ async def search_fragment(
     write_session: AsyncSession = Depends(get_db_session),
     spell_checker: SymSpell | None = Depends(get_spell_checker),
 ) -> HtpyResponse:
-    lens_id = _first_non_empty(body.lens_ids)
-
-    result = await run_search(
+    result, converted_hits = await _run_search_and_record(
         read_session=read_session,
-        q=body.content,
-        limit=body.limit,
-        exact=body.exact,
-        lens_id=lens_id,
+        write_session=write_session,
+        body=body,
         spell_checker=spell_checker,
     )
-
-    _record_search_event(result, write_session)
-
-    lenses = await list_lens_picker_options(read_session)
-    converted_hits = _convert_hits(result.hits)
-    factsheets = await list_factsheet_picker_options(read_session)
+    try:
+        lenses = await list_lens_picker_options(read_session)
+        factsheets = await list_factsheet_picker_options(read_session)
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
     return HtpyResponse(
         render_search_root(
