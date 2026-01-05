@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import uuid
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
@@ -28,7 +28,7 @@ from rose_server.schemas.threads import (
 )
 from rose_server.services import assistant, jobs
 from rose_server.services.llama import resolve_model, serialize_message_content
-from rose_server.services.threads_list_query import build_threads_list_queries
+from rose_server.services.threads_list_query import build_threads_list_statements
 from rose_server.settings import Settings
 from rose_server.views.pages.thread_activity import render_thread_activity
 from rose_server.views.pages.thread_messages import render_thread_messages
@@ -55,9 +55,9 @@ async def list_threads(
         raise HTTPException(status_code=400, detail="has_assistant must be 'true' or 'false'")
 
     normalized_import_source = import_source or None
-
-    threads_sql, threads_params, count_sql, count_params = build_threads_list_queries(
-        sort=sort,
+    sort_value = cast(Literal["last_activity", "created_at"], sort)
+    threads_stmt, count_stmt = build_threads_list_statements(
+        sort=sort_value,
         page=page,
         limit=limit,
         date_from=date_from,
@@ -66,7 +66,7 @@ async def list_threads(
         import_source=normalized_import_source,
     )
 
-    result = await session.execute(text(threads_sql), threads_params)
+    result = await session.execute(threads_stmt)
     rows = result.mappings().all()
 
     threads = [
@@ -82,7 +82,7 @@ async def list_threads(
         for row in rows
     ]
 
-    count_result = await session.execute(text(count_sql), count_params)
+    count_result = await session.execute(count_stmt)
     total = count_result.scalar_one()
 
     if "text/html" in request.headers.get("accept", ""):

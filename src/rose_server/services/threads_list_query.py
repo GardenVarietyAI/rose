@@ -1,70 +1,88 @@
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar, cast
 
-_THREADS_LIST_BASE_SQL = """
-WITH thread_first_messages AS (
-    SELECT
-        thread_id,
-        content AS first_message_content,
-        role AS first_message_role,
-        created_at,
-        import_source,
-        ROW_NUMBER() OVER (PARTITION BY thread_id ORDER BY created_at ASC, id ASC) AS rn
-    FROM messages
-    WHERE deleted_at IS NULL
-      AND thread_id IS NOT NULL
-),
-thread_stats AS (
-    SELECT
-        thread_id,
-        MAX(created_at) AS last_activity_at,
-        MAX(CASE WHEN role = 'assistant' THEN 1 ELSE 0 END) AS has_assistant_response
-    FROM messages
-    WHERE deleted_at IS NULL
-      AND thread_id IS NOT NULL
-    GROUP BY thread_id
+from sqlalchemy import (
+    case,
+    func,
+    select as sa_select,
 )
-SELECT
-    tfm.thread_id,
-    tfm.first_message_content,
-    tfm.first_message_role,
-    tfm.created_at,
-    ts.last_activity_at,
-    ts.has_assistant_response,
-    tfm.import_source
-FROM thread_first_messages tfm
-JOIN thread_stats ts ON tfm.thread_id = ts.thread_id
-WHERE tfm.rn = 1
-"""
+from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy.sql.selectable import CTE, Select
+from sqlmodel import col
+
+from rose_server.models.messages import Message
+
+_TSelect = TypeVar("_TSelect", bound=Select[Any])
 
 
-_THREADS_COUNT_BASE_SQL = """
-WITH thread_first_messages AS (
-    SELECT
-        thread_id,
-        created_at,
-        import_source,
-        ROW_NUMBER() OVER (PARTITION BY thread_id ORDER BY created_at ASC, id ASC) AS rn
-    FROM messages
-    WHERE deleted_at IS NULL
-      AND thread_id IS NOT NULL
-),
-thread_stats AS (
-    SELECT
-        thread_id,
-        MAX(CASE WHEN role = 'assistant' THEN 1 ELSE 0 END) AS has_assistant_response
-    FROM messages
-    WHERE deleted_at IS NULL
-      AND thread_id IS NOT NULL
-    GROUP BY thread_id
-)
-SELECT COUNT(*)
-FROM thread_first_messages tfm
-JOIN thread_stats ts ON tfm.thread_id = ts.thread_id
-WHERE tfm.rn = 1
-"""
+def _col(expr: Any, /) -> ColumnElement[Any]:
+    return cast(ColumnElement[Any], col(expr))
 
 
-def build_threads_list_queries(
+def _threads_ctes() -> tuple[CTE, CTE]:
+    first_messages = (
+        sa_select(
+            _col(Message.thread_id).label("thread_id"),
+            _col(Message.content).label("first_message_content"),
+            _col(Message.role).label("first_message_role"),
+            _col(Message.created_at).label("created_at"),
+            _col(Message.import_source).label("import_source"),
+            func.row_number()
+            .over(
+                partition_by=_col(Message.thread_id),
+                order_by=(_col(Message.created_at).asc(), _col(Message.id).asc()),
+            )
+            .label("rn"),
+        )
+        .where(
+            _col(Message.deleted_at).is_(None),
+            _col(Message.thread_id).is_not(None),
+        )
+        .cte("thread_first_messages")
+    )
+
+    stats = (
+        sa_select(
+            _col(Message.thread_id).label("thread_id"),
+            func.max(_col(Message.created_at)).label("last_activity_at"),
+            func.max(case((_col(Message.role) == "assistant", 1), else_=0)).label("has_assistant_response"),
+        )
+        .where(
+            _col(Message.deleted_at).is_(None),
+            _col(Message.thread_id).is_not(None),
+        )
+        .group_by(_col(Message.thread_id))
+        .cte("thread_stats")
+    )
+
+    return first_messages, stats
+
+
+def _apply_threads_filters(
+    stmt: _TSelect,
+    *,
+    first_messages: CTE,
+    stats: CTE,
+    date_from: int | None,
+    date_to: int | None,
+    has_assistant: bool | None,
+    import_source: str | None,
+) -> _TSelect:
+    if date_from is not None:
+        stmt = stmt.where(first_messages.c.created_at >= date_from)
+
+    if date_to is not None:
+        stmt = stmt.where(first_messages.c.created_at <= date_to)
+
+    if has_assistant is not None:
+        stmt = stmt.where(stats.c.has_assistant_response == (1 if has_assistant else 0))
+
+    if import_source is not None:
+        stmt = stmt.where(first_messages.c.import_source == import_source)
+
+    return stmt
+
+
+def build_threads_list_statements(
     *,
     sort: Literal["last_activity", "created_at"],
     page: int,
@@ -73,40 +91,50 @@ def build_threads_list_queries(
     date_to: int | None,
     has_assistant: bool | None,
     import_source: str | None,
-) -> tuple[str, dict[str, Any], str, dict[str, Any]]:
-    where_clauses: list[str] = []
-    params: dict[str, Any] = {}
+) -> tuple[Select[Any], Select[Any]]:
+    first_messages, stats = _threads_ctes()
 
-    if date_from is not None:
-        where_clauses.append("tfm.created_at >= :date_from")
-        params["date_from"] = date_from
+    base_stmt = (
+        sa_select(
+            first_messages.c.thread_id,
+            first_messages.c.first_message_content,
+            first_messages.c.first_message_role,
+            first_messages.c.created_at,
+            stats.c.last_activity_at,
+            stats.c.has_assistant_response,
+            first_messages.c.import_source,
+        )
+        .select_from(first_messages.join(stats, first_messages.c.thread_id == stats.c.thread_id))
+        .where(first_messages.c.rn == 1)
+    )
 
-    if date_to is not None:
-        where_clauses.append("tfm.created_at <= :date_to")
-        params["date_to"] = date_to
+    base_stmt = _apply_threads_filters(
+        base_stmt,
+        first_messages=first_messages,
+        stats=stats,
+        date_from=date_from,
+        date_to=date_to,
+        has_assistant=has_assistant,
+        import_source=import_source,
+    )
 
-    if has_assistant is not None:
-        where_clauses.append("ts.has_assistant_response = :has_assistant")
-        params["has_assistant"] = 1 if has_assistant else 0
-
-    if import_source is not None:
-        where_clauses.append("tfm.import_source = :import_source")
-        params["import_source"] = import_source
-
-    where_suffix = ""
-    if where_clauses:
-        where_suffix = " AND " + " AND ".join(where_clauses)
-
+    sort_col = stats.c.last_activity_at if sort == "last_activity" else first_messages.c.created_at
     offset = (page - 1) * limit
+    list_stmt = base_stmt.order_by(sort_col.desc()).limit(limit).offset(offset)
 
-    sort_col = "ts.last_activity_at" if sort == "last_activity" else "tfm.created_at"
-    list_sql = _THREADS_LIST_BASE_SQL + where_suffix + f" ORDER BY {sort_col} DESC LIMIT :limit OFFSET :offset"
-    list_params = dict(params)
-    list_params["limit"] = limit
-    list_params["offset"] = offset
+    count_stmt = (
+        sa_select(func.count())
+        .select_from(first_messages.join(stats, first_messages.c.thread_id == stats.c.thread_id))
+        .where(first_messages.c.rn == 1)
+    )
+    count_stmt = _apply_threads_filters(
+        count_stmt,
+        first_messages=first_messages,
+        stats=stats,
+        date_from=date_from,
+        date_to=date_to,
+        has_assistant=has_assistant,
+        import_source=import_source,
+    )
 
-    count_sql = _THREADS_COUNT_BASE_SQL + where_suffix
-    count_params = params
-
-    return list_sql, list_params, count_sql, count_params
-
+    return list_stmt, count_stmt
