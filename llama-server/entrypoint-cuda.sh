@@ -7,13 +7,12 @@ if [ ! -f "$LLAMA_MODEL_PATH" ]; then
 fi
 
 exec /app/llama-server \
-  --host 0.0.0.0 \
-  --port 8080 \
-  --flash-attn on \
-  --cont-batching \
-  --parallel 4 \
-  --batch-size 2048 --ubatch-size 512 \
+  -m "$LLAMA_MODEL_PATH" \
+  --host 0.0.0.0 --port 8080 \
   -ngl -1 \
-  -c 2048 \
-  -n 512 \
-  -m "$LLAMA_MODEL_PATH"
+  -c 32768 \
+  --flash-attn on \
+  --cache-type-k q8_0 --cache-type-v q8_0 \
+  --batch-size 4096 --ubatch-size 1024 \
+  -t 16 -tb 16 \
+  --metrics

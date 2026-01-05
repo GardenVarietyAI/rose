@@ -9,4 +9,6 @@ services:
             - capabilities: ["gpu"]
               count: 1
               driver: nvidia
+    volumes:
+      - ./llama-server/entrypoint-cuda.sh:/entrypoint-cuda.sh:ro
     entrypoint: ["/entrypoint-cuda.sh"]
