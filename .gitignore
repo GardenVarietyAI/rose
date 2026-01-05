@@ -32,6 +32,9 @@ env/
 # OS
 .DS_Store
 
+# Build output
+src/rose_server/static/dist/
+
 # Config
 CLAUDE.md
 AGENTS.md

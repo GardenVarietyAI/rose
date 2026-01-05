@@ -16,7 +16,7 @@ def render_page(*, title_text: str, content: Node, app_data: AppData | None = No
         meta(name="color-scheme", content="light dark"),
         style(rel="text/css")["[x-cloak] { display: none !important }"],
         link(rel="stylesheet", href="/static/vendor/open-props/open-props.css"),
-        link(rel="stylesheet", href="/static/app/app.css"),
+        link(rel="stylesheet", href="/static/dist/app.min.css"),
         app_data_script,
     ]
 
@@ -39,7 +39,7 @@ def render_page(*, title_text: str, content: Node, app_data: AppData | None = No
                 main(class_="main-content")[content],
                 aside(class_="aside")[div(class_="aside-placeholder")["Filters & context"],],
             ],
-            script(src="/static/app/bundle.js", defer=True),
+            script(src="/static/dist/app.min.js", defer=True),
             script(src="/static/vendor/alpine/alpine.min.js", defer=True),
         ],
     ]
