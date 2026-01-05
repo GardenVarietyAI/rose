@@ -1,7 +1,11 @@
 import { parseQueryModel } from "../utils/query-model.js";
-import { createSearchEditorController } from "../utils/search-editor-controller.js";
-import { computeMentionState } from "../utils/search-mentions.js";
-import { buildFactsheetState, buildLensState } from "../utils/search-options.js";
+import {
+  buildFactsheetState,
+  buildLensState,
+  computeMentionState,
+  createSearchEditorController,
+} from "../utils/search-editor-controller.js";
+import { debounce } from "../utils/debounce.js";
 import { submitSearchFragment } from "../utils/search-submit.js";
 
 export const searchForm = () => ({
@@ -20,16 +24,9 @@ export const searchForm = () => ({
   idToAtName: {},
   factsheetIdToTag: {},
   factsheetIdToTitle: {},
-  selectedLensId: "",
-  selectedFactsheetIds: [],
-  exact: false,
-  limit: 10,
   errorMessage: "",
   editor: null,
-
-  _normalizeFactsheetIds(ids) {
-    return Array.from(new Set((ids || []).map((factsheetId) => String(factsheetId).trim()).filter(Boolean)));
-  },
+  commitContentDebounced: null,
 
   showError(message) {
     this.errorMessage = message;
@@ -37,10 +34,11 @@ export const searchForm = () => ({
   },
 
   init() {
-    const initialQuery = this.$store.search.content || "";
-    const lensMap = this.$store.search.lens_map || {};
-    const factsheetMap = this.$store.search.factsheet_map || {};
-    const factsheetTitleMap = this.$store.search.factsheet_title_map || {};
+    const store = this.$store.search;
+    const initialQuery = store.content;
+    const lensMap = store.lens_map;
+    const factsheetMap = store.factsheet_map;
+    const factsheetTitleMap = store.factsheet_title_map;
 
     this.queryValue = initialQuery.replace(/^@\S+\s*/, "");
     const lensState = buildLensState(lensMap);
@@ -53,15 +51,10 @@ export const searchForm = () => ({
     this.factsheetIdToTag = factsheetState.factsheetIdToTag;
     this.factsheetIdToTitle = factsheetState.factsheetIdToTitle;
 
-    const initialLensIds = Array.isArray(this.$store.search.lens_ids) ? this.$store.search.lens_ids : [];
-    this.selectedLensId = initialLensIds[0] || "";
-    this.selectedFactsheetIds = this._normalizeFactsheetIds(
-      Array.isArray(this.$store.search.factsheet_ids) ? this.$store.search.factsheet_ids : []
-    );
-    this.exact = Boolean(this.$store.search.exact);
-    this.limit = Number(this.$store.search.limit) || 10;
-
     this.editor = createSearchEditorController(this.$refs?.editor);
+    this.commitContentDebounced = debounce((value) => {
+      this.$store.search.setContent(value);
+    }, 200);
 
     this.$nextTick(() => {
       this.seedFromTransport();
@@ -77,32 +70,22 @@ export const searchForm = () => ({
     const textarea = this.$refs?.textarea;
     if (textarea) textarea.value = this.queryValue;
     const select = this.$refs?.lensSelect;
-    if (select) select.value = this.selectedLensId || "";
-    this.publishFromState();
+    if (select) select.value = this.$store.search.lens_ids[0] || "";
+    this.$store.search.setContent(this.queryValue);
   },
 
   getQueryModelFromState() {
+    const store = this.$store.search;
     return parseQueryModel({
       content: this.queryValue,
-      lens_ids: this.selectedLensId ? [this.selectedLensId] : [],
-      factsheet_ids: this.selectedFactsheetIds,
-      exact: this.exact,
-      limit: this.limit,
+      lens_ids: store.lens_ids,
+      factsheet_ids: store.factsheet_ids,
+      exact: store.exact,
+      limit: store.limit,
     });
   },
 
-  publishFromState() {
-    const store = this.$store?.search;
-    if (!store?.applyQueryModel) {
-      throw new Error("Search store missing applyQueryModel");
-    }
-    const model = this.getQueryModelFromState();
-    store.applyQueryModel(model);
-    const select = this.$refs?.lensSelect;
-    if (select) select.value = model.lens_ids[0] || "";
-  },
-
-  async runSearch({ updateUrl }) {
+  async runSearch({ updateUrl } = {}) {
     if (this.submitting) {
       this.pendingSubmit = true;
       this.pendingUpdateUrl = this.pendingUpdateUrl || updateUrl;
@@ -122,7 +105,7 @@ export const searchForm = () => ({
       const textarea = this.$refs?.textarea;
       if (textarea) textarea.value = submitQuery;
 
-      this.publishFromState();
+      this.$store.search.setContent(submitQuery);
       const model = this.getQueryModelFromState();
 
       const payload = {
@@ -153,30 +136,24 @@ export const searchForm = () => ({
   },
 
   refreshResults() {
-    void this.runSearch({ updateUrl: false });
+    void this.runSearch({ updateUrl: "sq" });
   },
 
   clearLensSelection() {
-    this.selectedLensId = "";
+    this.$store.search.clearLens();
     const select = this.$refs?.lensSelect;
     if (select) select.value = "";
-    this.publishFromState();
     this.refreshResults();
   },
 
   handleLensSelectChange(event) {
     const nextLensId = event?.target?.value?.trim() || "";
-    this.selectedLensId = nextLensId;
-    this.publishFromState();
+    this.$store.search.setLensId(nextLensId);
     this.refreshResults();
   },
 
   removeFactsheet(factsheetId) {
-    const normalizedId = String(factsheetId).trim();
-    this.selectedFactsheetIds = this._normalizeFactsheetIds(
-      (this.selectedFactsheetIds || []).filter((candidate) => candidate !== normalizedId)
-    );
-    this.publishFromState();
+    this.$store.search.removeFactsheetId(factsheetId);
     this.refreshResults();
   },
 
@@ -190,7 +167,10 @@ export const searchForm = () => ({
       const textarea = this.$refs?.textarea;
       if (textarea) textarea.value = nextValue;
     }
-    this.publishFromState();
+    if (!this.commitContentDebounced) {
+      throw new Error("commitContentDebounced not initialized");
+    }
+    this.commitContentDebounced(this.queryValue);
     this.updateMentionState();
   },
 
@@ -223,14 +203,11 @@ export const searchForm = () => ({
     if (!selected) return;
 
     if (mention.type === "tag") {
-      const factsheetId = String(selected.factsheetId).trim();
-      if (!this.selectedFactsheetIds.includes(factsheetId)) {
-        this.selectedFactsheetIds = this._normalizeFactsheetIds([...this.selectedFactsheetIds, factsheetId]);
-      }
+      this.$store.search.addFactsheetId(selected.factsheetId);
     } else {
-      this.selectedLensId = selected.lensId;
+      this.$store.search.setLensId(selected.lensId);
       const select = this.$refs?.lensSelect;
-      if (select) select.value = this.selectedLensId;
+      if (select) select.value = selected.lensId;
     }
 
     this.editor.replaceRange(mention.start, mention.end, " ", mention.start + 1);
@@ -238,7 +215,7 @@ export const searchForm = () => ({
     const textarea = this.$refs?.textarea;
     if (textarea) textarea.value = this.queryValue;
 
-    this.publishFromState();
+    this.$store.search.setContent(this.queryValue);
     this.mentionOpen = false;
     this.mentionQuery = "";
     this.mentionOptions = this.lensOptions;
@@ -282,6 +259,6 @@ export const searchForm = () => ({
   },
 
   async submit() {
-    await this.runSearch({ updateUrl: true });
+    await this.runSearch();
   },
 });

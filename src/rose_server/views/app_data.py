@@ -1,15 +1,12 @@
 from pydantic import BaseModel, Field
 
+from rose_server.schemas.query import QueryRequest
 
-class SearchAppData(BaseModel):
+
+class SearchAppData(QueryRequest):
     lens_map: dict[str, str] = Field(default_factory=dict)
     factsheet_map: dict[str, str] = Field(default_factory=dict)
     factsheet_title_map: dict[str, str] = Field(default_factory=dict)
-    factsheet_ids: list[str] = Field(default_factory=list)
-    content: str = ""
-    lens_ids: list[str] = Field(default_factory=list)
-    limit: int = 10
-    exact: bool = False
 
 
 class ThreadsAppData(BaseModel):

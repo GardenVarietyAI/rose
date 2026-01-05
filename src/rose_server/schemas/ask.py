@@ -1,13 +1,13 @@
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from rose_server.schemas.query import QueryRequest
 
-class AskRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+
+class AskRequest(QueryRequest):
+    model_config = ConfigDict(extra="forbid")
 
     content: str
     thread_id: str | None = None
-    lens_ids: list[str] = []
-    factsheet_ids: list[str] = []
     model: str | None = None
 
     @field_validator("content")
