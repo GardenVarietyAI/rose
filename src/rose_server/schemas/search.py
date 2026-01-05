@@ -1,5 +1,7 @@
 from pydantic import BaseModel
 
+from rose_server.schemas.query import QueryRequest
+
 
 class SearchHit(BaseModel):
     thread_id: str
@@ -24,9 +26,5 @@ class SearchResponse(BaseModel):
     hits: list[SearchHit]
 
 
-class SearchRequest(BaseModel):
-    content: str = ""
-    limit: int = 10
-    exact: bool = False
-    lens_ids: list[str] = []
-    factsheet_ids: list[str] = []
+class SearchRequest(QueryRequest):
+    pass

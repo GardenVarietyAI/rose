@@ -6,11 +6,19 @@ function encodeSq(params) {
     .replace(/=+$/g, "");
 }
 
+function getQueryDefaults() {
+  const transport = window.TRANSPORT?.search;
+  return {
+    exact: Boolean(transport?.exact),
+    limit: typeof transport?.limit === "number" ? transport.limit : 10,
+  };
+}
+
 export async function submitSearchFragment({
   payload,
   formAction,
   rootSelector = "#search-root",
-  updateUrl = true,
+  updateUrl,
 }) {
   if (!payload) {
     throw new Error("payload is required");
@@ -36,18 +44,22 @@ export async function submitSearchFragment({
   }
   current.outerHTML = html;
 
-  if (!updateUrl) {
-    return;
-  }
-
-  const params = new URLSearchParams();
-  if (payload.content) params.set("q", payload.content);
-
+  const defaults = getQueryDefaults();
   const shouldIncludeSq =
     payload.lens_ids.length > 0 ||
     payload.factsheet_ids.length > 0 ||
-    payload.exact ||
-    payload.limit !== 10;
+    payload.exact !== defaults.exact ||
+    payload.limit !== defaults.limit;
+
+  const params = updateUrl === "sq"
+    ? new URLSearchParams(window.location.search)
+    : new URLSearchParams();
+
+  if (!updateUrl) {
+    if (payload.content) params.set("q", payload.content);
+    else params.delete("q");
+  }
+
   if (shouldIncludeSq) {
     params.set(
       "sq",
@@ -58,6 +70,8 @@ export async function submitSearchFragment({
         limit: payload.limit,
       })
     );
+  } else {
+    params.delete("sq");
   }
 
   const url = params.toString() ? `${formAction}?${params.toString()}` : formAction;
