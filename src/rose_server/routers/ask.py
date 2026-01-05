@@ -54,12 +54,18 @@ async def ask(
             SearchEvent(event_type="ask", search_mode="llm", query=content, result_count=0, thread_id=thread_id)
         )
 
-    lens_id = body.lens_id.strip() if body.lens_id else None
+    lens_id: str | None = None
+    for candidate in body.lens_ids:
+        if candidate and candidate.strip():
+            lens_id = candidate.strip()
+            break
+    factsheet_ids = [factsheet_id for factsheet_id in body.factsheet_ids if factsheet_id]
 
-    job_id, generation_messages, lens_at_name = await assistant.prepare_and_generate_assistant(
+    job_id, generation_messages, lens_at_name, resolved_factsheet_ids = await assistant.prepare_and_generate_assistant(
         session,
         user_message=user_message,
         lens_id=lens_id,
+        factsheet_ids=factsheet_ids,
     )
 
     background_tasks.add_task(
@@ -71,6 +77,7 @@ async def ask(
         messages=generation_messages,
         lens_id=lens_id,
         lens_at_name=lens_at_name,
+        factsheet_ids=resolved_factsheet_ids,
         llama_client=llama_client,
         bind=session.bind,
     )

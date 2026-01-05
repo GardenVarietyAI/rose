@@ -36,18 +36,6 @@ async def list_lens_options(session: AsyncSession) -> list[tuple[str, str]]:
     return options
 
 
-async def list_lens_autocomplete_options(session: AsyncSession) -> list[tuple[str, str]]:
-    lenses = await list_lenses_messages(session)
-    options: list[tuple[str, str]] = []
-    for lens in lenses:
-        try:
-            lens_message = LensMessage(message=lens)
-        except ValidationError as e:
-            raise HTTPException(status_code=500, detail="Invalid lens message") from e
-        options.append((lens_message.at_name, lens_message.label))
-    return options
-
-
 async def list_lens_picker_options(session: AsyncSession) -> list[tuple[str, str, str]]:
     lenses = await list_lenses_messages(session)
     options: list[tuple[str, str, str]] = []

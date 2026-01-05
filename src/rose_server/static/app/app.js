@@ -1,11 +1,11 @@
 import { askButton } from "./components/ask-button.js";
 import { responseMessage } from "./components/response-message.js";
 import { searchForm } from "./components/search-form.js";
-import { lensToken } from "./components/tokens/lens-token.js";
 import { importPage } from "./pages/importer.js";
 import { threadMessagesPage } from "./pages/thread_messages.js";
 import { deleteConfirmPopover, threadsListPage } from "./pages/threads-list.js";
 import { markdownToHtml } from "./utils/markdown.js";
+import { parseQueryModel } from "./utils/query-model.js";
 
 document.addEventListener("alpine:init", () => {
   if (!window.TRANSPORT?.search) {
@@ -15,8 +15,14 @@ document.addEventListener("alpine:init", () => {
   Alpine.store("search", {
     ...window.TRANSPORT.search,
 
-    clearLens() {
-      this.lens_id = "";
+    applyQueryModel(model) {
+      const parsed = parseQueryModel(model);
+
+      this.content = parsed.content;
+      this.lens_ids = parsed.lens_ids;
+      this.factsheet_ids = parsed.factsheet_ids;
+      this.exact = parsed.exact;
+      this.limit = parsed.limit;
     },
   });
 
@@ -44,7 +50,6 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("askButton", askButton);
   Alpine.data("responseMessage", responseMessage);
   Alpine.data("searchForm", searchForm);
-  Alpine.data("lensToken", lensToken);
   Alpine.data("importPage", importPage);
   Alpine.data("threadMessagesPage", threadMessagesPage);
   Alpine.data("threadsListPage", threadsListPage);

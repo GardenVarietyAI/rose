@@ -1,5 +1,9 @@
 .mention-panel {
-  margin-top: var(--size-2);
+  position: absolute;
+  top: calc(100% + var(--size-1));
+  left: 0;
+  right: 0;
+  z-index: 20;
   border-radius: var(--rose-radius);
   border: 1px solid var(--rose-gray-3);
   background: var(--rose-gray-0);

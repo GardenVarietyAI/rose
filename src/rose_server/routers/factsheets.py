@@ -24,15 +24,15 @@ from rose_server.views.pages.factsheet import render_factsheet_form_page, render
 router = APIRouter(prefix="/v1", tags=["factsheets"])
 
 
-async def list_factsheet_options(session: AsyncSession) -> list[tuple[str, str]]:
+async def list_factsheet_picker_options(session: AsyncSession) -> list[tuple[str, str, str]]:
     factsheets = await list_factsheets_messages(session)
-    options: list[tuple[str, str]] = []
+    options: list[tuple[str, str, str]] = []
     for factsheet in factsheets:
         try:
             factsheet_message = FactsheetMessage(message=factsheet)
         except ValidationError as e:
             raise HTTPException(status_code=500, detail="Invalid fact sheet") from e
-        options.append((factsheet_message.factsheet_id, factsheet_message.title))
+        options.append((factsheet_message.factsheet_id, factsheet_message.tag, factsheet_message.title))
     return options
 
 

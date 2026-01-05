@@ -7,6 +7,7 @@ from htpy import (
     option,
     select,
     span,
+    template,
 )
 
 from rose_server.views.components.ask_button import ask_button
@@ -35,20 +36,47 @@ def render_search_form(
             type="hidden",
             name="q",
         ),
-        div(
-            {
-                "x-ref": "editor",
-                "x-on:input": "syncToStore()",
-                "@keydown": "handleEditorKeydown($event)",
-                "contenteditable": "true",
-                "role": "textbox",
-                "tabindex": "0",
-                "aria-multiline": "true",
-                "spellcheck": "false",
-            },
-            class_="search-editor",
-        ),
-        render_mention_panel(),
+        div(class_="search-editor-wrap")[
+            div(
+                {
+                    "x-ref": "editor",
+                    "x-on:input": "syncToStore()",
+                    "@keydown": "handleEditorKeydown($event)",
+                    "contenteditable": "true",
+                    "role": "textbox",
+                    "tabindex": "0",
+                    "aria-multiline": "true",
+                    "spellcheck": "false",
+                },
+                class_="search-editor",
+            ),
+            render_mention_panel(),
+        ],
+        div(class_="search-gutter")[
+            template({"x-if": "$store.search.lens_ids.length"})[
+                button(
+                    {"type": "button", "@click.prevent": "clearLensSelection()"},
+                    class_="search-chip",
+                )[
+                    span({"x-text": "`@${idToAtName[$store.search.lens_ids[0]] || ''}`"}, class_="search-chip-text"),
+                ]
+            ],
+            template({"x-for": "factsheetId in $store.search.factsheet_ids", "x-bind:key": "factsheetId"})[
+                button(
+                    {"type": "button", "@click.prevent": "removeFactsheet(factsheetId)"},
+                    class_="search-chip",
+                )[
+                    span({"x-text": "`#${factsheetIdToTag[factsheetId] || ''}`"}, class_="search-chip-text"),
+                    span(
+                        {
+                            "x-text": "factsheetIdToTitle[factsheetId] || ''",
+                            "x-show": "factsheetIdToTitle[factsheetId] && factsheetIdToTitle[factsheetId] !== factsheetIdToTag[factsheetId]",
+                        },
+                        class_="search-chip-label",
+                    ),
+                ]
+            ],
+        ],
         div(class_="search-controls-row")[
             span(class_="search-results-count")[f"Results: {hits_count}"],
             div({"x-show": "submitting", "x-cloak": ""}, class_="search-status")[div(class_="spinner")[""]],
@@ -72,8 +100,7 @@ def render_search_form(
             select(
                 {
                     "x-ref": "lensSelect",
-                    "name": "lens_id",
-                    "x-model": "$store.search.lens_id",
+                    "@change": "handleLensSelectChange($event)",
                 },
                 class_="settings-select",
             )[
@@ -90,7 +117,7 @@ def render_search_form(
             ],
             div(class_="settings-actions")[
                 button(
-                    {"@click.prevent": "$store.search.clearLens()"},
+                    {"@click.prevent": "clearLensSelection()"},
                     type="button",
                     class_="settings-clear-button",
                 )["Clear"]

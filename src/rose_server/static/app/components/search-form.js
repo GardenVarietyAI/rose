@@ -1,17 +1,35 @@
-import { createBufferController } from "../utils/buffer-controller.js";
+import { parseQueryModel } from "../utils/query-model.js";
+import { createSearchEditorController } from "../utils/search-editor-controller.js";
+import { computeMentionState } from "../utils/search-mentions.js";
+import { buildFactsheetState, buildLensState } from "../utils/search-options.js";
+import { submitSearchFragment } from "../utils/search-submit.js";
 
 export const searchForm = () => ({
   queryValue: "",
   settingsOpen: false,
   submitting: false,
+  pendingSubmit: false,
+  pendingUpdateUrl: false,
   mentionOpen: false,
   mentionIndex: 0,
   mentionQuery: "",
   mentionOptions: [],
+  activeMention: null,
   lensOptions: [],
+  tagOptions: [],
   idToAtName: {},
+  factsheetIdToTag: {},
+  factsheetIdToTitle: {},
+  selectedLensId: "",
+  selectedFactsheetIds: [],
+  exact: false,
+  limit: 10,
   errorMessage: "",
-  controller: null,
+  editor: null,
+
+  _normalizeFactsheetIds(ids) {
+    return Array.from(new Set((ids || []).map((factsheetId) => String(factsheetId).trim()).filter(Boolean)));
+  },
 
   showError(message) {
     this.errorMessage = message;
@@ -19,120 +37,213 @@ export const searchForm = () => ({
   },
 
   init() {
-    const initialQuery = this.$store.search.query || "";
+    const initialQuery = this.$store.search.content || "";
     const lensMap = this.$store.search.lens_map || {};
+    const factsheetMap = this.$store.search.factsheet_map || {};
+    const factsheetTitleMap = this.$store.search.factsheet_title_map || {};
 
     this.queryValue = initialQuery.replace(/^@\S+\s*/, "");
-    this.buildLensState(lensMap);
-    this.controller = createBufferController(this.$refs?.editor);
+    const lensState = buildLensState(lensMap);
+    this.lensOptions = lensState.lensOptions;
+    this.mentionOptions = lensState.lensOptions;
+    this.idToAtName = lensState.idToAtName;
 
-    this.$watch("queryValue", (value) => {
-      this.$store.search.query = value;
-    });
-    this.$watch("$store.search.lens_id", (lensId, oldLensId) => {
-      const select = this.$refs?.lensSelect;
-      if (select) select.value = lensId;
+    const factsheetState = buildFactsheetState(factsheetMap, factsheetTitleMap);
+    this.tagOptions = factsheetState.tagOptions;
+    this.factsheetIdToTag = factsheetState.factsheetIdToTag;
+    this.factsheetIdToTitle = factsheetState.factsheetIdToTitle;
 
-      if (oldLensId !== undefined) {
-        this.controller.removeLens(oldLensId);
-      }
+    const initialLensIds = Array.isArray(this.$store.search.lens_ids) ? this.$store.search.lens_ids : [];
+    this.selectedLensId = initialLensIds[0] || "";
+    this.selectedFactsheetIds = this._normalizeFactsheetIds(
+      Array.isArray(this.$store.search.factsheet_ids) ? this.$store.search.factsheet_ids : []
+    );
+    this.exact = Boolean(this.$store.search.exact);
+    this.limit = Number(this.$store.search.limit) || 10;
 
-      this.syncFromStore();
+    this.editor = createSearchEditorController(this.$refs?.editor);
 
-      if (oldLensId !== undefined) {
-        if (this.controller && document.activeElement === this.$refs?.editor) {
-          this.controller.placeCaretAtEnd();
-        }
-      }
-    });
     this.$nextTick(() => {
-      this.syncFromStore();
+      this.seedFromTransport();
       if (!initialQuery) {
         this.$refs?.editor?.focus();
       }
     });
   },
 
-  syncFromStore() {
-    if (!this.controller) return;
-    this.controller.loadFromQuery(this.queryValue, this.getSelectedLens());
+  seedFromTransport() {
+    if (!this.editor) return;
+    this.editor.setText(this.queryValue);
     const textarea = this.$refs?.textarea;
     if (textarea) textarea.value = this.queryValue;
+    const select = this.$refs?.lensSelect;
+    if (select) select.value = this.selectedLensId || "";
+    this.publishFromState();
+  },
+
+  getQueryModelFromState() {
+    return parseQueryModel({
+      content: this.queryValue,
+      lens_ids: this.selectedLensId ? [this.selectedLensId] : [],
+      factsheet_ids: this.selectedFactsheetIds,
+      exact: this.exact,
+      limit: this.limit,
+    });
+  },
+
+  publishFromState() {
+    const store = this.$store?.search;
+    if (!store?.applyQueryModel) {
+      throw new Error("Search store missing applyQueryModel");
+    }
+    const model = this.getQueryModelFromState();
+    store.applyQueryModel(model);
+    const select = this.$refs?.lensSelect;
+    if (select) select.value = model.lens_ids[0] || "";
+  },
+
+  async runSearch({ updateUrl }) {
+    if (this.submitting) {
+      this.pendingSubmit = true;
+      this.pendingUpdateUrl = this.pendingUpdateUrl || updateUrl;
+      return;
+    }
+
+    const form = this.$refs?.form;
+    if (!form) {
+      throw new Error("Form ref not found");
+    }
+
+    this.submitting = true;
+
+    try {
+      const submitQuery = this.queryValue.trim();
+      this.queryValue = submitQuery;
+      const textarea = this.$refs?.textarea;
+      if (textarea) textarea.value = submitQuery;
+
+      this.publishFromState();
+      const model = this.getQueryModelFromState();
+
+      const payload = {
+        content: submitQuery,
+        exact: model.exact,
+        limit: model.limit,
+        lens_ids: model.lens_ids,
+        factsheet_ids: model.factsheet_ids,
+      };
+
+      await submitSearchFragment({
+        payload,
+        formAction: form.action,
+        updateUrl,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.showError(`Search failed: ${message}`);
+    } finally {
+      this.submitting = false;
+      if (this.pendingSubmit) {
+        const nextUpdateUrl = this.pendingUpdateUrl;
+        this.pendingSubmit = false;
+        this.pendingUpdateUrl = false;
+        await this.runSearch({ updateUrl: nextUpdateUrl });
+      }
+    }
+  },
+
+  refreshResults() {
+    void this.runSearch({ updateUrl: false });
+  },
+
+  clearLensSelection() {
+    this.selectedLensId = "";
+    const select = this.$refs?.lensSelect;
+    if (select) select.value = "";
+    this.publishFromState();
+    this.refreshResults();
+  },
+
+  handleLensSelectChange(event) {
+    const nextLensId = event?.target?.value?.trim() || "";
+    this.selectedLensId = nextLensId;
+    this.publishFromState();
+    this.refreshResults();
+  },
+
+  removeFactsheet(factsheetId) {
+    const normalizedId = String(factsheetId).trim();
+    this.selectedFactsheetIds = this._normalizeFactsheetIds(
+      (this.selectedFactsheetIds || []).filter((candidate) => candidate !== normalizedId)
+    );
+    this.publishFromState();
+    this.refreshResults();
   },
 
   syncToStore() {
-    if (!this.controller) {
-      throw new Error("Buffer controller not initialized");
+    if (!this.editor) {
+      throw new Error("Editor not initialized");
     }
-    this.controller.syncBufferOnly();
-    const nextValue = this.controller.serialize();
+    const nextValue = this.editor.getText();
     if (nextValue !== this.queryValue) {
       this.queryValue = nextValue;
       const textarea = this.$refs?.textarea;
       if (textarea) textarea.value = nextValue;
     }
+    this.publishFromState();
     this.updateMentionState();
   },
 
   updateMentionState() {
-    if (!this.controller) return;
-    const mention = this.controller.detectMention();
-    if (!mention) {
-      this.mentionOpen = false;
-      this.mentionQuery = "";
-      this.mentionOptions = this.lensOptions;
-      this.mentionIndex = 0;
-      return;
-    }
-
-    const query = mention.query;
-    const options = this.lensOptions.filter((option) =>
-      option.atName.startsWith(query)
-    );
-    const wasOpen = this.mentionOpen && this.mentionQuery === query;
-    this.mentionOpen = options.length > 0;
-    this.mentionQuery = query;
-    this.mentionOptions = options;
-    this.mentionIndex = wasOpen ? Math.min(this.mentionIndex, Math.max(options.length - 1, 0)) : 0;
+    if (!this.editor) return;
+    const next = computeMentionState({
+      controller: this.editor,
+      lensOptions: this.lensOptions,
+      tagOptions: this.tagOptions,
+      previous: {
+        open: this.mentionOpen,
+        query: this.mentionQuery,
+        index: this.mentionIndex,
+      },
+    });
+    this.mentionOpen = next.open;
+    this.mentionQuery = next.query;
+    this.mentionOptions = next.options;
+    this.mentionIndex = next.index;
+    this.activeMention = next.mention;
   },
 
-  buildLensState(lensMap) {
-    const lensOptions = Object.entries(lensMap)
-      .map(([atName, lensId]) => ({ lensId, atName: atName.toLowerCase() }))
-      .filter((option) => option.atName);
-    const idToAtName = Object.fromEntries(
-      Object.entries(lensMap).map(([atName, lensId]) => [lensId, atName])
-    );
-    this.lensOptions = lensOptions;
-    this.mentionOptions = lensOptions;
-    this.idToAtName = idToAtName;
-  },
+  selectMention(option = null) {
+    if (!this.editor || !this.mentionOpen || !this.mentionOptions.length) return;
 
-  getSelectedLens() {
-    const lensId = this.$store.search.lens_id || "";
-    if (!lensId) return null;
-    const atName = this.idToAtName[lensId] || "";
-    return { lensId, atName };
-  },
-
-  selectMention() {
-    if (!this.controller || !this.mentionOpen || !this.mentionOptions.length) return;
-
-    const mention = this.controller.detectMention();
+    const mention = this.activeMention || this.editor.detectMention();
     if (!mention) return;
 
-    const selected = this.mentionOptions[this.mentionIndex];
+    const selected = option || this.mentionOptions[this.mentionIndex];
     if (!selected) return;
 
-    this.controller.insertLensToken(mention, selected.lensId, selected.atName);
+    if (mention.type === "tag") {
+      const factsheetId = String(selected.factsheetId).trim();
+      if (!this.selectedFactsheetIds.includes(factsheetId)) {
+        this.selectedFactsheetIds = this._normalizeFactsheetIds([...this.selectedFactsheetIds, factsheetId]);
+      }
+    } else {
+      this.selectedLensId = selected.lensId;
+      const select = this.$refs?.lensSelect;
+      if (select) select.value = this.selectedLensId;
+    }
 
-    this.$store.search.lens_id = selected.lensId;
-    this.queryValue = this.controller.serialize();
+    this.editor.replaceRange(mention.start, mention.end, " ", mention.start + 1);
+    this.queryValue = this.editor.getText();
+    const textarea = this.$refs?.textarea;
+    if (textarea) textarea.value = this.queryValue;
+
+    this.publishFromState();
     this.mentionOpen = false;
     this.mentionQuery = "";
     this.mentionOptions = this.lensOptions;
     this.mentionIndex = 0;
-
+    this.refreshResults();
   },
 
   handleEditorKeydown(event) {
@@ -157,7 +268,8 @@ export const searchForm = () => ({
     }
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      this.selectMention();
+      const selected = this.mentionOptions[this.mentionIndex];
+      this.selectMention(selected);
       return;
     }
     if (event.key === "Escape") {
@@ -170,64 +282,6 @@ export const searchForm = () => ({
   },
 
   async submit() {
-    if (this.submitting) return;
-    const form = this.$refs?.form;
-    if (!form) {
-      throw new Error("Form ref not found");
-    }
-
-    this.submitting = true;
-
-    try {
-      const select = this.$refs?.lensSelect;
-      const selectedLensId = select?.value?.trim() || this.$store.search.lens_id || "";
-      const submitQuery = this.queryValue.trim();
-
-      const limit = Number(this.$store.search.limit);
-      if (!limit || limit < 1) {
-        throw new Error("Invalid search limit");
-      }
-
-      const payload = {
-        q: submitQuery,
-        exact: Boolean(this.$store.search.exact),
-        limit,
-        lens_id: selectedLensId || undefined,
-      };
-
-      const response = await fetch("/v1/search/fragment", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Search failed (HTTP ${response.status})`);
-      }
-
-      const html = await response.text();
-      const current = document.querySelector("#search-root");
-
-      if (!current) {
-        throw new Error("Page missing #search-root element");
-      }
-
-      current.outerHTML = html;
-
-      const params = new URLSearchParams();
-      if (payload.q) params.set("q", payload.q);
-      if (payload.exact) params.set("exact", "true");
-      if (payload.limit) params.set("limit", String(payload.limit));
-      if (payload.lens_id) params.set("lens_id", payload.lens_id);
-      const url = params.toString() ? `${form.action}?${params.toString()}` : form.action;
-      window.history.replaceState({}, "", url);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.showError(`Search failed: ${message}`);
-    } finally {
-      this.submitting = false;
-    }
+    await this.runSearch({ updateUrl: true });
   },
 });

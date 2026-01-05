@@ -4,7 +4,6 @@
 @import "./styles/tokens.css" layer(base);
 @import "./styles/base.css" layer(base);
 @import "./styles/components.css" layer(components);
-@import "./styles/lens-token.css" layer(components);
 @import "./styles/mention-panel.css" layer(components);
 @import "./styles/search-form.css" layer(components);
 @import "./styles/search-result.css" layer(components);

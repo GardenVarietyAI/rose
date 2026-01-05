@@ -127,7 +127,8 @@ export const threadMessagesPage = () => ({
         body: JSON.stringify({
           content: promptContent,
           thread_id: threadId,
-          lens_id: this.$refs?.lensSelect?.value || undefined,
+          lens_ids: this.$refs?.lensSelect?.value ? [this.$refs.lensSelect.value] : [],
+          factsheet_ids: [],
           model: model,
         }),
       });

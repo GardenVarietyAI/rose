@@ -23,6 +23,7 @@ class CreateMessageRequest(BaseModel):
     meta: dict[str, Any] | None = None
     generate_assistant: bool = False
     lens_id: str | None = None
+    factsheet_ids: list[str] | None = None
 
 
 class CreateMessageResponse(BaseModel):

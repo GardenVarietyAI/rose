@@ -9,6 +9,34 @@
   overflow-y: hidden;
 }
 
+.search-editor-wrap {
+  position: relative;
+}
+
+.search-gutter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-2);
+  margin-top: var(--size-2);
+}
+
+.search-chip {
+  display: inline-flex;
+  gap: var(--size-2);
+  align-items: baseline;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--rose-blue-6);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.search-chip-label {
+  color: var(--rose-gray-6);
+  text-decoration: none;
+}
+
 .search-editor {
   width: 100%;
   box-sizing: border-box;
