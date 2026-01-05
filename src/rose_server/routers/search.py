@@ -69,6 +69,15 @@ def _record_search_event(result: SearchResult, write_session: AsyncSession) -> N
     write_session.add(search_event)
 
 
+async def _load_picker_options(session: AsyncSession) -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
+    try:
+        lenses = await list_lens_picker_options(session)
+        factsheets = await list_factsheet_picker_options(session)
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    return lenses, factsheets
+
+
 async def _run_search_and_record(
     *,
     read_session: AsyncSession,
@@ -130,11 +139,7 @@ async def search_messages(
     response_data = SearchResponse(index="messages", query=result.query, hits=converted_hits)
 
     if "text/html" in request.headers.get("accept", ""):
-        try:
-            lenses = await list_lens_picker_options(read_session)
-            factsheets = await list_factsheet_picker_options(read_session)
-        except ValueError as e:
-            raise HTTPException(status_code=500, detail=str(e)) from e
+        lenses, factsheets = await _load_picker_options(read_session)
 
         return HtpyResponse(
             render_search(
@@ -171,11 +176,7 @@ async def search_messages_post(
     response_data = SearchResponse(index="messages", query=result.query, hits=converted_hits)
 
     if "text/html" in request.headers.get("accept", ""):
-        try:
-            lenses = await list_lens_picker_options(read_session)
-            factsheets = await list_factsheet_picker_options(read_session)
-        except ValueError as e:
-            raise HTTPException(status_code=500, detail=str(e)) from e
+        lenses, factsheets = await _load_picker_options(read_session)
 
         return HtpyResponse(
             render_search(
@@ -208,11 +209,7 @@ async def search_fragment(
         body=body,
         spell_checker=spell_checker,
     )
-    try:
-        lenses = await list_lens_picker_options(read_session)
-        factsheets = await list_factsheet_picker_options(read_session)
-    except ValueError as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+    lenses, factsheets = await _load_picker_options(read_session)
 
     return HtpyResponse(
         render_search_root(
