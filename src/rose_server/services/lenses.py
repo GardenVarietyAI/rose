@@ -1,4 +1,4 @@
-from sqlalchemy import func
+from sqlalchemy import Subquery, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
@@ -7,7 +7,7 @@ from rose_server.models.messages import Message
 LENS_OBJECT = "lens"
 
 
-def _latest_revision_subquery():
+def _latest_revision_subquery() -> Subquery:
     return (
         select(
             col(Message.root_message_id).label("root_id"),
@@ -59,8 +59,7 @@ async def validate_at_name_unique(session: AsyncSession, at_name: str, exclude_r
         select(Message)
         .join(
             subquery,
-            (col(Message.root_message_id) == subquery.c.root_id)
-            & (col(Message.id) == subquery.c.max_id),
+            (col(Message.root_message_id) == subquery.c.root_id) & (col(Message.id) == subquery.c.max_id),
         )
         .where(
             col(Message.object) == LENS_OBJECT,
@@ -84,8 +83,7 @@ async def list_lenses_messages(session: AsyncSession) -> list[Message]:
         select(Message)
         .join(
             subquery,
-            (col(Message.root_message_id) == subquery.c.root_id)
-            & (col(Message.id) == subquery.c.max_id),
+            (col(Message.root_message_id) == subquery.c.root_id) & (col(Message.id) == subquery.c.max_id),
         )
         .where(
             col(Message.object) == LENS_OBJECT,
@@ -101,22 +99,3 @@ async def get_lens_message(session: AsyncSession, lens_id: str) -> Message | Non
     if root_id is None:
         return None
     return await get_latest_lens_revision(session, root_id)
-
-
-async def get_lens_message_by_at_name(session: AsyncSession, at_name: str) -> Message | None:
-    subquery = _latest_revision_subquery()
-    result = await session.execute(
-        select(Message)
-        .join(
-            subquery,
-            (col(Message.root_message_id) == subquery.c.root_id)
-            & (col(Message.id) == subquery.c.max_id),
-        )
-        .where(
-            col(Message.object) == LENS_OBJECT,
-            col(Message.at_name) == at_name,
-            col(Message.deleted_at).is_(None),
-        )
-        .limit(1)
-    )
-    return result.scalar_one_or_none()
