@@ -28,6 +28,7 @@ from rose_server.schemas.threads import (
 )
 from rose_server.services import assistant, jobs
 from rose_server.services.llama import resolve_model, serialize_message_content
+from rose_server.services.threads_list_query import build_threads_list_queries
 from rose_server.settings import Settings
 from rose_server.views.pages.thread_activity import render_thread_activity
 from rose_server.views.pages.thread_messages import render_thread_messages
@@ -55,78 +56,17 @@ async def list_threads(
 
     normalized_import_source = import_source or None
 
-    offset = (page - 1) * limit
-
-    # Determine sort column and table alias
-    if sort == "last_activity":
-        sort_col = "ts.last_activity_at"
-    else:
-        sort_col = "tfm.created_at"
-
-    # Get distinct thread_ids with first message and metadata
-    threads_sql = """
-    WITH thread_first_messages AS (
-        SELECT
-            thread_id,
-            content as first_message_content,
-            role as first_message_role,
-            created_at,
-            import_source,
-            ROW_NUMBER() OVER (PARTITION BY thread_id ORDER BY created_at ASC, id ASC) as rn
-        FROM messages
-        WHERE deleted_at IS NULL
-            AND thread_id IS NOT NULL
-    ),
-    thread_stats AS (
-        SELECT
-            thread_id,
-            MAX(created_at) as last_activity_at,
-            MAX(CASE WHEN role = 'assistant' THEN 1 ELSE 0 END) as has_assistant_response
-        FROM messages
-        WHERE deleted_at IS NULL
-            AND thread_id IS NOT NULL
-        GROUP BY thread_id
+    threads_sql, threads_params, count_sql, count_params = build_threads_list_queries(
+        sort=sort,
+        page=page,
+        limit=limit,
+        date_from=date_from,
+        date_to=date_to,
+        has_assistant=normalized_has_assistant,
+        import_source=normalized_import_source,
     )
-    SELECT
-        tfm.thread_id,
-        tfm.first_message_content,
-        tfm.first_message_role,
-        tfm.created_at,
-        ts.last_activity_at,
-        ts.has_assistant_response,
-        tfm.import_source
-    FROM thread_first_messages tfm
-    JOIN thread_stats ts ON tfm.thread_id = ts.thread_id
-    WHERE tfm.rn = 1
-    """
 
-    where_clauses: list[str] = []
-    params: dict[str, Any] = {}
-
-    if date_from is not None:
-        where_clauses.append("tfm.created_at >= :date_from")
-        params["date_from"] = date_from
-
-    if date_to is not None:
-        where_clauses.append("tfm.created_at <= :date_to")
-        params["date_to"] = date_to
-
-    if normalized_has_assistant is not None:
-        where_clauses.append("ts.has_assistant_response = :has_assistant")
-        params["has_assistant"] = 1 if normalized_has_assistant else 0
-
-    if normalized_import_source is not None:
-        where_clauses.append("tfm.import_source = :import_source")
-        params["import_source"] = normalized_import_source
-
-    if where_clauses:
-        threads_sql += " AND " + " AND ".join(where_clauses)
-
-    threads_sql += f" ORDER BY {sort_col} DESC LIMIT :limit OFFSET :offset"
-    params["limit"] = limit
-    params["offset"] = offset
-
-    result = await session.execute(text(threads_sql), params)
+    result = await session.execute(text(threads_sql), threads_params)
     rows = result.mappings().all()
 
     threads = [
@@ -142,37 +82,6 @@ async def list_threads(
         for row in rows
     ]
 
-    # Get total count
-    count_sql = """
-    WITH thread_first_messages AS (
-        SELECT
-            thread_id,
-            created_at,
-            import_source,
-            ROW_NUMBER() OVER (PARTITION BY thread_id ORDER BY created_at ASC, id ASC) as rn
-        FROM messages
-        WHERE deleted_at IS NULL
-            AND thread_id IS NOT NULL
-    ),
-    thread_stats AS (
-        SELECT
-            thread_id,
-            MAX(CASE WHEN role = 'assistant' THEN 1 ELSE 0 END) as has_assistant_response
-        FROM messages
-        WHERE deleted_at IS NULL
-            AND thread_id IS NOT NULL
-        GROUP BY thread_id
-    )
-    SELECT COUNT(*)
-    FROM thread_first_messages tfm
-    JOIN thread_stats ts ON tfm.thread_id = ts.thread_id
-    WHERE tfm.rn = 1
-    """
-
-    if where_clauses:
-        count_sql += " AND " + " AND ".join(where_clauses)
-
-    count_params = {k: v for k, v in params.items() if k not in ["limit", "offset"]}
     count_result = await session.execute(text(count_sql), count_params)
     total = count_result.scalar_one()
 
