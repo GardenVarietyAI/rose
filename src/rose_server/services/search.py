@@ -161,32 +161,6 @@ async def run_search(
     original_query = q
     corrected_query: str | None = None
     used_keywords = False
-    search_mode: str | None = None
-
-    if not original_query:
-        if lens_id:
-            hits = await _fetch_hits(read_session, fts_query="", limit=limit, lens_id=lens_id)
-            return SearchResult(
-                original_query=original_query,
-                query="",
-                fts_query="",
-                corrected_query=None,
-                used_keywords=False,
-                search_mode="filter",
-                lens_id=lens_id,
-                hits=hits,
-            )
-        return SearchResult(
-            original_query=original_query,
-            query="",
-            fts_query="",
-            corrected_query=None,
-            used_keywords=False,
-            search_mode=None,
-            lens_id=lens_id,
-            hits=[],
-        )
-
     clean_query = original_query.strip()
     if not clean_query:
         if lens_id:
