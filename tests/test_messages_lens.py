@@ -26,3 +26,49 @@ def test_messages_generate_assistant_with_lens_id(client: TestClient) -> None:
     response_meta = responses[0]["meta"] or {}
     assert response_meta.get("lens_id") == lens_id
     assert response_meta.get("lens_at_name") == "socrates"
+
+
+def test_messages_generate_assistant_with_factsheets(client: TestClient) -> None:
+    factsheet_response = client.post(
+        "/v1/factsheets",
+        data={"tag": "factoids", "title": "Factoids", "body": "bananas are berries"},
+        headers={"Accept": "application/json"},
+    )
+    assert factsheet_response.status_code == 200
+    factsheet_id = factsheet_response.json()["uuid"]
+
+    created = client.post("/v1/threads", json={"messages": [{"role": "user", "content": "hi"}]})
+    assert created.status_code == 200
+    thread_id = created.json()["thread_id"]
+
+    generated = client.post(
+        "/v1/messages",
+        json={"thread_id": thread_id, "generate_assistant": True, "factsheet_ids": [factsheet_id]},
+    )
+    assert generated.status_code == 200
+
+    thread = client.get(f"/v1/threads/{thread_id}")
+    assert thread.status_code == 200
+    responses = thread.json()["responses"]
+    assert responses
+    response_meta = responses[0]["meta"] or {}
+    assert response_meta.get("factsheet_ids") == [factsheet_id]
+
+
+def test_messages_generate_assistant_rejects_unknown_factsheet(client: TestClient) -> None:
+    created = client.post("/v1/threads", json={"messages": [{"role": "user", "content": "hi"}]})
+    assert created.status_code == 200
+    thread_id = created.json()["thread_id"]
+
+    generated = client.post(
+        "/v1/messages",
+        json={"thread_id": thread_id, "generate_assistant": True, "factsheet_ids": ["not-a-real-id"]},
+    )
+    assert generated.status_code == 200
+
+    thread = client.get(f"/v1/threads/{thread_id}")
+    assert thread.status_code == 200
+    responses = thread.json()["responses"]
+    assert responses
+    response_meta = responses[0]["meta"] or {}
+    assert "factsheet_ids" not in response_meta

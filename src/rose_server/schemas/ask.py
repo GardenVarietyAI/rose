@@ -6,7 +6,8 @@ class AskRequest(BaseModel):
 
     content: str
     thread_id: str | None = None
-    lens_id: str | None = None
+    lens_ids: list[str] = []
+    factsheet_ids: list[str] = []
     model: str | None = None
 
     @field_validator("content")

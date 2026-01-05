@@ -12,6 +12,7 @@ class CreateThreadRequest(BaseModel):
     model: str | None = None
     messages: list[dict[str, Any]]
     lens_id: str | None = None
+    factsheet_ids: list[str] | None = None
 
     @field_validator("messages")
     @classmethod

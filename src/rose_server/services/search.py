@@ -198,7 +198,18 @@ async def _fetch_hits(
     where_parts.append("m.object IS NULL")
 
     if lens_id:
-        where_parts.append("m.lens_id = :lens_id")
+        where_parts.append(
+            """
+            EXISTS (
+                SELECT 1
+                FROM messages AS lm
+                WHERE lm.thread_id = m.thread_id
+                  AND lm.role = 'assistant'
+                  AND lm.deleted_at IS NULL
+                  AND lm.lens_id = :lens_id
+            )
+            """.strip()
+        )
         params["lens_id"] = lens_id
 
     sql = _FTS_QUERY_SQL.format(where=" AND ".join(where_parts))

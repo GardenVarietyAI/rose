@@ -80,6 +80,7 @@ async def run_generate_assistant_job(
     messages: list[dict[str, Any]],
     lens_id: str | None = None,
     lens_at_name: str | None = None,
+    factsheet_ids: list[str] | None = None,
     llama_client: httpx.AsyncClient,
     bind: Any,
 ) -> str | None:
@@ -122,6 +123,7 @@ async def run_generate_assistant_job(
                 "finish_reason": choice.finish_reason,
                 **({"lens_id": lens_id} if lens_id else {}),
                 **({"lens_at_name": lens_at_name} if lens_at_name else {}),
+                **({"factsheet_ids": factsheet_ids} if factsheet_ids else {}),
             },
         )
         session.add(assistant_message)

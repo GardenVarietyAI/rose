@@ -100,11 +100,18 @@ async def create_message(
             raise HTTPException(status_code=400, detail="Prompt content cannot be empty")
 
         lens_id = body.lens_id.strip() if body.lens_id else None
+        factsheet_ids = [factsheet_id.strip() for factsheet_id in (body.factsheet_ids or []) if factsheet_id.strip()]
 
-        job_id, generation_messages, lens_at_name = await assistant.prepare_and_generate_assistant(
+        (
+            job_id,
+            generation_messages,
+            lens_at_name,
+            resolved_factsheet_ids,
+        ) = await assistant.prepare_and_generate_assistant(
             session,
             user_message=prompt,
             lens_id=lens_id,
+            factsheet_ids=factsheet_ids,
         )
 
         background_tasks.add_task(
@@ -116,6 +123,7 @@ async def create_message(
             messages=generation_messages,
             lens_id=lens_id,
             lens_at_name=lens_at_name,
+            factsheet_ids=resolved_factsheet_ids,
             llama_client=llama_client,
             bind=session.bind,
         )

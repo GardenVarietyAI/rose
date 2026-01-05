@@ -25,7 +25,8 @@ class SearchResponse(BaseModel):
 
 
 class SearchRequest(BaseModel):
-    q: str = ""
+    content: str = ""
     limit: int = 10
     exact: bool = False
-    lens_id: str | None = None
+    lens_ids: list[str] = []
+    factsheet_ids: list[str] = []
