@@ -16,7 +16,13 @@ document.addEventListener("alpine:init", () => {
     ...window.TRANSPORT.search,
 
     _commit(next) {
-      const parsed = parseQueryModel(next);
+      const parsed = parseQueryModel({
+        content: next.content,
+        lens_ids: next.lens_ids,
+        factsheet_ids: next.factsheet_ids,
+        exact: next.exact,
+        limit: next.limit,
+      });
 
       this.content = parsed.content;
       this.lens_ids = parsed.lens_ids;
