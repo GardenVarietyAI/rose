@@ -15,6 +15,16 @@ class LensMeta(BaseModel):
     parent_message_id: str | None = None
 
 
+class FactsheetMeta(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    object: Literal["factsheet"] = "factsheet"
+    tag: str
+    title: str
+    root_message_id: str | None = None
+    parent_message_id: str | None = None
+
+
 class LensMessage(BaseModel):
     message: Message
 
@@ -49,6 +59,42 @@ class LensMessage(BaseModel):
         if self.message.meta is None:
             raise ValueError("Lens message missing meta")
         return str(self.message.meta["label"])
+
+
+class FactsheetMessage(BaseModel):
+    message: Message
+
+    @field_validator("message")
+    @classmethod
+    def validate_message(cls, value: Message) -> Message:
+        meta = value.meta
+        if meta is None:
+            raise ValueError("Fact sheet message missing meta")
+        try:
+            FactsheetMeta.model_validate(meta)
+        except ValidationError as e:
+            raise ValueError("Fact sheet message invalid meta") from e
+        if value.role != "system":
+            raise ValueError("Fact sheet message role must be 'system'")
+        return value
+
+    @property
+    def factsheet_id(self) -> str:
+        if self.message.meta and self.message.meta.get("root_message_id"):
+            return str(self.message.meta["root_message_id"])
+        return self.message.uuid
+
+    @property
+    def tag(self) -> str:
+        if self.message.meta is None:
+            raise ValueError("Fact sheet message missing meta")
+        return str(self.message.meta["tag"])
+
+    @property
+    def title(self) -> str:
+        if self.message.meta is None:
+            raise ValueError("Fact sheet message missing meta")
+        return str(self.message.meta["title"])
 
 
 class UserMessage(BaseModel):
