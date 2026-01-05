@@ -20,6 +20,10 @@ def render_search_form(
     selected_lens_id: str | None,
     hits_count: int,
 ) -> Node:
+    factsheet_title_show = (
+        "factsheetIdToTitle[factsheetId] && "
+        "factsheetIdToTitle[factsheetId] !== factsheetIdToTag[factsheetId]"
+    )
     return form(
         {
             "x-ref": "form",
@@ -70,7 +74,7 @@ def render_search_form(
                     span(
                         {
                             "x-text": "factsheetIdToTitle[factsheetId] || ''",
-                            "x-show": "factsheetIdToTitle[factsheetId] && factsheetIdToTitle[factsheetId] !== factsheetIdToTag[factsheetId]",
+                            "x-show": factsheet_title_show,
                         },
                         class_="search-chip-label",
                     ),
