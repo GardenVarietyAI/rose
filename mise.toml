@@ -13,7 +13,7 @@ ccache = "latest"
 
 [tasks]
 dev = "uv run rose-server"
-esbuild = "docker compose --profile tools run --rm esbuild src/rose_server/static/app/bundle.entry.js --minify --bundle --platform=browser --outfile=src/rose_server/static/app/bundle.js"
+esbuild = "./scripts/build.sh"
 cuda = "docker compose -f docker-compose.yml -f docker-compose.cuda.yml up -d"
 
 llama-clone = "test -d vendor/llama.cpp/.git || git clone https://github.com/ggml-org/llama.cpp vendor/llama.cpp"
