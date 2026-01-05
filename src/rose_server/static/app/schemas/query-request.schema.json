@@ -1,0 +1,38 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "content": {
+      "default": "",
+      "title": "Content",
+      "type": "string"
+    },
+    "exact": {
+      "default": false,
+      "title": "Exact",
+      "type": "boolean"
+    },
+    "factsheet_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Factsheet Ids",
+      "type": "array"
+    },
+    "lens_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Lens Ids",
+      "type": "array"
+    },
+    "limit": {
+      "default": 10,
+      "maximum": 100,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    }
+  },
+  "title": "QueryRequest",
+  "type": "object"
+}

@@ -43,3 +43,12 @@ services:
     working_dir: /app
     volumes:
       - .:/app
+
+  ajv:
+    build:
+      context: .
+      dockerfile: ajv/Dockerfile
+    profiles: [ "tools" ]
+    working_dir: /app
+    volumes:
+      - .:/app

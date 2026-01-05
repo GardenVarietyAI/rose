@@ -1,3 +1,5 @@
+import validateQueryRequest from "./query-request.validate.js";
+
 function encodeSq(params) {
   const raw = JSON.stringify(params);
   return btoa(unescape(encodeURIComponent(raw)))
@@ -25,6 +27,13 @@ export async function submitSearchFragment({
   }
   if (!formAction) {
     throw new Error("formAction is required");
+  }
+
+  if (!validateQueryRequest(payload)) {
+    const details = validateQueryRequest.errors
+      ? JSON.stringify(validateQueryRequest.errors)
+      : "unknown validation error";
+    throw new Error(`Invalid search payload: ${details}`);
   }
 
   const response = await fetch("/v1/search/fragment", {
