@@ -7,7 +7,7 @@ from typing import Any, Literal, cast
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from htpy.starlette import HtpyResponse
-from sqlalchemy import text
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 from sse_starlette.event import ServerSentEvent
@@ -170,28 +170,35 @@ async def get_thread(
     )
     prompt = prompt_result.scalar_one_or_none()
 
-    responses_sql = """
-        WITH ranked AS (
-            SELECT
-                id,
-                row_number() OVER (
-                    PARTITION BY COALESCE(root_message_id, uuid)
-                    ORDER BY created_at DESC, id DESC
-                ) AS rn
-            FROM messages
-            WHERE thread_id = :thread_id
-              AND role = 'assistant'
-              AND deleted_at IS NULL
+    root_expr = func.coalesce(col(Message.root_message_id), col(Message.uuid))
+    ranked = (
+        select(
+            col(Message.id).label("id"),
+            func.row_number()
+            .over(
+                partition_by=root_expr,
+                order_by=(col(Message.created_at).desc(), col(Message.id).desc()),
+            )
+            .label("rn"),
         )
-        SELECT m.*
-        FROM messages m
-        JOIN ranked r ON r.id = m.id
-        WHERE r.rn = 1
-        ORDER BY m.accepted_at DESC NULLS LAST, m.created_at DESC, m.id DESC
-    """
-    responses_result = await session.execute(
-        select(Message).from_statement(text(responses_sql)), {"thread_id": thread_id}
+        .where(
+            col(Message.thread_id) == thread_id,
+            col(Message.role) == "assistant",
+            col(Message.deleted_at).is_(None),
+        )
+        .cte("ranked")
     )
+    responses_stmt = (
+        select(Message)
+        .join(ranked, ranked.c.id == col(Message.id))
+        .where(ranked.c.rn == 1)
+        .order_by(
+            col(Message.accepted_at).desc().nullslast(),
+            col(Message.created_at).desc(),
+            col(Message.id).desc(),
+        )
+    )
+    responses_result = await session.execute(responses_stmt)
     responses = list(responses_result.scalars().all())
 
     if not prompt and not responses:
