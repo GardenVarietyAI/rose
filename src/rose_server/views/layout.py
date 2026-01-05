@@ -32,6 +32,7 @@ def render_page(*, title_text: str, content: Node, app_data: AppData | None = No
                     h1[a(href="/v1/search")["ROSE"]],
                     a(href="/v1/search")["Search"],
                     a(href="/v1/threads")["Threads"],
+                    a(href="/v1/factsheets")["Factsheets"],
                     a(href="/v1/lenses")["Lenses"],
                     a(href="/v1/import")["Import"],
                 ],

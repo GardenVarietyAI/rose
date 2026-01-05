@@ -85,3 +85,20 @@ def test_lens_create_rejects_duplicate_at_name(client: TestClient) -> None:
         headers={"Accept": "application/json"},
     )
     assert resp.status_code == 400
+
+
+def test_lens_update_noop_does_not_create_revision(client: TestClient) -> None:
+    first = _create_lens(client, at_name="noop", label="Noop", prompt="v1")
+    root_id = first["uuid"]
+
+    updated = client.post(
+        f"/v1/lenses/{root_id}",
+        data={"at_name": "noop", "label": "Noop", "system_prompt": "v1"},
+        headers={"Accept": "application/json"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["uuid"] == root_id
+
+    revisions = client.get(f"/v1/lenses/{root_id}/revisions", headers={"Accept": "application/json"})
+    assert revisions.status_code == 200
+    assert [rev["uuid"] for rev in revisions.json()] == [root_id]

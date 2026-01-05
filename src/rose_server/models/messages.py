@@ -12,6 +12,7 @@ class Message(SQLModel, table=True):
         Index("ix_messages_completion_id", "completion_id"),
         Index("ix_messages_lens_id", "lens_id"),
         Index("ix_messages_at_name", "at_name"),
+        Index("ix_messages_tag", "tag"),
         Index("ix_messages_object", "object"),
         Index("ix_messages_root_message_id", "root_message_id"),
         Index("ix_messages_parent_message_id", "parent_message_id"),
@@ -50,6 +51,11 @@ class Message(SQLModel, table=True):
     at_name: str | None = Field(
         default=None,
         sa_column=Column(String, Computed("json_extract(meta, '$.at_name')"), index=False),
+    )
+
+    tag: str | None = Field(
+        default=None,
+        sa_column=Column(String, Computed("json_extract(meta, '$.tag')"), index=False),
     )
 
     object: str | None = Field(

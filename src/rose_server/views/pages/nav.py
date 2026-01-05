@@ -10,6 +10,7 @@ def render_nav() -> Node:
             nav(class_="nav-page-links")[
                 a(href="/v1/search")["Search"],
                 a(href="/v1/threads")["Threads"],
+                a(href="/v1/factsheets")["Factsheets"],
                 a(href="/v1/lenses")["Lenses"],
                 a(href="/v1/import")["Import"],
             ],

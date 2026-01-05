@@ -135,6 +135,23 @@ async def update_lens(
 
     if current_lens.meta is None:
         raise HTTPException(status_code=400, detail="Lens missing meta")
+    if current_lens.content is None:
+        raise HTTPException(status_code=400, detail="Lens missing content")
+
+    try:
+        current_meta = LensMeta.model_validate(current_lens.meta)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail="Lens missing meta") from e
+
+    current_body = CreateLensRequest(
+        at_name=current_meta.at_name,
+        label=current_meta.label,
+        system_prompt=current_lens.content,
+    )
+    if current_body == body:
+        if "text/html" in request.headers.get("accept", ""):
+            return RedirectResponse(url=f"/v1/lenses/{root_id}/edit", status_code=303)
+        return current_lens
 
     if not await validate_at_name_unique(session, body.at_name, exclude_root_id=root_id):
         raise HTTPException(status_code=400, detail=f"Lens with at_name '{body.at_name}' already exists")
