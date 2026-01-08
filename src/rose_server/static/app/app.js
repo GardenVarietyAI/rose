@@ -1,6 +1,7 @@
 import { askButton } from "./components/ask-button.js";
 import { responseMessage } from "./components/response-message.js";
 import { searchForm } from "./components/search-form.js";
+import { exportPage } from "./pages/export.js";
 import { importPage } from "./pages/importer.js";
 import { threadMessagesPage } from "./pages/thread_messages.js";
 import { deleteConfirmPopover, threadsListPage } from "./pages/threads-list.js";
@@ -124,6 +125,7 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("askButton", askButton);
   Alpine.data("responseMessage", responseMessage);
   Alpine.data("searchForm", searchForm);
+  Alpine.data("exportPage", exportPage);
   Alpine.data("importPage", importPage);
   Alpine.data("threadMessagesPage", threadMessagesPage);
   Alpine.data("threadsListPage", threadsListPage);
