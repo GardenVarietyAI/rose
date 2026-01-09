@@ -1,186 +1,64 @@
-const VALIDATORS = {};
+export function importPage() {
+  return {
+    file: null,
+    importSource: "",
+    conversations: [],
+    importing: false,
+    stats: null,
 
-export const importPage = () => ({
-  preview: false,
-  importing: false,
-  complete: false,
-  threads: [],
-  parseReport: null,
-  selectedFormat: null,
-  banner: {
-    visible: false,
-    type: "",
-    message: "",
-    timeout: null
-  },
+    get totalMessages() {
+      return this.conversations.reduce(
+        (sum, conv) => sum + conv.messages.length,
+        0
+      );
+    },
 
-  get currentValidator() {
-    return VALIDATORS[this.selectedFormat];
-  },
+    async handleFile(event) {
+      this.file = event.target.files[0];
+      if (!this.file) {
+        this.conversations = [];
+        return;
+      }
 
-  handleFormatChange() {
-    this.threads = [];
-    this.parseReport = null;
-    this.preview = false;
-    this.closeBanner();
-    if (this.$refs.fileInput) {
-      this.$refs.fileInput.value = "";
-    }
-  },
-
-  showBanner(type, message) {
-    this.banner.visible = true;
-    this.banner.type = type;
-    this.banner.message = message;
-
-    if (this.banner.timeout) {
-      clearTimeout(this.banner.timeout);
-    }
-
-    this.banner.timeout = setTimeout(() => {
-      this.banner.visible = false;
-    }, 5000);
-  },
-
-  closeBanner() {
-    this.banner.visible = false;
-    if (this.banner.timeout) {
-      clearTimeout(this.banner.timeout);
-    }
-  },
-
-  get selectedCount() {
-    return this.threads.filter((t) => t.selected).length;
-  },
-
-  get totalMessageCount() {
-    return this.threads
-      .filter((t) => t.selected)
-      .reduce((sum, t) => sum + 1 + t.assistantMessages.length, 0);
-  },
-
-  get parseReportSummary() {
-    if (!this.parseReport) return "";
-    const r = this.parseReport;
-    const parts = [];
-
-    parts.push(`${r.parsed} records parsed`);
-
-    if (r.skipped > 0) {
-      const reasons = [];
-      if (r.errors.invalidJSON.length > 0) reasons.push(`${r.errors.invalidJSON.length} invalid JSON`);
-      if (r.errors.emptyContent > 0) reasons.push(`${r.errors.emptyContent} empty content`);
-      if (r.errors.validationErrors.length > 0) reasons.push(`${r.errors.validationErrors.length} validation errors`);
-
-      parts.push(`${r.skipped} skipped: ${reasons.join(", ")}`);
-    }
-
-    return parts.join(", ");
-  },
-
-  handleFileSelect(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
       try {
-        const text = e.target.result;
-        const { threads, report } = this.currentValidator.parse(text);
-        this.threads = threads;
-        this.parseReport = report;
-        this.preview = true;
+        const text = await this.file.text();
+        const lines = text.split("\n").filter((line) => line.trim());
 
-        if (report.skipped > 0) {
-          this.showBanner("error", this.parseReportSummary);
-        }
+        this.conversations = lines.map((line) => JSON.parse(line));
       } catch (error) {
         console.error("Parse error:", error);
-        this.showBanner("error", `Failed to parse file: ${error.message}`);
+        alert("Failed to parse JSONL file. Please check the format.");
+        this.conversations = [];
       }
-    };
-    reader.readAsText(file);
-  },
+    },
 
-  toggleAll() {
-    const allSelected = this.threads.every((t) => t.selected);
-    this.threads.forEach((t) => (t.selected = !allSelected));
-  },
+    async submitImport() {
+      if (!this.file || !this.importSource) {
+        return;
+      }
 
-  cancelImport() {
-    this.preview = false;
-    this.threads = [];
-    this.parseReport = null;
-    this.closeBanner();
-    this.$refs.fileInput.value = "";
-  },
-
-  async executeImport() {
-    if (this.importing || this.selectedCount === 0) return;
-
-    this.importing = true;
-    try {
-      const messages = [];
-      for (const thread of this.threads.filter((t) => t.selected)) {
-        messages.push({
-          thread_id: thread.threadId,
-          role: thread.userMessage.role,
-          content: thread.userMessage.content,
-          model: thread.userMessage.model,
-          created_at: thread.userMessage.created_at,
-          import_external_id: thread.userMessage.uuid,
-          meta: {
-            imported_external_id: thread.userMessage.uuid,
-            imported_external_session_id: thread.userMessage.sessionId,
-            imported_external_created_at: thread.userMessage.timestamp,
-          },
+      this.importing = true;
+      try {
+        const response = await fetch("/v1/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            import_source: this.importSource,
+            conversations: this.conversations,
+          }),
         });
 
-        for (const assistantMsg of thread.assistantMessages) {
-          messages.push({
-            thread_id: thread.threadId,
-            role: assistantMsg.role,
-            content: assistantMsg.content,
-            model: assistantMsg.model,
-            created_at: assistantMsg.created_at,
-            import_external_id: assistantMsg.uuid,
-            meta: {
-              imported_external_id: assistantMsg.uuid,
-              imported_external_session_id: assistantMsg.sessionId,
-              imported_external_created_at: assistantMsg.timestamp,
-            },
-          });
+        if (!response.ok) {
+          throw new Error("Import failed");
         }
+
+        this.stats = await response.json();
+      } catch (error) {
+        console.error("Import error:", error);
+        alert("Import failed. Please try again.");
+      } finally {
+        this.importing = false;
       }
-
-      const response = await fetch("/v1/import/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          import_source: this.currentValidator.importSource,
-          messages,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Could not import records.");
-      }
-
-      const result = await response.json();
-      this.preview = false;
-      this.complete = true;
-
-      const successMsg = result.skipped_duplicates > 0
-        ? `Imported ${result.imported} messages (skipped ${result.skipped_duplicates} duplicates)`
-        : `Successfully imported ${result.imported} messages`;
-
-      this.showBanner("success", successMsg);
-    } catch (error) {
-      console.error("Import error:", error);
-      this.showBanner("error", `Failed to import: ${error.message}`);
-      this.importing = false;
-    }
-  },
-});
+    },
+  };
+}

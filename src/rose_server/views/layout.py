@@ -34,6 +34,7 @@ def render_page(*, title_text: str, content: Node, app_data: AppData | None = No
                     a(href="/v1/threads")["Threads"],
                     a(href="/v1/factsheets")["Factsheets"],
                     a(href="/v1/lenses")["Lenses"],
+                    a(href="/v1/export")["Export"],
                     a(href="/v1/import")["Import"],
                 ],
                 main(class_="main-content")[content],
