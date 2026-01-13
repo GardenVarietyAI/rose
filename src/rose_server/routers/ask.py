@@ -2,7 +2,9 @@ import logging
 import uuid
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
@@ -17,9 +19,13 @@ from rose_server.settings import Settings
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["ask"])
 
+limiter = Limiter(key_func=get_remote_address)
+
 
 @router.post("/ask", response_model=AskResponse)
+@limiter.limit("10/minute")
 async def ask(
+    request: Request,  # Required by slowapi
     body: AskRequest,
     background_tasks: BackgroundTasks,
     settings: Settings = Depends(get_settings),
