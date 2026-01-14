@@ -41,3 +41,6 @@ AGENTS.md
 .env
 .env.docker
 /vendor/llama.cpp
+/mlx/adapters
+/mlx/llama.cpp
+/mlx/models
