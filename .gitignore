@@ -45,6 +45,3 @@ AGENTS.md
 
 # MLX artifacts
 /mlx/artifacts/
-
-# Local llama.cpp clones (should live under vendor/ if needed)
-/mlx/llama.cpp/
