@@ -21,3 +21,12 @@ mise ajv
 # or
 ./scripts/ajv.sh
 ```
+
+## convert_to_gguf.py
+
+- Converts a fused HuggingFace model directory to GGUF fp16 + quantized GGUF via `vendor/llama.cpp`.
+
+**Usage:**
+```bash
+./mlx/pipeline/convert_to_gguf.py --model mlx/artifacts/models/<name>/model --output mlx/artifacts/models/<name>/<name>-Q4_K_M.gguf --quant Q4_K_M
+```

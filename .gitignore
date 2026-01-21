@@ -15,6 +15,7 @@ build/
 .venv/
 venv/
 env/
+.uv-cache/
 
 # Data and databases
 /data/
@@ -41,6 +42,6 @@ AGENTS.md
 .env
 .env.docker
 /vendor/llama.cpp
-/mlx/adapters
-/mlx/llama.cpp
-/mlx/models
+
+# MLX artifacts
+/mlx/artifacts/
