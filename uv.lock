@@ -765,6 +765,7 @@ dev = [
     { name = "sqlalchemy", extra = ["mypy"] },
     { name = "types-aiofiles" },
     { name = "types-psutil" },
+    { name = "types-pyyaml" },
 ]
 
 [package.metadata]
@@ -798,6 +799,7 @@ dev = [
     { name = "sqlalchemy", extras = ["mypy"], specifier = ">=2.0.0" },
     { name = "types-aiofiles", specifier = ">=24.1.0.20250606" },
     { name = "types-psutil", specifier = ">=7.0.0.20250601" },
+    { name = "types-pyyaml", specifier = ">=6.0.12.20250606" },
 ]
 
 [[package]]
@@ -946,6 +948,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/e1/5d/32fe570f7e22bf638a49c881c5e2142beeda9dad6b21a15805af66571cd8/types_psutil-7.0.0.20250801.tar.gz", hash = "sha256:0230b56234252cc6f59c361dccbaaa08f3088ea3569367abe6900485d388c97d", size = 20238, upload-time = "2025-08-01T03:47:39.309Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/45/84/d18c8d2b53ba2024d110494483b7bdcc9741b7285cd396307b2941353b4d/types_psutil-7.0.0.20250801-py3-none-any.whl", hash = "sha256:751842baf9e0efa31b3a7722a38a3f9afeb5a7132b146a1960cd472db362faa0", size = 23058, upload-time = "2025-08-01T03:47:38.151Z" },
+]
+
+[[package]]
+name = "types-pyyaml"
+version = "6.0.12.20250915"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7e/69/3c51b36d04da19b92f9e815be12753125bd8bc247ba0470a982e6979e71c/types_pyyaml-6.0.12.20250915.tar.gz", hash = "sha256:0f8b54a528c303f0e6f7165687dd33fafa81c807fcac23f632b63aa624ced1d3", size = 17522, upload-time = "2025-09-15T03:01:00.728Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bd/e0/1eed384f02555dde685fff1a1ac805c1c7dcb6dd019c916fe659b1c1f9ec/types_pyyaml-6.0.12.20250915-py3-none-any.whl", hash = "sha256:e7d4d9e064e89a3b3cae120b4990cd370874d2bf12fa5f46c97018dd5d3c9ab6", size = 20338, upload-time = "2025-09-15T03:00:59.218Z" },
 ]
 
 [[package]]
