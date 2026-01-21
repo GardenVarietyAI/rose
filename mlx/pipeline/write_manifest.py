@@ -11,6 +11,7 @@ import subprocess
 import sys
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import mlx_lm  # pyright: ignore[reportMissingImports]
 import yaml  # pyright: ignore[reportMissingImports]
@@ -62,7 +63,7 @@ def _git_commit(repo_dir: Path) -> str | None:
     return commit if commit else None
 
 
-def _read_yaml_config(path: Path) -> dict:
+def _read_yaml_config(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as f:
         obj = yaml.safe_load(f)
     return obj if isinstance(obj, dict) else {}
@@ -108,7 +109,7 @@ def main() -> None:
 
     python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
 
-    train_config: dict | None = None
+    train_config: dict[str, Any] | None = None
     if train_config_path is not None:
         train_config = _read_yaml_config(train_config_path)
 

@@ -20,7 +20,7 @@ BASE_MODEL_RELATIVE = "models--mlx-community--Olmo-3-7B-Instruct-bf16/snapshots/
 
 SEED = 42
 ITERS = 600
-STEPS_PER_EVAL = 50
+STEPS_PER_EVAL = 100
 VAL_BATCHES = 5
 BATCH_SIZE = 1
 NUM_LAYERS = 16

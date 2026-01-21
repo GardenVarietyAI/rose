@@ -29,12 +29,11 @@ def _iter_jsonl_lines(path: Path) -> Iterator[tuple[int, str]]:
         items = json.loads(path.read_text(encoding="utf-8"))
         for idx, item in enumerate(items, start=1):
             question = item.get("Question")
-            cot = item.get("Complex_CoT")
             response = item.get("Response")
             messages = {
                 "messages": [
                     {"role": "user", "content": question},
-                    {"role": "assistant", "content": f"{cot}\n\n{response}".strip()},
+                    {"role": "assistant", "content": response},
                 ]
             }
             yield idx, json.dumps(messages, ensure_ascii=False)
