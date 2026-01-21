@@ -146,15 +146,13 @@ async def update_factsheet(
     if current is None:
         raise HTTPException(status_code=404, detail="Fact sheet not found")
 
-    if current.meta is None:
-        raise HTTPException(status_code=400, detail="Fact sheet missing meta")
-    if current.content is None:
-        raise HTTPException(status_code=400, detail="Fact sheet missing content")
-
     try:
         current_meta = FactsheetMeta.model_validate(current.meta)
     except ValidationError as e:
-        raise HTTPException(status_code=400, detail="Fact sheet missing meta") from e
+        raise HTTPException(status_code=400, detail="Invalid fact sheet meta") from e
+
+    if not current.content:
+        raise HTTPException(status_code=400, detail="Fact sheet missing content")
 
     current_body = CreateFactsheetRequest(tag=current_meta.tag, title=current_meta.title, body=current.content)
     if current_body == body:
@@ -189,15 +187,13 @@ async def download_factsheet(
     if factsheet is None:
         raise HTTPException(status_code=404, detail="Fact sheet not found")
 
-    if factsheet.meta is None:
-        raise HTTPException(status_code=400, detail="Fact sheet missing meta")
-    if factsheet.content is None:
-        raise HTTPException(status_code=400, detail="Fact sheet missing content")
-
     try:
         factsheet_meta = FactsheetMeta.model_validate(factsheet.meta)
     except ValidationError as e:
-        raise HTTPException(status_code=400, detail="Fact sheet missing meta") from e
+        raise HTTPException(status_code=400, detail="Invalid fact sheet meta") from e
+
+    if not factsheet.content:
+        raise HTTPException(status_code=400, detail="Fact sheet missing content")
 
     root_id = factsheet_meta.root_message_id
     post = frontmatter.Post(
@@ -230,7 +226,7 @@ async def get_factsheet_revisions(
         .where(col(Message.object) == "factsheet", col(Message.root_message_id) == root_id)
         .order_by(col(Message.created_at).desc(), col(Message.id).desc())
     )
-    return list(result.scalars().all())
+    return result.scalars().all()
 
 
 @router.post("/factsheets/{factsheet_id}/delete", response_model=None)

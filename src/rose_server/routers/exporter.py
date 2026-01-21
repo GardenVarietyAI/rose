@@ -15,7 +15,6 @@ from rose_server.services.exporter import (
     query_assistant_messages,
     query_thread_ids,
     query_user_messages,
-    split_dataset,
     write_jsonl,
 )
 from rose_server.services.lenses import list_lenses_messages
@@ -59,8 +58,6 @@ async def create_export(
         return ExportResponse(
             export_id=export_id,
             total_conversations=0,
-            train_count=0,
-            valid_count=0,
             created_at=created_at,
         )
 
@@ -79,44 +76,25 @@ async def create_export(
         session,
     )
 
-    train, valid = split_dataset(conversations, request.split_ratio)
-
     export_dir = _export_dir(export_id)
-    write_jsonl(train, export_dir / "train.jsonl")
-    write_jsonl(valid, export_dir / "valid.jsonl")
+    write_jsonl(conversations, export_dir / "conversations.jsonl")
 
     return ExportResponse(
         export_id=export_id,
         total_conversations=len(conversations),
-        train_count=len(train),
-        valid_count=len(valid),
         created_at=created_at,
     )
 
 
-@router.get("/export/training/{export_id}/train.jsonl", response_model=None)
-async def download_train(export_id: str) -> FileResponse:
+@router.get("/export/training/{export_id}/conversations.jsonl", response_model=None)
+async def download_conversations(export_id: str) -> FileResponse:
     export_dir = _export_dir(export_id)
-    filepath = export_dir / "train.jsonl"
+    filepath = export_dir / "conversations.jsonl"
     if not filepath.is_file():
         raise HTTPException(status_code=404, detail="Export file not found")
 
     return FileResponse(
         path=str(filepath),
         media_type="application/x-ndjson",
-        filename="train.jsonl",
-    )
-
-
-@router.get("/export/training/{export_id}/valid.jsonl", response_model=None)
-async def download_valid(export_id: str) -> FileResponse:
-    export_dir = _export_dir(export_id)
-    filepath = export_dir / "valid.jsonl"
-    if not filepath.is_file():
-        raise HTTPException(status_code=404, detail="Export file not found")
-
-    return FileResponse(
-        path=str(filepath),
-        media_type="application/x-ndjson",
-        filename="valid.jsonl",
+        filename="conversations.jsonl",
     )

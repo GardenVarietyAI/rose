@@ -40,13 +40,13 @@ class LensMessage(BaseModel):
             raise ValueError("Lens message invalid meta") from e
         if value.role != "system":
             raise ValueError("Lens message role must be 'system'")
+        if value.content is None or not str(value.content).strip():
+            raise ValueError("Lens message missing content")
         return value
 
     @property
     def lens_id(self) -> str:
-        if self.message.meta and self.message.meta.get("root_message_id"):
-            return str(self.message.meta["root_message_id"])
-        return self.message.uuid
+        return self.message.root_message_id or self.message.uuid
 
     @property
     def at_name(self) -> str:
@@ -76,13 +76,13 @@ class FactsheetMessage(BaseModel):
             raise ValueError("Fact sheet message invalid meta") from e
         if value.role != "system":
             raise ValueError("Fact sheet message role must be 'system'")
+        if value.content is None or not str(value.content).strip():
+            raise ValueError("Fact sheet message missing content")
         return value
 
     @property
     def factsheet_id(self) -> str:
-        if self.message.meta and self.message.meta.get("root_message_id"):
-            return str(self.message.meta["root_message_id"])
-        return self.message.uuid
+        return self.message.root_message_id or self.message.uuid
 
     @property
     def tag(self) -> str:

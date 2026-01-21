@@ -71,4 +71,4 @@ def test_messages_generate_assistant_rejects_unknown_factsheet(client: TestClien
     responses = thread.json()["responses"]
     assert responses
     response_meta = responses[0]["meta"] or {}
-    assert "factsheet_ids" not in response_meta
+    assert response_meta.get("factsheet_ids") == []

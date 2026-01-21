@@ -33,9 +33,7 @@ async def resolve_factsheet_uuid_to_root(session: AsyncSession, factsheet_uuid: 
     message = result.scalar_one_or_none()
     if message is None:
         return None
-    if message.meta and message.meta.get("root_message_id"):
-        return str(message.meta["root_message_id"])
-    return message.uuid
+    return message.root_message_id or message.uuid
 
 
 async def get_latest_factsheet_revision(session: AsyncSession, root_message_id: str) -> Message | None:
@@ -69,9 +67,9 @@ async def _is_factsheet_hashtag_unique(
             col(Message.tag) == hashtag,
         )
     )
-    messages = list(result.scalars().all())
+    messages = result.scalars().all()
     for msg in messages:
-        root_id = msg.meta.get("root_message_id") if msg.meta else msg.uuid
+        root_id = msg.root_message_id or msg.uuid
         if exclude_root_id and root_id == exclude_root_id:
             continue
         return False
@@ -97,7 +95,7 @@ async def list_factsheets_messages(session: AsyncSession) -> list[Message]:
         .where(col(Message.id).in_(latest_ids))
         .order_by(col(Message.created_at).desc(), col(Message.id).desc())
     )
-    return list(result.scalars().all())
+    return result.scalars().all()
 
 
 async def get_factsheet_message(session: AsyncSession, factsheet_id: str) -> Message | None:

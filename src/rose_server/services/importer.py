@@ -13,8 +13,6 @@ def parse_jsonl(content: str) -> list[Conversation]:
     conversations: list[Conversation] = []
 
     for line in lines:
-        if not line.strip():
-            continue
         data = json.loads(line)
         conversations.append(Conversation.model_validate(data))
 
@@ -33,10 +31,8 @@ async def import_conversations(
         thread_id = str(uuid.uuid4())
         base_timestamp = import_at
 
-        idx = 0
-        for msg in conv.messages:
-            if msg.role == "system":
-                continue
+        non_system_messages = [msg for msg in conv.messages if msg.role != "system"]
+        for idx, msg in enumerate(non_system_messages):
             message = Message(
                 uuid=str(uuid.uuid4()),
                 thread_id=thread_id,
@@ -51,7 +47,6 @@ async def import_conversations(
             )
             session.add(message)
             imported_count += 1
-            idx += 1
 
     return ImportResponse(
         imported_count=imported_count,

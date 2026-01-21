@@ -52,27 +52,6 @@ def render_export_page(lenses: list[Message]) -> Node:
                         *[option(value=lens_id)[lens_label] for lens_id, lens_label in lens_options],
                     ],
                 ],
-                div(class_="filter-group")[
-                    label(for_="split-ratio")["Train/valid split:"],
-                    div(class_="split-control")[
-                        input_(
-                            {
-                                "id": "split-ratio",
-                                "type": "range",
-                                "min": "0.5",
-                                "max": "0.99",
-                                "step": "0.01",
-                                "x-model.number": "splitRatio",
-                            }
-                        ),
-                        span(
-                            x_text=(
-                                "`${(splitRatio * 100).toFixed(0)}% train / "
-                                "${((1 - splitRatio) * 100).toFixed(0)}% valid`"
-                            )
-                        ),
-                    ],
-                ],
             ],
             button(
                 {
@@ -91,32 +70,15 @@ def render_export_page(lenses: list[Message]) -> Node:
                     "Total conversations: ",
                     span(x_text="stats ? stats.total_conversations : 0"),
                 ],
-                p[
-                    "Training set: ",
-                    span(x_text="stats ? stats.train_count : 0"),
-                    " conversations",
-                ],
-                p[
-                    "Validation set: ",
-                    span(x_text="stats ? stats.valid_count : 0"),
-                    " conversations",
-                ],
             ],
             div(class_="export-downloads")[
                 button(
                     {
-                        "@click": "downloadTrain()",
+                        "@click": "downloadConversations()",
                         "type": "button",
                         "class": "btn-download",
                     }
-                )["Download train.jsonl"],
-                button(
-                    {
-                        "@click": "downloadValid()",
-                        "type": "button",
-                        "class": "btn-download",
-                    }
-                )["Download valid.jsonl"],
+                )["Download conversations.jsonl"],
             ],
         ],
     ]

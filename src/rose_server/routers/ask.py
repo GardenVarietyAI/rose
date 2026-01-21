@@ -60,12 +60,8 @@ async def ask(
             SearchEvent(event_type="ask", search_mode="llm", query=content, result_count=0, thread_id=thread_id)
         )
 
-    lens_id: str | None = None
-    for candidate in body.lens_ids:
-        if candidate and candidate.strip():
-            lens_id = candidate.strip()
-            break
-    factsheet_ids = [factsheet_id for factsheet_id in body.factsheet_ids if factsheet_id]
+    lens_id = next((c.strip() for c in body.lens_ids if c and c.strip()), None)
+    factsheet_ids = [fid.strip() for fid in body.factsheet_ids if fid and fid.strip()]
 
     job_id, generation_messages, lens_at_name, resolved_factsheet_ids = await assistant.prepare_and_generate_assistant(
         session,

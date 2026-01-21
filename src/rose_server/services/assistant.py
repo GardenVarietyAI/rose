@@ -29,20 +29,11 @@ async def prepare_and_generate_assistant(
         try:
             lens = LensMessage(message=lens_message)
         except ValidationError as e:
-            raise HTTPException(status_code=400, detail="Lens missing meta") from e
+            raise HTTPException(status_code=400, detail="Invalid lens") from e
         lens_prompt = lens.message.content
-        if lens_prompt is None:
-            raise HTTPException(status_code=400, detail="Lens missing content")
         lens_at_name = lens.at_name
 
-    normalized_factsheet_ids: list[str] = []
-    if factsheet_ids:
-        seen: set[str] = set()
-        for factsheet_id in factsheet_ids:
-            if not factsheet_id or factsheet_id in seen:
-                continue
-            normalized_factsheet_ids.append(factsheet_id)
-            seen.add(factsheet_id)
+    normalized_factsheet_ids = list(dict.fromkeys(fid for fid in (factsheet_ids or []) if fid))
 
     resolved_factsheet_ids: list[str] = []
     factsheet_system_messages: list[dict[str, Any]] = []
@@ -53,10 +44,8 @@ async def prepare_and_generate_assistant(
         try:
             factsheet = FactsheetMessage(message=factsheet_message)
         except ValidationError as e:
-            raise HTTPException(status_code=400, detail="Factsheet missing meta") from e
+            raise HTTPException(status_code=400, detail="Invalid factsheet") from e
         factsheet_body = factsheet.message.content
-        if factsheet_body is None:
-            raise HTTPException(status_code=400, detail="Factsheet missing content")
 
         resolved_factsheet_ids.append(factsheet.factsheet_id)
         factsheet_system_messages.append(
@@ -65,9 +54,6 @@ async def prepare_and_generate_assistant(
                 "content": f"Factsheet: {factsheet.title} (#{factsheet.tag})\n\n{factsheet_body}",
             }
         )
-
-    if user_message.thread_id is None:
-        raise HTTPException(status_code=400, detail="User message missing thread_id")
 
     generation_messages: list[dict[str, Any]] = []
     if lens_prompt is not None:

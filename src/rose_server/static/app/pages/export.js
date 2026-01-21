@@ -2,7 +2,6 @@ export function exportPage() {
   return {
     acceptedOnly: true,
     lensId: "",
-    splitRatio: 0.9,
     generating: false,
     exportId: null,
     stats: null,
@@ -19,7 +18,6 @@ export function exportPage() {
               lens_id: this.lensId || null,
               thread_ids: null,
             },
-            split_ratio: this.splitRatio,
           }),
         });
 
@@ -37,12 +35,8 @@ export function exportPage() {
       }
     },
 
-    downloadTrain() {
-      window.location.href = `/v1/export/training/${this.exportId}/train.jsonl`;
-    },
-
-    downloadValid() {
-      window.location.href = `/v1/export/training/${this.exportId}/valid.jsonl`;
+    downloadConversations() {
+      window.location.href = `/v1/export/training/${this.exportId}/conversations.jsonl`;
     },
   };
 }

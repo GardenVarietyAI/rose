@@ -31,10 +31,7 @@ class StructuredSearchQuery(BaseModel):
 
 
 def _first_non_empty(values: list[str]) -> str | None:
-    for candidate in values:
-        if candidate and candidate.strip():
-            return candidate.strip()
-    return None
+    return next((v.strip() for v in values if v and v.strip()), None)
 
 
 def _decode_sq(value: str) -> dict[str, Any]:
@@ -43,11 +40,9 @@ def _decode_sq(value: str) -> dict[str, Any]:
         raw = base64.urlsafe_b64decode(padded.encode("utf-8"))
         decoded = raw.decode("utf-8")
         parsed = json.loads(decoded)
+        return parsed  # type: ignore[no-any-return]
     except (ValueError, json.JSONDecodeError, UnicodeDecodeError) as e:
         raise HTTPException(status_code=400, detail="Invalid sq") from e
-    if not isinstance(parsed, dict):
-        raise HTTPException(status_code=400, detail="Invalid sq")
-    return parsed
 
 
 def _convert_hits(hits: list[Any]) -> list[SearchHit]:

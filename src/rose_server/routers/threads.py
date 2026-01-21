@@ -7,7 +7,6 @@ from typing import Any, Literal, cast
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from htpy.starlette import HtpyResponse
-from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 from sse_starlette.event import ServerSentEvent
@@ -170,36 +169,33 @@ async def get_thread(
     )
     prompt = prompt_result.scalar_one_or_none()
 
-    root_expr = func.coalesce(col(Message.root_message_id), col(Message.uuid))
-    ranked = (
-        select(
-            col(Message.id).label("id"),
-            func.row_number()
-            .over(
-                partition_by=root_expr,
-                order_by=(col(Message.created_at).desc(), col(Message.id).desc()),
-            )
-            .label("rn"),
-        )
-        .where(
-            col(Message.thread_id) == thread_id,
-            col(Message.role) == "assistant",
-            col(Message.deleted_at).is_(None),
-        )
-        .cte("ranked")
-    )
-    responses_stmt = (
+    all_responses_result = await session.execute(
         select(Message)
-        .join(ranked, ranked.c.id == col(Message.id))
-        .where(ranked.c.rn == 1)
-        .order_by(
-            col(Message.accepted_at).desc().nullslast(),
-            col(Message.created_at).desc(),
-            col(Message.id).desc(),
-        )
+        .where(col(Message.thread_id) == thread_id)
+        .where(col(Message.role) == "assistant")
+        .where(col(Message.deleted_at).is_(None))
+        .order_by(col(Message.created_at).desc(), col(Message.id).desc())
     )
-    responses_result = await session.execute(responses_stmt)
-    responses = list(responses_result.scalars().all())
+    all_responses = list(all_responses_result.scalars().all())
+
+    seen_roots: set[str] = set()
+    latest_responses: list[Message] = []
+    for response in all_responses:
+        root_id = response.root_message_id or response.uuid
+        if root_id not in seen_roots:
+            latest_responses.append(response)
+            seen_roots.add(root_id)
+
+    responses = sorted(
+        latest_responses,
+        key=lambda m: (
+            m.accepted_at is not None,
+            m.accepted_at or 0,
+            m.created_at,
+            m.id,
+        ),
+        reverse=True,
+    )
 
     if not prompt and not responses:
         raise HTTPException(status_code=404, detail="Thread not found")
@@ -362,7 +358,7 @@ async def delete_thread(
     result = await session.execute(
         select(Message).where(col(Message.thread_id) == thread_id).where(col(Message.deleted_at).is_(None))
     )
-    messages = list(result.scalars().all())
+    messages = result.scalars().all()
 
     if not messages:
         raise HTTPException(status_code=404, detail="Thread not found")

@@ -54,7 +54,7 @@ async def list_messages(
     stmt = stmt.order_by(col(Message.created_at).desc(), col(Message.id).desc()).limit(limit)
 
     result = await session.execute(stmt)
-    messages = list(result.scalars().all())
+    messages = result.scalars().all()
 
     return ListMessagesResponse(messages=messages)
 

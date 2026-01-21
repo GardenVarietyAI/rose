@@ -3,7 +3,7 @@ import { responseMessage } from "./components/response-message.js";
 import { searchForm } from "./components/search-form.js";
 import { exportPage } from "./pages/export.js";
 import { importPage } from "./pages/importer.js";
-import { threadMessagesPage } from "./pages/thread_messages.js";
+import { threadMessagesPage } from "./pages/thread-messages.js";
 import { deleteConfirmPopover, threadsListPage } from "./pages/threads-list.js";
 import { markdownToHtml } from "./utils/markdown.js";
 import { parseQueryModel } from "./utils/query-model.js";

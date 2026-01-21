@@ -1,5 +1,4 @@
 import json
-import random
 from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,13 +11,8 @@ from rose_server.schemas.exporter import ChatMessage, Conversation
 def _first_by_thread(messages: list[Message]) -> dict[str, Message]:
     selected: dict[str, Message] = {}
     for msg in messages:
-        if msg.thread_id is None or not msg.thread_id.strip():
-            continue
-        if msg.content is None or not str(msg.content).strip():
-            continue
-        if msg.thread_id in selected:
-            continue
-        selected[msg.thread_id] = msg
+        if msg.thread_id and msg.thread_id not in selected:
+            selected[msg.thread_id] = msg
     return selected
 
 
@@ -39,7 +33,7 @@ async def query_thread_ids(
         query = query.where(col(Message.accepted_at).is_not(None))
 
     result = await session.execute(query)
-    return list(result.scalars().all())
+    return result.scalars().all()
 
 
 async def query_user_messages(
@@ -55,7 +49,7 @@ async def query_user_messages(
         )
         .order_by(col(Message.thread_id), col(Message.created_at).desc(), col(Message.id).desc())
     )
-    return list(result.scalars().all())
+    return result.scalars().all()
 
 
 async def query_assistant_messages(
@@ -84,7 +78,7 @@ async def query_assistant_messages(
     )
 
     result = await session.execute(query)
-    return list(result.scalars().all())
+    return result.scalars().all()
 
 
 async def build_conversations(
@@ -128,16 +122,6 @@ async def build_conversations(
         conversations.append(Conversation(messages=messages))
 
     return conversations
-
-
-def split_dataset(
-    conversations: list[Conversation],
-    ratio: float,
-) -> tuple[list[Conversation], list[Conversation]]:
-    shuffled = conversations.copy()
-    random.Random(42).shuffle(shuffled)
-    split_point = int(len(shuffled) * ratio)
-    return shuffled[:split_point], shuffled[split_point:]
 
 
 def write_jsonl(conversations: list[Conversation], filepath: Path) -> None:

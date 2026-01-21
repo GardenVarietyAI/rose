@@ -102,7 +102,7 @@ async def run_generate_assistant_job(
 
         choice = completion.choices[0]
         assistant_content = serialize_message_content(choice.message.content)
-        if assistant_content is None or not str(assistant_content).strip():
+        if not assistant_content:
             await create_job_event(
                 session,
                 job_id=job_id,
@@ -121,9 +121,9 @@ async def run_generate_assistant_job(
             meta={
                 "completion_id": completion.id,
                 "finish_reason": choice.finish_reason,
-                **({"lens_id": lens_id} if lens_id else {}),
-                **({"lens_at_name": lens_at_name} if lens_at_name else {}),
-                **({"factsheet_ids": factsheet_ids} if factsheet_ids else {}),
+                "lens_id": lens_id,
+                "lens_at_name": lens_at_name,
+                "factsheet_ids": factsheet_ids,
             },
         )
         session.add(assistant_message)

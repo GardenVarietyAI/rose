@@ -9,7 +9,6 @@ class ExportFilter(BaseModel):
 
 class ExportRequest(BaseModel):
     filters: ExportFilter
-    split_ratio: float = Field(ge=0.5, le=0.99)
 
 
 class ChatMessage(BaseModel):
@@ -24,6 +23,4 @@ class Conversation(BaseModel):
 class ExportResponse(BaseModel):
     export_id: str
     total_conversations: int
-    train_count: int
-    valid_count: int
     created_at: int

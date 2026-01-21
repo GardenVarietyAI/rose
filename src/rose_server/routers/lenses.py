@@ -152,15 +152,13 @@ async def update_lens(
     if current_lens is None:
         raise HTTPException(status_code=404, detail="Lens not found")
 
-    if current_lens.meta is None:
-        raise HTTPException(status_code=400, detail="Lens missing meta")
-    if current_lens.content is None:
-        raise HTTPException(status_code=400, detail="Lens missing content")
-
     try:
         current_meta = LensMeta.model_validate(current_lens.meta)
     except ValidationError as e:
-        raise HTTPException(status_code=400, detail="Lens missing meta") from e
+        raise HTTPException(status_code=400, detail="Invalid lens meta") from e
+
+    if not current_lens.content:
+        raise HTTPException(status_code=400, detail="Lens missing content")
 
     current_body = CreateLensRequest(
         at_name=current_meta.at_name,
@@ -204,15 +202,13 @@ async def download_lens(
     if lens is None:
         raise HTTPException(status_code=404, detail="Lens not found")
 
-    if lens.meta is None:
-        raise HTTPException(status_code=400, detail="Lens missing meta")
-    if lens.content is None:
-        raise HTTPException(status_code=400, detail="Lens missing content")
-
     try:
         lens_meta = LensMeta.model_validate(lens.meta)
     except ValidationError as e:
-        raise HTTPException(status_code=400, detail="Lens missing meta") from e
+        raise HTTPException(status_code=400, detail="Invalid lens meta") from e
+
+    if not lens.content:
+        raise HTTPException(status_code=400, detail="Lens missing content")
 
     root_id = lens_meta.root_message_id
     post = frontmatter.Post(
@@ -245,7 +241,7 @@ async def get_lens_revisions(
         .where(col(Message.object) == "lens", col(Message.root_message_id) == root_id)
         .order_by(col(Message.created_at).desc(), col(Message.id).desc())
     )
-    return list(result.scalars().all())
+    return result.scalars().all()
 
 
 @router.post("/lenses/{lens_id}/delete", response_model=None)
