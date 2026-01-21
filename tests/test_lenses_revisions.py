@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 def _create_lens(client: TestClient, *, at_name: str, label: str, prompt: str) -> dict:
     resp = client.post(
         "/v1/lenses",
-        data={"at_name": at_name, "label": label, "system_prompt": prompt},
+        json={"at_name": at_name, "label": label, "system_prompt": prompt},
         headers={"Accept": "application/json"},
     )
     assert resp.status_code == 200
@@ -81,7 +81,7 @@ def test_lens_create_rejects_duplicate_at_name(client: TestClient) -> None:
     _create_lens(client, at_name="coach", label="Coach", prompt="v1")
     resp = client.post(
         "/v1/lenses",
-        data={"at_name": "coach", "label": "Another", "system_prompt": "different"},
+        json={"at_name": "coach", "label": "Another", "system_prompt": "different"},
         headers={"Accept": "application/json"},
     )
     assert resp.status_code == 400

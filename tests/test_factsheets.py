@@ -4,14 +4,14 @@ from fastapi.testclient import TestClient
 def _create_factsheet(client: TestClient, *, tag: str, title: str, body: str) -> dict:
     resp = client.post(
         "/v1/factsheets",
-        data={"tag": tag, "title": title, "body": body},
+        json={"tag": tag, "title": title, "body": body},
         headers={"Accept": "application/json"},
     )
     assert resp.status_code == 200, resp.text
     return resp.json()
 
 
-def test_factsheets_create_list_and_edit_page(client: TestClient) -> None:
+def test_factsheets_create_list_and_get(client: TestClient) -> None:
     created = _create_factsheet(client, tag="productfaq", title="Product FAQ", body="hello")
     assert created["role"] == "system"
     assert created["meta"]["object"] == "factsheet"
@@ -23,9 +23,11 @@ def test_factsheets_create_list_and_edit_page(client: TestClient) -> None:
     items = listed.json()
     assert any(item["uuid"] == created["uuid"] for item in items)
 
-    edit_page = client.get(f"/v1/factsheets/{created['uuid']}/edit", headers={"Accept": "text/html"})
-    assert edit_page.status_code == 200
-    assert "factsheet" in edit_page.text.lower()
+    get_factsheet = client.get(f"/v1/factsheets/{created['uuid']}", headers={"Accept": "application/json"})
+    assert get_factsheet.status_code == 200
+    factsheet = get_factsheet.json()
+    assert factsheet["uuid"] == created["uuid"]
+    assert factsheet["meta"]["tag"] == "productfaq"
 
 
 def test_factsheets_update_creates_revision(client: TestClient) -> None:
@@ -52,8 +54,8 @@ def test_factsheets_update_creates_revision(client: TestClient) -> None:
 def test_factsheets_html_create_shows_in_list(client: TestClient) -> None:
     response = client.post(
         "/v1/factsheets",
-        data={"tag": "customer", "title": "Customer", "body": "details"},
-        headers={"Accept": "text/html"},
+        json={"tag": "customer", "title": "Customer", "body": "details"},
+        headers={"Accept": "application/json"},
     )
     assert response.status_code == 200
 

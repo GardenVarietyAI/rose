@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 def test_messages_generate_assistant_with_lens_id(client: TestClient) -> None:
     lens_response = client.post(
         "/v1/lenses",
-        data={"at_name": "socrates", "label": "Socrates", "system_prompt": "Use the socratic method."},
+        json={"at_name": "socrates", "label": "Socrates", "system_prompt": "Use the socratic method."},
         headers={"Accept": "application/json"},
     )
     assert lens_response.status_code == 200
@@ -31,7 +31,7 @@ def test_messages_generate_assistant_with_lens_id(client: TestClient) -> None:
 def test_messages_generate_assistant_with_factsheets(client: TestClient) -> None:
     factsheet_response = client.post(
         "/v1/factsheets",
-        data={"tag": "factoids", "title": "Factoids", "body": "bananas are berries"},
+        json={"tag": "factoids", "title": "Factoids", "body": "bananas are berries"},
         headers={"Accept": "application/json"},
     )
     assert factsheet_response.status_code == 200

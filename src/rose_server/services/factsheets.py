@@ -1,5 +1,5 @@
 from pydantic import ValidationError
-from sqlalchemy import Subquery, func
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
@@ -9,19 +9,16 @@ from rose_server.models.messages import Message
 FACTSHEET_OBJECT = "factsheet"
 
 
-def _latest_revision_subquery() -> Subquery:
-    return (
-        select(
-            col(Message.root_message_id).label("root_id"),
-            func.max(col(Message.id)).label("max_id"),
-        )
+async def _get_latest_revision_ids(session: AsyncSession) -> list[int]:
+    result = await session.execute(
+        select(func.max(col(Message.id)))
         .where(
             col(Message.object) == FACTSHEET_OBJECT,
             col(Message.deleted_at).is_(None),
         )
         .group_by(col(Message.root_message_id))
-        .subquery()
     )
+    return [row[0] for row in result.all()]
 
 
 async def resolve_factsheet_uuid_to_root(session: AsyncSession, factsheet_uuid: str) -> str | None:
@@ -61,17 +58,15 @@ async def _is_factsheet_hashtag_unique(
     hashtag: str,
     exclude_root_id: str | None = None,
 ) -> bool:
-    subquery = _latest_revision_subquery()
+    latest_ids = await _get_latest_revision_ids(session)
+    if not latest_ids:
+        return True
+
     result = await session.execute(
         select(Message)
-        .join(
-            subquery,
-            (col(Message.root_message_id) == subquery.c.root_id) & (col(Message.id) == subquery.c.max_id),
-        )
         .where(
-            col(Message.object) == FACTSHEET_OBJECT,
+            col(Message.id).in_(latest_ids),
             col(Message.tag) == hashtag,
-            col(Message.deleted_at).is_(None),
         )
     )
     messages = list(result.scalars().all())
@@ -93,17 +88,13 @@ async def validate_hashtag_unique(
 
 
 async def list_factsheets_messages(session: AsyncSession) -> list[Message]:
-    subquery = _latest_revision_subquery()
+    latest_ids = await _get_latest_revision_ids(session)
+    if not latest_ids:
+        return []
+
     result = await session.execute(
         select(Message)
-        .join(
-            subquery,
-            (col(Message.root_message_id) == subquery.c.root_id) & (col(Message.id) == subquery.c.max_id),
-        )
-        .where(
-            col(Message.object) == FACTSHEET_OBJECT,
-            col(Message.deleted_at).is_(None),
-        )
+        .where(col(Message.id).in_(latest_ids))
         .order_by(col(Message.created_at).desc(), col(Message.id).desc())
     )
     return list(result.scalars().all())

@@ -4,6 +4,20 @@ from fastapi import Form
 from pydantic import BaseModel, StringConstraints, field_validator
 
 
+class LensFrontmatter(BaseModel):
+    uuid: str
+    at_name: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, pattern=r"^[A-Za-z0-9]+$"),
+    ]
+    label: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+    @field_validator("at_name")
+    @classmethod
+    def validate_at_name(cls, value: str) -> str:
+        return value.lower()
+
+
 class CreateLensRequest(BaseModel):
     at_name: Annotated[
         str,
