@@ -31,6 +31,7 @@ dependencies = [
     "alembic>=1.17.2",
     "slowapi>=0.1.9",
     "hf>=1.2.4",
+    "python-frontmatter>=1.1.0",
 ]
 
 [project.scripts]

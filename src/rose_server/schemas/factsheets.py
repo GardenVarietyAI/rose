@@ -4,6 +4,20 @@ from fastapi import Form
 from pydantic import BaseModel, StringConstraints, field_validator
 
 
+class FactsheetFrontmatter(BaseModel):
+    uuid: str
+    tag: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, pattern=r"^[A-Za-z0-9]+$"),
+    ]
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+    @field_validator("tag")
+    @classmethod
+    def normalize_tag(cls, value: str) -> str:
+        return value.lower()
+
+
 class CreateFactsheetRequest(BaseModel):
     tag: Annotated[
         str,

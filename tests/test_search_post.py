@@ -32,7 +32,7 @@ def test_search_post_returns_html(client: TestClient) -> None:
 def test_search_with_lens_matches_user_query_within_lensed_threads(client: TestClient) -> None:
     lens_response = client.post(
         "/v1/lenses",
-        data={"at_name": "socrates", "label": "Socrates", "system_prompt": "Use the socratic method."},
+        json={"at_name": "socrates", "label": "Socrates", "system_prompt": "Use the socratic method."},
         headers={"Accept": "application/json"},
     )
     assert lens_response.status_code == 200

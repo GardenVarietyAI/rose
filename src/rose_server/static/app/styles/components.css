@@ -262,12 +262,6 @@
   cursor: pointer;
 }
 
-.lens-form input[type="text"],
-.lens-form textarea {
-  width: 100%;
-  box-sizing: border-box;
-}
-
 .tabs {
   display: flex;
   gap: var(--size-3);
