@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import Any, Literal
 
 from pydantic import BaseModel
@@ -61,4 +62,4 @@ class CreateRevisionResponse(BaseModel):
 
 
 class ListMessagesResponse(BaseModel):
-    messages: list[Message]
+    messages: Sequence[Message]

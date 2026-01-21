@@ -173,20 +173,7 @@ async def list_message_revisions(
     return ListRevisionsResponse(
         root_message_id=root_message_id,
         latest_message_uuid=latest_message_uuid,
-        messages=[
-            RevisionMessage(
-                uuid=revision.uuid,
-                thread_id=revision.thread_id,
-                role=revision.role,
-                content=revision.content,
-                reasoning=revision.reasoning,
-                model=revision.model,
-                meta=revision.meta,
-                created_at=revision.created_at,
-                accepted_at=revision.accepted_at,
-            )
-            for revision in revisions
-        ],
+        messages=[RevisionMessage.model_validate(r, from_attributes=True) for r in revisions],
     )
 
 

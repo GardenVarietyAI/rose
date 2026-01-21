@@ -263,18 +263,7 @@ async def get_thread_activity(
 
     return {
         "thread_id": thread_id,
-        "job_events": [
-            JobEventResponse(
-                uuid=je.uuid,
-                event_type=je.event_type,
-                job_id=je.job_id,
-                status=je.status,
-                created_at=je.created_at,
-                attempt=je.attempt,
-                error=je.error,
-            )
-            for je in job_events
-        ],
+        "job_events": [JobEventResponse.model_validate(je, from_attributes=True) for je in job_events],
     }
 
 
