@@ -1,10 +1,15 @@
-# LoRA training config for medical_o1
-# Run-specific params (model, data, iters, seed) are set via CLI in medical_o1.sh
-
 fine_tune_type: lora
 optimizer: adamw
 mask_prompt: true
 grad_checkpoint: true
+
+seed: 42
+iters: 600
+steps_per_eval: 100
+val_batches: 5
+batch_size: 1
+num_layers: 16
+max_seq_length: 4096
 save_every: 50
 
 lora_parameters:
@@ -13,7 +18,6 @@ lora_parameters:
   scale: 16.0
   dropout: 0.05
 
-# match to ITERS
 lr_schedule:
   name: cosine_decay
   warmup: 50

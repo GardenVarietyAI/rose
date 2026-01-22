@@ -1,6 +1,6 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --script --prerelease=allow
 # /// script
-# dependencies = ["numpy", "sentencepiece", "transformers", "protobuf", "torch"]
+# dependencies = ["numpy==2.4.1", "sentencepiece==0.2.1", "transformers==5.0.0rc1", "protobuf==6.33.4", "torch==2.9.1"]
 # ///
 import argparse
 import logging

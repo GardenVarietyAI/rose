@@ -3,6 +3,7 @@
 # dependencies = ["mlx-lm>=0.30.2"]
 # ///
 import argparse
+import json
 import logging
 import os
 import subprocess
@@ -16,25 +17,20 @@ logger = logging.getLogger(__name__)
 def main() -> None:
     parser = argparse.ArgumentParser(description="Fuse LoRA adapters with a base MLX model.")
     parser.add_argument("--model", required=True, help="Path to base MLX model.")
-    parser.add_argument("--adapter", required=True, help="Path to adapter directory (or checkpoint file).")
+    parser.add_argument("--checkpoint-metadata", required=True, help="Path to checkpoint metadata JSON.")
     parser.add_argument("--output", required=True, help="Output directory for fused model.")
     parser.add_argument("--dequantize", action="store_true", help="Fuse with --dequantize (recommended for GGUF).")
     args = parser.parse_args()
 
     model_dir = Path(args.model).expanduser().resolve()
-    adapter_path = Path(args.adapter).expanduser().resolve()
+    checkpoint_metadata_file = Path(args.checkpoint_metadata).expanduser().resolve()
     output_dir = Path(args.output).expanduser().resolve()
 
-    # Handle both directory and checkpoint file paths
-    if adapter_path.is_file():
-        adapter_dir = adapter_path.parent
-        checkpoint_file = adapter_path.name
-    elif adapter_path.is_dir():
-        adapter_dir = adapter_path
-        checkpoint_file = None
-    else:
-        logger.error("Adapter not found: %s", adapter_path)
-        sys.exit(2)
+    checkpoint_metadata = json.loads(checkpoint_metadata_file.read_text(encoding="utf-8"))
+    adapter_path = Path(checkpoint_metadata["path"])
+
+    adapter_dir = adapter_path.parent
+    checkpoint_file = adapter_path.name
 
     output_dir.parent.mkdir(parents=True, exist_ok=True)
 

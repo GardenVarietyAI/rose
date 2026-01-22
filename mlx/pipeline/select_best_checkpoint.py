@@ -3,6 +3,7 @@
 # dependencies = []
 # ///
 import argparse
+import json
 import logging
 import re
 import sys
@@ -46,7 +47,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Select best checkpoint by validation loss.")
     parser.add_argument("--log", required=True, help="Path to training log file.")
     parser.add_argument("--adapter-dir", required=True, help="Path to adapter directory with checkpoints.")
-    parser.add_argument("--output", help="Write best checkpoint path to file (optional).")
+    parser.add_argument("--output", required=True, help="Path to write checkpoint metadata JSON.")
     args = parser.parse_args()
 
     log_path = Path(args.log).expanduser().resolve()
@@ -74,13 +75,18 @@ def main() -> None:
         logger.warning("Checkpoint file for iter %d not found, using final adapter", best_iter)
         result_path = final_adapter
 
-    if args.output:
-        output_path = Path(args.output).expanduser().resolve()
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(str(result_path) + "\n", encoding="utf-8")
-        logger.info("Wrote best checkpoint path to: %s", output_path)
+    output_path = Path(args.output).expanduser().resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    print(result_path)
+    result = {
+        "path": str(result_path),
+        "iteration": best_iter,
+        "val_loss": best_loss,
+        "final_iteration": final_iter,
+        "final_val_loss": final_loss,
+    }
+    output_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    logger.info("Wrote best checkpoint: %s", output_path)
 
 
 if __name__ == "__main__":

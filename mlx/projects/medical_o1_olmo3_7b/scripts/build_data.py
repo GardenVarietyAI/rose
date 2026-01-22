@@ -30,6 +30,8 @@ def _iter_jsonl_lines(path: Path) -> Iterator[tuple[int, str]]:
         for idx, item in enumerate(items, start=1):
             question = item.get("Question")
             response = item.get("Response")
+            if not response:
+                continue
             messages = {
                 "messages": [
                     {"role": "user", "content": question},

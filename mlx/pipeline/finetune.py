@@ -19,26 +19,7 @@ def main() -> None:
     parser.add_argument("--train", required=True, help="Path to train.jsonl file.")
     parser.add_argument("--valid", required=True, help="Path to valid.jsonl file.")
     parser.add_argument("--output", required=True, help="Output directory for adapters.")
-    parser.add_argument("--iters", type=int, default=1000, help="Number of training iterations (default: 1000).")
-    parser.add_argument("--steps-per-eval", type=int, default=100, help="Steps between evaluations (default: 100).")
-    parser.add_argument("--val-batches", type=int, default=10, help="Number of validation batches (default: 10).")
-    parser.add_argument("--batch-size", type=int, default=1, help="Batch size (default: 1).")
-    parser.add_argument("--num-layers", type=int, default=8, help="Number of layers to fine-tune (default: 8).")
-    parser.add_argument("--max-seq-length", type=int, default=2048, help="Maximum sequence length (default: 2048).")
-    parser.add_argument("--grad-checkpoint", action="store_true", help="Enable gradient checkpointing.")
-    parser.add_argument("--fine-tune-type", choices=["lora", "dora", "full"], help="Type of fine-tuning.")
-    parser.add_argument("--optimizer", choices=["adam", "adamw", "muon", "sgd", "adafactor"], help="Optimizer.")
-    parser.add_argument(
-        "--mask-prompt",
-        action="store_true",
-        default=True,
-        help="Mask the prompt in the loss when training (default: enabled).",
-    )
-    parser.add_argument("--grad-accumulation-steps", type=int, help="Steps to accumulate before optimizer update.")
-    parser.add_argument("--resume-adapter-file", help="Path to resume training from fine-tuned weights.")
-    parser.add_argument("--save-every", type=int, help="Save the model every N iterations.")
-    parser.add_argument("--seed", type=int, help="The PRNG seed.")
-    parser.add_argument("--config", help="Path to YAML config file (for lora_parameters, lr_schedule, etc).")
+    parser.add_argument("--config", required=True, help="Path to YAML config file.")
     parser.add_argument("--log-file", help="Path to write training log output.")
     args = parser.parse_args()
 
@@ -60,28 +41,14 @@ def main() -> None:
         (temp_data_dir / "train.jsonl").symlink_to(train_file.absolute())
         (temp_data_dir / "valid.jsonl").symlink_to(valid_file.absolute())
 
-        config_path = Path(args.config).expanduser().resolve() if args.config else None
+        config_path = Path(args.config).expanduser().resolve()
 
         config: dict[str, Any] = {
             "--model": str(model_dir),
             "--train": True,
             "--data": str(temp_data_dir),
-            "--iters": args.iters,
-            "--steps-per-eval": args.steps_per_eval,
-            "--val-batches": args.val_batches,
-            "--batch-size": args.batch_size,
-            "--num-layers": args.num_layers,
-            "--max-seq-length": args.max_seq_length,
             "--adapter-path": str(output_dir),
-            "--grad-checkpoint": args.grad_checkpoint,
-            "--fine-tune-type": args.fine_tune_type,
-            "--optimizer": args.optimizer,
-            "--mask-prompt": args.mask_prompt,
-            "--grad-accumulation-steps": args.grad_accumulation_steps,
-            "--resume-adapter-file": args.resume_adapter_file,
-            "--save-every": args.save_every,
-            "--seed": args.seed,
-            "--config": str(config_path) if config_path else None,
+            "--config": str(config_path),
         }
 
         cmd: list[str] = [sys.executable, "-m", "mlx_lm", "lora"]
