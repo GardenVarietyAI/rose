@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run --script
 # /// script
-# dependencies = ["mlx-lm>=0.30.2", "pyyaml"]
+# dependencies = ["mlx-lm==0.30.2", "pyyaml"]
 # ///
 import argparse
 import datetime
@@ -76,6 +76,7 @@ def main() -> None:
     parser.add_argument("--valid", required=True, help="Path to validation JSONL (for hashing).")
     parser.add_argument("--train-config", required=True, help="Path to training YAML config.")
     parser.add_argument("--checkpoint-metadata", required=True, help="Path to checkpoint metadata JSON.")
+    parser.add_argument("--adapters", required=True, help="Path to adapters directory.")
     parser.add_argument("--gguf", required=True, help="Path to final GGUF file (for hashing).")
     parser.add_argument("--llama-cpp", required=True, help="Path to llama.cpp directory.")
     args = parser.parse_args()
@@ -86,7 +87,9 @@ def main() -> None:
     train_config_path = Path(args.train_config).expanduser().resolve()
     checkpoint_metadata_file = Path(args.checkpoint_metadata).expanduser().resolve()
     checkpoint_metadata = json.loads(checkpoint_metadata_file.read_text(encoding="utf-8"))
-    adapter_path = Path(checkpoint_metadata["path"])
+    adapter_dir = Path(args.adapters).expanduser().resolve()
+    best_iteration: int = checkpoint_metadata["iteration"]
+    adapter_path = adapter_dir / f"{best_iteration:07d}_adapters.safetensors"
     gguf_path = Path(args.gguf).expanduser().resolve()
     llama_cpp_dir = Path(args.llama_cpp).expanduser().resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -114,6 +117,10 @@ def main() -> None:
         "dataset_train_samples": train_samples,
         "dataset_valid_samples": valid_samples,
         "training_config": train_config,
+        "training_best_iteration": checkpoint_metadata["iteration"],
+        "training_best_val_loss": checkpoint_metadata["val_loss"],
+        "training_final_iteration": checkpoint_metadata["final_iteration"],
+        "training_final_val_loss": checkpoint_metadata["final_val_loss"],
         "env_python_version": python_version,
         "env_mlx_lm_version": mlx_lm.__version__,
         "env_llama_cpp_commit": _git_commit(llama_cpp_dir),

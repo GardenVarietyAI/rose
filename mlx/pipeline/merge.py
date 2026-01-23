@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run --script
 # /// script
-# dependencies = ["mlx-lm>=0.30.2"]
+# dependencies = ["mlx-lm==0.30.2"]
 # ///
 import argparse
 import json
@@ -17,20 +17,20 @@ logger = logging.getLogger(__name__)
 def main() -> None:
     parser = argparse.ArgumentParser(description="Fuse LoRA adapters with a base MLX model.")
     parser.add_argument("--model", required=True, help="Path to base MLX model.")
+    parser.add_argument("--adapters", required=True, help="Path to adapters directory.")
     parser.add_argument("--checkpoint-metadata", required=True, help="Path to checkpoint metadata JSON.")
     parser.add_argument("--output", required=True, help="Output directory for fused model.")
     parser.add_argument("--dequantize", action="store_true", help="Fuse with --dequantize (recommended for GGUF).")
     args = parser.parse_args()
 
     model_dir = Path(args.model).expanduser().resolve()
+    adapter_dir = Path(args.adapters).expanduser().resolve()
     checkpoint_metadata_file = Path(args.checkpoint_metadata).expanduser().resolve()
     output_dir = Path(args.output).expanduser().resolve()
 
     checkpoint_metadata = json.loads(checkpoint_metadata_file.read_text(encoding="utf-8"))
-    adapter_path = Path(checkpoint_metadata["path"])
-
-    adapter_dir = adapter_path.parent
-    checkpoint_file = adapter_path.name
+    best_iteration: int = checkpoint_metadata["iteration"]
+    checkpoint_file = f"{best_iteration:07d}_adapters.safetensors"
 
     output_dir.parent.mkdir(parents=True, exist_ok=True)
 

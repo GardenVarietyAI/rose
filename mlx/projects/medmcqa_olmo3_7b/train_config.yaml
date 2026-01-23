@@ -2,14 +2,16 @@ fine_tune_type: lora
 optimizer: adamw
 mask_prompt: true
 grad_checkpoint: true
+grad_accumulation_steps: 2
 
 seed: 42
-iters: 600
-steps_per_eval: 100
-val_batches: 5
+iters: 2000
+steps_per_report: 10
+steps_per_eval: 50
+val_batches: 25
 batch_size: 1
 num_layers: 16
-max_seq_length: 4096
+max_seq_length: 1024
 save_every: 50
 
 lora_parameters:
@@ -20,6 +22,6 @@ lora_parameters:
 
 lr_schedule:
   name: cosine_decay
-  warmup: 50
+  warmup: 100
   warmup_init: 1e-7
-  arguments: [1e-5, 600, 1e-7]  # [peak_lr, decay_steps, final_lr]
+  arguments: [5e-6, 2000, 5e-8]  # [peak_lr, decay_steps, final_lr]

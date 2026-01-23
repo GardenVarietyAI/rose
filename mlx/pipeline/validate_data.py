@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run --script
 # /// script
-# dependencies = ["mlx-lm>=0.30.2", "pyyaml"]
+# dependencies = ["mlx-lm==0.30.2", "pyyaml"]
 # ///
 import argparse
 import hashlib
