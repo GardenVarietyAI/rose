@@ -3,14 +3,27 @@ services:
     image: ghcr.io/ggml-org/llama.cpp:server-b7464
     env_file:
       - .env.docker
-    ports:
-      - "8080:8080"
     volumes:
       - ${HF_HOME:-~/.cache/huggingface}:/root/.cache/huggingface
       - ./llama-server/entrypoint.sh:/entrypoint.sh:ro
     entrypoint: [ "/entrypoint.sh" ]
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  aproxy:
+    build: ./aproxy
+    ports:
+      - "8000:8000"
+    environment:
+      - BACKENDS=http://llama-server:8080
+    depends_on:
+      llama-server:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -24,11 +37,11 @@ services:
     volumes:
       - .:/app:rw
     depends_on:
-      llama-server:
+      aproxy:
         condition: service_healthy
     environment:
       - SETTINGS_ENV_FILE=.env.docker
-      - OPENAI_BASE_URL=http://llama-server:8080/v1
+      - OPENAI_BASE_URL=http://aproxy:8000/v1
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8004/health" ]
       interval: 30s

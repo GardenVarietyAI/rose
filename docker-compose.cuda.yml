@@ -1,14 +1,55 @@
 services:
   llama-server:
-    image: ghcr.io/ggml-org/llama.cpp:server-cuda-b7464
+    build:
+      context: ./llama-server
+      dockerfile: Dockerfile.cuda
     runtime: nvidia
+    env_file:
+      - .env.docker
+    volumes:
+      - ${HF_HOME:-~/.cache/huggingface}:/root/.cache/huggingface:ro
+    entrypoint: [ "/entrypoint-cuda.sh" ]
     deploy:
+      replicas: 1
       resources:
         reservations:
           devices:
-            - capabilities: ["gpu"]
-              count: 1
+            - capabilities: [ "gpu" ]
+              device_ids: [ "0" ]
               driver: nvidia
+
+  llama-gpu1:
+    build:
+      context: ./llama-server
+      dockerfile: Dockerfile.cuda
+    runtime: nvidia
+    env_file:
+      - .env.docker
     volumes:
-      - ./llama-server/entrypoint-cuda.sh:/entrypoint-cuda.sh:ro
-    entrypoint: ["/entrypoint-cuda.sh"]
+      - ${HF_HOME:-~/.cache/huggingface}:/root/.cache/huggingface:ro
+    entrypoint: [ "/entrypoint-cuda.sh" ]
+    deploy:
+      replicas: 1
+      resources:
+        reservations:
+          devices:
+            - capabilities: [ "gpu" ]
+              device_ids: [ "1" ]
+              driver: nvidia
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  aproxy:
+    environment:
+      - BACKENDS=http://llama-server:8080,http://llama-gpu1:8080
+    depends_on:
+      llama-server:
+        condition: service_healthy
+      llama-gpu1:
+        condition: service_healthy
+
+  rose-server:
+    volumes: []

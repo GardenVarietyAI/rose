@@ -5,6 +5,7 @@ lockfile = true
 _.file = ".env"
 
 [tools]
+go = "1.25.6"
 python = "3.12"
 uv = "0.8.3"
 cmake = "latest"

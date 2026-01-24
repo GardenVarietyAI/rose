@@ -1,0 +1,4 @@
+FROM ghcr.io/ggml-org/llama.cpp:server-cuda-b7464
+COPY entrypoint-cuda.sh /entrypoint-cuda.sh
+RUN chmod +x /entrypoint-cuda.sh
+ENTRYPOINT ["/entrypoint-cuda.sh"]

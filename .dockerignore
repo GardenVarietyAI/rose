@@ -22,6 +22,10 @@ env/
 .git/
 .gitignore
 
+# Large directories
+vendor/
+mlx/
+
 # IDE
 .vscode/
 .idea/
@@ -41,3 +45,6 @@ CLAUDE.md
 .env.exmaple
 .env.docker.example
 AGENTS.md
+
+# aproxy builds
+aproxy/aproxy
